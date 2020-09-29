@@ -24,9 +24,6 @@ import org.jetbrains.jps.model.serialization.JpsProjectExtensionSerializer;
 import org.jetbrains.jps.uiDesigner.model.JpsUiDesignerConfiguration;
 import org.jetbrains.jps.uiDesigner.model.JpsUiDesignerExtensionService;
 
-/**
- * @author nik
- */
 public class JpsUiDesignerConfigurationSerializer extends JpsProjectExtensionSerializer {
   private static final SkipDefaultValuesSerializationFilters FILTERS = new SkipDefaultValuesSerializationFilters();
 
@@ -45,13 +42,5 @@ public class JpsUiDesignerConfigurationSerializer extends JpsProjectExtensionSer
     final JpsUiDesignerConfigurationImpl.UiDesignerConfigurationState defaultState =
       new JpsUiDesignerConfigurationImpl.UiDesignerConfigurationState();
     JpsUiDesignerExtensionService.getInstance().setUiDesignerConfiguration(project, new JpsUiDesignerConfigurationImpl(defaultState));
-  }
-
-  @Override
-  public void saveExtension(@NotNull JpsProject element, @NotNull Element componentTag) {
-    JpsUiDesignerConfiguration configuration = JpsUiDesignerExtensionService.getInstance().getUiDesignerConfiguration(element);
-    if (configuration != null) {
-      XmlSerializer.serializeInto(((JpsUiDesignerConfigurationImpl)configuration).getState(), componentTag, FILTERS);
-    }
   }
 }

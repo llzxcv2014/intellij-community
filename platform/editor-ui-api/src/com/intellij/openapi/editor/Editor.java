@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.editor;
 
 import com.intellij.openapi.Disposable;
@@ -208,6 +208,10 @@ public interface Editor extends UserDataHolder {
   @NotNull
   LogicalPosition visualToLogicalPosition(@NotNull VisualPosition visiblePos);
 
+  default int visualPositionToOffset(@NotNull VisualPosition pos) {
+    return logicalPositionToOffset(visualToLogicalPosition(pos));
+  }
+
   /**
    * Maps an offset in the document to a logical position.
    * <p>
@@ -247,6 +251,18 @@ public interface Editor extends UserDataHolder {
    */
   @NotNull
   VisualPosition offsetToVisualPosition(int offset, boolean leanForward, boolean beforeSoftWrap);
+
+  /**
+   * Maps an offset in the document to a visual line in editor.
+   *
+   * @param offset         the offset in the document.
+   * @param beforeSoftWrap flag to resolve the ambiguity, if there's a soft wrap at target offset. If {@code true}, visual line ending in
+   *                       soft wrap will be returned, otherwise - visual line following the wrap.
+   * @return the visual line.
+   */
+  default int offsetToVisualLine(int offset, boolean beforeSoftWrap) {
+    return offsetToVisualPosition(offset, false /* doesn't matter if only visual line is needed */, beforeSoftWrap).line;
+  }
 
   /**
    * Maps the pixel coordinates in the editor to a logical position.

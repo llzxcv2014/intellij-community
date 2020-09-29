@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.refactoring.lang;
 
@@ -18,13 +18,12 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.editor.ScrollType;
 import com.intellij.openapi.editor.colors.EditorColors;
-import com.intellij.openapi.editor.colors.EditorColorsManager;
-import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.CodeStyleManager;
@@ -44,7 +43,6 @@ import java.util.List;
 
 public abstract class ExtractIncludeFileBase<T extends PsiElement> implements RefactoringActionHandler, TitledHandler {
   private static final Logger LOG = Logger.getInstance(ExtractIncludeFileBase.class);
-  private static final String REFACTORING_NAME = RefactoringBundle.message("extract.include.file.title");
   protected PsiFile myIncludingFile;
   public static final String HELP_ID = "refactoring.extractInclude";
 
@@ -52,7 +50,7 @@ public abstract class ExtractIncludeFileBase<T extends PsiElement> implements Re
     return true;
   }
 
-  private static class IncludeDuplicate<E extends PsiElement> {
+  private static final class IncludeDuplicate<E extends PsiElement> {
     private final SmartPsiElementPointer<E> myStart;
     private final SmartPsiElementPointer<E> myEnd;
 
@@ -138,17 +136,15 @@ public abstract class ExtractIncludeFileBase<T extends PsiElement> implements Re
 
   private static void highlightInEditor(final Project project, final IncludeDuplicate pair, final Editor editor) {
     final HighlightManager highlightManager = HighlightManager.getInstance(project);
-    EditorColorsManager colorsManager = EditorColorsManager.getInstance();
-    TextAttributes attributes = colorsManager.getGlobalScheme().getAttributes(EditorColors.SEARCH_RESULT_ATTRIBUTES);
     final int startOffset = pair.getStart().getTextRange().getStartOffset();
     final int endOffset = pair.getEnd().getTextRange().getEndOffset();
-    highlightManager.addRangeHighlight(editor, startOffset, endOffset, attributes, true, null);
+    highlightManager.addRangeHighlight(editor, startOffset, endOffset, EditorColors.SEARCH_RESULT_ATTRIBUTES, true, null);
     final LogicalPosition logicalPosition = editor.offsetToLogicalPosition(startOffset);
     editor.getScrollingModel().scrollTo(logicalPosition, ScrollType.MAKE_VISIBLE);
   }
 
   @Override
-  public void invoke(@NotNull Project project, @NotNull PsiElement[] elements, DataContext dataContext) {
+  public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext dataContext) {
   }
 
   @NotNull
@@ -288,10 +284,14 @@ public abstract class ExtractIncludeFileBase<T extends PsiElement> implements Re
 
   @Override
   public String getActionTitle() {
-    return "Extract Include File...";
+    return RefactoringBundle.message("extract.include.file.action.title");
   }
 
-  protected String getRefactoringName() {
-    return REFACTORING_NAME;
+  protected @NlsContexts.DialogTitle String getRefactoringName() {
+    return getRefactoringNameText();
+  }
+
+  static @NlsContexts.DialogTitle String getRefactoringNameText() {
+    return RefactoringBundle.message("extract.include.file.title");
   }
 }

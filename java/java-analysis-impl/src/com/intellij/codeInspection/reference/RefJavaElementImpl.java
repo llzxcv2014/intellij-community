@@ -1,11 +1,13 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInspection.reference;
 
-import com.intellij.codeInspection.InspectionsBundle;
+import com.intellij.analysis.AnalysisBundle;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.util.Iconable;
 import com.intellij.psi.*;
-import com.intellij.util.IconUtil;
+import com.intellij.ui.CoreAwareIconManager;
+import com.intellij.ui.IconManager;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.Stack;
 import gnu.trove.THashSet;
@@ -16,6 +18,7 @@ import org.jetbrains.uast.*;
 import javax.swing.*;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 public abstract class RefJavaElementImpl extends RefElementImpl implements RefJavaElement {
@@ -45,7 +48,7 @@ public abstract class RefJavaElementImpl extends RefElementImpl implements RefJa
   protected RefJavaElementImpl(UDeclaration elem, PsiElement psi, RefManager manager) {
     super(getName(elem), psi, manager);
 
-    PsiModifierListOwner javaPsi = ObjectUtils.notNull(ObjectUtils.tryCast(elem.getJavaPsi(), PsiModifierListOwner.class));
+    PsiModifierListOwner javaPsi = Objects.requireNonNull(ObjectUtils.tryCast(elem.getJavaPsi(), PsiModifierListOwner.class));
     setAccessModifier(RefJavaUtil.getInstance().getAccessModifier(javaPsi));
     final boolean isSynth = javaPsi instanceof PsiMethod && psi instanceof SyntheticElement  || psi instanceof PsiSyntheticClass;
     if (isSynth) {
@@ -78,7 +81,7 @@ public abstract class RefJavaElementImpl extends RefElementImpl implements RefJa
      if (psiBaseClass == null) {
        return "anonymous class";
      } else {
-       return InspectionsBundle.message("inspection.reference.anonymous.name", psiBaseClass.getName());
+       return JavaAnalysisBundle.message("inspection.reference.anonymous.name", psiBaseClass.getName());
      }
    }
 
@@ -89,14 +92,14 @@ public abstract class RefJavaElementImpl extends RefElementImpl implements RefJa
    }
 
    if (element instanceof PsiMethod && element instanceof SyntheticElement ) {
-     return InspectionsBundle.message("inspection.reference.jsp.holder.method.anonymous.name");
+     return JavaAnalysisBundle.message("inspection.reference.jsp.holder.method.anonymous.name");
    }
 
    String name = null;
    if (element instanceof PsiNamedElement) {
      name = ((PsiNamedElement)element).getName();
    }
-   return name == null ? InspectionsBundle.message("inspection.reference.anonymous") : name;
+   return name == null ? AnalysisBundle.message("inspection.reference.anonymous") : name;
  }
 
   @Override
@@ -238,8 +241,8 @@ public abstract class RefJavaElementImpl extends RefElementImpl implements RefJa
 
   void setForbidProtectedAccess(RefElementImpl refFrom, @Nullable UExpression expressionFrom) {
     if (!checkFlag(FORBID_PROTECTED_ACCESS_MASK) &&
-        (expressionFrom instanceof UQualifiedReferenceExpression || 
-         expressionFrom instanceof UCallExpression && ((UCallExpression)expressionFrom).getKind() == UastCallKind.CONSTRUCTOR_CALL) && 
+        (expressionFrom instanceof UQualifiedReferenceExpression ||
+         expressionFrom instanceof UCallExpression && ((UCallExpression)expressionFrom).getKind() == UastCallKind.CONSTRUCTOR_CALL) &&
         RefJavaUtil.getPackage(refFrom) != RefJavaUtil.getPackage(this)) {
       setFlag(true, FORBID_PROTECTED_ACCESS_MASK);
     }
@@ -248,7 +251,7 @@ public abstract class RefJavaElementImpl extends RefElementImpl implements RefJa
   public boolean isProtectedAccessForbidden() {
     return checkFlag(FORBID_PROTECTED_ACCESS_MASK);
   }
-  
+
   RefJavaManager getRefJavaManager() {
     return getRefManager().getExtension(RefJavaManager.MANAGER);
   }
@@ -266,8 +269,11 @@ public abstract class RefJavaElementImpl extends RefElementImpl implements RefJa
     if (isSyntheticJSP()) {
       final PsiElement element = getPsiElement();
       if (element != null && element.isValid()) {
-        return IconUtil.getIcon(element.getContainingFile().getVirtualFile(),
-                                Iconable.ICON_FLAG_VISIBILITY | Iconable.ICON_FLAG_READ_STATUS, element.getProject());
+        IconManager iconManager = IconManager.getInstance();
+        if (iconManager instanceof CoreAwareIconManager) {
+          return ((CoreAwareIconManager)iconManager).getIcon(element.getContainingFile().getVirtualFile(),
+                                  Iconable.ICON_FLAG_VISIBILITY | Iconable.ICON_FLAG_READ_STATUS, element.getProject());
+        }
       }
     }
     return super.getIcon(expanded);

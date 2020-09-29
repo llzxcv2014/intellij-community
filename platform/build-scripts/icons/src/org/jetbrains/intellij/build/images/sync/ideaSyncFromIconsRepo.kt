@@ -1,15 +1,15 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.intellij.build.images.sync
 
 import com.intellij.util.lang.UrlClassLoader
 import org.jetbrains.intellij.build.images.generateIconsClasses
+import org.jetbrains.intellij.build.images.shutdownAppScheduledExecutorService
 import org.jetbrains.jps.model.java.JpsJavaExtensionService
 import org.jetbrains.jps.model.library.JpsOrderRootType
-import org.jetbrains.jps.model.serialization.JpsSerializationManager
 import org.jetbrains.jps.util.JpsPathUtil
 import java.io.File
 
-fun main(args: Array<String>) {
+fun main(args: Array<String>) = try {
   if (args.isEmpty()) System.err.println("If you haven't intended to start full icons sync" +
                                          " then please specify required icons repo's commit hashes" +
                                          " joined by comma, semicolon or space in arguments")
@@ -17,15 +17,20 @@ fun main(args: Array<String>) {
   echo("Syncing icons..")
   checkIcons()
   echo("Generating classes..")
-  generateIconsClasses()
+  generateIconsClasses(dbFile = null)
+  // TODO: perform compilation
   echo("Running tests..")
-  mapOf(
+  val tests = mapOf(
     "intellij.platform.tests" to listOf("com.intellij.ui.PlatformIconsAPITest"),
     "intellij.idea.ultimate.tests.main" to listOf("com.intellij.openapi.icons.UltimateIconClassesTest",
                                                   "com.intellij.openapi.icons.UltimateImageResourcesSanityTest"),
     "intellij.platform.images.build" to listOf("org.jetbrains.intellij.build.images.CommunityIconClassesTest",
                                                "org.jetbrains.intellij.build.images.CommunityImageResourcesSanityTest")
-  ).also { runTests(tests = it.values.flatten(), modules = it.keys) }
+  )
+  runTests(tests = tests.values.flatten(), modules = tests.keys)
+}
+finally {
+  shutdownAppScheduledExecutorService()
 }
 
 private fun echo(msg: String) = println("\n** $msg")
@@ -48,9 +53,8 @@ private fun runTests(tests: Collection<String>, modules: Collection<String>) {
 }
 
 private fun dependencies(projectPath: String, module: String) =
-  JpsSerializationManager.getInstance()
-    .loadModel(projectPath, null)
-    .project.modules.first { it.name == module }
+  jpsProject(projectPath)
+    .modules.first { it.name == module }
     .let(JpsJavaExtensionService::dependencies)
     .recursively().libraries
     .flatMap { it.getRoots(JpsOrderRootType.COMPILED) }

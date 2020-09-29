@@ -1,18 +1,30 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs;
 
 import com.intellij.openapi.vfs.newvfs.NewVirtualFileSystem;
+import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.SystemIndependent;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
 
+/**
+ * We have two roles behind the {@link LocalFileSystem} class.
+ * <br/>
+ * The first role - an API entry point to exchange some local files
+ * with a {@link VirtualFile}.
+ * <br/>
+ * The second role - the implementation of the
+ * filesystem itself which is needed to to implement the {@link VirtualFile}
+ * and underlying services, this part is used via the {@link com.intellij.openapi.vfs.newvfs.VfsImplUtil}
+ */
 public abstract class LocalFileSystem extends NewVirtualFileSystem {
   public static final String PROTOCOL = StandardFileSystems.FILE_PROTOCOL;
   public static final String PROTOCOL_PREFIX = StandardFileSystems.FILE_PROTOCOL_PREFIX;
@@ -28,29 +40,58 @@ public abstract class LocalFileSystem extends NewVirtualFileSystem {
   @Nullable
   public abstract VirtualFile findFileByIoFile(@NotNull File file);
 
+  public final @Nullable VirtualFile findFileByNioFile(@NotNull Path file) {
+    return findFileByPath(file.toString().replace(File.separatorChar, '/'));
+  }
+
   @Nullable
   public abstract VirtualFile refreshAndFindFileByIoFile(@NotNull File file);
 
-  /**
-   * Performs a non-recursive synchronous refresh of specified files.
-   *
-   * @param files files to refresh.
-   */
-  public abstract void refreshIoFiles(@NotNull Iterable<? extends File> files);
-
-  public abstract void refreshIoFiles(@NotNull Iterable<? extends File> files, boolean async, boolean recursive, @Nullable Runnable onFinish);
+  public final @Nullable VirtualFile refreshAndFindFileByNioFile(@NotNull Path file) {
+    return refreshAndFindFileByPath(file.toString().replace(File.separatorChar, '/'));
+  }
 
   /**
    * Performs a non-recursive synchronous refresh of specified files.
    *
    * @param files files to refresh.
+   * @see #refreshIoFiles(Iterable, boolean, boolean, Runnable)
    */
-  public abstract void refreshFiles(@NotNull Iterable<? extends VirtualFile> files);
+  public void refreshIoFiles(@NotNull Iterable<? extends File> files) {
+    refreshIoFiles(files, false, false, null);
+  }
 
-  public abstract void refreshFiles(@NotNull Iterable<? extends VirtualFile> files, boolean async, boolean recursive, @Nullable Runnable onFinish);
+  public final void refreshNioFiles(@NotNull Iterable<Path> files) {
+    refreshIoFiles(ContainerUtil.map(files, Path::toFile), false, false, null);
+  }
+
+  /**
+   * Performs the refresh of the specified files based on filesystem events that have already been received. To perform refresh reliably
+   * for file operations that have just finished (so that related events might not have been generated),
+   * use {@link VfsUtil#markDirtyAndRefresh(boolean, boolean, boolean, File...)} instead.
+   */
+  public abstract void refreshIoFiles(@NotNull Iterable<? extends File> files,
+                                      boolean async,
+                                      boolean recursive,
+                                      @Nullable Runnable onFinish);
+
+  /**
+   * Performs a non-recursive synchronous refresh of specified files.
+   *
+   * @param files files to refresh.
+   */
+  public void refreshFiles(@NotNull Iterable<? extends VirtualFile> files) {
+    refreshFiles(files, false, false, null);
+  }
+
+  public abstract void refreshFiles(@NotNull Iterable<? extends VirtualFile> files,
+                                    boolean async,
+                                    boolean recursive,
+                                    @Nullable Runnable onFinish);
 
   public interface WatchRequest {
     @NotNull @SystemIndependent String getRootPath();
+
     boolean isToWatchRecursively();
   }
 

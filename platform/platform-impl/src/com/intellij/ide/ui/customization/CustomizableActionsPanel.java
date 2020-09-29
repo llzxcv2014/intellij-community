@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.ui.customization;
 
 import com.intellij.icons.AllIcons;
@@ -18,6 +18,7 @@ import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.io.FileUtil;
@@ -53,6 +54,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.*;
+import java.util.function.Supplier;
 
 public class CustomizableActionsPanel {
   private static final Logger LOG = Logger.getInstance(CustomizableActionsPanel.class);
@@ -258,7 +260,8 @@ public class CustomizableActionsPanel {
         if (userObject instanceof Group) {
           Group group = (Group)userObject;
           String name = group.getName();
-          append(name != null ? name : ObjectUtils.notNull(group.getId(), "<unnamed group>"));
+          @NlsSafe String id = group.getId();
+          append(name != null ? name : ObjectUtils.notNull(id, IdeBundle.message("action.group.name.unnamed.group")));
           icon = ObjectUtils.notNull(group.getIcon(), AllIcons.Nodes.Folder);
         }
         else if (userObject instanceof String) {
@@ -500,7 +503,7 @@ public class CustomizableActionsPanel {
       });
       new DoubleClickListener(){
         @Override
-        protected boolean onDoubleClick(MouseEvent event) {
+        protected boolean onDoubleClick(@NotNull MouseEvent event) {
           doOKAction();
           return true;
         }
@@ -579,11 +582,11 @@ public class CustomizableActionsPanel {
 
 
   private abstract class TreeSelectionAction extends DumbAwareAction {
-    private TreeSelectionAction(@Nullable String text) {
+    private TreeSelectionAction(@NotNull Supplier<String> text) {
       super(text);
     }
 
-    private TreeSelectionAction(@Nullable String text, @Nullable String description, @Nullable Icon icon) {
+    private TreeSelectionAction(@NotNull Supplier<String> text, @NotNull Supplier<String> description, @Nullable Icon icon) {
       super(text, description, icon);
     }
 
@@ -609,9 +612,9 @@ public class CustomizableActionsPanel {
     }
   }
 
-  private class AddActionActionTreeSelectionAction extends TreeSelectionAction {
+  private final class AddActionActionTreeSelectionAction extends TreeSelectionAction {
     private AddActionActionTreeSelectionAction() {
-      super(IdeBundle.message("button.add.action"));
+      super(IdeBundle.messagePointer("button.add.action"));
     }
 
     @Override
@@ -652,9 +655,9 @@ public class CustomizableActionsPanel {
     }
   }
 
-  private class AddSeparatorAction extends TreeSelectionAction {
+  private final class AddSeparatorAction extends TreeSelectionAction {
     private AddSeparatorAction() {
-      super(IdeBundle.message("button.add.separator"));
+      super(IdeBundle.messagePointer("button.add.separator"));
     }
 
     @Override
@@ -682,9 +685,9 @@ public class CustomizableActionsPanel {
     }
   }
 
-  private class RemoveAction extends TreeSelectionAction {
+  private final class RemoveAction extends TreeSelectionAction {
     private RemoveAction() {
-      super(IdeBundle.message("button.remove"), null, AllIcons.General.Remove);
+      super(IdeBundle.messagePointer("button.remove"), Presentation.NULL_STRING, AllIcons.General.Remove);
       ShortcutSet shortcutSet = KeymapUtil.filterKeyStrokes(CommonShortcuts.getDelete(),
                                                             KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0),
                                                             KeyStroke.getKeyStroke(KeyEvent.VK_BACK_SPACE, 0));
@@ -709,9 +712,9 @@ public class CustomizableActionsPanel {
     }
   }
 
-  private class EditIconAction extends TreeSelectionAction {
+  private final class EditIconAction extends TreeSelectionAction {
     private EditIconAction() {
-      super(IdeBundle.message("button.edit.action.icon"), null, AllIcons.Actions.Edit);
+      super(IdeBundle.messagePointer("button.edit.action.icon"), Presentation.NULL_STRING, AllIcons.Actions.Edit);
       registerCustomShortcutSet(CommonShortcuts.getEditSource(), myPanel);
     }
 
@@ -747,9 +750,9 @@ public class CustomizableActionsPanel {
     }
   }
 
-  private class MoveUpAction extends TreeSelectionAction {
+  private final class MoveUpAction extends TreeSelectionAction {
     private MoveUpAction() {
-      super(IdeBundle.message("button.move.up"), null, AllIcons.Actions.MoveUp);
+      super(IdeBundle.messagePointer("button.move.up"), Presentation.NULL_STRING, AllIcons.Actions.MoveUp);
       registerCustomShortcutSet(CommonShortcuts.MOVE_UP, myPanel);
     }
 
@@ -781,9 +784,9 @@ public class CustomizableActionsPanel {
     }
   }
 
-  private class MoveDownAction extends TreeSelectionAction {
+  private final class MoveDownAction extends TreeSelectionAction {
     private MoveDownAction() {
-      super(IdeBundle.message("button.move.down"), null, AllIcons.Actions.MoveDown);
+      super(IdeBundle.messagePointer("button.move.down"), Presentation.NULL_STRING, AllIcons.Actions.MoveDown);
       registerCustomShortcutSet(CommonShortcuts.MOVE_DOWN, myPanel);
     }
 
@@ -816,9 +819,9 @@ public class CustomizableActionsPanel {
     }
   }
 
-  private class RestoreSelectionAction extends DumbAwareAction {
+  private final class RestoreSelectionAction extends DumbAwareAction {
     private RestoreSelectionAction() {
-      super(IdeBundle.message("button.restore.selected.groups"));
+      super(IdeBundle.messagePointer("button.restore.selected.groups"));
     }
 
     private Pair<TreeSet<String>, List<ActionUrl>> findActionsUnderSelection() {
@@ -865,17 +868,17 @@ public class CustomizableActionsPanel {
       Pair<TreeSet<String>, List<ActionUrl>> selection = findActionsUnderSelection();
       e.getPresentation().setEnabled(!selection.second.isEmpty());
       if (selection.first.size() != 1) {
-        e.getPresentation().setText(IdeBundle.message("button.restore.selected.groups"));
+        e.getPresentation().setText(IdeBundle.messagePointer("button.restore.selected.groups"));
       }
       else {
-        e.getPresentation().setText(IdeBundle.message("button.restore.selection", selection.first.iterator().next()));
+        e.getPresentation().setText(IdeBundle.messagePointer("button.restore.selection", selection.first.iterator().next()));
       }
     }
   }
 
-  private class RestoreAllAction extends DumbAwareAction {
+  private final class RestoreAllAction extends DumbAwareAction {
     private RestoreAllAction() {
-      super(IdeBundle.message("button.restore.all"));
+      super(IdeBundle.messagePointer("button.restore.all"));
     }
 
     @Override

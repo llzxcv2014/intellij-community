@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.compiler
 
 import com.intellij.compiler.CompilerConfiguration
@@ -28,7 +28,11 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.pom.java.LanguageLevel
 import com.intellij.psi.PsiFile
-import com.intellij.testFramework.*
+import com.intellij.testFramework.CompilerTester
+import com.intellij.testFramework.EdtTestUtil
+import com.intellij.testFramework.IdeaTestUtil
+import com.intellij.testFramework.PlatformTestUtil
+import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.builders.JavaModuleFixtureBuilder
 import com.intellij.testFramework.fixtures.JavaCodeInsightFixtureTestCase
 import com.intellij.util.SystemProperties
@@ -36,11 +40,10 @@ import com.intellij.util.io.PathKt
 import groovy.transform.CompileStatic
 import org.jetbrains.annotations.NotNull
 import org.jetbrains.annotations.Nullable
-import org.jetbrains.plugins.groovy.bundled.BundledGroovy
+import org.jetbrains.plugins.groovy.GroovyProjectDescriptors
 import org.jetbrains.plugins.groovy.runner.GroovyScriptRunConfiguration
 import org.jetbrains.plugins.groovy.runner.GroovyScriptRunConfigurationType
 import org.jetbrains.plugins.groovy.util.Slow
-
 /**
  * @author aalmiray
  * @author peter
@@ -48,7 +51,6 @@ import org.jetbrains.plugins.groovy.util.Slow
 @Slow
 @CompileStatic
 abstract class GroovyCompilerTestCase extends JavaCodeInsightFixtureTestCase implements CompilerMethods {
-
   protected CompilerTester myCompilerTester
 
   @Override
@@ -79,15 +81,12 @@ abstract class GroovyCompilerTestCase extends JavaCodeInsightFixtureTestCase imp
   }
 
   @Override
-  protected void runTest() throws Throwable {
-    if (PlatformTestUtil.COVERAGE_ENABLED_BUILD) return
-
-    super.runTest()
+  protected boolean shouldRunTest() {
+    return !PlatformTestUtil.COVERAGE_ENABLED_BUILD
   }
 
   protected void addGroovyLibrary(final Module to) {
-    File jar = BundledGroovy.getBundledGroovyFile()
-    PsiTestUtil.addLibrary(to, "groovy", jar.getParent(), jar.getName())
+    GroovyProjectDescriptors.LIB_GROOVY_2_4.addTo(to)
   }
 
   @Override
@@ -155,12 +154,12 @@ abstract class GroovyCompilerTestCase extends JavaCodeInsightFixtureTestCase imp
   }
 
   @Nullable
-  protected VirtualFile findClassFile(String className) {
+  protected File findClassFile(String className) {
     return findClassFile(className, module)
   }
 
   @Nullable
-  protected VirtualFile findClassFile(String className, Module module) {
+  protected File findClassFile(String className, Module module) {
     return myCompilerTester.findClassFile(className, module)
   }
 

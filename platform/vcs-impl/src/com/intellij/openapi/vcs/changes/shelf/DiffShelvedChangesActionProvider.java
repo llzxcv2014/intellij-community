@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes.shelf;
 
 import com.intellij.diff.DiffContentFactory;
@@ -18,6 +18,7 @@ import com.intellij.openapi.actionSystem.AnActionExtensionProvider;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.diff.DiffBundle;
 import com.intellij.openapi.diff.impl.patch.*;
 import com.intellij.openapi.diff.impl.patch.apply.ApplyFilePatchBase;
 import com.intellij.openapi.diff.impl.patch.apply.GenericPatchApplier;
@@ -40,15 +41,18 @@ import com.intellij.openapi.vcs.changes.patch.ApplyPatchForBaseRevisionTexts;
 import com.intellij.openapi.vcs.changes.patch.tool.PatchDiffRequest;
 import com.intellij.openapi.vcs.changes.ui.ChangeDiffRequestChain;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread;
 import com.intellij.vcsUtil.VcsUtil;
-import org.jetbrains.annotations.CalledInBackground;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -56,16 +60,10 @@ import static com.intellij.diff.tools.util.DiffNotifications.createNotification;
 import static com.intellij.openapi.diagnostic.Logger.getInstance;
 import static com.intellij.openapi.vcs.changes.patch.PatchDiffRequestFactory.createConflictDiffRequest;
 import static com.intellij.openapi.vcs.changes.patch.PatchDiffRequestFactory.createDiffRequest;
-import static com.intellij.util.ObjectUtils.assertNotNull;
 import static com.intellij.util.ObjectUtils.chooseNotNull;
 
-public class DiffShelvedChangesActionProvider implements AnActionExtensionProvider {
+public final class DiffShelvedChangesActionProvider implements AnActionExtensionProvider {
   private static final Logger LOG = getInstance(DiffShelvedChangesActionProvider.class);
-
-  private static final String DIFF_WITH_BASE_ERROR = "Base content not found or not applicable.";
-  public static final String SHELVED_VERSION = "Shelved Version";
-  public static final String BASE_VERSION = "Base Version";
-  public static final String CURRENT_VERSION = "Current Version";
 
   @Override
   public boolean isActive(@NotNull AnActionEvent e) {
@@ -175,19 +173,18 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
     return AppliedTextPatch.create(applier.getAppliedInfo());
   }
 
-  static class PatchesPreloader {
+  final static class PatchesPreloader {
     private final Project myProject;
-    private final SoftHardCacheMap<String, PatchInfo> myFilePatchesMap = new SoftHardCacheMap<>(5, 5);
+    private final SoftHardCacheMap<Path, PatchInfo> myFilePatchesMap = new SoftHardCacheMap<>(5, 5);
     private final ReadWriteLock myLock = new ReentrantReadWriteLock(true);
 
     PatchesPreloader(final Project project) {
       myProject = project;
     }
 
-    @NotNull
-    @CalledInBackground
-    public TextFilePatch getPatch(final ShelvedChange shelvedChange, @Nullable CommitContext commitContext) throws VcsException {
-      String patchPath = shelvedChange.getPatchPath();
+    @RequiresBackgroundThread
+    public @NotNull TextFilePatch getPatch(@NotNull ShelvedChange shelvedChange, @Nullable CommitContext commitContext) throws VcsException {
+      Path patchPath = shelvedChange.getPatchPath();
       if (getInfoFromCache(patchPath) == null || isPatchFileChanged(patchPath)) {
         readFilePatchAndUpdateCaches(patchPath, commitContext);
       }
@@ -199,10 +196,10 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
           }
         }
       }
-      throw new VcsException("Can not find patch for " + shelvedChange.getBeforePath() + " in patch file.");
+      throw new VcsException(VcsBundle.message("changes.can.not.find.patch.for.path.in.patch.file", shelvedChange.getBeforePath()));
     }
 
-    private PatchInfo getInfoFromCache(@NotNull String patchPath) {
+    private PatchInfo getInfoFromCache(@NotNull Path patchPath) {
       try {
         myLock.readLock().lock();
         return myFilePatchesMap.get(patchPath);
@@ -212,11 +209,11 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
       }
     }
 
-    private void readFilePatchAndUpdateCaches(@NotNull String patchPath, @Nullable CommitContext commitContext) throws VcsException {
+    private void readFilePatchAndUpdateCaches(@NotNull Path patchPath, @Nullable CommitContext commitContext) throws VcsException {
       try {
         myLock.writeLock().lock();
         myFilePatchesMap.put(patchPath, new PatchInfo(ShelveChangesManager.loadPatches(myProject, patchPath, commitContext),
-                                                      new File(patchPath).lastModified()));
+                                                      Files.getLastModifiedTime(patchPath).toMillis()));
       }
       catch (IOException | PatchSyntaxException e) {
         throw new VcsException(e);
@@ -226,14 +223,21 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
       }
     }
 
-    public boolean isPatchFileChanged(@NotNull String patchPath) {
+    public boolean isPatchFileChanged(@NotNull Path patchPath) {
       PatchInfo patchInfo = getInfoFromCache(patchPath);
-      long lastModified = new File(patchPath).lastModified();
-      return patchInfo != null && lastModified != patchInfo.myLoadedTimeStamp;
+      if (patchInfo == null) {
+        return false;
+      }
+
+      try {
+        return Files.getLastModifiedTime(patchPath).toMillis() != patchInfo.myLoadedTimeStamp;
+      }
+      catch (IOException e) {
+        return false;
+      }
     }
 
-    private static class PatchInfo {
-
+    private static final class PatchInfo {
       private final long myLoadedTimeStamp;
       @NotNull private final List<TextFilePatch> myTextFilePatches;
 
@@ -328,11 +332,11 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
         TextFilePatch patch = myPreloader.getPatch(myChange, myCommitContext);
         AppliedTextPatch appliedTextPatch = createAppliedTextPatch(patch);
         PatchDiffRequest request = new PatchDiffRequest(appliedTextPatch, getName(), VcsBundle.message("patch.apply.conflict.patch"));
-        DiffUtil.addNotification(createNotification("Cannot find local file for '" + getFilePath() + "'"), request);
+        DiffUtil.addNotification(createNotification(DiffBundle.message("cannot.find.file.error", getFilePath())), request);
         return request;
       }
       catch (VcsException e) {
-        throw new DiffRequestProducerException("Can't show diff for '" + getFilePath() + "'", e);
+        throw new DiffRequestProducerException(VcsBundle.message("changes.error.can.t.show.diff.for", getFilePath()), e);
       }
     }
   }
@@ -367,10 +371,11 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
           DiffContent leftContent = contentFactory.create(myProject, file);
           DiffContent rightContent = contentFactory.create(myProject, patch.getSingleHunkPatchText(), file);
 
-          return new SimpleDiffRequest(getName(), leftContent, rightContent, CURRENT_VERSION, SHELVED_VERSION);
+          return new SimpleDiffRequest(getName(), leftContent, rightContent, DiffBundle.message("merge.version.title.current"),
+                                       VcsBundle.message("shelve.shelved.version"));
         }
         catch (VcsException e) {
-          throw new DiffRequestProducerException("Can't show diff for '" + getFilePath() + "'", e);
+          throw new DiffRequestProducerException(VcsBundle.message("changes.error.can.t.show.diff.for", getFilePath()), e);
         }
       }
       else {
@@ -418,8 +423,8 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
         }
         else {
           String path = chooseNotNull(patch.getAfterName(), patch.getBeforeName());
-          CharSequence baseContents = PatchEP.EP_NAME.findExtensionOrFail(BaseRevisionTextPatchEP.class, myProject)
-            .provideContent(path, myCommitContext);
+          CharSequence baseContents = PatchEP.EP_NAME.findExtensionOrFail(BaseRevisionTextPatchEP.class)
+            .provideContent(myProject, path, myCommitContext);
 
           ApplyPatchForBaseRevisionTexts texts =
             ApplyPatchForBaseRevisionTexts.create(myProject, myFile, myPatchContext.getPathBeforeRename(myFile), patch, baseContents);
@@ -434,7 +439,7 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
         }
       }
       catch (VcsException e) {
-        throw new DiffRequestProducerException("Can't show diff for '" + getFilePath() + "'", e);
+        throw new DiffRequestProducerException(VcsBundle.message("changes.error.can.t.show.diff.for", getFilePath()), e);
       }
     }
 
@@ -446,11 +451,11 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
       String leftTitle;
       if (myWithLocal) {
         leftContent = contentFactory.create(myProject, myFile);
-        leftTitle = CURRENT_VERSION;
+        leftTitle = DiffBundle.message("merge.version.title.current");
       }
       else {
         leftContent = contentFactory.create(myProject, patch.getSingleHunkPatchText(), myFile);
-        leftTitle = SHELVED_VERSION;
+        leftTitle = VcsBundle.message("shelve.shelved.version");
       }
 
       DiffContent rightContent = contentFactory.createEmpty();
@@ -467,15 +472,15 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
       String leftTitle;
       if (myWithLocal) {
         leftContent = contentFactory.create(myProject, myFile);
-        leftTitle = CURRENT_VERSION;
+        leftTitle = DiffBundle.message("merge.version.title.current");
       }
       else {
-        leftContent = contentFactory.create(myProject, assertNotNull(texts.getBase()), myFile);
-        leftTitle = BASE_VERSION;
+        leftContent = contentFactory.create(myProject, Objects.requireNonNull(texts.getBase()), myFile);
+        leftTitle = DiffBundle.message("merge.version.title.base");
       }
 
       DiffContent rightContent = contentFactory.create(myProject, texts.getPatched(), myFile);
-      return new SimpleDiffRequest(getName(), leftContent, rightContent, leftTitle, SHELVED_VERSION);
+      return new SimpleDiffRequest(getName(), leftContent, rightContent, leftTitle, VcsBundle.message("shelve.shelved.version"));
     }
 
     private DiffRequest createDiffRequestUsingLocal(@NotNull ApplyPatchForBaseRevisionTexts texts,
@@ -483,10 +488,11 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
                                                     @NotNull UserDataHolder context,
                                                     @NotNull ProgressIndicator indicator) throws DiffRequestProducerException {
       DiffRequest diffRequest = myChange.isConflictingChange()
-                                ? createConflictDiffRequest(myProject, myFile, patch, SHELVED_VERSION, texts, getName())
+                                ? createConflictDiffRequest(myProject, myFile, patch, VcsBundle.message("shelve.shelved.version"), texts, getName())
                                 : createDiffRequest(myProject, myChange.getChange(), getName(), context, indicator);
       if (!myWithLocal) {
-        DiffUtil.addNotification(createNotification(DIFF_WITH_BASE_ERROR + " Showing difference with local version"), diffRequest);
+        DiffUtil.addNotification(createNotification(
+          VcsBundle.message("shelve.base.content.not.found.or.not.applicable.error")), diffRequest);
       }
       return diffRequest;
     }
@@ -517,3 +523,4 @@ public class DiffShelvedChangesActionProvider implements AnActionExtensionProvid
     }
   }
 }
+

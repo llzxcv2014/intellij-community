@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.updateSettings;
 
 import com.intellij.ide.plugins.IdeaPluginDescriptor;
@@ -18,7 +18,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -35,7 +34,7 @@ public class UpdatePluginsFromCustomRepositoryTest extends BareTestFixtureTestCa
     BuildNumber currentBuildNumber = BuildNumber.fromString("IU-142.100");
     for (IdeaPluginDescriptor descriptor : descriptors) {
       PluginDownloader downloader = PluginDownloader.createDownloader(descriptor, null, currentBuildNumber);
-      UpdateChecker.checkAndPrepareToInstall(downloader, new InstalledPluginsState(), toUpdate, new ArrayList<>(), null);
+      UpdateChecker.checkAndPrepareToInstall(downloader, new InstalledPluginsState(), toUpdate, (BuildNumber)null, null);
     }
     assertEquals("Found: " + toUpdate.size(), 1, toUpdate.size());
 
@@ -48,8 +47,8 @@ public class UpdatePluginsFromCustomRepositoryTest extends BareTestFixtureTestCa
   private IdeaPluginDescriptor loadDescriptor(String filePath) throws IOException, JDOMException {
     String path = PlatformTestUtil.getPlatformTestDataPath() + "updates/customRepositories/" + getTestName(true);
     Path descriptorFile = Paths.get(path, filePath);
-    IdeaPluginDescriptorImpl descriptor = new IdeaPluginDescriptorImpl(descriptorFile.getParent(), false);
-    PluginManager.loadDescriptorFromFile(descriptor, descriptorFile, null, true, Collections.emptySet());
+    IdeaPluginDescriptorImpl descriptor = new IdeaPluginDescriptorImpl(descriptorFile.getParent(), descriptorFile.getParent(), false);
+    PluginManager.loadDescriptorFromFile(descriptor, descriptorFile, null, Collections.emptySet());
     return descriptor;
   }
 }

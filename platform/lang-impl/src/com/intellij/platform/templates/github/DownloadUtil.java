@@ -1,15 +1,18 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.platform.templates.github;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.Producer;
-import com.intellij.util.containers.Predicate;
 import com.intellij.util.io.HttpRequests;
 import com.intellij.util.net.NetUtils;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -19,10 +22,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Locale;
 import java.util.concurrent.Callable;
+import java.util.function.Predicate;
 
-public class DownloadUtil {
-
-  public static final String CONTENT_LENGTH_TEMPLATE = "${content-length}";
+public final class DownloadUtil {
+  public static final @NonNls String CONTENT_LENGTH_TEMPLATE = "${content-length}";
   private static final Logger LOG = Logger.getInstance(DownloadUtil.class);
 
   /**
@@ -55,7 +58,7 @@ public class DownloadUtil {
       downloadContentToFile(indicator, url, tempFile);
       if (contentChecker != null) {
         String content = FileUtil.loadFile(tempFile);
-        if (!contentChecker.apply(content)) {
+        if (!contentChecker.test(content)) {
           return false;
         }
       }
@@ -99,12 +102,11 @@ public class DownloadUtil {
   }
 
 
-  @NotNull
-  public static <V> Outcome<V> provideDataWithProgressSynchronously(
+  public static @NotNull <V> Outcome<V> provideDataWithProgressSynchronously(
     @Nullable Project project,
-    @NotNull String progressTitle,
-    @NotNull final String actionShortDescription,
-    @NotNull final Callable<? extends V> supplier,
+    @NotNull @NlsContexts.ProgressTitle String progressTitle,
+    final @NotNull @NlsContexts.ProgressText String actionShortDescription,
+    final @NotNull Callable<? extends V> supplier,
     @Nullable Producer<Boolean> tryAgainProvider) {
     int attemptNumber = 1;
     while (true) {
@@ -158,7 +160,7 @@ public class DownloadUtil {
     String originalText = progress != null ? progress.getText() : null;
     substituteContentLength(progress, originalText, -1);
     if (progress != null) {
-      progress.setText2("Downloading " + location);
+      progress.setText2(IdeBundle.message("progress.download.0.title", location));
     }
     HttpRequests.request(location)
       .productNameAsUserAgent()
@@ -178,7 +180,7 @@ public class DownloadUtil {
       });
   }
 
-  private static void substituteContentLength(@Nullable ProgressIndicator progress, @Nullable String text, int contentLengthInBytes) {
+  private static void substituteContentLength(@Nullable ProgressIndicator progress, @Nullable @NlsContexts.ProgressText String text, int contentLengthInBytes) {
     if (progress != null && text != null) {
       int ind = text.indexOf(CONTENT_LENGTH_TEMPLATE);
       if (ind != -1) {
@@ -189,6 +191,7 @@ public class DownloadUtil {
     }
   }
 
+  @SuppressWarnings("HardCodedStringLiteral")
   private static String formatContentLength(int contentLengthInBytes) {
     if (contentLengthInBytes < 0) {
       return "";

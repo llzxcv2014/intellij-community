@@ -3,6 +3,7 @@ package com.intellij.ide.actions;
 
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.dnd.FileCopyPasteUtil;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.actionSystem.ActionPlaces;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -67,8 +68,8 @@ public class CopyReferenceAction extends DumbAwareAction {
       e.getPresentation().setVisible(true);
     }
     e.getPresentation().setText(
-      paths ? plural ? "Cop&y Relative Paths" : "Cop&y Relative Path"
-            : plural ? "Cop&y References" : "Cop&y Reference");
+      paths ? plural ? IdeBundle.message("copy.relative.paths") : IdeBundle.message("copy.relative.path")
+            : plural ? IdeBundle.message("copy.references") : IdeBundle.message("copy.reference"));
 
     if (paths) {
       e.getPresentation().setEnabledAndVisible(false);
@@ -97,7 +98,7 @@ public class CopyReferenceAction extends DumbAwareAction {
       if (file != null) {
         String toCopy = getFileFqn(file) + ":" + (editor.getCaretModel().getLogicalPosition().line + 1);
         CopyPasteManager.getInstance().setContents(new StringSelection(toCopy));
-        setStatusBarText(project, toCopy + " has been copied");
+        setStatusBarText(project, LangBundle.message("status.bar.text.reference.has.been.copied", toCopy));
       }
       return;
     }

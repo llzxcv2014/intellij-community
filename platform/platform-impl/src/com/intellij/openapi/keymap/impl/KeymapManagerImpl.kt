@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.keymap.impl
 
 import com.intellij.configurationStore.LazySchemeProcessor
 import com.intellij.configurationStore.SchemeDataHolder
+import com.intellij.ide.IdeBundle
 import com.intellij.ide.WelcomeWizardUtil
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -21,12 +22,9 @@ import com.intellij.openapi.keymap.ex.KeymapManagerEx
 import com.intellij.openapi.options.SchemeManager
 import com.intellij.openapi.options.SchemeManagerFactory
 import com.intellij.openapi.util.JDOMUtil
-import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.text.NaturalComparator
 import com.intellij.ui.AppUIUtil
 import com.intellij.util.containers.ContainerUtil
-import com.intellij.util.containers.SmartHashSet
-import gnu.trove.THashMap
 import org.jdom.Element
 import java.util.*
 import java.util.function.Function
@@ -37,10 +35,10 @@ internal const val KEYMAPS_DIR_PATH = "keymaps"
 private const val ACTIVE_KEYMAP = "active_keymap"
 private const val NAME_ATTRIBUTE = "name"
 
-@State(name = "KeymapManager", storages = [(Storage(value = "keymap.xml", roamingType = RoamingType.PER_OS))], additionalExportFile = KEYMAPS_DIR_PATH)
+@State(name = "KeymapManager", storages = [(Storage(value = "keymap.xml", roamingType = RoamingType.PER_OS))], additionalExportDirectory = KEYMAPS_DIR_PATH)
 class KeymapManagerImpl : KeymapManagerEx(), PersistentStateComponent<Element> {
   private val listeners = ContainerUtil.createLockFreeCopyOnWriteList<KeymapManagerListener>()
-  private val boundShortcuts = THashMap<String, String>()
+  private val boundShortcuts = HashMap<String, String>()
   private val schemeManager: SchemeManager<Keymap>
 
   companion object {
@@ -50,7 +48,6 @@ class KeymapManagerImpl : KeymapManagerEx(), PersistentStateComponent<Element> {
   }
 
   init {
-    val defaultKeymapManager = DefaultKeymap.instance
     schemeManager = SchemeManagerFactory.getInstance().create(KEYMAPS_DIR_PATH, object : LazySchemeProcessor<Keymap, KeymapImpl>() {
       override fun createScheme(dataHolder: SchemeDataHolder<KeymapImpl>,
                                 name: String,
@@ -59,19 +56,20 @@ class KeymapManagerImpl : KeymapManagerEx(), PersistentStateComponent<Element> {
       override fun onCurrentSchemeSwitched(oldScheme: Keymap?,
                                            newScheme: Keymap?,
                                            processChangeSynchronously: Boolean) {
-        fireActiveKeymapChanged(newScheme)
+        fireActiveKeymapChanged(newScheme, activeKeymap)
       }
 
       override fun reloaded(schemeManager: SchemeManager<Keymap>, schemes: Collection<Keymap>) {
         if (schemeManager.activeScheme == null) {
           // listeners expect that event will be fired in EDT
           AppUIUtil.invokeOnEdt {
-            schemeManager.setCurrentSchemeName(defaultKeymapManager.defaultKeymapName, true)
+            schemeManager.setCurrentSchemeName(DefaultKeymap.instance.defaultKeymapName, true)
           }
         }
       }
     })
 
+    val defaultKeymapManager = DefaultKeymap.instance
     val systemDefaultKeymap = if (WelcomeWizardUtil.getWizardMacKeymap() == null) defaultKeymapManager.defaultKeymapName else WelcomeWizardUtil.getWizardMacKeymap()
     for (keymap in defaultKeymapManager.keymaps) {
       schemeManager.addScheme(keymap)
@@ -94,53 +92,36 @@ class KeymapManagerImpl : KeymapManagerEx(), PersistentStateComponent<Element> {
         fireKeymapRemoved(keymap)
       }
       DefaultKeymap.instance.removeKeymap(keymapName)
-      if (isCurrent && !schemeManager.isEmpty) {
-        val newActiveKeymap = activeKeymap
-        schemeManager.setCurrent(activeKeymap, true, true)
-        fireActiveKeymapChanged(newActiveKeymap)
+      if (isCurrent) {
+        val activeKeymap = schemeManager.activeScheme
+                           ?: schemeManager.findSchemeByName(DefaultKeymap.instance.defaultKeymapName)
+                           ?: schemeManager.findSchemeByName(KeymapManager.DEFAULT_IDEA_KEYMAP)
+        schemeManager.setCurrent(activeKeymap, notify = true, processChangeSynchronously = true)
+        fireActiveKeymapChanged(activeKeymap, activeKeymap)
       }
     }
 
     BundledKeymapBean.EP_NAME.addExtensionPointListener(object : ExtensionPointListener<BundledKeymapBean> {
       override fun extensionAdded(ep: BundledKeymapBean, pluginDescriptor: PluginDescriptor) {
         val keymapName = ep.keymapName
-        if (!SystemInfo.isMac &&
-            keymapName != KeymapManager.MAC_OS_X_KEYMAP &&
-            keymapName != KeymapManager.MAC_OS_X_10_5_PLUS_KEYMAP &&
-            DefaultKeymap.isBundledKeymapHidden(keymapName) &&
-            schemeManager.findSchemeByName(KeymapManager.MAC_OS_X_10_5_PLUS_KEYMAP) == null) return
+        //if (!SystemInfo.isMac &&
+        //    keymapName != KeymapManager.MAC_OS_X_KEYMAP &&
+        //    keymapName != KeymapManager.MAC_OS_X_10_5_PLUS_KEYMAP &&
+        //    DefaultKeymap.isBundledKeymapHidden(keymapName) &&
+        //    schemeManager.findSchemeByName(KeymapManager.MAC_OS_X_10_5_PLUS_KEYMAP) == null) return
         val keymap = DefaultKeymap.instance.loadKeymap(keymapName, object : SchemeDataHolder<KeymapImpl> {
           override fun read() = pluginDescriptor.pluginClassLoader
             .getResourceAsStream(ep.effectiveFile).use { JDOMUtil.load(it) }
         }, pluginDescriptor)
         schemeManager.addScheme(keymap)
         fireKeymapAdded(keymap)
-        schemeManager.setCurrent(keymap, true, true)
-        fireActiveKeymapChanged(keymap)
+        // do no set current keymap here, consider: multi-keymap plugins, parent keymaps loading
       }
 
       override fun extensionRemoved(ep: BundledKeymapBean, pluginDescriptor: PluginDescriptor) {
         removeKeymap(ep.keymapName)
       }
-    }, ApplicationManager.getApplication())
-    BundledKeymapProvider.EP_NAME.addExtensionPointListener(object : ExtensionPointListener<BundledKeymapProvider> {
-      override fun extensionAdded(ep: BundledKeymapProvider, pluginDescriptor: PluginDescriptor) {
-        for (fileName in ep.keymapFileNames) {
-          val keymap = DefaultKeymap.instance.loadKeymap(ep.getKeyFromFileName(fileName), object : SchemeDataHolder<KeymapImpl> {
-            override fun read() = ep.load(fileName) { JDOMUtil.load(it) }
-          }, pluginDescriptor)
-          schemeManager.addScheme(keymap)
-          fireKeymapAdded(keymap)
-          // do no set current keymap here, consider: multi-keymap plugins, parent keymaps loading
-        }
-      }
-
-      override fun extensionRemoved(ep: BundledKeymapProvider, pluginDescriptor: PluginDescriptor) {
-        for (fileName in ep.keymapFileNames) {
-          removeKeymap(ep.getKeyFromFileName(fileName))
-        }
-      }
-    }, ApplicationManager.getApplication())
+    }, null)
   }
 
   private fun fireKeymapAdded(keymap: Keymap) {
@@ -157,7 +138,7 @@ class KeymapManagerImpl : KeymapManagerEx(), PersistentStateComponent<Element> {
     }
   }
 
-  private fun fireActiveKeymapChanged(newScheme: Keymap?) {
+  private fun fireActiveKeymapChanged(newScheme: Keymap?, activeKeymap: Keymap?) {
     ApplicationManager.getApplication().messageBus.syncPublisher(KeymapManagerListener.TOPIC).activeKeymapChanged(activeKeymap)
     for (listener in listeners) {
       listener.activeKeymapChanged(newScheme)
@@ -198,7 +179,7 @@ class KeymapManagerImpl : KeymapManagerEx(), PersistentStateComponent<Element> {
     while (true) {
       val next = boundShortcuts.get(id) ?: break
       if (visited == null) {
-        visited = SmartHashSet()
+        visited = HashSet()
       }
 
       id = next
@@ -213,7 +194,7 @@ class KeymapManagerImpl : KeymapManagerEx(), PersistentStateComponent<Element> {
 
   fun setKeymaps(keymaps: List<Keymap>, active: Keymap?, removeCondition: Predicate<Keymap>?) {
     schemeManager.setSchemes(keymaps, active, removeCondition)
-    fireActiveKeymapChanged(active)
+    fireActiveKeymapChanged(active, activeKeymap)
   }
 
   override fun getState(): Element {
@@ -234,7 +215,7 @@ class KeymapManagerImpl : KeymapManagerEx(), PersistentStateComponent<Element> {
     if (!activeKeymapName.isNullOrBlank()) {
       schemeManager.currentSchemeName = activeKeymapName
       if (schemeManager.currentSchemeName != activeKeymapName) {
-        notifyAboutMissingKeymap(activeKeymapName, "Cannot find keymap \"$activeKeymapName\"")
+        notifyAboutMissingKeymap(activeKeymapName, IdeBundle.message("notification.content.cannot.find.keymap", activeKeymapName), false)
       }
     }
   }
@@ -271,7 +252,7 @@ class KeymapManagerImpl : KeymapManagerEx(), PersistentStateComponent<Element> {
     listeners.removeAll { it is WeakKeymapManagerListener && it.isWrapped(listenerToRemove) }
   }
 
-  fun fireShortcutChanged(keymap: Keymap, actionId: String) {
+  internal fun fireShortcutChanged(keymap: Keymap, actionId: String) {
     ApplicationManager.getApplication().messageBus.syncPublisher(KeymapManagerListener.TOPIC).shortcutChanged(keymap, actionId)
   }
 }

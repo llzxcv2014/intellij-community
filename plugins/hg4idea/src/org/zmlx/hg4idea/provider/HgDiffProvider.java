@@ -24,7 +24,7 @@ import com.intellij.openapi.vcs.history.VcsRevisionNumber;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.vcsUtil.VcsUtil;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.zmlx.hg4idea.HgBundle;
 import org.zmlx.hg4idea.HgContentRevision;
 import org.zmlx.hg4idea.HgFile;
 import org.zmlx.hg4idea.HgRevisionNumber;
@@ -33,7 +33,6 @@ import org.zmlx.hg4idea.repo.HgRepository;
 import org.zmlx.hg4idea.util.HgUtil;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static com.intellij.openapi.vcs.history.VcsDiffUtil.createChangesWithCurrentContentForFile;
@@ -127,7 +126,7 @@ public class HgDiffProvider implements DiffProvider {
 
     final HgRepository repo = HgUtil.getRepositoryManager(project).getRepositoryForFile(fileOrDir);
     if (repo == null) {
-      throw new VcsException("Couldn't find Git Repository for " + fileOrDir.getName());
+      throw new VcsException(HgBundle.message("error.cannot.find.repository.for.file", fileOrDir.getName()));
     }
     assert revNum instanceof HgRevisionNumber : "Expected " + HgRevisionNumber.class.getSimpleName()
                                                 + ", got " + revNum.getClass().getSimpleName();

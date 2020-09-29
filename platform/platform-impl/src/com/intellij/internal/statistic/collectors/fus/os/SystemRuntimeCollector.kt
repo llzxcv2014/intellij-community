@@ -1,7 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.internal.statistic.collectors.fus.os
 
+import com.intellij.internal.DebugAttachDetector
 import com.intellij.internal.statistic.beans.MetricEvent
+import com.intellij.internal.statistic.beans.newBooleanMetric
 import com.intellij.internal.statistic.beans.newMetric
 import com.intellij.internal.statistic.eventLog.FeatureUsageData
 import com.intellij.internal.statistic.service.fus.collectors.ApplicationUsagesCollector
@@ -11,6 +13,7 @@ import com.intellij.util.containers.ContainerUtil
 import com.intellij.util.lang.JavaVersion
 import java.lang.management.ManagementFactory
 import java.util.*
+import kotlin.collections.HashMap
 
 class SystemRuntimeCollector : ApplicationUsagesCollector() {
 
@@ -19,12 +22,11 @@ class SystemRuntimeCollector : ApplicationUsagesCollector() {
   }
 
   override fun getVersion(): Int {
-    return 2
+    return 4
   }
 
   override fun getMetrics(): Set<MetricEvent> {
     val result = HashSet<MetricEvent>()
-    Runtime.getRuntime().totalMemory()
     val cores = Runtime.getRuntime().availableProcessors()
     result.add(newMetric("cores", cores, null))
 
@@ -37,13 +39,23 @@ class SystemRuntimeCollector : ApplicationUsagesCollector() {
       addData("bit", if (SystemInfo.is32Bit) "32" else "64").
       addData("vendor", getJavaVendor())
     result.add(newMetric("jvm", jvmData))
+    val options: HashMap<String, Long> = collectJvmOptions()
+    for (option in options) {
+      result.add(newMetric("jvm.option", FeatureUsageData().addData("name", option.key).addData("value", option.value)))
+    }
+    result.add(newBooleanMetric("debug.agent", DebugAttachDetector.isDebugEnabled()))
+    return result
+  }
+
+  private fun collectJvmOptions(): HashMap<String, Long> {
+    val options: HashMap<String, Long> = hashMapOf()
     for (argument in ManagementFactory.getRuntimeMXBean().inputArguments) {
       val data = convertOptionToData(argument)
       if (data != null) {
-        result.add(newMetric("jvm.option", data))
+        options[data.first] = data.second
       }
     }
-    return result
+    return options
   }
 
   private fun getJavaVendor() : String {
@@ -63,30 +75,22 @@ class SystemRuntimeCollector : ApplicationUsagesCollector() {
       "-Xms", "-Xmx", "-XX:SoftRefLRUPolicyMSPerMB", "-XX:ReservedCodeCacheSize"
     )
 
-    fun convertOptionToData(arg: String): FeatureUsageData? {
+    fun convertOptionToData(arg: String): Pair<String, Long>? {
       val value = getMegabytes(arg).toLong()
       if (value < 0) return null
 
       when {
         arg.startsWith("-Xmx") -> {
-          return FeatureUsageData().
-            addData("name", "Xmx").
-            addData("value", roundDown(value, 512, 750, 1000, 1024, 1500, 2000, 2048, 3000, 4000, 4096, 6000, 8000))
+          return "Xmx" to roundDown(value, 512, 750, 1000, 1024, 1500, 2000, 2048, 3000, 4000, 4096, 6000, 8000)
         }
         arg.startsWith("-Xms") -> {
-          return FeatureUsageData().
-            addData("name", "Xms").
-            addData("value", roundDown(value, 64, 128, 256, 512))
+          return "Xms" to roundDown(value, 64, 128, 256, 512)
         }
         arg.startsWith("-XX:SoftRefLRUPolicyMSPerMB") -> {
-          return FeatureUsageData().
-            addData("name", "SoftRefLRUPolicyMSPerMB").
-            addData("value", roundDown(value, 50, 100))
+          return "SoftRefLRUPolicyMSPerMB" to roundDown(value, 50, 100)
         }
         arg.startsWith("-XX:ReservedCodeCacheSize") -> {
-          return FeatureUsageData().
-            addData("name", "ReservedCodeCacheSize").
-            addData("value", roundDown(value, 240, 300, 400, 500))
+          return "ReservedCodeCacheSize" to roundDown(value, 240, 300, 400, 500)
         }
         else -> {
           return null

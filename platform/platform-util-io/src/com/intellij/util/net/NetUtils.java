@@ -1,9 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.net;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.util.SystemProperties;
@@ -16,7 +17,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.*;
 
-public class NetUtils {
+public final class NetUtils {
   private static final Logger LOG = Logger.getInstance(NetUtils.class);
 
   private NetUtils() { }
@@ -38,7 +39,7 @@ public class NetUtils {
     return InetAddress.getLoopbackAddress();
   }
 
-  public static boolean isLocalhost(@NotNull String hostName) {
+  public static boolean isLocalhost(@NotNull @NlsSafe String hostName) {
     return hostName.equalsIgnoreCase("localhost") || hostName.equals("127.0.0.1") || hostName.equals("::1");
   }
 
@@ -129,7 +130,7 @@ public class NetUtils {
 
   public static String getLocalHostString() {
     // HACK for Windows with ipv6
-    String localHostString = "localhost";
+    @NlsSafe String localHostString = "localhost";
     try {
       final InetAddress localHost = InetAddress.getByName(localHostString);
       if ((localHost.getAddress().length != 4 && SystemInfo.isWindows) ||
@@ -192,7 +193,7 @@ public class NetUtils {
     }
 
     if (bytesRead < expectedContentLength) {
-      throw new IOException(String.format("Connection closed at byte %d. Expected %d bytes.", bytesRead, expectedContentLength));
+      throw new IOException("Connection closed at byte " + bytesRead + ". Expected " + expectedContentLength + " bytes.");
     }
 
     return bytesWritten;

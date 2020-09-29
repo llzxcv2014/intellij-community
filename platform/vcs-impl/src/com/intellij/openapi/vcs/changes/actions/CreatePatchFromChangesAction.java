@@ -1,5 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes.actions;
 
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -7,8 +6,6 @@ import com.intellij.openapi.actionSystem.AnActionExtensionProvider;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.ExtendableAction;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.diff.impl.patch.FilePatch;
-import com.intellij.openapi.diff.impl.patch.IdeaTextPatchBuilder;
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.DumbAware;
@@ -24,20 +21,21 @@ import com.intellij.openapi.vcs.changes.ChangeList;
 import com.intellij.openapi.vcs.changes.CommitContext;
 import com.intellij.openapi.vcs.changes.CommitSession;
 import com.intellij.openapi.vcs.changes.patch.CreatePatchCommitExecutor;
+import com.intellij.openapi.vcs.changes.patch.CreatePatchCommitExecutor.PatchBuilder;
 import com.intellij.openapi.vcs.changes.patch.PatchWriter;
 import com.intellij.openapi.vcs.changes.shelf.ShelvedChangeList;
 import com.intellij.openapi.vcs.changes.shelf.ShelvedChangesViewManager;
 import com.intellij.openapi.vcs.changes.ui.SessionDialog;
 import com.intellij.util.ArrayUtil;
+import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-
-import static com.intellij.openapi.vcs.changes.patch.PatchWriter.writeAsPatchToClipboard;
 
 public abstract class CreatePatchFromChangesAction extends ExtendableAction implements DumbAware {
   private static final Logger LOG = Logger.getInstance(CreatePatchFromChangesAction.class);
@@ -69,10 +67,25 @@ public abstract class CreatePatchFromChangesAction extends ExtendableAction impl
   public void defaultActionPerformed(@NotNull AnActionEvent e) {
     Project project = e.getData(CommonDataKeys.PROJECT);
     Change[] changes = e.getData(VcsDataKeys.CHANGES);
-    if (ArrayUtil.isEmpty(changes)) return;
+    if (changes == null || changes.length == 0) {
+      return;
+    }
     String commitMessage = extractCommitMessage(e);
+    project = project == null ? ProjectManager.getInstance().getDefaultProject() : project;
 
-    createPatch(project, commitMessage, Arrays.asList(changes), mySilentClipboard);
+    PatchBuilder patchBuilder;
+
+    ShelvedChangeList shelvedChangeList = ContainerUtil.getOnlyItem(ShelvedChangesViewManager.getShelvedLists(e.getDataContext()));
+    if (shelvedChangeList != null) {
+      boolean entireList = ContainerUtil.getOnlyItem(ShelvedChangesViewManager.getExactlySelectedLists(e.getDataContext())) != null;
+      List<String> selectedPaths = entireList ? ContainerUtil.emptyList() : ShelvedChangesViewManager.getSelectedShelvedChangeNames(e.getDataContext());
+      patchBuilder = new CreatePatchCommitExecutor.ShelfPatchBuilder(project, shelvedChangeList, selectedPaths);
+    }
+    else {
+      patchBuilder = new CreatePatchCommitExecutor.DefaultPatchBuilder(project);
+    }
+
+    createPatch(project, commitMessage, Arrays.asList(changes), mySilentClipboard, patchBuilder);
   }
 
   @Nullable
@@ -104,18 +117,29 @@ public abstract class CreatePatchFromChangesAction extends ExtendableAction impl
                                  @NotNull List<? extends Change> changes,
                                  boolean silentClipboard) {
     project = project == null ? ProjectManager.getInstance().getDefaultProject() : project;
+    PatchBuilder patchBuilder = new CreatePatchCommitExecutor.DefaultPatchBuilder(project);
+    createPatch(project, commitMessage, changes, silentClipboard, patchBuilder);
+  }
+
+  private static void createPatch(@NotNull Project project,
+                                  @Nullable String commitMessage,
+                                  @NotNull List<? extends Change> changes,
+                                  boolean silentClipboard,
+                                  @NotNull PatchBuilder patchBuilder) {
+    CommitContext commitContext = new CommitContext();
     if (silentClipboard) {
-      createIntoClipboard(project, changes);
+      createIntoClipboard(project, changes, patchBuilder, commitContext);
     }
     else {
-      createWithDialog(project, commitMessage, changes);
+      createWithDialog(project, commitMessage, changes, patchBuilder, commitContext);
     }
   }
 
-  private static void createWithDialog(@NotNull Project project, @Nullable String commitMessage, @NotNull List<? extends Change> changes) {
-    final CreatePatchCommitExecutor executor = CreatePatchCommitExecutor.getInstance(project);
-    CommitSession commitSession = executor.createCommitSession(new CommitContext());
-    DialogWrapper sessionDialog = new SessionDialog(executor.getActionText(),
+  private static void createWithDialog(@NotNull Project project,
+                                       @Nullable String commitMessage,
+                                       @NotNull List<? extends Change> changes, @NotNull PatchBuilder patchBuilder, @NotNull CommitContext commitContext) {
+    CommitSession commitSession = CreatePatchCommitExecutor.createCommitSession(project, patchBuilder, commitContext);
+    DialogWrapper sessionDialog = new SessionDialog(VcsBundle.message("action.name.create.patch"),
                                                     project,
                                                     commitSession,
                                                     changes,
@@ -128,17 +152,20 @@ public abstract class CreatePatchFromChangesAction extends ExtendableAction impl
     }, VcsBundle.message("create.patch.commit.action.progress"), true, project);
   }
 
-  private static void createIntoClipboard(@NotNull Project project, @NotNull List<? extends Change> changes) {
+  private static void createIntoClipboard(@NotNull Project project,
+                                          @NotNull List<? extends Change> changes,
+                                          @NotNull PatchBuilder patchBuilder,
+                                          @NotNull CommitContext commitContext) {
     ProgressManager.getInstance().runProcessWithProgressSynchronously(() -> {
       try {
-        String base = PatchWriter.calculateBaseForWritingPatch(project, changes).getPath();
-        List<FilePatch> patches = IdeaTextPatchBuilder.buildPatch(project, changes, base, false);
-        writeAsPatchToClipboard(project, patches, base, new CommitContext());
-        VcsNotifier.getInstance(project).notifySuccess("Patch copied to clipboard");
+        Path baseDir = PatchWriter.calculateBaseDirForWritingPatch(project, changes);
+        CreatePatchCommitExecutor.writePatchToClipboard(project, baseDir, changes, false, false, patchBuilder, commitContext);
       }
       catch (IOException | VcsException exception) {
         LOG.warn("Can't create patch", exception);
-        VcsNotifier.getInstance(project).notifyWeakError("Patch Creation Failed", exception.getMessage());
+        VcsNotifier.getInstance(project).notifyWeakError("vcs.patch.creation.failed",
+                                                         VcsBundle.message("patch.creation.failed"),
+                                                         exception.getMessage());
       }
     }, VcsBundle.message("create.patch.commit.action.progress"), true, project);
   }

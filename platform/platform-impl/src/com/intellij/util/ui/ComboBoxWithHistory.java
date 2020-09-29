@@ -1,9 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.ui;
 
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.ArrayUtilRt;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.w3c.dom.Document;
@@ -59,7 +60,7 @@ public class ComboBoxWithHistory extends JComboBox {
   }
 
   public void save() {
-    final StringBuilder buf = new StringBuilder("<map>");
+    @NonNls StringBuilder buf = new StringBuilder("<map>");
     for (Object key : myWeights.keySet()) {
       if (key != null) {
         final Long value = myWeights.get(key);
@@ -122,7 +123,7 @@ public class ComboBoxWithHistory extends JComboBox {
   }
 
 
-  private class MyModel extends DefaultComboBoxModel {
+  private final class MyModel extends DefaultComboBoxModel {
     private MyModel(Object[] items) {
       super(sort(items, myWeights));
     }
@@ -137,7 +138,7 @@ public class ComboBoxWithHistory extends JComboBox {
     }
   }
 
-  private static class LastUsedComparator implements Comparator<Object> {
+  private static final class LastUsedComparator implements Comparator<Object> {
     private final HashMap<Object, Long> myWeights;
     private final List<Object> myInitialPositions;
 

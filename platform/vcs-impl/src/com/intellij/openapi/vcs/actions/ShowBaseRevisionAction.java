@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.actions;
 
 import com.intellij.openapi.actionSystem.Presentation;
@@ -36,31 +22,31 @@ import com.intellij.ui.BrowserHyperlinkListener;
 import com.intellij.util.text.DateFormatUtil;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.*;
-
-import static com.intellij.util.ObjectUtils.assertNotNull;
+import java.util.Objects;
 
 public class ShowBaseRevisionAction extends AbstractVcsAction {
   @Override
   protected void actionPerformed(@NotNull VcsContext vcsContext) {
-    Project project = assertNotNull(vcsContext.getProject());
+    Project project = Objects.requireNonNull(vcsContext.getProject());
     VirtualFile file = vcsContext.getSelectedFiles()[0];
-    AbstractVcs vcs = assertNotNull(ChangesUtil.getVcsForFile(file, project));
+    AbstractVcs vcs = Objects.requireNonNull(ChangesUtil.getVcsForFile(file, project));
 
     ProgressManager.getInstance().run(new MyTask(file, vcs, vcsContext));
   }
 
-  private static class MyTask extends Task.Backgroundable {
+  private static final class MyTask extends Task.Backgroundable {
     private final AbstractVcs vcs;
     private final VirtualFile selectedFile;
     private VcsRevisionDescription myDescription;
     private final VcsContext vcsContext;
 
     private MyTask(VirtualFile selectedFile, AbstractVcs vcs, VcsContext vcsContext) {
-      super(vcsContext.getProject(), "Loading Current Revision...", true);
+      super(vcsContext.getProject(), VcsBundle.message("progress.title.loading.current.revision"), true);
       this.selectedFile = selectedFile;
       this.vcs = vcs;
       this.vcsContext = vcsContext;
@@ -68,7 +54,7 @@ public class ShowBaseRevisionAction extends AbstractVcsAction {
 
     @Override
     public void run(@NotNull ProgressIndicator indicator) {
-      myDescription = assertNotNull((DiffMixin)vcs.getDiffProvider()).getCurrentRevisionDescription(selectedFile);
+      myDescription = Objects.requireNonNull((DiffMixin)vcs.getDiffProvider()).getCurrentRevisionDescription(selectedFile);
     }
 
     @Override
@@ -89,6 +75,7 @@ public class ShowBaseRevisionAction extends AbstractVcsAction {
     }
   }
 
+  @Nls
   private static String createMessage(@NotNull Project project, @NotNull VcsRevisionDescription description, @NotNull VirtualFile vf) {
     String commitMessage = IssueLinkHtmlRenderer.formatTextWithLinks(project, StringUtil.notNullize(description.getCommitMessage()));
     String message = VcsBundle.message("current.version.text",
@@ -97,7 +84,7 @@ public class ShowBaseRevisionAction extends AbstractVcsAction {
                                        commitMessage,
                                        description.getRevisionNumber().asString(),
                                        vf.getName());
-    return "<html><head>" + UIUtil.getCssFontDeclaration(UIUtil.getLabelFont()) + "</head><body>" + message + "</body></html>";
+    return "<html><head>" + UIUtil.getCssFontDeclaration(UIUtil.getLabelFont()) + "</head><body>" + message + "</body></html>"; //NON-NLS
   }
 
   @Override
@@ -122,7 +109,7 @@ public class ShowBaseRevisionAction extends AbstractVcsAction {
       myLabel.setBackground(getBackground());
     }
 
-    public void setText(String text) {
+    public void setText(@Nls String text) {
       myLabel.setText(text);
     }
 

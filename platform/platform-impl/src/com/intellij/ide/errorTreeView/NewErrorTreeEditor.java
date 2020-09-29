@@ -1,9 +1,10 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.errorTreeView;
 
 import com.intellij.ui.CustomizeColoredTreeCellRenderer;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.LoadingNode;
+import com.intellij.ui.render.RenderingUtil;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.tree.WideSelectionTreeUI;
@@ -22,7 +23,7 @@ import java.util.EventObject;
 /**
  * @author Vladislav.Soroka
  */
-public class NewErrorTreeEditor extends AbstractCellEditor implements TreeCellEditor, MouseMotionListener {
+public final class NewErrorTreeEditor extends AbstractCellEditor implements TreeCellEditor, MouseMotionListener {
 
   public static void install(Tree tree) {
     NewErrorTreeEditor treeEditor = new NewErrorTreeEditor(tree);
@@ -150,7 +151,7 @@ public class NewErrorTreeEditor extends AbstractCellEditor implements TreeCellEd
         myPanel.setForeground(JBColor.GRAY);
       }
       else {
-        myPanel.setForeground(tree.getForeground());
+        myPanel.setForeground(RenderingUtil.getForeground(tree));
       }
 
       if (WideSelectionTreeUI.isWideSelection(tree)) {

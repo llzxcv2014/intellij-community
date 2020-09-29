@@ -4,6 +4,10 @@ package com.intellij.openapi.vcs;
 import com.intellij.ide.errorTreeView.HotfixData;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsActions;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsContexts.TabTitle;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vcs.annotate.AnnotationProvider;
 import com.intellij.openapi.vcs.annotate.FileAnnotation;
 import com.intellij.openapi.vcs.changes.Change;
@@ -16,7 +20,6 @@ import com.intellij.openapi.vcs.merge.MergeProvider;
 import com.intellij.openapi.vcs.versionBrowser.ChangeBrowserSettings;
 import com.intellij.openapi.vcs.versionBrowser.CommittedChangeList;
 import com.intellij.openapi.vfs.VirtualFile;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,9 +45,9 @@ public abstract class AbstractVcsHelper {
     return ServiceManager.getService(project, AbstractVcsHelper.class);
   }
 
-  public abstract void showErrors(List<? extends VcsException> abstractVcsExceptions, @NotNull String tabDisplayName);
+  public abstract void showErrors(List<? extends VcsException> abstractVcsExceptions, @NotNull @TabTitle String tabDisplayName);
 
-  public abstract void showErrors(Map<HotfixData, List<VcsException>> exceptionGroups, @NotNull String tabDisplayName);
+  public abstract void showErrors(Map<HotfixData, List<VcsException>> exceptionGroups, @NotNull @TabTitle String tabDisplayName);
 
   /**
    * Runs the runnable inside the vcs transaction (if needed), collects all exceptions, commits/rollbacks transaction
@@ -52,7 +55,7 @@ public abstract class AbstractVcsHelper {
    */
   public abstract List<VcsException> runTransactionRunnable(AbstractVcs vcs, TransactionRunnable runnable, Object vcsParameters);
 
-  public void showError(final VcsException e, final String tabDisplayName) {
+  public void showError(final VcsException e, @TabTitle String tabDisplayName) {
     showErrors(Collections.singletonList(e), tabDisplayName);
   }
 
@@ -60,32 +63,20 @@ public abstract class AbstractVcsHelper {
 
   public abstract void showAnnotation(FileAnnotation annotation, VirtualFile file, AbstractVcs vcs, int line);
 
-  public abstract void showChangesListBrowser(CommittedChangeList changelist, @Nls String title);
+  public abstract void showChangesListBrowser(@NotNull CommittedChangeList changelist, @Nullable @NlsContexts.DialogTitle String title);
 
-  public abstract void showChangesListBrowser(CommittedChangeList changelist, @Nullable VirtualFile toSelect, @Nls String title);
+  public abstract void showWhatDiffersBrowser(@NotNull Collection<Change> changes, @Nullable @NlsContexts.DialogTitle String title);
 
-  public abstract void showChangesBrowser(List<CommittedChangeList> changelists);
+  public abstract void showCommittedChangesBrowser(@NotNull CommittedChangesProvider provider,
+                                                   @NotNull RepositoryLocation location,
+                                                   @Nullable @NlsContexts.DialogTitle String title,
+                                                   @Nullable Component parent);
 
-  public abstract void showChangesBrowser(List<CommittedChangeList> changelists, @Nls String title);
-
-  public abstract void showChangesBrowser(CommittedChangesProvider provider,
-                                          final RepositoryLocation location,
-                                          @Nls String title,
-                                          @Nullable final Component parent);
-
-  public abstract void showWhatDiffersBrowser(@Nullable Component parent, Collection<Change> changes, @Nls String title);
-
-  public abstract void openCommittedChangesTab(AbstractVcs vcs,
-                                               VirtualFile root,
-                                               ChangeBrowserSettings settings,
+  public abstract void openCommittedChangesTab(@NotNull CommittedChangesProvider provider,
+                                               @NotNull RepositoryLocation location,
+                                               @NotNull ChangeBrowserSettings settings,
                                                int maxCount,
-                                               final String title);
-
-  public abstract void openCommittedChangesTab(CommittedChangesProvider provider,
-                                               RepositoryLocation location,
-                                               ChangeBrowserSettings settings,
-                                               int maxCount,
-                                               final String title);
+                                               @Nullable @NlsContexts.DialogTitle String title);
 
   /**
    * Shows the multiple file merge dialog for resolving conflicts in the specified set of virtual files.
@@ -99,7 +90,7 @@ public abstract class AbstractVcsHelper {
   public abstract @NotNull List<VirtualFile> showMergeDialog(List<? extends VirtualFile> files, MergeProvider provider, @NotNull MergeDialogCustomizer mergeDialogCustomizer);
 
   /**
-   * {@link #showMergeDialog(java.util.List, com.intellij.openapi.vcs.merge.MergeProvider)} without description.
+   * {@link #showMergeDialog(List, MergeProvider, MergeDialogCustomizer)} without description.
    */
   @NotNull
   public final List<VirtualFile> showMergeDialog(List<? extends VirtualFile> files, MergeProvider provider) {
@@ -107,7 +98,7 @@ public abstract class AbstractVcsHelper {
   }
 
   /**
-   * {@link #showMergeDialog(java.util.List, com.intellij.openapi.vcs.merge.MergeProvider)} without description and with default merge provider
+   * {@link #showMergeDialog(java.util.List, MergeProvider)} without description and with default merge provider
    * for the current VCS.
    */
   @NotNull
@@ -132,48 +123,42 @@ public abstract class AbstractVcsHelper {
                                        @NotNull FilePath path,
                                        @NotNull AbstractVcs vcs);
 
-  /**
-   * Shows the "Rollback Changes" dialog with the specified list of changes.
-   *
-   * @param changes the changes to show in the dialog.
-   */
-  public abstract void showRollbackChangesDialog(List<? extends Change> changes);
-
   @Nullable
   public abstract Collection<VirtualFile> selectFilesToProcess(List<? extends VirtualFile> files,
-                                                               String title,
-                                                               @Nullable String prompt,
-                                                               @Nullable String singleFileTitle,
-                                                               @Nullable String singleFilePromptTemplate,
+                                                               @NlsContexts.DialogTitle String title,
+                                                               @NlsContexts.DialogMessage @Nullable String prompt,
+                                                               @NlsContexts.DialogTitle @Nullable String singleFileTitle,
+                                                               @NlsContexts.DialogMessage @Nullable String singleFilePromptTemplate,
                                                                @NotNull VcsShowConfirmationOption confirmationOption);
 
   @Nullable
   public abstract Collection<FilePath> selectFilePathsToProcess(@NotNull List<? extends FilePath> files,
-                                                                String title,
-                                                                @Nullable String prompt,
-                                                                @Nullable String singleFileTitle,
-                                                                @Nullable String singleFilePromptTemplate,
+                                                                @NlsContexts.DialogTitle String title,
+                                                                @NlsContexts.DialogMessage @Nullable String prompt,
+                                                                @NlsContexts.DialogTitle @Nullable String singleFileTitle,
+                                                                @NlsContexts.DialogMessage @Nullable String singleFilePromptTemplate,
                                                                 @NotNull VcsShowConfirmationOption confirmationOption);
 
   @Nullable
   public abstract Collection<FilePath> selectFilePathsToProcess(@NotNull List<? extends FilePath> files,
-                                                                String title,
-                                                                @Nullable String prompt,
-                                                                @Nullable String singleFileTitle,
-                                                                @Nullable String singleFilePromptTemplate,
+                                                                @NlsContexts.DialogTitle String title,
+                                                                @NlsContexts.DialogMessage @Nullable String prompt,
+                                                                @NlsContexts.DialogTitle @Nullable String singleFileTitle,
+                                                                @NlsContexts.DialogMessage @Nullable String singleFilePromptTemplate,
                                                                 @NotNull VcsShowConfirmationOption confirmationOption,
-                                                                @Nullable String okActionName,
-                                                                @Nullable String cancelActionName);
+                                                                @NlsActions.ActionText @Nullable String okActionName,
+                                                                @NlsActions.ActionText @Nullable String cancelActionName);
 
 
   /**
    * <p>Shows commit dialog, fills it with the given changes and given commit message, initially selects the given changelist.</p>
    * <p>Note that the method is asynchronous: it returns right after user presses "Commit" or "Cancel" and after all pre-commit handlers
-   *    have been called. It doesn't wait for commit itself to succeed or fail - for this use the {@code customResultHandler}.</p>
+   * have been called. It doesn't wait for commit itself to succeed or fail - for this use the {@code customResultHandler}.</p>
+   *
    * @return true if user decides to commit the changes, false if user presses Cancel.
    */
   public abstract boolean commitChanges(@NotNull Collection<? extends Change> changes, @NotNull LocalChangeList initialChangeList,
-                                        @NotNull String commitMessage, @Nullable CommitResultHandler customResultHandler);
+                                        @NotNull @NlsSafe String commitMessage, @Nullable CommitResultHandler customResultHandler);
 
   public abstract void loadAndShowCommittedChangesDetails(@NotNull Project project,
                                                           @NotNull VcsRevisionNumber revision,

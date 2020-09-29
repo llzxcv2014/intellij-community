@@ -1,39 +1,28 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.newvfs.persistent;
 
+import com.intellij.openapi.util.io.DataInputOutputUtilRt;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.io.DataExternalizer;
 import com.intellij.util.io.DataInputOutputUtil;
 import com.intellij.util.io.KeyDescriptor;
-import gnu.trove.THashMap;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 // Relatively small T <-> int mapping for elements that have int numbers stored in vfs, similar to PersistentEnumerator<T>,
 // unlike later numbers assigned to T are consequent and retained in memory / expected to be small.
 // Vfs invalidation will rebuild this mapping, also any exception with the mapping will cause rebuild of the vfs
 // stored data is VfsTimeStamp Version T*
-public class VfsDependentEnum<T> {
-  private static final String DEPENDENT_PERSISTENT_LIST_START_PREFIX = "vfs_enum_";
+public final class VfsDependentEnum<T> {
+  @NonNls private static final String DEPENDENT_PERSISTENT_LIST_START_PREFIX = "vfs_enum_";
   private final File myFile;
   private final DataExternalizer<T> myKeyDescriptor;
   private final int myVersion;
@@ -42,7 +31,7 @@ public class VfsDependentEnum<T> {
   private boolean myMarkedForInvalidation;
 
   private final List<T> myInstances = ContainerUtil.createConcurrentList();
-  private final Map<T, Integer> myInstanceToId = ContainerUtil.newConcurrentMap();
+  private final Map<T, Integer> myInstanceToId = new ConcurrentHashMap<>();
   private final Object myLock = new Object();
   private boolean myTriedToLoadFile;
 
@@ -52,8 +41,7 @@ public class VfsDependentEnum<T> {
     myVersion = version;
   }
 
-  @NotNull
-  static File getBaseFile() {
+  static @NotNull File getBaseFile() {
     return new File(FSRecords.basePath(), DEPENDENT_PERSISTENT_LIST_START_PREFIX);
   }
 
@@ -120,10 +108,10 @@ public class VfsDependentEnum<T> {
           return false;
         }
 
-        int savedVersion = DataInputOutputUtil.readINT(input);
+        int savedVersion = DataInputOutputUtilRt.readINT(input);
         if (savedVersion == myVersion) {
           List<T> elements = new ArrayList<>();
-          Map<T, Integer> elementToIdMap = new THashMap<>();
+          Map<T, Integer> elementToIdMap = new HashMap<>();
           while (input.available() > 0) {
             T instance = myKeyDescriptor.read(input);
             assert instance != null;
@@ -166,8 +154,7 @@ public class VfsDependentEnum<T> {
     myInstances.add(instance);
   }
 
-  @NotNull
-  public T getById(int id) throws IOException {
+  public @NotNull T getById(int id) throws IOException {
     assert id > 0;
     --id;
     T instance;

@@ -6,9 +6,11 @@ import com.intellij.openapi.util.registry.Registry
 import com.intellij.psi.PsiSubstitutor
 import com.intellij.psi.PsiType
 import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.SearchScope
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.parentOfType
+import org.jetbrains.plugins.groovy.intentions.style.inference.driver.closure.getBlock
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrVariable
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.params.GrParameter
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrMethod
@@ -28,20 +30,19 @@ class MethodParameterAugmenter : TypeAugmenter() {
       return computeInferredMethod(method, scope)
     }
 
-    private fun computeInferredMethod(method: GrMethod, scope: GlobalSearchScope): InferenceResult? =
-      RecursionManager.doPreventingRecursion(method, true) {
-        CachedValuesManager.getCachedValue(method) {
-          val typedMethod = runInferenceProcess(method, scope)
+    private fun computeInferredMethod(method: GrMethod, scope : SearchScope): InferenceResult? =
+      CachedValuesManager.getCachedValue(method) {
+        RecursionManager.doPreventingRecursion(method, true) {
+          val options = SignatureInferenceOptions(scope, true, ClosureIgnoringInferenceContext(method.manager), lazy { unreachable() })
+          val typedMethod = runInferenceProcess(method, options)
           val typeParameterSubstitutor = createVirtualToActualSubstitutor(typedMethod, method)
           CachedValueProvider.Result(InferenceResult(typedMethod, typeParameterSubstitutor), method)
         }
       }
 
-    private fun getFileScope(method: GrMethod): GlobalSearchScope? {
+    private fun getFileScope(method: GrMethod): SearchScope? {
       val originalMethod = getOriginalMethod(method)
-      return with(originalMethod.containingFile?.virtualFile) {
-        if (this == null) return null else GlobalSearchScope.fileScope(originalMethod.project, this)
-      }
+      return originalMethod.containingFile?.run {GlobalSearchScope.fileScope(this)}
     }
 
   }
@@ -50,7 +51,7 @@ class MethodParameterAugmenter : TypeAugmenter() {
 
 
   override fun inferType(variable: GrVariable): PsiType? {
-    if (variable !is GrParameter || variable.typeElement != null) {
+    if (variable !is GrParameter || variable.typeElement != null || getBlock(variable) != null) {
       return null
     }
     val method = variable.parentOfType<GrMethod>()?.takeIf { it.parameters.contains(variable) } ?: return null

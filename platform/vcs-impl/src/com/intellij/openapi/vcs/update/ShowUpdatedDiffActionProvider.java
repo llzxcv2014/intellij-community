@@ -35,6 +35,7 @@ import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.UserDataHolder;
 import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.FileStatus;
+import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vcs.VcsDataKeys;
 import com.intellij.openapi.vcs.changes.ui.ChangeDiffRequestChain;
 import org.jetbrains.annotations.NotNull;
@@ -55,7 +56,7 @@ public class ShowUpdatedDiffActionProvider implements AnActionExtensionProvider 
     final DataContext dc = e.getDataContext();
 
     final Presentation presentation = e.getPresentation();
-    presentation.setDescription("Show diff with version before update");
+    presentation.setDescription(VcsBundle.messagePointer("action.presentation.ShowUpdatedDiffActionProvider.description"));
 
     //presentation.setVisible(isVisible(dc));
     presentation.setEnabled(isVisible(dc) && isEnabled(dc));
@@ -167,20 +168,23 @@ public class ShowUpdatedDiffActionProvider implements AnActionExtensionProvider 
         }
 
         String title = DiffRequestFactoryImpl.getContentTitle(myFilePath);
-        return new SimpleDiffRequest(title, content1, content2, "Before update", "After update");
+        return new SimpleDiffRequest(title,
+                                     content1,
+                                     content2,
+                                     VcsBundle.message("update.label.before.update"),
+                                     VcsBundle.message("update.label.after.update"));
       }
       catch (IOException e) {
-        throw new DiffRequestProducerException("Can't load content", e);
+        throw new DiffRequestProducerException(VcsBundle.message("update.can.t.load.content"), e);
       }
     }
   }
 
-  @NotNull
-  private static byte[] loadContent(@NotNull FilePath path, @NotNull Label label) throws DiffRequestProducerException {
+  private static byte @NotNull [] loadContent(@NotNull FilePath path, @NotNull Label label) throws DiffRequestProducerException {
     ByteContent byteContent = label.getByteContent(path.getPath());
 
     if (byteContent == null || byteContent.isDirectory() || byteContent.getBytes() == null) {
-      throw new DiffRequestProducerException("Can't load content");
+      throw new DiffRequestProducerException(VcsBundle.message("update.can.t.load.content"));
     }
 
     return byteContent.getBytes();

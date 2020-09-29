@@ -9,6 +9,7 @@ import com.intellij.ide.actions.ShowLogAction
 import com.intellij.openapi.actionSystem.DataProvider
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.externalSystem.issue.quickfix.ReimportQuickFix.Companion.requestImport
 import com.intellij.openapi.externalSystem.model.execution.ExternalSystemTaskExecutionSettings
 import com.intellij.openapi.externalSystem.service.execution.ExternalSystemRunConfiguration.PROGRESS_LISTENER_KEY
 import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMode.IN_BACKGROUND_ASYNC
@@ -29,10 +30,10 @@ import org.gradle.util.GradleVersion
 import org.gradle.wrapper.WrapperExecutor
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.plugins.gradle.issue.quickfix.GradleWrapperSettingsOpenQuickFix.Companion.showWrapperPropertiesFile
-import org.jetbrains.plugins.gradle.issue.quickfix.ReimportQuickFix.Companion.requestImport
 import org.jetbrains.plugins.gradle.service.task.GradleTaskManager
 import org.jetbrains.plugins.gradle.settings.DistributionType
 import org.jetbrains.plugins.gradle.settings.GradleSettings
+import org.jetbrains.plugins.gradle.util.GradleBundle
 import org.jetbrains.plugins.gradle.util.GradleConstants
 import org.jetbrains.plugins.gradle.util.GradleUtil
 import java.io.File
@@ -75,7 +76,7 @@ class GradleVersionQuickFix(private val projectPath: String,
         when {
           requestImport -> {
             TimeoutUtil.sleep(500) // todo remove when multiple-build view will be integrated into the BuildTreeConsoleView
-            return@thenComposeAsync requestImport(project, projectPath)
+            return@thenComposeAsync requestImport(project, projectPath, GradleConstants.SYSTEM_ID)
           }
           else -> return@thenComposeAsync completedFuture(null)
         }
@@ -119,7 +120,7 @@ class GradleVersionQuickFix(private val projectPath: String,
 
     val gradleVmOptions = GradleSettings.getInstance(project).gradleVmOptions
     val settings = ExternalSystemTaskExecutionSettings()
-    settings.executionName = "Upgrade Gradle wrapper"
+    settings.executionName = GradleBundle.message("grable.execution.name.upgrade.wrapper")
     settings.externalProjectPath = projectPath
     settings.taskNames = listOf("wrapper")
     settings.vmOptions = gradleVmOptions

@@ -16,6 +16,7 @@
 package com.intellij.unscramble;
 
 import com.intellij.diagnostic.IdeErrorsDialog;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -29,14 +30,8 @@ import org.jetbrains.annotations.NotNull;
  * @author Konstantin Bulenkov
  */
 public final class UnscrambleAction extends AnAction implements DumbAware {
-
   static {
-    ApplicationManager.getApplication().getMessageBus().connect().subscribe(ApplicationActivationListener.TOPIC,
-                                                                            new UnscrambleListener());
-  }
-
-  public UnscrambleAction() {
-    super("Analyze _Stack Trace or Thread Dump...", "Open console with the navigatable stack trace or a thread dump", null);
+    ApplicationManager.getApplication().getMessageBus().connect().subscribe(ApplicationActivationListener.TOPIC, new UnscrambleListener());
   }
 
   @Override
@@ -44,8 +39,9 @@ public final class UnscrambleAction extends AnAction implements DumbAware {
     Project project = e.getRequiredData(CommonDataKeys.PROJECT);
     String message = e.getData(IdeErrorsDialog.CURRENT_TRACE_KEY);
     if (message != null) {
-      AnalyzeStacktraceUtil.addConsole(project, null, "<Stacktrace>", message);
-    } else {
+      AnalyzeStacktraceUtil.addConsole(project, null, JavaBundle.message("unscramble.unscrambled.stacktrace.tab"), message);
+    }
+    else {
       new UnscrambleDialog(project).show();
     }
   }

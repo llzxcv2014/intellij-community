@@ -4,12 +4,15 @@ package com.intellij.openapi.editor.markup;
 import com.intellij.codeInsight.daemon.GutterMark;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.editor.EditorCustomElementRenderer;
+import com.intellij.openapi.editor.Inlay;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.PossiblyDumbAware;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.ui.RetrievableIcon;
 import com.intellij.ui.icons.CompositeIcon;
 import com.intellij.util.ui.accessibility.SimpleAccessible;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,12 +25,16 @@ import java.util.regex.Pattern;
  * to mark implemented or overridden methods.<p/>
  *
  * Daemon code analyzer checks newly arrived gutter icon renderer against the old one and if they are equal, does not redraw the icon.
- * So it is highly advisable to override hashCode()/equals() methods to avoid icon flickering when old gutter renderer gets replaced with the new.<p/>
+ * So it is highly advisable to override hashCode()/equals() methods to avoid icon flickering when old gutter renderer gets replaced with
+ * the new. Proper implementation of {@code equals} is also important for instances used to specify gutter icons for inlays
+ * (see {@link EditorCustomElementRenderer#calcGutterIconRenderer(Inlay)})<p/>
  *
  * During indexing, methods are only invoked for renderers implementing {@link DumbAware}.
  *
  * @author max
  * @see RangeHighlighter#setGutterIconRenderer(GutterIconRenderer)
+ * @see Inlay#getGutterIconRenderer()
+ * @see EditorCustomElementRenderer#calcGutterIconRenderer(Inlay)
  */
 public abstract class GutterIconRenderer implements GutterMark, PossiblyDumbAware, SimpleAccessible {
   /**
@@ -95,10 +102,8 @@ public abstract class GutterIconRenderer implements GutterMark, PossiblyDumbAwar
   }
 
   /**
-   * Returns the priority of the icon relative to other icons. Multiple icons in the same line
-   * are drawn in increasing priority order.
-   *
-   * @return the priority value.
+   * Defines positioning of the icon inside gutter's icon area. The order, in which icons with the same alignment values are displayed, is
+   * not specified (it can be influenced using {@link com.intellij.openapi.editor.GutterMarkPreprocessor}).
    */
   @NotNull
   public Alignment getAlignment() {
@@ -115,17 +120,19 @@ public abstract class GutterIconRenderer implements GutterMark, PossiblyDumbAwar
     return null;
   }
 
+  @SuppressWarnings("HardCodedStringLiteral") // subclasses should override this method to provide localized name
   @Override
   @NotNull
   public String getAccessibleName() {
     return getAccessibleName(getIcon(), "icon: ");
   }
 
-  public final String getFeatureId() {
+  @NonNls
+  public final @NotNull String getFeatureId() {
     return getAccessibleName(getIcon(), "");
   }
 
-  private static String getAccessibleName(@Nullable Icon icon, @NotNull String prefix) {
+  private static @NotNull String getAccessibleName(@Nullable Icon icon, @NotNull String prefix) {
     if (icon instanceof RetrievableIcon) {
       return getAccessibleName(((RetrievableIcon)icon).retrieveIcon(), prefix);
     }

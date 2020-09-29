@@ -4,6 +4,8 @@ package com.intellij.ide.util.gotoByName;
 import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.ArrayUtilRt;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -12,10 +14,12 @@ import org.jetbrains.annotations.Nullable;
  */
 public abstract class SimpleChooseByNameModel implements ChooseByNameModel {
   private final Project myProject;
-  private final String myPrompt;
-  private final String myHelpId;
+  private final @Nls(capitalization = Nls.Capitalization.Sentence) String myPrompt;
+  private final @NonNls String myHelpId;
 
-  protected SimpleChooseByNameModel(@NotNull Project project, @NotNull String prompt, @Nullable String helpId) {
+  protected SimpleChooseByNameModel(@NotNull Project project,
+                                    @NotNull @Nls(capitalization = Nls.Capitalization.Sentence) String prompt,
+                                    @Nullable @NonNls String helpId) {
     myProject = project;
     myPrompt = prompt;
     myHelpId = helpId;
@@ -62,21 +66,18 @@ public abstract class SimpleChooseByNameModel implements ChooseByNameModel {
   public void saveInitialCheckBoxState(boolean state) {
   }
 
-  @NotNull
   @Override
-  public String[] getNames(boolean checkBoxState) {
+  public String @NotNull [] getNames(boolean checkBoxState) {
     return getNames();
   }
 
-  @NotNull
   @Override
-  public Object[] getElementsByName(@NotNull String name, boolean checkBoxState, @NotNull String pattern) {
+  public Object @NotNull [] getElementsByName(@NotNull String name, boolean checkBoxState, @NotNull String pattern) {
     return getElementsByName(name, pattern);
   }
 
-  @NotNull
   @Override
-  public String[] getSeparators() {
+  public String @NotNull [] getSeparators() {
     return ArrayUtilRt.EMPTY_STRING_ARRAY;
   }
 

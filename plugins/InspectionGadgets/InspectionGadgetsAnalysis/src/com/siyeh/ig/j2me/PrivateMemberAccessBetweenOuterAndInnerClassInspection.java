@@ -49,13 +49,6 @@ public class PrivateMemberAccessBetweenOuterAndInnerClassInspection extends Base
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "private.member.access.between.outer.and.inner.classes.display.name");
-  }
-
-  @Override
-  @NotNull
   protected String buildErrorString(Object... infos) {
     final PsiClass aClass = (PsiClass)infos[0];
     return InspectionGadgetsBundle.message(
@@ -82,7 +75,7 @@ public class PrivateMemberAccessBetweenOuterAndInnerClassInspection extends Base
     return new MakePackagePrivateFix(elementName, false);
   }
 
-  private static class MakePackagePrivateFix extends InspectionGadgetsFix {
+  private static final class MakePackagePrivateFix extends InspectionGadgetsFix {
 
     private final String elementName;
     private final boolean constructor;
@@ -108,7 +101,7 @@ public class PrivateMemberAccessBetweenOuterAndInnerClassInspection extends Base
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Make package-private";
+      return InspectionGadgetsBundle.message("make.package.private.fix.family.name");
     }
 
     @Override

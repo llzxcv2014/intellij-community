@@ -2,6 +2,7 @@
 package git4idea.cherrypick;
 
 import com.intellij.dvcs.cherrypick.VcsCherryPicker;
+import com.intellij.dvcs.ui.DvcsBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.io.FileUtil;
@@ -17,9 +18,11 @@ import git4idea.commands.GitCommandResult;
 import git4idea.commands.GitLineHandlerListener;
 import git4idea.config.GitVcsApplicationSettings;
 import git4idea.config.GitVcsSettings;
+import git4idea.i18n.GitBundle;
 import git4idea.repo.GitRepository;
 import git4idea.repo.GitRepositoryManager;
 import kotlin.Unit;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -43,16 +46,16 @@ public class GitCherryPicker extends VcsCherryPicker {
 
   @Override
   public void cherryPick(@NotNull List<? extends VcsFullCommitDetails> commits) {
-    GitApplyChangesProcess applyProcess = new GitApplyChangesProcess(myProject, commits, isAutoCommit(), "cherry-pick", "applied",
-                                                                     (repository, commit, autoCommit, listeners) ->
-      Git.getInstance().cherryPick(repository, commit.asString(), autoCommit, shouldAddSuffix(repository, commit),
-                                   listeners.toArray(new GitLineHandlerListener[0])),
-      result -> isNothingToCommitMessage(result),
-      (repository, commit) -> createCommitMessage(repository, commit),
-      true,
-      repository -> cancelCherryPick(repository)
-    );
-    applyProcess.execute();
+    new GitApplyChangesProcess(myProject, commits, isAutoCommit(),
+                               GitBundle.message("cherry.pick.name"), GitBundle.message("cherry.pick.applied"),
+                               (repository, commit, autoCommit, listeners) ->
+                                 Git.getInstance()
+                                   .cherryPick(repository, commit.asString(), autoCommit, shouldAddSuffix(repository, commit),
+                                               listeners.toArray(new GitLineHandlerListener[0])),
+                               result -> isNothingToCommitMessage(result),
+                               (repository, commit) -> createCommitMessage(repository, commit),
+                               true,
+                               repository -> cancelCherryPick(repository)).execute();
   }
 
   private static boolean isNothingToCommitMessage(@NotNull GitCommandResult result) {
@@ -63,7 +66,9 @@ public class GitCherryPicker extends VcsCherryPicker {
   @NotNull
   private String createCommitMessage(@NotNull GitRepository repository, @NotNull VcsFullCommitDetails commit) {
     String message = commit.getFullMessage();
-    if (shouldAddSuffix(repository, commit.getId())) message += "\n\n(cherry picked from commit " + commit.getId().asString() + ")";
+    if (shouldAddSuffix(repository, commit.getId())) {
+      message += String.format("\n\n(cherry picked from commit %s)", commit.getId().asString()); //NON-NLS Do not i18n commit template
+    }
     return message;
   }
 
@@ -102,10 +107,12 @@ public class GitCherryPicker extends VcsCherryPicker {
     return GitVcs.getKey();
   }
 
-  @NotNull
+
   @Override
+  @NotNull
+  @Nls(capitalization = Nls.Capitalization.Title)
   public String getActionTitle() {
-    return "Cherry-Pick";
+    return DvcsBundle.message("cherry.pick.action.text");
   }
 
   private static boolean isAutoCommit() {
@@ -114,6 +121,6 @@ public class GitCherryPicker extends VcsCherryPicker {
 
   @Override
   public boolean canHandleForRoots(@NotNull Collection<? extends VirtualFile> roots) {
-    return roots.stream().allMatch(r -> myRepositoryManager.getRepositoryForRoot(r) != null);
+    return roots.stream().allMatch(r -> myRepositoryManager.getRepositoryForRootQuick(r) != null);
   }
 }

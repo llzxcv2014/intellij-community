@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.intention.impl.singlereturn;
 
 import com.intellij.codeInsight.BlockUtils;
@@ -24,7 +24,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * Performs replacement of single return statement as the part of {@link ConvertToSingleReturnAction}.
  */
-class ReturnReplacementContext {
+final class ReturnReplacementContext {
   private final Project myProject;
   private final PsiElementFactory myFactory;
   private final PsiCodeBlock myBlock;
@@ -209,7 +209,7 @@ class ReturnReplacementContext {
     if (!locals.isEmpty()) {
       ControlFlow flow;
       try {
-        flow = ControlFlowFactory.getInstance(myProject).getControlFlow(myBlock, new LocalsControlFlowPolicy(myBlock), false, false);
+        flow = ControlFlowFactory.getControlFlow(myBlock, new LocalsControlFlowPolicy(myBlock), ControlFlowOptions.NO_CONST_EVALUATE);
       }
       catch (AnalysisCanceledException ignored) {
         return;
@@ -224,8 +224,7 @@ class ReturnReplacementContext {
     }
   }
 
-  @NotNull
-  private static PsiElement[] extractTail(PsiStatement current, PsiCodeBlock block) {
+  private static PsiElement @NotNull [] extractTail(PsiStatement current, PsiCodeBlock block) {
     PsiElement[] children = block.getChildren();
     int pos = ArrayUtil.indexOf(children, current);
     assert pos >= 0;

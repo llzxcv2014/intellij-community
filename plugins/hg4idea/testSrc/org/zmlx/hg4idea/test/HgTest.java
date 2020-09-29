@@ -26,12 +26,14 @@ import com.intellij.testFramework.ServiceContainerUtil;
 import com.intellij.testFramework.UsefulTestCase;
 import com.intellij.testFramework.vcs.AbstractJunitVcsTestCase;
 import com.intellij.vcsUtil.VcsUtil;
+import com.intellij.vfs.AsyncVfsEventsPostProcessorImpl;
 import hg4idea.test.HgExecutor;
 import hg4idea.test.HgPlatformTest;
 import org.jetbrains.annotations.Nullable;
 import org.junit.After;
 import org.junit.Before;
 import org.zmlx.hg4idea.HgFile;
+import org.zmlx.hg4idea.HgGlobalSettings;
 import org.zmlx.hg4idea.HgVcs;
 import org.zmlx.hg4idea.execution.HgCommandResult;
 import org.zmlx.hg4idea.util.HgErrorUtil;
@@ -65,7 +67,7 @@ public abstract class HgTest extends AbstractJunitVcsTestCase {
   private HgVcs myVcs;
 
   @Before
-  public void setUp() throws Exception {
+  public void before() throws Exception {
     // setting hg executable
     String exec = System.getenv(HG_EXECUTABLE_PATH);
     if (exec != null) {
@@ -85,7 +87,7 @@ public abstract class HgTest extends AbstractJunitVcsTestCase {
         activateVCS(HgVcs.VCS_NAME);
 
         myVcs = HgVcs.getInstance(myProject);
-        myVcs.getGlobalSettings().setHgExecutable(HgExecutor.getHgExecutable());
+        HgGlobalSettings.getInstance().setHgExecutable(HgExecutor.getHgExecutable());
       }
       catch (Exception e) {
         e.printStackTrace();
@@ -99,13 +101,23 @@ public abstract class HgTest extends AbstractJunitVcsTestCase {
   }
 
   @After
-  public void tearDown() throws Exception {
+  public void after() throws Exception {
     EdtTestUtil.runInEdtAndWait(() -> {
-      new RunAll(() -> myVcs.getGlobalSettings().setHgExecutable(null),
-                 () -> tearDownProject(),
-                 () -> tearDownRepositories())
+      new RunAll()
+        .append(() -> HgGlobalSettings.getInstance().setHgExecutable(null))
+        .append(() -> AsyncVfsEventsPostProcessorImpl.waitEventsProcessed())
+        .append(() -> myChangeListManager.peer.waitEverythingDoneInTestMode())
+        .append(() -> tearDownFixture())
+        .append(() -> tearDownRepositories())
         .run();
     });
+  }
+
+  private void tearDownFixture() throws Exception {
+    if (myProjectFixture != null) {
+      myProjectFixture.tearDown();
+      myProjectFixture = null;
+    }
   }
 
   protected abstract HgTestRepository initRepositories() throws Exception;

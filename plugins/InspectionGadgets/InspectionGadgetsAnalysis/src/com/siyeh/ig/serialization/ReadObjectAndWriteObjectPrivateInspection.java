@@ -37,13 +37,6 @@ public class ReadObjectAndWriteObjectPrivateInspection
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "readwriteobject.private.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message(
       "readwriteobject.private.problem.descriptor");
@@ -69,7 +62,7 @@ public class ReadObjectAndWriteObjectPrivateInspection
       if (aClass == null) {
         return;
       }
-      if (aClass.isInterface() || aClass.isAnnotationType()) {
+      if (aClass.isInterface() || aClass.isAnnotationType() || aClass.isRecord()) {
         return;
       }
       if (method.hasModifierProperty(PsiModifier.PRIVATE)) {

@@ -20,7 +20,7 @@ import java.util.Map;
  * @see AnAction#actionPerformed(AnActionEvent)
  * @see AnAction#update(AnActionEvent)
  */
-public class AnActionEvent implements PlaceProvider<String> {
+public class AnActionEvent implements PlaceProvider {
   private final InputEvent myInputEvent;
   @NotNull private final ActionManager myActionManager;
   @NotNull private final DataContext myDataContext;
@@ -195,7 +195,7 @@ public class AnActionEvent implements PlaceProvider<String> {
    *   public void update(AnActionEvent e) {
    *     // perform action if and only if EDITOR != null
    *     boolean enabled = e.getData(CommonDataKeys.EDITOR) != null;
-   *     e.getPresentation.setEnabled(enabled);
+   *     e.getPresentation().setEnabled(enabled);
    *   }
    *
    *   public void actionPerformed(AnActionEvent e) {

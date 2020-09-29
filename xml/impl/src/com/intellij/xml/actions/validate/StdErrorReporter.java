@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xml.actions.validate;
 
 import com.intellij.ide.errorTreeView.NewErrorTreeViewPanel;
@@ -20,9 +6,10 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.ui.MessageDialogBuilder;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts.TabTitle;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.ToolWindowId;
 import com.intellij.openapi.wm.ToolWindowManager;
@@ -35,12 +22,12 @@ import org.xml.sax.SAXParseException;
 
 import java.util.concurrent.Future;
 
-public class StdErrorReporter extends ErrorReporter {
+public final class StdErrorReporter extends ErrorReporter {
   private static final Logger LOG = Logger.getInstance(StdErrorReporter.class);
   private static final Key<NewErrorTreeViewPanel> KEY = Key.create("ValidateXmlAction.KEY");
 
   private final NewErrorTreeViewPanel myErrorsView;
-  private final String myContentName;
+  private final @TabTitle String myContentName;
   private final Project myProject;
 
   public StdErrorReporter(ValidateXmlActionHandler handler, PsiFile psiFile, Runnable rerunAction) {
@@ -48,7 +35,7 @@ public class StdErrorReporter extends ErrorReporter {
     myProject = psiFile.getProject();
     myContentName =  XmlBundle.message("xml.validate.tab.content.title", psiFile.getName());
     myErrorsView = new NewErrorTreeViewPanel(myProject, null, true, true, rerunAction);
-    myErrorsView.getEmptyText().setText("No errors found");
+    myErrorsView.getEmptyText().setText(XmlBundle.message("no.errors.found"));
   }
 
   @Override
@@ -75,7 +62,7 @@ public class StdErrorReporter extends ErrorReporter {
         ContentManagerUtil.cleanupContents(content, myProject, myContentName);
         messageView.getContentManager().addContentManagerListener(new MyContentDisposer(content, messageView));
       },
-      XmlBundle.message("validate.xml.open.message.view.command.name"),
+      XmlBundle.message("xml.validate.open.message.view.command.name"),
       null
     );
   }
@@ -138,7 +125,7 @@ public class StdErrorReporter extends ErrorReporter {
     }
   }
 
-  private class CloseListener extends ContentManagerAdapter {
+  private class CloseListener implements ContentManagerListener {
     private Content myContent;
     private final ContentManager myContentManager;
 
@@ -160,17 +147,12 @@ public class StdErrorReporter extends ErrorReporter {
 
     @Override
     public void contentRemoveQuery(@NotNull ContentManagerEvent event) {
-      if (event.getContent() == myContent) {
-        if (!myErrorsView.isProcessStopped()) {
-          int result = Messages.showYesNoDialog(
-            XmlBundle.message("xml.validate.validation.is.running.terminate.confirmation.text"),
-            XmlBundle.message("xml.validate.validation.is.running.terminate.confirmation.title"),
-            Messages.getQuestionIcon()
-          );
-          if (result != Messages.YES) {
-            event.consume();
-          }
-        }
+      if (event.getContent() == myContent &&
+          !myErrorsView.isProcessStopped() &&
+          !MessageDialogBuilder.yesNo(XmlBundle.message("xml.validate.validation.is.running.terminate.confirmation.title"),
+                                      XmlBundle.message("xml.validate.validation.is.running.terminate.confirmation.text"))
+            .ask(myProject)) {
+        event.consume();
       }
     }
   }

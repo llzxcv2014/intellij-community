@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.history;
 
 import com.intellij.openapi.application.ReadAction;
@@ -8,6 +8,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ArrayUtil;
+import com.intellij.util.CollectConsumer;
 import com.intellij.util.Consumer;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
@@ -98,10 +99,17 @@ public class GitLogUtil {
   public static List<? extends VcsCommitMetadata> collectMetadata(@NotNull Project project, @NotNull GitVcs vcs, @NotNull VirtualFile root,
                                                                   @NotNull List<String> hashes)
     throws VcsException {
+    CollectConsumer<VcsCommitMetadata> collectConsumer = new CollectConsumer<>();
+    collectMetadata(project, vcs, root, hashes, collectConsumer);
+    return new ArrayList<>(collectConsumer.getResult());
+  }
+
+  public static void collectMetadata(@NotNull Project project, @NotNull GitVcs vcs, @NotNull VirtualFile root,
+                                     @NotNull List<String> hashes, @NotNull Consumer<? super VcsCommitMetadata> consumer)
+    throws VcsException {
+    if (hashes.isEmpty()) return;
     VcsLogObjectsFactory factory = getObjectsFactoryWithDisposeCheck(project);
-    if (factory == null) {
-      return Collections.emptyList();
-    }
+    if (factory == null) return;
 
     GitLineHandler h = createGitHandler(project, root);
     GitLogParser<GitLogRecord> parser = GitLogParser.createDefaultParser(project, COMMIT_METADATA_OPTIONS);
@@ -114,19 +122,20 @@ public class GitLogUtil {
 
     sendHashesToStdin(vcs, hashes, h);
 
-    String output = Git.getInstance().runCommand(h).getOutputOrThrow();
-    List<GitLogRecord> records = parser.parse(output);
-
-    return ContainerUtil.map(records, record -> {
+    GitLogOutputSplitter<GitLogRecord> outputHandler = new GitLogOutputSplitter<>(h, parser, (record) -> {
       List<Hash> parents = new SmartList<>();
       for (String parent : record.getParentsHashes()) {
         parents.add(HashImpl.build(parent));
       }
       record.setUsedHandler(h);
-      return factory.createCommitMetadata(HashImpl.build(record.getHash()), parents, record.getCommitTime(), root,
-                                          record.getSubject(), record.getAuthorName(), record.getAuthorEmail(), record.getFullMessage(),
-                                          record.getCommitterName(), record.getCommitterEmail(), record.getAuthorTimeStamp());
+      consumer.consume(factory.createCommitMetadata(HashImpl.build(record.getHash()), parents, record.getCommitTime(), root,
+                                                    record.getSubject(), record.getAuthorName(), record.getAuthorEmail(),
+                                                    record.getFullMessage(),
+                                                    record.getCommitterName(), record.getCommitterEmail(), record.getAuthorTimeStamp()));
     });
+
+    Git.getInstance().runCommandWithoutCollectingOutput(h).throwOnError();
+    outputHandler.reportErrors();
   }
 
   @NotNull
@@ -180,32 +189,10 @@ public class GitLogUtil {
     return new LogDataImpl(refs, commits);
   }
 
-  /**
-   * @deprecated use {@link GitHistoryUtils#history(Project, VirtualFile, String...)} instead.
-   */
-  @Deprecated
-  @NotNull
-  public static List<GitCommit> collectFullDetails(@NotNull Project project,
-                                                   @NotNull VirtualFile root,
-                                                   String... parameters) throws VcsException {
-
-    List<GitCommit> commits = new ArrayList<>();
-    try {
-      readFullDetails(project, root, commits::add, parameters);
-    }
-    catch (VcsException e) {
-      if (commits.isEmpty()) {
-        throw e;
-      }
-      LOG.warn("Error during loading details, returning partially loaded commits\n", e);
-    }
-    return commits;
-  }
-
   public static void readFullDetails(@NotNull Project project,
                                      @NotNull VirtualFile root,
                                      @NotNull Consumer<? super GitCommit> commitConsumer,
-                                     @NotNull String... parameters) throws VcsException {
+                                     String @NotNull ... parameters) throws VcsException {
     new GitFullDetailsCollector(project, root, new InternedGitLogRecordBuilder())
       .readFullDetails(commitConsumer, GitCommitRequirements.DEFAULT, false, parameters);
   }
@@ -215,6 +202,9 @@ public class GitLogUtil {
                                               @NotNull List<String> hashes,
                                               @NotNull GitCommitRequirements requirements,
                                               @NotNull Consumer<? super GitCommit> commitConsumer) throws VcsException {
+    if (hashes.isEmpty()) {
+      return;
+    }
     new GitFullDetailsCollector(project, root, new InternedGitLogRecordBuilder())
       .readFullDetailsForHashes(hashes, requirements, false, commitConsumer);
   }
@@ -254,9 +244,8 @@ public class GitLogUtil {
   static void sendHashesToStdin(@NotNull GitVcs vcs, @NotNull Collection<String> hashes, @NotNull GitHandler handler) {
     // if we close this stream, RunnerMediator won't be able to send ctrl+c to the process in order to softly kill it
     // see RunnerMediator.sendCtrlEventThroughStream
-    String separator = GitVersionSpecialty.LF_SEPARATORS_IN_STDIN.existsIn(vcs) ? "\n" : System.lineSeparator();
     handler.setInputProcessor(GitHandlerInputProcessorUtil.writeLines(hashes,
-                                                                      separator,
+                                                                      "\n",
                                                                       handler.getCharset(),
                                                                       true));
   }

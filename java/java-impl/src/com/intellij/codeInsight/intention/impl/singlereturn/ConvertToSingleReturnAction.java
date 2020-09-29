@@ -1,8 +1,8 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.intention.impl.singlereturn;
 
-import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.intention.PsiElementBaseIntentionAction;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Editor;
@@ -10,7 +10,6 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.ThrowableComputable;
-import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -38,10 +37,10 @@ public class ConvertToSingleReturnAction extends PsiElementBaseIntentionAction {
     ThrowableComputable<PsiCodeBlock, RuntimeException> bodyGenerator = 
       () -> generateBody(project, block, ProgressManager.getInstance().getProgressIndicator());
     PsiCodeBlock replacement = ProgressManager.getInstance().runProcessWithProgressSynchronously(
-      () -> ReadAction.compute(bodyGenerator), StringUtil.toTitleCase(getFamilyName()), true, project);
+      () -> ReadAction.compute(bodyGenerator), JavaBundle.message("intention.convert.to.single.return.progress.title"), true, project);
     if (replacement != null) {
       Runnable action = () -> CodeStyleManager.getInstance(project).reformat(block.replace(replacement));
-      WriteCommandAction.runWriteCommandAction(project, getFamilyName(), null, action, element.getContainingFile());
+      WriteCommandAction.runWriteCommandAction(project, JavaBundle.message("intention.convert.to.single.return.command.text"), null, action, element.getContainingFile());
     }
   }
 
@@ -151,6 +150,6 @@ public class ConvertToSingleReturnAction extends PsiElementBaseIntentionAction {
   @NotNull
   @Override
   public String getFamilyName() {
-    return CodeInsightBundle.message("intention.convert.to.single.return.name");
+    return JavaBundle.message("intention.convert.to.single.return.name");
   }
 }

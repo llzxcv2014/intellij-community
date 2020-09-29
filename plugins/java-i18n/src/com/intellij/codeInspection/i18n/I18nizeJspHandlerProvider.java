@@ -15,20 +15,24 @@
  */
 package com.intellij.codeInspection.i18n;
 
-import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.ide.fileTemplates.JavaTemplateUtil;
+import com.intellij.java.i18n.JavaI18nBundle;
 import com.intellij.lang.StdLanguages;
 import com.intellij.lang.properties.psi.PropertiesFile;
 import com.intellij.lang.properties.psi.PropertyCreationHandler;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.psi.*;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiRecursiveElementVisitor;
 import com.intellij.psi.jsp.JspFile;
 import com.intellij.psi.templateLanguages.OuterLanguageElement;
 import com.intellij.psi.xml.XmlTag;
 import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.uast.UExpression;
+import org.jetbrains.uast.expressions.UInjectionHost;
 
 import java.util.Collection;
 
@@ -37,7 +41,7 @@ import java.util.Collection;
  */
 public class I18nizeJspHandlerProvider extends I18nizeHandlerProvider {
 
-  private static final I18nQuickFixHandler HADLER = new I18nQuickFixHandler() {
+  private static final I18nQuickFixHandler<UExpression> HADLER = new I18nQuickFixHandler<>() {
     @Override
     public void checkApplicability(final PsiFile psiFile, final Editor editor) throws IncorrectOperationException {
       final JspFile jspFile = (JspFile)psiFile;
@@ -47,7 +51,7 @@ public class I18nizeJspHandlerProvider extends I18nizeHandlerProvider {
       // must not contain scriptlets or custom tags
       PsiFile root = jspFile.getBaseLanguageRoot();
       root.accept(new PsiRecursiveElementVisitor(){
-        @Override public void visitElement(PsiElement element) {
+        @Override public void visitElement(@NotNull PsiElement element) {
           TextRange elementRange = element.getTextRange();
           if (elementRange.intersectsStrict(selectedRange)) {
             // in JSPX base language root is a Jspx file itself
@@ -56,7 +60,7 @@ public class I18nizeJspHandlerProvider extends I18nizeHandlerProvider {
                 element instanceof XmlTag
                 && !selectedRange.contains(elementRange)
                 && (!elementRange.contains(selectedRange) || !((XmlTag)element).getValue().getTextRange().contains(selectedRange))) {
-              throw new IncorrectOperationException(CodeInsightBundle.message("i18nize.jsp.error"));
+              throw new IncorrectOperationException(JavaI18nBundle.message("i18nize.jsp.error"));
             }
           }
           super.visitElement(element);
@@ -67,10 +71,10 @@ public class I18nizeJspHandlerProvider extends I18nizeHandlerProvider {
     @Override
     public void performI18nization(final PsiFile psiFile,
                                    final Editor editor,
-                                   PsiLiteralExpression literalExpression,
+                                   UExpression literalExpression,
                                    Collection<PropertiesFile> propertiesFiles,
                                    String key, String value, String i18nizedText,
-                                   PsiExpression[] parameters,
+                                   UExpression[] parameters,
                                    final PropertyCreationHandler propertyCreationHandler) throws IncorrectOperationException {
       Project project = psiFile.getProject();
       TextRange selectedText = JavaI18nUtil.getSelectedRange(editor, psiFile);
@@ -80,13 +84,18 @@ public class I18nizeJspHandlerProvider extends I18nizeHandlerProvider {
     }
 
     @Override
-    public JavaI18nizeQuickFixDialog createDialog(final Project project, final Editor editor, final PsiFile psiFile) {
+    public UExpression getEnclosingLiteral(PsiFile file, Editor editor) {
+      return I18nizeAction.getEnclosingStringLiteral(file, editor);
+    }
+
+    @Override
+    public JavaI18nizeQuickFixDialog<UExpression> createDialog(final Project project, final Editor editor, final PsiFile psiFile) {
       JspFile jspFile = (JspFile)psiFile;
 
       TextRange selectedRange = JavaI18nUtil.getSelectedRange(editor, psiFile);
       if (selectedRange == null) return null;
       String text = editor.getDocument().getText(selectedRange);
-      return new JavaI18nizeQuickFixDialog(project, jspFile, null, text, null, false, true){
+      return new JavaI18nizeQuickFixDialog<>(project, jspFile, null, text, null, false, true) {
         @Override
         protected String getTemplateName() {
           return JavaTemplateUtil.TEMPLATE_I18NIZED_JSP_EXPRESSION;
@@ -96,7 +105,7 @@ public class I18nizeJspHandlerProvider extends I18nizeHandlerProvider {
   };
 
   @Override
-  public I18nQuickFixHandler getHandler(@NotNull PsiFile psiFile, @NotNull Editor editor, @NotNull TextRange range) {
+  public I18nQuickFixHandler<?> getHandler(@NotNull PsiFile psiFile, @NotNull Editor editor, @NotNull TextRange range) {
     return psiFile instanceof JspFile ? HADLER : null;
   }
 }

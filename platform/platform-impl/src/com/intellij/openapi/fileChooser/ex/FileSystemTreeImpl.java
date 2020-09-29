@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.fileChooser.ex;
 
 import com.intellij.ide.util.treeView.AbstractTreeBuilder;
@@ -36,7 +36,6 @@ import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.Convertor;
 import com.intellij.util.ui.tree.TreeUtil;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -51,10 +50,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Stream;
 
 public class FileSystemTreeImpl implements FileSystemTree {
@@ -70,7 +66,7 @@ public class FileSystemTreeImpl implements FileSystemTree {
   private final List<Listener> myListeners = ContainerUtil.createLockFreeCopyOnWriteList();
   private final MyExpansionListener myExpansionListener = new MyExpansionListener();
 
-  private final Set<VirtualFile> myEverExpanded = new THashSet<>();
+  private final Set<VirtualFile> myEverExpanded = new HashSet<>();
 
   public FileSystemTreeImpl(@Nullable final Project project, final FileChooserDescriptor descriptor) {
     this(project, descriptor, new Tree(), null, null, null);
@@ -188,9 +184,11 @@ public class FileSystemTreeImpl implements FileSystemTree {
     return new AsyncTreeModel(fileTreeModel, false, this);
   }
 
-  protected AbstractTreeBuilder createTreeBuilder(final JTree tree, DefaultTreeModel treeModel, final AbstractTreeStructure treeStructure,
-                                                  final Comparator<NodeDescriptor> comparator, FileChooserDescriptor descriptor,
-                                                  @Nullable final Runnable onInitialized) {
+  protected AbstractTreeBuilder createTreeBuilder(JTree tree, DefaultTreeModel treeModel,
+                                                  AbstractTreeStructure treeStructure,
+                                                  Comparator<NodeDescriptor<?>> comparator,
+                                                  FileChooserDescriptor descriptor,
+                                                  @Nullable Runnable onInitialized) {
     return new FileTreeBuilder(tree, treeModel, treeStructure, comparator, descriptor, onInitialized);
   }
 
@@ -206,7 +204,7 @@ public class FileSystemTreeImpl implements FileSystemTree {
 
     new DoubleClickListener() {
       @Override
-      protected boolean onDoubleClick(MouseEvent e) {
+      protected boolean onDoubleClick(@NotNull MouseEvent e) {
         performEnterAction(false);
         return true;
       }
@@ -248,7 +246,7 @@ public class FileSystemTreeImpl implements FileSystemTree {
       return myDescriptor.isShowHiddenFiles();
     }
     else {
-      return myTreeStructure.areHiddensShown();
+      return myTreeStructure.areHiddenShown();
     }
   }
 
@@ -259,7 +257,7 @@ public class FileSystemTreeImpl implements FileSystemTree {
       if (myFileTreeModel != null) myFileTreeModel.invalidate();
     }
     else {
-      myTreeStructure.showHiddens(showHidden);
+      myTreeStructure.showHidden(showHidden);
     }
     updateTree();
   }
@@ -442,8 +440,7 @@ public class FileSystemTreeImpl implements FileSystemTree {
   }
 
   @Override
-  @NotNull
-  public VirtualFile[] getSelectedFiles() {
+  public VirtualFile @NotNull [] getSelectedFiles() {
     final TreePath[] paths = myTree.getSelectionPaths();
     if (paths == null) return VirtualFile.EMPTY_ARRAY;
 

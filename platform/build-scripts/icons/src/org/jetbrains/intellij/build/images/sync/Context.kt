@@ -1,23 +1,26 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.intellij.build.images.sync
 
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.util.io.createDirectories
 import org.jetbrains.intellij.build.images.ImageExtension
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.function.Consumer
 import kotlin.concurrent.thread
 
 internal class Context(private val errorHandler: Consumer<String> = Consumer { error(it) },
-                       private val devIconsVerifier: Consumer<Collection<File>>? = null) {
+                       private val devIconsVerifier: Consumer<Collection<Path>>? = null) {
   companion object {
     const val iconsCommitHashesToSyncArg = "sync.icons.commits"
     private const val iconsRepoArg = "icons.repo"
   }
 
-  val devRepoDir: File
-  val iconsRepoDir: File
+  var devRepoDir: Path
+  var iconRepoDir: Path
   val iconsRepoName: String
   val devRepoName: String
   val skipDirsPattern: String?
@@ -26,16 +29,13 @@ internal class Context(private val errorHandler: Consumer<String> = Consumer { e
   val doSyncRemovedIconsInDev: Boolean
   private val failIfSyncDevIconsRequired: Boolean
   val notifySlack: Boolean
-  lateinit var iconsRepo: File
-  lateinit var devRepoRoot: File
   val byDev = Changes()
   val byCommit = mutableMapOf<String, Changes>()
   val consistent: MutableCollection<String> = mutableListOf()
-  var createdReviews: Collection<Review> = emptyList()
   var icons: Map<String, GitObject> = emptyMap()
   var devIcons: Map<String, GitObject> = emptyMap()
-  var devCommitsToSync: Map<File, Collection<CommitInfo>> = emptyMap()
-  var iconsCommitsToSync: Map<File, Collection<CommitInfo>> = emptyMap()
+  var devCommitsToSync: Map<Path, Collection<CommitInfo>> = emptyMap()
+  var iconsCommitsToSync: Map<Path, Collection<CommitInfo>> = emptyMap()
   val iconsCommitHashesToSync: MutableSet<String>
   val devIconsCommitHashesToSync: MutableSet<String>
   val devIconsSyncAll: Boolean
@@ -75,22 +75,22 @@ internal class Context(private val errorHandler: Consumer<String> = Consumer { e
 
     fun bool(arg: String) = System.getProperty(arg)?.toBoolean() ?: false
 
-    fun commits(arg: String) = System.getProperty(arg)
-                                 ?.takeIf { it.trim() != "*" }
-                                 ?.split(",", ";", " ")
-                                 ?.filter { it.isNotBlank() }
-                                 ?.mapTo(mutableSetOf(), String::trim) ?: mutableSetOf<String>()
+    fun commits(arg: String): MutableSet<String> {
+      return System.getProperty(arg)
+               ?.takeIf { it.trim() != "*" }
+               ?.split(",", ";", " ")
+               ?.filter { it.isNotBlank() }
+               ?.mapTo(mutableSetOf(), String::trim) ?: mutableSetOf()
+    }
 
     devRepoDir = findDirectoryIgnoringCase(System.getProperty(devRepoArg)) ?: {
-      log("WARNING: $devRepoArg not found")
-      File(System.getProperty("user.dir"))
+      warn("$devRepoArg not found")
+      Paths.get(System.getProperty("user.dir"))
     }()
     val iconsRepoRelativePath = System.getProperty(iconsRepoPathArg) ?: ""
     val iconsRepoRootDir = findDirectoryIgnoringCase(System.getProperty(iconsRepoArg)) ?: cloneIconsRepoToTempDir()
-    iconsRepoDir = iconsRepoRootDir.resolve(iconsRepoRelativePath)
-    if (!iconsRepoDir.exists() && !iconsRepoDir.mkdirs() || !iconsRepoDir.isDirectory) {
-      doFail("Cannot access $iconsRepoDir")
-    }
+    iconRepoDir = iconsRepoRootDir.resolve(iconsRepoRelativePath)
+    iconRepoDir.createDirectories()
     iconsRepoName = System.getProperty(iconsRepoNameArg) ?: "icons repo"
     devRepoName = System.getProperty(devRepoNameArg) ?: "dev repo"
     skipDirsPattern = System.getProperty(patternArg)
@@ -116,7 +116,7 @@ internal class Context(private val errorHandler: Consumer<String> = Consumer { e
       ?.mapNotNull {
         val split = it.split(':')
         if (split.size != 3) {
-          log("WARNING: malformed line in 'teamcity.build.changedFiles.file' : $it")
+          warn("malformed line in 'teamcity.build.changedFiles.file' : $it")
           return@mapNotNull null
         }
         val (file, _, commit) = split
@@ -124,25 +124,35 @@ internal class Context(private val errorHandler: Consumer<String> = Consumer { e
       }?.toMutableSet() ?: mutableSetOf()
   }
 
-  private fun cloneIconsRepoToTempDir(): File {
-    log("WARNING: $iconsRepoArg not found")
-    val tmp = Files.createTempDirectory("icons-sync").toFile()
+  val iconRepo: Path by lazy {
+    findGitRepoRoot(iconRepoDir)
+  }
+
+  val devRepoRoot: Path by lazy {
+    findGitRepoRoot(devRepoDir)
+  }
+
+  private fun cloneIconsRepoToTempDir(): Path {
+    val uri = "ssh://git@git.jetbrains.team/IntelliJIcons.git"
+    log("$iconsRepoArg not found. Have to perform full clone of $uri")
+    val tmp = Files.createTempDirectory("icons-sync")
     Runtime.getRuntime().addShutdownHook(thread(start = false) {
-      tmp.deleteRecursively()
+      tmp.toFile().deleteRecursively()
     })
-    val uri = "ssh://git@github.com/JetBrains/IntelliJIcons.git"
     return callWithTimer("Cloning $uri into $tmp") { gitClone(uri, tmp) }
   }
 
   val byDesigners = Changes(includeRemoved = doSyncRemovedIconsInDev)
-  val devIconsFilter: (File) -> Boolean by lazy {
+  val devIconsFilter: (Path) -> Boolean by lazy {
     val skipDirsRegex = skipDirsPattern?.toRegex()
-    val testRoots = searchTestRoots(devRepoRoot.absolutePath)
+    val testRoots = searchTestRoots(devRepoRoot.toAbsolutePath().toString())
     log("Found ${testRoots.size} test roots")
-    return@lazy { file: File ->
+    return@lazy { file: Path ->
       filterDevIcon(file, testRoots, skipDirsRegex, this)
     }
   }
+
+  var iconFilter: (Path) -> Boolean = { Icon(it).isValid }
 
   fun devChanges() = byDev.all()
   fun iconsChanges() = byDesigners.all()
@@ -150,8 +160,15 @@ internal class Context(private val errorHandler: Consumer<String> = Consumer { e
   fun iconsSyncRequired() = devChanges().isNotEmpty()
   fun devSyncRequired() = iconsChanges().isNotEmpty()
 
-  fun devReviews(): Collection<Review> = createdReviews.filter { it.projectId == UPSOURCE_DEV_PROJECT_ID }
-  fun verifyDevIcons(repos: Collection<File>) = devIconsVerifier?.accept(repos)
+  fun verifyDevIcons(repos: Collection<Path>): Unit? {
+    return try {
+      devIconsVerifier?.accept(repos)
+    }
+    catch (e: Exception) {
+      doFail("Test failures detected")
+    }
+  }
+
   fun doFail(report: String) {
     log(report)
     errorHandler.accept(report)
@@ -159,12 +176,20 @@ internal class Context(private val errorHandler: Consumer<String> = Consumer { e
 
   fun isFail() = notifySlack && failIfSyncDevIconsRequired && devSyncRequired()
 
-  private fun findDirectoryIgnoringCase(path: String?): File? {
-    if (path == null) return null
-    val file = File(path)
-    if (file.isDirectory) return file
-    return file.parentFile?.listFiles()?.firstOrNull {
-      it.absolutePath.equals(FileUtil.toSystemDependentName(path), ignoreCase = true)
+  private fun findDirectoryIgnoringCase(path: String?): Path? {
+    if (path == null) {
+      return null
     }
+
+    val file = Paths.get(path)
+    if (Files.isDirectory(file)) {
+      return file
+    }
+
+    return file.parent?.toFile()?.listFiles()?.firstOrNull {
+      it.absolutePath.equals(FileUtil.toSystemDependentName(path), ignoreCase = true)
+    }?.toPath()
   }
+
+  fun warn(message: String) = System.err.println(message)
 }

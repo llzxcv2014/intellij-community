@@ -19,13 +19,13 @@ public class PackagesPaneSelectInTarget extends ProjectViewSelectInTarget {
   }
 
   public String toString() {
-    return SelectInManager.PACKAGES;
+    return SelectInManager.getPackages();
   }
 
   @Override
   public boolean canSelect(PsiFileSystemItem file) {
     VirtualFile vFile = PsiUtilCore.getVirtualFile(file);
-    vFile = BackedVirtualFile.getOriginFileIfBacked(vFile);
+    vFile = vFile == null ? null : BackedVirtualFile.getOriginFileIfBacked(vFile);
     if (vFile == null || !vFile.isValid()) return false;
 
     ProjectFileIndex fileIndex = ProjectRootManager.getInstance(myProject).getFileIndex();

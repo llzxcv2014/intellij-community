@@ -18,10 +18,12 @@ package com.intellij.packageDependencies;
 import com.intellij.analysis.AnalysisScope;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtilCore;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.impl.PsiFileEx;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -78,9 +80,9 @@ public abstract class DependenciesBuilder {
     return myProject;
   }
 
-  public abstract String getRootNodeNameInUsageView();
+  public abstract @Nls String getRootNodeNameInUsageView();
 
-  public abstract String getInitialUsagesPosition();
+  public abstract @Nls String getInitialUsagesPosition();
 
   public abstract boolean isBackward();
 
@@ -156,7 +158,7 @@ public abstract class DependenciesBuilder {
     return 0;
   }
 
-  String getRelativeToProjectPath(@NotNull VirtualFile virtualFile) {
+  @NlsSafe String getRelativeToProjectPath(@NotNull VirtualFile virtualFile) {
     return ProjectUtilCore.displayUrlRelativeToProject(virtualFile, virtualFile.getPresentableUrl(), getProject(), true, false);
   }
 

@@ -5,6 +5,7 @@ package com.intellij.facet.impl.ui.libraries;
 import com.google.common.io.BaseEncoding;
 import com.intellij.facet.ui.libraries.LibraryInfo;
 import com.intellij.openapi.roots.libraries.LibraryUtil;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -18,9 +19,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * @author nik
- */
 public class RequiredLibrariesInfo {
   private final List<LibraryInfo> myLibraryInfos = new ArrayList<>();
 
@@ -113,7 +111,7 @@ public class RequiredLibrariesInfo {
       return myLibraryInfos;
     }
 
-    public String getMissingJarsText() {
+    public @NlsSafe String getMissingJarsText() {
       return getLibrariesPresentableText(myLibraryInfos);
     }
   }

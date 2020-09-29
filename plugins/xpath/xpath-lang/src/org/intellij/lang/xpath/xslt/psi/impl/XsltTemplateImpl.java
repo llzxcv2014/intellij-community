@@ -15,6 +15,7 @@
  */
 package org.intellij.lang.xpath.xslt.psi.impl;
 
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.xml.XmlTag;
 import icons.XpathIcons;
@@ -48,7 +49,7 @@ public class XsltTemplateImpl extends XsltElementImpl implements XsltTemplate {
         return buildSignature();
     }
 
-    public String buildSignature() {
+    public @NlsSafe String buildSignature() {
         final StringBuilder sb = new StringBuilder(getName());
         final XsltParameter[] parameters = getParameters();
         if (parameters.length > 0) {
@@ -74,8 +75,7 @@ public class XsltTemplateImpl extends XsltElementImpl implements XsltTemplate {
     }
 
     @Override
-    @NotNull
-    public XsltParameter[] getParameters() {
+    public XsltParameter @NotNull [] getParameters() {
         final PsiElement[] elements = ResolveUtil.collect(new ParamMatcher(getTag(), null));
 
         final XsltParameter[] xsltParameters = new XsltParameter[elements.length];

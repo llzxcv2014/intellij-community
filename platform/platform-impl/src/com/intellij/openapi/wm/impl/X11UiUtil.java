@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.wm.impl;
 
 import com.intellij.execution.configurations.GeneralCommandLine;
@@ -9,6 +9,8 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.ex.WindowManagerEx;
 import com.intellij.util.SystemProperties;
 import com.intellij.util.concurrency.AtomicFieldUpdater;
+import org.jetbrains.annotations.NonNls;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import sun.awt.AWTAccessor;
 import sun.misc.Unsafe;
@@ -25,7 +27,7 @@ import java.util.regex.Pattern;
 
 import static com.intellij.util.ArrayUtil.newLongArray;
 
-public class X11UiUtil {
+public final class X11UiUtil {
   private static final Logger LOG = Logger.getInstance(X11UiUtil.class);
 
   private static final int True = 1;
@@ -37,6 +39,7 @@ public class X11UiUtil {
   private static final int FORMAT_BYTE = 8;
   private static final int FORMAT_LONG = 32;
   private static final long EVENT_MASK = (3L << 19);
+  private static final long NET_WM_STATE_ADD = 1;
   private static final long NET_WM_STATE_TOGGLE = 2;
 
   @SuppressWarnings("SpellCheckingInspection")
@@ -60,9 +63,10 @@ public class X11UiUtil {
     private long NET_WM_STATE;
     private long NET_WM_ACTION_FULLSCREEN;
     private long NET_WM_STATE_FULLSCREEN;
+    private long NET_WM_STATE_DEMANDS_ATTENTION;
+    private long NET_ACTIVE_WINDOW;
 
-    @Nullable
-    private static Xlib getInstance() {
+    private static @Nullable Xlib getInstance() {
       Class<? extends Toolkit> toolkitClass = Toolkit.getDefaultToolkit().getClass();
       if (!SystemInfo.isXWindow || !"sun.awt.X11.XToolkit".equals(toolkitClass.getName())) {
         return null;
@@ -73,7 +77,7 @@ public class X11UiUtil {
 
         // reflect on Xlib method wrappers and important structures
         Class<?> XlibWrapper = Class.forName("sun.awt.X11.XlibWrapper");
-        x11.unsafe = AtomicFieldUpdater.getUnsafe();
+        x11.unsafe = (Unsafe)AtomicFieldUpdater.getUnsafe();
         x11.XGetWindowProperty = method(XlibWrapper, "XGetWindowProperty", 12);
         x11.XFree = method(XlibWrapper, "XFree", 1);
         x11.RootWindow = method(XlibWrapper, "RootWindow", 2);
@@ -96,6 +100,8 @@ public class X11UiUtil {
         x11.NET_WM_STATE = (Long)atom.get(get.invoke(null, "_NET_WM_STATE"));
         x11.NET_WM_ACTION_FULLSCREEN = (Long)atom.get(get.invoke(null, "_NET_WM_ACTION_FULLSCREEN"));
         x11.NET_WM_STATE_FULLSCREEN = (Long)atom.get(get.invoke(null, "_NET_WM_STATE_FULLSCREEN"));
+        x11.NET_WM_STATE_DEMANDS_ATTENTION = (Long)atom.get(get.invoke(null, "_NET_WM_STATE_DEMANDS_ATTENTION"));
+        x11.NET_ACTIVE_WINDOW = (Long)atom.get(get.invoke(null, "_NET_ACTIVE_WINDOW"));
 
         // check for _NET protocol support
         Long netWmWindow = x11.getNetWmWindow();
@@ -123,26 +129,22 @@ public class X11UiUtil {
       }
     }
 
-    @Nullable
-    private Long getNetWmWindow() throws Exception {
+    private @Nullable Long getNetWmWindow() throws Exception {
       long rootWindow = getRootWindow(0);
       long[] values = getLongArrayProperty(rootWindow, NET_SUPPORTING_WM_CHECK, XA_WINDOW);
       return values != null && values.length > 0 ? values[0] : null;
     }
 
-    @Nullable
-    private long[] getLongArrayProperty(long window, long name, long type) throws Exception {
+    private long @Nullable [] getLongArrayProperty(long window, long name, long type) throws Exception {
       return getWindowProperty(window, name, type, FORMAT_LONG);
     }
 
-    @Nullable
-    private String getUtfStringProperty(long window, long name) throws Exception {
+    private @Nullable String getUtfStringProperty(long window, long name) throws Exception {
       byte[] bytes = getWindowProperty(window, name, UTF8_STRING, FORMAT_BYTE);
       return bytes != null ? new String(bytes, StandardCharsets.UTF_8) : null;
     }
 
-    @Nullable
-    private <T> T getWindowProperty(long window, long name, long type, long expectedFormat) throws Exception {
+    private @Nullable <T> T getWindowProperty(long window, long name, long type, long expectedFormat) throws Exception {
       long data = unsafe.allocateMemory(64);
       awtLock.invoke(null);
       try {
@@ -205,7 +207,7 @@ public class X11UiUtil {
         else {
           unsafe.putInt(event + 16, True);
           unsafe.putLong(event + 32, window);
-          unsafe.putLong(event + 40, NET_WM_STATE);
+          unsafe.putLong(event + 40, type);
           unsafe.putInt(event + 48, FORMAT_LONG);
           for (int i = 0; i < data.length; i++) {
             unsafe.putLong(event + 56 + 8L * i, data[i]);
@@ -219,14 +221,27 @@ public class X11UiUtil {
         unsafe.freeMemory(event);
       }
     }
+
+    private void sendClientMessage(Window window, String operation, long type, long... params) {
+      try {
+        ComponentPeer peer = AWTAccessor.getComponentAccessor().getPeer(window);
+        if (peer == null) throw new IllegalStateException(window + " has no peer");
+        long windowId = (Long)getWindow.invoke(peer);
+        long screen = (Long)getScreenNumber.invoke(peer);
+        long rootWindow = getRootWindow(screen);
+        sendClientMessage(rootWindow, windowId, type, params);
+      }
+      catch (Throwable t) {
+        LOG.info("cannot " + operation, t);
+      }
+    }
   }
 
-  @Nullable private static final Xlib X11 = Xlib.getInstance();
+  private static final @Nullable Xlib X11 = Xlib.getInstance();
 
   // WM detection and patching
 
-  @Nullable
-  public static String getWmName() {
+  public static @Nullable String getWmName() {
     if (X11 == null) return null;
 
     try {
@@ -270,7 +285,7 @@ public class X11UiUtil {
     }
   }
 
-  private static void setWM(String... wmConstants) throws Exception {
+  private static void setWM(@NonNls String... wmConstants) throws Exception {
     Class<?> xwmClass = Class.forName("sun.awt.X11.XWM");
     Object xwm = method(xwmClass, "getWM").invoke(null);
     if (xwm != null) {
@@ -290,8 +305,7 @@ public class X11UiUtil {
     }
   }
 
-  @Nullable
-  private static String getAwesomeWMVersion() {
+  private static @Nullable String getAwesomeWMVersion() {
     try {
       String version = ExecUtil.execAndReadLine(new GeneralCommandLine("awesome", "--version"));
       if (version != null) {
@@ -349,23 +363,29 @@ public class X11UiUtil {
 
   public static void toggleFullScreenMode(JFrame frame) {
     if (X11 == null) return;
+    X11.sendClientMessage(frame, "toggle mode", X11.NET_WM_STATE, NET_WM_STATE_TOGGLE, X11.NET_WM_STATE_FULLSCREEN);
+  }
 
-    try {
-      ComponentPeer peer = AWTAccessor.getComponentAccessor().getPeer(frame);
-      if (peer == null) throw new IllegalStateException(frame + " has no peer");
-      long window = (Long)X11.getWindow.invoke(peer);
-      long screen = (Long)X11.getScreenNumber.invoke(peer);
-      long rootWindow = X11.getRootWindow(screen);
-      X11.sendClientMessage(rootWindow, window, X11.NET_WM_STATE, NET_WM_STATE_TOGGLE, X11.NET_WM_STATE_FULLSCREEN);
-    }
-    catch (Throwable t) {
-      LOG.info("cannot toggle mode", t);
-    }
+  /**
+   * This method requests window manager to activate the specified application window. This might cause the window to steal focus
+   * from another (currently active) application, which is generally not considered acceptable. So it should be used only in
+   * special cases, when we know that the user definitely expects such behaviour. In most cases, requesting focus in the target
+   * window should be used instead - in that case window manager is expected to indicate that the application requires user
+   * attention but won't switch the focus to it automatically.
+   */
+  public static void activate(@NotNull Window window) {
+    if (X11 == null) return;
+    X11.sendClientMessage(window, "activate", X11.NET_ACTIVE_WINDOW);
+  }
+
+  public static void requestAttention(@NotNull Window window) {
+    if (X11 == null) return;
+    X11.sendClientMessage(window, "request attention", X11.NET_WM_STATE, NET_WM_STATE_ADD, X11.NET_WM_STATE_DEMANDS_ATTENTION);
   }
 
   // reflection utilities
 
-  private static Method method(Class<?> aClass, String name, Class<?>... parameterTypes) throws Exception {
+  private static Method method(Class<?> aClass, @NonNls String name, Class<?>... parameterTypes) throws Exception {
     while (aClass != null) {
       try {
         Method method = aClass.getDeclaredMethod(name, parameterTypes);
@@ -379,9 +399,9 @@ public class X11UiUtil {
     throw new NoSuchMethodException(name);
   }
 
-  private static Method method(Class<?> aClass, String name, int parameters) throws Exception {
+  private static Method method(Class<?> aClass, @NonNls String name, int parameters) throws Exception {
     for (Method method : aClass.getDeclaredMethods()) {
-      if (name.equals(method.getName()) && method.getParameterTypes().length == parameters) {
+      if (method.getParameterCount() == parameters && name.equals(method.getName())) {
         method.setAccessible(true);
         return method;
       }
@@ -389,7 +409,7 @@ public class X11UiUtil {
     throw new NoSuchMethodException(name);
   }
 
-  private static Field field(Class<?> aClass, String name) throws Exception {
+  private static Field field(Class<?> aClass, @NonNls String name) throws Exception {
     Field field = aClass.getDeclaredField(name);
     field.setAccessible(true);
     return field;

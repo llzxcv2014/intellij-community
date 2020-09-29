@@ -15,6 +15,7 @@
  */
 package com.intellij.openapi.vfs.encoding;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.TreeUIHelper;
@@ -25,9 +26,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.nio.charset.Charset;
 
-/**
- * @author cdr
-*/
 public class ChooseEncodingDialog extends DialogWrapper {
   private final Charset[] myCharsets;
   private final Charset myDefaultCharset;
@@ -38,7 +36,7 @@ public class ChooseEncodingDialog extends DialogWrapper {
     super(false);
     myCharsets = charsets;
     myDefaultCharset = defaultCharset;
-    setTitle("Choose Encoding for the '"+virtualFile.getName()+"'");
+    setTitle(IdeBundle.message("dialog.title.choose.encoding.for.the.0", virtualFile.getName()));
     init();
   }
 
@@ -65,6 +63,7 @@ public class ChooseEncodingDialog extends DialogWrapper {
                                                     final int index, final boolean isSelected, final boolean cellHasFocus) {
         Component component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
         Charset charset = (Charset)value;
+        //noinspection HardCodedStringLiteral
         setText(charset.displayName());
         return component;
       }

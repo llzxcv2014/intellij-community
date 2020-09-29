@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.find.editorHeaderActions;
 
 import com.intellij.openapi.actionSystem.ActionManager;
@@ -8,26 +8,44 @@ import com.intellij.openapi.actionSystem.Shortcut;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.PopupChooserBuilder;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.IdeFocusManager;
+import com.intellij.ui.popup.PopupState;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.JBUI;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.util.List;
 
-public class Utils {
+public final class Utils {
   private Utils() {
+  }
+
+  /**
+   * @deprecated use overloaded method instead
+   */
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2021.1")
+  public static void showCompletionPopup(JComponent toolbarComponent,
+                                         final JList list,
+                                         @NlsContexts.PopupTitle String title,
+                                         final JTextComponent textField,
+                                         @NlsContexts.PopupAdvertisement String ad) {
+    showCompletionPopup(toolbarComponent, list, title, textField, ad, null);
   }
 
   public static void showCompletionPopup(JComponent toolbarComponent,
                                          final JList list,
-                                         String title,
+                                         @NlsContexts.PopupTitle String title,
                                          final JTextComponent textField,
-                                         String ad) {
+                                         @NlsContexts.PopupAdvertisement String ad,
+                                         @Nullable PopupState<JBPopup> popupState) {
 
     final Runnable callback = () -> {
       String selectedValue = (String)list.getSelectedValue();
@@ -48,6 +66,7 @@ public class Utils {
       popup.setAdText(ad, SwingConstants.LEFT);
     }
 
+    if (popupState != null) popupState.prepareToShow(popup);
     if (toolbarComponent != null) {
       popup.showUnderneathOf(toolbarComponent);
     }

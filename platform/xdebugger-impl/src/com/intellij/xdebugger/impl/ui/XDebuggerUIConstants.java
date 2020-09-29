@@ -1,23 +1,24 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xdebugger.impl.ui;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.DarculaColors;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.xdebugger.XDebuggerBundle;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 
 import javax.swing.*;
 import java.awt.*;
 
-/**
- * @author nik
- */
-public class XDebuggerUIConstants {
-  public static final String COLLECTING_DATA_MESSAGE = XDebuggerBundle.message("xdebugger.building.tree.node.message");
-  public static final String EVALUATING_EXPRESSION_MESSAGE = XDebuggerBundle.message("xdebugger.evaluating.expression.node.message");
-  public static final String MODIFYING_VALUE_MESSAGE = XDebuggerBundle.message("xdebugger.modifiyng.value.node.message");
+public final class XDebuggerUIConstants {
+  /**
+   * @deprecated Use {@link #getCollectingDataMessage()} instead
+   */
+  @Deprecated
+  public static final String COLLECTING_DATA_MESSAGE = "Collecting data…";
 
   public static final Icon ERROR_MESSAGE_ICON = AllIcons.General.Error;
   public static final Icon INFORMATION_MESSAGE_ICON = AllIcons.General.Information;
@@ -46,5 +47,19 @@ public class XDebuggerUIConstants {
   }
 
   private XDebuggerUIConstants() {
+  }
+
+  public static @NlsContexts.Label String getCollectingDataMessage() {
+    return XDebuggerBundle.message("xdebugger.building.tree.node.message");
+  }
+
+  @Nls
+  public static String getEvaluatingExpressionMessage() {
+    return XDebuggerBundle.message("xdebugger.evaluating.expression.node.message");
+  }
+
+  @Nls
+  public static String getModifyingValueMessage() {
+    return XDebuggerBundle.message("xdebugger.modifiyng.value.node.message");
   }
 }

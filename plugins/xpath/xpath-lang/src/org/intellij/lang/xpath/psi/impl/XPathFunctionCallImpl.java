@@ -18,6 +18,7 @@ package org.intellij.lang.xpath.psi.impl;
 import com.intellij.lang.ASTNode;
 import com.intellij.navigation.ItemPresentation;
 import com.intellij.navigation.NavigationItem;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiReference;
@@ -43,8 +44,7 @@ public class XPathFunctionCallImpl extends XPathElementImpl implements XPathFunc
   }
 
   @Override
-  @NotNull
-  public XPathExpression[] getArgumentList() {
+  public XPathExpression @NotNull [] getArgumentList() {
     final ASTNode[] nodes = getNode().getChildren(XPath2ElementTypes.EXPRESSIONS);
     final XPathExpression[] expressions = new XPathExpression[nodes.length];
     for (int i = 0; i < expressions.length; i++) {
@@ -117,8 +117,7 @@ public class XPathFunctionCallImpl extends XPathElementImpl implements XPathFunc
   }
 
   @Override
-  @NotNull
-  public PsiReference[] getReferences() {
+  public PsiReference @NotNull [] getReferences() {
     if (getPrefixNode() != null && getNameNode() != null) {
       return new PsiReference[]{getReference(), new PrefixReferenceImpl(this, getPrefixNode())};
     }
@@ -220,7 +219,7 @@ public class XPathFunctionCallImpl extends XPathElementImpl implements XPathFunc
 
       @Override
       @Nullable
-      public String getPresentableText() {
+      public @NlsSafe String getPresentableText() {
         return myFunctionDecl != null ? myFunctionDecl.buildSignature() +
                 ": " + myFunctionDecl.getReturnType().getName() : null;
       }

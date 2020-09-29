@@ -6,7 +6,6 @@ import com.intellij.execution.process.ProcessEvent;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ProgramRunner;
 import com.intellij.openapi.components.*;
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
@@ -21,7 +20,6 @@ import java.util.List;
 
 @State(name = "MavenRunner", storages = {@Storage(StoragePathMacros.WORKSPACE_FILE)})
 public final class MavenRunner implements PersistentStateComponent<MavenRunnerSettings> {
-  private static final Logger LOG = Logger.getInstance(MavenRunner.class);
 
   private MavenRunnerSettings mySettings = new MavenRunnerSettings();
   private final Project myProject;
@@ -68,7 +66,6 @@ public final class MavenRunner implements PersistentStateComponent<MavenRunnerSe
     MavenRunConfigurationType.runConfiguration(myProject, parameters, null, settings, callback, false);
   }
 
-
   public boolean runBatch(List<MavenRunnerParameters> commands,
                           @Nullable MavenGeneralSettings coreSettings,
                           @Nullable MavenRunnerSettings runnerSettings,
@@ -99,9 +96,8 @@ public final class MavenRunner implements PersistentStateComponent<MavenRunnerSe
     for (MavenRunnerParameters command : commands) {
       if (indicator != null) {
         indicator.setFraction(((double)count++) / commands.size());
-        indicator.setText(MessageFormat.format("{0} {1}", action != null ? action : RunnerBundle.message("maven.running"),
-                                               command.getWorkingDirPath()));
-        indicator.setText2(command.getGoals().toString());
+        indicator.setText(RunnerBundle.message("maven.running", action != null ? action : command.getWorkingDirPath()));
+        indicator.setText2(command.getGoals().toString()); //NON-NLS
       }
       ProgramRunner.Callback callback = descriptor -> {
         ProcessHandler handler = descriptor.getProcessHandler();
@@ -130,5 +126,4 @@ public final class MavenRunner implements PersistentStateComponent<MavenRunnerSe
     if (myProject.isDisposed()) return; // project was closed before task finished.
     MavenProjectsManager.getInstance(myProject).updateProjectTargetFolders();
   }
-
 }

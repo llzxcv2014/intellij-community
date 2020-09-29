@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.refactoring.rename;
 
 import com.intellij.codeInsight.CodeInsightUtilCore;
+import com.intellij.find.findUsages.FindUsagesHelper;
 import com.intellij.ide.actions.CopyReferenceAction;
 import com.intellij.injected.editor.DocumentWindow;
 import com.intellij.lang.Language;
@@ -21,7 +22,6 @@ import com.intellij.pom.PomTargetPsiElement;
 import com.intellij.psi.*;
 import com.intellij.psi.meta.PsiMetaData;
 import com.intellij.psi.meta.PsiMetaOwner;
-import com.intellij.psi.meta.PsiWritableMetaData;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.LocalSearchScope;
 import com.intellij.psi.search.PsiSearchHelper;
@@ -32,91 +32,130 @@ import com.intellij.refactoring.listeners.UndoRefactoringElementListener;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
 import com.intellij.refactoring.util.NonCodeSearchDescriptionLocation;
 import com.intellij.refactoring.util.NonCodeUsageInfo;
-import com.intellij.refactoring.util.TextOccurrencesUtil;
+import com.intellij.refactoring.util.TextOccurrencesUtilBase;
 import com.intellij.usageView.UsageInfo;
 import com.intellij.usageView.UsageInfoFactory;
 import com.intellij.util.IncorrectOperationException;
+import com.intellij.util.Processor;
+import com.intellij.util.containers.CollectionFactory;
 import com.intellij.util.containers.MultiMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class RenameUtil {
+public final class RenameUtil {
   private static final Logger LOG = Logger.getInstance(RenameUtil.class);
 
   private RenameUtil() {
   }
 
-  @NotNull
-  public static UsageInfo[] findUsages(@NotNull PsiElement element,
-                                       String newName,
-                                       boolean searchInStringsAndComments,
-                                       boolean searchForTextOccurrences,
-                                       Map<? extends PsiElement, String> allRenames) {
+  public static UsageInfo @NotNull [] findUsages(@NotNull PsiElement element,
+                                                 String newName,
+                                                 boolean searchInStringsAndComments,
+                                                 boolean searchForTextOccurrences,
+                                                 Map<? extends PsiElement, String> allRenames) {
     return findUsages(element, newName, GlobalSearchScope.projectScope(element.getProject()),
                       searchInStringsAndComments, searchForTextOccurrences, allRenames);
   }
 
-  @NotNull
-  public static UsageInfo[] findUsages(@NotNull PsiElement element,
-                                       String newName,
-                                       @NotNull SearchScope searchScope,
-                                       boolean searchInStringsAndComments,
-                                       boolean searchForTextOccurrences,
-                                       Map<? extends PsiElement, String> allRenames) {
+  public static UsageInfo @NotNull [] findUsages(@NotNull PsiElement element,
+                                                 String newName,
+                                                 @NotNull SearchScope searchScope,
+                                                 boolean searchInStringsAndComments,
+                                                 boolean searchForTextOccurrences,
+                                                 Map<? extends PsiElement, String> allRenames) {
     List<UsageInfo> result = Collections.synchronizedList(new ArrayList<>());
 
-    RenamePsiElementProcessor processor = RenamePsiElementProcessor.forElement(element);
+    RenamePsiElementProcessor elementProcessor = RenamePsiElementProcessor.forElement(element);
+
+    processUsages(element, elementProcessor, newName, searchScope, true, searchInStringsAndComments, searchForTextOccurrences, info -> {
+                    result.add(info);
+                    return true;
+                  }
+    );
+
+    elementProcessor.findCollisions(element, newName, allRenames, result);
+
+    return result.toArray(UsageInfo.EMPTY_ARRAY);
+  }
+
+  public static boolean hasNonCodeUsages(@NotNull PsiElement element,
+                                         String newName,
+                                         @NotNull SearchScope searchScope,
+                                         boolean searchInStringsAndComments,
+                                         boolean searchForTextOccurrences) {
+    RenamePsiElementProcessor elementProcessor = RenamePsiElementProcessor.forElement(element);
+    return !processUsages(element, elementProcessor, newName, searchScope, false, searchInStringsAndComments, searchForTextOccurrences, info -> false
+    );
+  }
+
+  private static boolean processUsages(
+    @NotNull PsiElement element,
+    @NotNull RenamePsiElementProcessor elementProcessor,
+    String newName,
+    @NotNull SearchScope searchScope,
+    boolean searchInCode,
+    boolean searchInStringsAndComments,
+    boolean searchForTextOccurrences,
+    @NotNull Processor<? super UsageInfo> processor
+  ) {
     SearchScope useScope = PsiSearchHelper.getInstance(element.getProject()).getUseScope(element);
     if (!(useScope instanceof LocalSearchScope)) {
       useScope = searchScope.intersectWith(useScope);
     }
-    Collection<PsiReference> refs = processor.findReferences(element, useScope, searchInStringsAndComments);
-    for (final PsiReference ref : refs) {
-      if (ref == null) {
-        LOG.error("null reference from processor " + processor);
-        continue;
+
+    if (searchInCode) {
+      Collection<PsiReference> refs = elementProcessor.findReferences(element, useScope, searchInStringsAndComments);
+      for (final PsiReference ref : refs) {
+        if (ref == null) {
+          LOG.error("null reference from processor " + elementProcessor);
+          continue;
+        }
+        PsiElement referenceElement = ref.getElement();
+        if (!processor.process(elementProcessor.createUsageInfo(element, ref, referenceElement))) return false;
       }
-      PsiElement referenceElement = ref.getElement();
-      result.add(processor.createUsageInfo(element, ref, referenceElement));
     }
 
-    processor.findCollisions(element, newName, allRenames, result);
-
-    final PsiElement searchForInComments = processor.getElementToSearchInStringsAndComments(element);
+    final PsiElement searchForInComments = elementProcessor.getElementToSearchInStringsAndComments(element);
 
     if (searchInStringsAndComments && searchForInComments != null) {
       String stringToSearch = ElementDescriptionUtil.getElementDescription(searchForInComments, NonCodeSearchDescriptionLocation.STRINGS_AND_COMMENTS);
       if (stringToSearch.length() > 0) {
-        final String stringToReplace = getStringToReplace(element, newName, false, processor);
+        final String stringToReplace = getStringToReplace(element, newName, false, elementProcessor);
         UsageInfoFactory factory = new NonCodeUsageInfoFactory(searchForInComments, stringToReplace);
-        TextOccurrencesUtil.addUsagesInStringsAndComments(searchForInComments, searchScope, stringToSearch, result, factory);
+        if (!TextOccurrencesUtilBase.processUsagesInStringsAndComments(processor, searchForInComments,
+                                                                       searchScope, stringToSearch, factory)) return false;
       }
     }
 
     if (searchForTextOccurrences && searchForInComments != null) {
       String stringToSearch = ElementDescriptionUtil.getElementDescription(searchForInComments, NonCodeSearchDescriptionLocation.NON_JAVA);
       if (stringToSearch.length() > 0) {
-        final String stringToReplace = getStringToReplace(element, newName, true, processor);
-        addTextOccurrence(searchForInComments, result, searchScope, stringToSearch, stringToReplace);
+        final String stringToReplace = getStringToReplace(element, newName, true, elementProcessor);
+        if (!processTextOccurrences(searchForInComments, searchScope, stringToSearch, stringToReplace, processor)) return false;
       }
 
-      final Pair<String, String> additionalStringToSearch = processor.getTextOccurrenceSearchStrings(searchForInComments, newName);
+      final Pair<String, String> additionalStringToSearch = elementProcessor.getTextOccurrenceSearchStrings(searchForInComments, newName);
       if (additionalStringToSearch != null && additionalStringToSearch.first.length() > 0) {
-        addTextOccurrence(searchForInComments, result, searchScope, additionalStringToSearch.first, additionalStringToSearch.second);
+        if (!processTextOccurrences(searchForInComments, searchScope, additionalStringToSearch.first, additionalStringToSearch.second,
+                                    processor
+        )) return false;
       }
     }
 
-    return result.toArray(UsageInfo.EMPTY_ARRAY);
+    return true;
   }
 
-  private static void addTextOccurrence(@NotNull PsiElement element,
-                                        @NotNull List<? super UsageInfo> result,
-                                        @NotNull SearchScope searchScope,
-                                        @NotNull String stringToSearch,
-                                        String stringToReplace) {
+  private static boolean processTextOccurrences(
+    @NotNull PsiElement element,
+    @NotNull SearchScope searchScope,
+    @NotNull String stringToSearch,
+    String stringToReplace,
+    @NotNull Processor<? super UsageInfo> processor
+  ) {
     UsageInfoFactory factory = new UsageInfoFactory() {
       @Override
       public UsageInfo createUsageInfo(@NotNull PsiElement usage, int startOffset, int endOffset) {
@@ -126,7 +165,10 @@ public class RenameUtil {
       }
     };
     if (searchScope instanceof GlobalSearchScope) {
-      TextOccurrencesUtil.addTextOccurrences(element, stringToSearch, (GlobalSearchScope)searchScope, result, factory);
+      return FindUsagesHelper.processTextOccurrences(element, stringToSearch, (GlobalSearchScope)searchScope, factory, processor);
+    }
+    else {
+      return true;
     }
   }
 
@@ -172,9 +214,7 @@ public class RenameUtil {
     }
   }
 
-  public static void doRename(final PsiElement element, String newName, UsageInfo[] usages, final Project project,
-                              @Nullable final RefactoringElementListener listener) throws IncorrectOperationException{
-    final RenamePsiElementProcessor processor = RenamePsiElementProcessor.forElement(element);
+  static void registerUndoableRename(PsiElement element, @Nullable RefactoringElementListener listener) {
     final String fqn = element instanceof PsiFile ? ((PsiFile)element).getVirtualFile().getPath() : CopyReferenceAction.elementToFqn(element);
     if (fqn != null) {
       UndoableAction action = new BasicUndoableAction() {
@@ -189,8 +229,14 @@ public class RenameUtil {
         public void redo() {
         }
       };
-      UndoManager.getInstance(project).undoableActionPerformed(action);
+      UndoManager.getInstance(element.getProject()).undoableActionPerformed(action);
     }
+  }
+
+  public static void doRename(final PsiElement element, String newName, UsageInfo[] usages, final Project project,
+                              @Nullable final RefactoringElementListener listener) throws IncorrectOperationException{
+    registerUndoableRename(element, listener);
+    RenamePsiElementProcessor processor = RenamePsiElementProcessor.forElement(element);
     processor.renameElement(element, newName, usages, listener);
   }
 
@@ -213,64 +259,18 @@ public class RenameUtil {
 
   public static void doRenameGenericNamedElement(@NotNull PsiElement namedElement, String newName, UsageInfo[] usages,
                                                  @Nullable RefactoringElementListener listener) throws IncorrectOperationException {
-    PsiWritableMetaData writableMetaData = null;
-    if (namedElement instanceof PsiMetaOwner) {
-      final PsiMetaData metaData = ((PsiMetaOwner)namedElement).getMetaData();
-      if (metaData instanceof PsiWritableMetaData) {
-        writableMetaData = (PsiWritableMetaData)metaData;
-      }
-    }
-    if (writableMetaData == null && !(namedElement instanceof PsiNamedElement)) {
-      LOG.error("Unknown element type:" + namedElement);
-    }
-
-    boolean hasBindables = false;
+    Set<Class> reportedClasses = new HashSet<>();
     for (UsageInfo usage : usages) {
-      if (!(usage.getReference() instanceof BindablePsiReference)) {
-        rename(usage, newName);
-      } else {
-        hasBindables = true;
+      PsiReference reference = usage.getReference();
+      if (reference != null && reportedClasses.add(reference.getClass())) {
+        RenameUsagesCollector.referenceProcessed.log(namedElement.getProject(), reference.getClass());
       }
     }
-
-    if (writableMetaData != null) {
-      writableMetaData.setName(newName);
-    }
-    else {
-      PsiElement namedElementAfterRename = ((PsiNamedElement)namedElement).setName(newName);
-      if (namedElementAfterRename != null) namedElement = namedElementAfterRename;
-    }
-
-    if (hasBindables) {
-      for (UsageInfo usage : usages) {
-        final PsiReference ref = usage.getReference();
-        if (ref instanceof BindablePsiReference) {
-          boolean fallback = true;
-          if (!(ref instanceof FragmentaryPsiReference
-                && ((FragmentaryPsiReference)ref).isFragmentOnlyRename())) {
-            try {
-              ref.bindToElement(namedElement);
-              fallback = false;
-            }
-            catch (IncorrectOperationException ignored) {
-            }
-          }
-          if (fallback) {//fall back to old scheme
-            ref.handleElementRename(newName);
-          }
-        }
-      }
-    }
-    if (listener != null) {
-      listener.elementRenamed(namedElement);
-    }
+    RenameUtilBase.doRenameGenericNamedElement(namedElement, newName, usages, listener);
   }
 
   public static void rename(UsageInfo info, String newName) throws IncorrectOperationException {
-    if (info.getElement() == null) return;
-    PsiReference ref = info.getReference();
-    if (ref == null) return;
-    ref.handleElementRename(newName);
+    RenameUtilBase.rename(info, newName);
   }
 
   @Nullable
@@ -294,9 +294,8 @@ public class RenameUtil {
     }
   }
 
-  public static void renameNonCodeUsages(@NotNull Project project, @NotNull NonCodeUsageInfo[] usages) {
-    PsiDocumentManager.getInstance(project).commitAllDocuments();
-    Map<Document, Map<Integer, UsageOffset>> docsToOffsetsMap = new HashMap<>();
+  public static void renameNonCodeUsages(@NotNull Project project, NonCodeUsageInfo @NotNull [] usages) {
+    Map<Document, Int2ObjectOpenHashMap<UsageOffset>> docsToOffsetsMap = CollectionFactory.createSmallMemoryFootprintMap();
     final PsiDocumentManager psiDocumentManager = PsiDocumentManager.getInstance(project);
     for (NonCodeUsageInfo usage : usages) {
       PsiElement element = usage.getElement();
@@ -309,7 +308,10 @@ public class RenameUtil {
       if (rangeInElement == null) continue;
 
       final PsiFile containingFile = element.getContainingFile();
-      Document document = psiDocumentManager.getDocument(containingFile);
+      Document document = containingFile.getViewProvider().getDocument();
+      if (document != null) {
+        psiDocumentManager.commitDocument(document);
+      }
 
       final Segment segment = usage.getSegment();
       LOG.assertTrue(segment != null);
@@ -323,9 +325,9 @@ public class RenameUtil {
       }
       int fileOffset = replaceRange.getStartOffset();
 
-      Map<Integer, UsageOffset> offsetMap = docsToOffsetsMap.get(document);
+      Int2ObjectOpenHashMap<UsageOffset> offsetMap = docsToOffsetsMap.get(document);
       if (offsetMap == null) {
-        offsetMap = new HashMap<>();
+        offsetMap = new Int2ObjectOpenHashMap<>();
         docsToOffsetsMap.put(document, offsetMap);
       }
       final UsageOffset substitution = new UsageOffset(fileOffset, fileOffset + rangeInElement.getLength(), usage.newText);
@@ -349,9 +351,8 @@ public class RenameUtil {
         UsageOffset usageOffset = offsets[i];
         document.replaceString(usageOffset.startOffset, usageOffset.endOffset, usageOffset.newText);
       }
-      PsiDocumentManager.getInstance(project).commitDocument(document);
+      psiDocumentManager.commitDocument(document);
     }
-    PsiDocumentManager.getInstance(project).commitAllDocuments();
   }
 
   public static boolean isValidName(final Project project, final PsiElement psiElement, final String newName) {

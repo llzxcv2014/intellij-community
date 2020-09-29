@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.safeDelete;
 
 import com.intellij.ide.IdeBundle;
@@ -45,7 +45,7 @@ public class SafeDeleteDialog extends DialogWrapper {
     myElements = elements;
     myCallback = callback;
     myDelegate = getDelegate();
-    setTitle(SafeDeleteHandler.REFACTORING_NAME);
+    setTitle(SafeDeleteHandler.getRefactoringName());
     init();
   }
 
@@ -71,7 +71,7 @@ public class SafeDeleteDialog extends DialogWrapper {
     final GridBagConstraints gbc = new GridBagConstraints();
 
     final String promptKey = isDelete() ? "prompt.delete.elements" : "search.for.usages.and.delete.elements";
-    final String warningMessage = DeleteUtil.generateWarningMessage(IdeBundle.message(promptKey), myElements);
+    final String warningMessage = DeleteUtil.generateWarningMessage(promptKey, myElements);
 
     gbc.insets = JBInsets.create(4, 8);
     gbc.weighty = 1;
@@ -173,7 +173,8 @@ public class SafeDeleteDialog extends DialogWrapper {
   protected void doOKAction() {
     super.doOKAction();
     if (DumbService.isDumb(myProject)) {
-      Messages.showMessageDialog(myProject, "Safe delete refactoring is not available while indexing is in progress", "Indexing", null);
+      Messages.showMessageDialog(myProject, RefactoringBundle.message("safe.delete.not.available.indexing"),
+                                 RefactoringBundle.message("refactoring.indexing.warning.title"), null);
       return;
     }
 

@@ -1,10 +1,11 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs
 
 import com.intellij.diff.util.Side
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.undo.DocumentReferenceManager
+import com.intellij.openapi.vcs.LineStatusTrackerTestUtil.parseInput
 import com.intellij.openapi.vcs.ex.Range
 
 class PartialLineStatusTrackerTest : BaseLineStatusTrackerTestCase() {
@@ -201,6 +202,7 @@ class PartialLineStatusTrackerTest : BaseLineStatusTrackerTestCase() {
       "G_".insertAfter("N_")
       range(1).moveTo("Test")
       range(3).moveTo("Test")
+      partialTracker.setExcludedFromCommit(false)
 
       assertTextContentIs("A_B1_C_E_F_M_G_N_H_")
       assertBaseTextContentIs("A_B_C_D_E_F_G_H_")
@@ -224,6 +226,7 @@ class PartialLineStatusTrackerTest : BaseLineStatusTrackerTestCase() {
       "G_".insertAfter("N_")
       range(1).moveTo("Test")
       range(3).moveTo("Test")
+      partialTracker.setExcludedFromCommit(false)
 
       assertTextContentIs("A_B1_C_E_F_M_G_N_H_")
       assertBaseTextContentIs("A_B_C_D_E_F_G_H_")
@@ -247,6 +250,7 @@ class PartialLineStatusTrackerTest : BaseLineStatusTrackerTestCase() {
       "G_".insertAfter("N_")
       range(1).moveTo("Test")
       range(3).moveTo("Test")
+      partialTracker.setExcludedFromCommit(false)
 
       assertTextContentIs("A_B1_C_E_F_M_G_N_H_")
       assertBaseTextContentIs("A_B_C_D_E_F_G_H_")
@@ -270,6 +274,7 @@ class PartialLineStatusTrackerTest : BaseLineStatusTrackerTestCase() {
       "G_".insertAfter("N_")
       range(1).moveTo("Test")
       range(3).moveTo("Test")
+      partialTracker.setExcludedFromCommit(false)
 
       assertTextContentIs("A_B1_C_E_F_M_G_N_H_")
       assertBaseTextContentIs("A_B_C_D_E_F_G_H_")
@@ -299,6 +304,7 @@ class PartialLineStatusTrackerTest : BaseLineStatusTrackerTestCase() {
       "G_".insertAfter("N_")
       range(1).moveTo("Test")
       range(3).moveTo("Test")
+      partialTracker.setExcludedFromCommit(false)
 
       assertTextContentIs("A_B1_C_E_F_M_G_N_H_")
       assertBaseTextContentIs("A_B_C_D_E_F_G_H_")
@@ -336,6 +342,7 @@ class PartialLineStatusTrackerTest : BaseLineStatusTrackerTestCase() {
       "G_".insertAfter("N_")
       range(1).moveTo("Test")
       range(3).moveTo("Test")
+      partialTracker.setExcludedFromCommit(false)
       partialTracker.setExcludedFromCommit(range(3), true)
 
       assertTextContentIs("A_B1_C_E_F_M_G_N_H_")
@@ -360,6 +367,7 @@ class PartialLineStatusTrackerTest : BaseLineStatusTrackerTestCase() {
       "G_".insertAfter("N_")
       range(1).moveTo("Test")
       range(3).moveTo("Test")
+      partialTracker.setExcludedFromCommit(false)
       partialTracker.setExcludedFromCommit(range(3), true)
 
       assertTextContentIs("A_B1_C_E_F_M_G_N_H_")

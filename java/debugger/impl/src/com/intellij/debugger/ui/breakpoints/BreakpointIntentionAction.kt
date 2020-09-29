@@ -1,12 +1,14 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.ui.breakpoints
 
 import com.intellij.debugger.InstanceFilter
+import com.intellij.debugger.JavaDebuggerBundle
 import com.intellij.debugger.engine.JavaDebugProcess
 import com.intellij.debugger.engine.JavaStackFrame
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.NlsActions.ActionText
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.classFilter.ClassFilter
@@ -17,15 +19,11 @@ import com.intellij.xdebugger.impl.breakpoints.XBreakpointBase
 import org.jetbrains.java.debugger.breakpoints.properties.JavaBreakpointProperties
 import java.util.*
 
-/**
- * @author egor
- */
-internal abstract class BreakpointIntentionAction(protected val myBreakpoint: XBreakpoint<*>, text: String) : AnAction(text) {
+internal abstract class BreakpointIntentionAction(protected val myBreakpoint: XBreakpoint<*>, @ActionText text : String) : AnAction(text) {
 
   internal class AddCallerNotFilter(breakpoint: XBreakpoint<*>, private val myCaller: String) :
-    BreakpointIntentionAction(breakpoint,
-                              "Do not stop if called from: " +
-                              StringUtil.getShortName(StringUtil.substringBefore(myCaller, "(") ?: myCaller)) {
+    BreakpointIntentionAction(breakpoint, JavaDebuggerBundle.message(
+      "action.do.not.stop.if.called.from.text", StringUtil.getShortName(StringUtil.substringBefore(myCaller, "(") ?: myCaller))) {
 
     override fun update(e: AnActionEvent) {
       with(myBreakpoint.properties as JavaBreakpointProperties<*>) {
@@ -46,8 +44,7 @@ internal abstract class BreakpointIntentionAction(protected val myBreakpoint: XB
 
   internal class AddCallerFilter(breakpoint: XBreakpoint<*>, private val myCaller: String) :
     BreakpointIntentionAction(breakpoint,
-                              "Stop only if called from: " +
-                              StringUtil.getShortName(StringUtil.substringBefore(myCaller, "(") ?: myCaller)) {
+                              JavaDebuggerBundle.message("action.stop.only.if.called.from.text", StringUtil.getShortName(StringUtil.substringBefore(myCaller, "(") ?: myCaller))) {
 
     override fun update(e: AnActionEvent) {
       with(myBreakpoint.properties as JavaBreakpointProperties<*>) {
@@ -67,7 +64,7 @@ internal abstract class BreakpointIntentionAction(protected val myBreakpoint: XB
   }
 
   internal class AddInstanceFilter(breakpoint: XBreakpoint<*>, private val myInstance: Long) :
-    BreakpointIntentionAction(breakpoint, "Stop only in the current object") {
+    BreakpointIntentionAction(breakpoint, JavaDebuggerBundle.message("action.stop.only.in.current.object.text")) {
 
     override fun update(e: AnActionEvent) {
       with(myBreakpoint.properties as JavaBreakpointProperties<*>) {
@@ -85,7 +82,7 @@ internal abstract class BreakpointIntentionAction(protected val myBreakpoint: XB
   }
 
   internal class AddClassFilter(breakpoint: XBreakpoint<*>, private val myClass: String) :
-    BreakpointIntentionAction(breakpoint, "Stop only in the class: ${StringUtil.getShortName(myClass)}") {
+    BreakpointIntentionAction(breakpoint, JavaDebuggerBundle.message("action.stop.only.in.class.text", StringUtil.getShortName(myClass))) {
 
     override fun update(e: AnActionEvent) {
       with(myBreakpoint.properties as JavaBreakpointProperties<*>) {
@@ -105,7 +102,7 @@ internal abstract class BreakpointIntentionAction(protected val myBreakpoint: XB
   }
 
   internal class AddClassNotFilter(breakpoint: XBreakpoint<*>, private val myClass: String) :
-    BreakpointIntentionAction(breakpoint, "Do not stop in the class: ${StringUtil.getShortName(myClass)}") {
+    BreakpointIntentionAction(breakpoint, JavaDebuggerBundle.message("action.do.not.stop.in.class.text", StringUtil.getShortName(myClass))) {
 
     override fun update(e: AnActionEvent) {
       with(myBreakpoint.properties as JavaBreakpointProperties<*>) {

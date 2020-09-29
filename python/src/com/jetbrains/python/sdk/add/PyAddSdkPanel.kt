@@ -15,14 +15,22 @@
  */
 package com.jetbrains.python.sdk.add
 
+import com.intellij.CommonBundle
+import com.intellij.openapi.application.AppUIExecutor
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.openapi.util.NlsContexts
+import com.intellij.openapi.util.UserDataHolder
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
+import com.jetbrains.python.PyBundle
+import com.jetbrains.python.newProject.steps.PyAddNewEnvironmentPanel
+import com.jetbrains.python.sdk.*
 import com.jetbrains.python.sdk.add.PyAddSdkDialogFlowAction.OK
-import com.jetbrains.python.sdk.isNotEmptyDirectory
 import icons.PythonIcons
 import java.awt.Component
 import java.io.File
@@ -72,41 +80,91 @@ abstract class PyAddSdkPanel : JPanel(), PyAddSdkView {
       val text = field.text
       val file = File(text)
       val message = when {
-        StringUtil.isEmptyOrSpaces(text) -> "Environment location field is empty"
-        file.exists() && !file.isDirectory -> "Environment location field path is not a directory"
-        file.isNotEmptyDirectory -> "Environment location directory is not empty"
+        StringUtil.isEmptyOrSpaces(text) -> PyBundle.message("python.sdk.environment.location.field.empty")
+        file.exists() && !file.isDirectory -> PyBundle.message("python.sdk.environment.location.field.path.not.directory")
+        file.isNotEmptyDirectory -> PyBundle.message("python.sdk.environment.location.directory.not.empty")
         else -> return null
       }
       return ValidationInfo(message, field)
     }
 
     @JvmStatic
-    protected fun validateSdkComboBox(field: PySdkPathChoosingComboBox): ValidationInfo? =
-      when {
-        field.selectedSdk == null -> ValidationInfo("Interpreter field is empty", field)
+    protected fun validateSdkComboBox(field: PySdkPathChoosingComboBox, view: PyAddSdkView): ValidationInfo? {
+      return when (val sdk = field.selectedSdk) {
+        null -> ValidationInfo(PyBundle.message("python.sdk.interpreter.field.is.empty"), field)
+        is PySdkToInstall -> {
+          val message = sdk.getInstallationWarning(getDefaultButtonName(view))
+          ValidationInfo(message).asWarning().withOKEnabled()
+        }
         else -> null
       }
+    }
+
+    @NlsContexts.Button
+    private fun getDefaultButtonName(view: PyAddSdkView): String {
+      return if (view.component.parent?.parent is PyAddNewEnvironmentPanel) {
+        PyBundle.message("python.sdk.button.create") // ProjectSettingsStepBase.createActionButton
+      }
+      else {
+        CommonBundle.getOkButtonText() // DialogWrapper.createDefaultActions
+      }
+    }
   }
 }
 
 /**
- * Obtains list of sdk on pool using [sdkObtainer], then fills [sdkComboBox] on EDT
+ * Obtains a list of sdk on a pool using [sdkObtainer], then fills [sdkComboBox] on the EDT.
+ */
+fun addInterpretersAsync(sdkComboBox: PySdkPathChoosingComboBox, sdkObtainer: () -> List<Sdk>) {
+  addInterpretersAsync(sdkComboBox, sdkObtainer, {})
+}
+
+/**
+ * Obtains a list of sdk on a pool using [sdkObtainer], then fills [sdkComboBox] and calls [onAdded] on the EDT.
  */
 fun addInterpretersAsync(sdkComboBox: PySdkPathChoosingComboBox,
-                         sdkObtainer: () -> List<Sdk>) {
+                         sdkObtainer: () -> List<Sdk>,
+                         onAdded: () -> Unit) {
   ApplicationManager.getApplication().executeOnPooledThread {
-    ApplicationManager.getApplication().invokeLater({ sdkComboBox.setBusy(true) }, ModalityState.any())
+    val executor = AppUIExecutor.onUiThread(ModalityState.any())
+    executor.execute { sdkComboBox.setBusy(true) }
     var sdks = emptyList<Sdk>()
     try {
       sdks = sdkObtainer()
     }
     finally {
-      ApplicationManager.getApplication().invokeLater({
-                                                        sdkComboBox.setBusy(false)
-                                                        sdks.forEach {
-                                                          sdkComboBox.childComponent.addItem(it)
-                                                        }
-                                                      }, ModalityState.any())
+      executor.execute {
+        sdkComboBox.setBusy(false)
+        sdks.forEach(sdkComboBox.childComponent::addItem)
+        onAdded()
+      }
     }
   }
+}
+
+/**
+ * Obtains a list of sdk to be used as a base for a virtual environment on a pool,
+ * then fills the [sdkComboBox] on the EDT and chooses [PySdkSettings.preferredVirtualEnvBaseSdk] or prepends it.
+ */
+fun addBaseInterpretersAsync(sdkComboBox: PySdkPathChoosingComboBox,
+                             existingSdks: List<Sdk>,
+                             module: Module?,
+                             context: UserDataHolder) {
+  addInterpretersAsync(
+    sdkComboBox,
+    { findBaseSdks(existingSdks, module, context).takeIf { it.isNotEmpty() } ?: getSdksToInstall() },
+    {
+      sdkComboBox.apply {
+        val preferredSdkPath = PySdkSettings.instance.preferredVirtualEnvBaseSdk.takeIf(FileUtil::exists)
+        val detectedPreferredSdk = items.find { it.homePath == preferredSdkPath }
+        selectedSdk = when {
+          detectedPreferredSdk != null -> detectedPreferredSdk
+          preferredSdkPath != null -> PyDetectedSdk(preferredSdkPath).apply {
+            childComponent.insertItemAt(this, 0)
+          }
+          else -> items.getOrNull(0)
+        }
+      }
+    }
+  )
 }

@@ -15,6 +15,7 @@
  */
 package com.intellij.psi.search.scope.packageSet;
 
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -24,11 +25,11 @@ public abstract class AbstractPackageSet extends PackageSetBase {
   private final String myText;
   private final int myPriority;
 
-  public AbstractPackageSet(@NotNull String text) {
+  public AbstractPackageSet(@NotNull @NonNls String text) {
     this(text, 1);
   }
 
-  public AbstractPackageSet(@NotNull String text, int priority) {
+  public AbstractPackageSet(@NotNull @NonNls String text, int priority) {
     myText = text;
     myPriority = priority;
   }

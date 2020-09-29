@@ -17,6 +17,7 @@
 package com.intellij.usageView;
 
 import com.intellij.analysis.AnalysisScope;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
@@ -39,7 +40,6 @@ import java.awt.*;
 import java.util.List;
 
 public class UsageContextDataflowToPanel extends UsageContextPanelBase {
-  @NotNull private final UsageViewPresentation myPresentation;
   private JComponent myPanel;
 
   public static class Provider implements UsageContextPanel.Provider {
@@ -64,13 +64,12 @@ public class UsageContextDataflowToPanel extends UsageContextPanelBase {
     @NotNull
     @Override
     public String getTabTitle() {
-      return "Dataflow to Here";
+      return JavaBundle.message("dataflow.to.here");
     }
   }
 
   public UsageContextDataflowToPanel(@NotNull Project project, @NotNull UsageViewPresentation presentation) {
     super(project, presentation);
-    myPresentation = presentation;
   }
 
   @Override

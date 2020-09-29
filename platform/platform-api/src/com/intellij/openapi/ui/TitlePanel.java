@@ -1,34 +1,19 @@
-/*
- * Copyright 2000-2012 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-/*
- * @author max
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.ui;
 
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.Gray;
 import com.intellij.ui.JBColor;
+import com.intellij.ui.paint.LinePainter2D;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
 
 public final class TitlePanel extends JPanel {
-  public TitlePanel(String title, String description) {
+  public TitlePanel(@Nls(capitalization = Nls.Capitalization.Title) String title, @NlsContexts.Label String description) {
     super(new BorderLayout());
     JLabel label = new JLabel(title);
     add(label, BorderLayout.NORTH);
@@ -58,7 +43,7 @@ public final class TitlePanel extends JPanel {
     RoundRectangle2D rect = new RoundRectangle2D.Double(0, 0, width - 1, height - 1, 0, 0);
     g2.fill(rect);
     g2.setPaint(new JBColor(Color.GRAY, Gray._100));
-    UIUtil.drawLine(g2, 0, height - 1, width - 1, height - 1);
+    LinePainter2D.paint(g2, 0, height - 1, width - 1, height - 1);
     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, oldAntialiasing);
   }
 }

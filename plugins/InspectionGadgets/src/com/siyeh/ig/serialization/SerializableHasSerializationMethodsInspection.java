@@ -32,13 +32,6 @@ public class SerializableHasSerializationMethodsInspection extends SerializableI
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "serializable.has.serialization.methods.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     final boolean hasReadObject = ((Boolean)infos[0]).booleanValue();
     final boolean hasWriteObject = ((Boolean)infos[1]).booleanValue();
@@ -56,9 +49,8 @@ public class SerializableHasSerializationMethodsInspection extends SerializableI
     }
   }
 
-  @NotNull
   @Override
-  protected JComponent[] createAdditionalOptions() {
+  protected JComponent @NotNull [] createAdditionalOptions() {
     return new JComponent[] {new CheckBox(InspectionGadgetsBundle.message("serializable.has.serialization.methods.ignore.option"),
                                           this, "ignoreClassWithoutFields")};
   }
@@ -80,7 +72,7 @@ public class SerializableHasSerializationMethodsInspection extends SerializableI
     @Override
     public void visitClass(@NotNull PsiClass aClass) {
       // no call to super, so it doesn't drill down
-      if (aClass.isInterface() || aClass.isAnnotationType() || aClass.isEnum()) {
+      if (aClass.isInterface() || aClass.isAnnotationType() || aClass.isEnum() || aClass.isRecord()) {
         return;
       }
       if (aClass instanceof PsiTypeParameter || aClass instanceof PsiEnumConstantInitializer) {

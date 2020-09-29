@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes.ui
 
 import com.intellij.icons.AllIcons
@@ -6,6 +6,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vcs.FilePath
+import com.intellij.openapi.vcs.VcsBundle
 import com.intellij.openapi.vcs.changes.Change
 import com.intellij.openapi.vcs.changes.ChangesUtil.getFilePath
 import com.intellij.openapi.vcs.changes.ui.ChangesGroupingSupport.Companion.REPOSITORY_GROUPING
@@ -14,6 +15,7 @@ import com.intellij.ui.ColorUtil
 import com.intellij.ui.JBColor
 import com.intellij.ui.JBColor.namedColor
 import com.intellij.ui.components.JBLabel
+import com.intellij.util.EventDispatcher
 import com.intellij.util.ui.JBUI.emptySize
 import com.intellij.util.ui.UIUtil.rightArrow
 import com.intellij.vcs.branch.BranchData
@@ -26,6 +28,9 @@ import java.awt.Dimension
 import java.beans.PropertyChangeListener
 import javax.swing.JTree.TREE_MODEL_PROPERTY
 import javax.swing.UIManager
+import javax.swing.event.ChangeEvent
+import javax.swing.event.ChangeListener
+import kotlin.properties.Delegates.observable
 
 class CurrentBranchComponent(
   val project: Project,
@@ -33,7 +38,17 @@ class CurrentBranchComponent(
   private val commitWorkflowUi: CommitWorkflowUi
 ) : JBLabel() {
 
-  private var branches = setOf<BranchData>()
+  private val changeEventDispatcher = EventDispatcher.create(ChangeListener::class.java)
+
+  private var branches: Set<BranchData> by observable(setOf()) { _, oldValue, newValue ->
+    if (oldValue == newValue) return@observable
+
+    text = getText(newValue)
+    toolTipText = getTooltip(newValue)
+    isVisible = newValue.isNotEmpty()
+
+    changeEventDispatcher.multicaster.stateChanged(ChangeEvent(this))
+  }
 
   private val isGroupedByRepository: Boolean
     get() {
@@ -57,22 +72,24 @@ class CurrentBranchComponent(
     refresh()
   }
 
+  fun addChangeListener(block: () -> Unit, parent: Disposable) =
+    changeEventDispatcher.addListener(ChangeListener { block() }, parent)
+
   override fun getPreferredSize(): Dimension? = if (isVisible) super.getPreferredSize() else emptySize()
 
   private fun refresh() {
     val needShowBranch = !isGroupedByRepository
-    if (needShowBranch) setData(commitWorkflowUi.getDisplayedChanges(), commitWorkflowUi.getDisplayedUnversionedFiles())
 
-    isVisible = needShowBranch && branches.isNotEmpty()
+    branches =
+      if (needShowBranch) getBranches(commitWorkflowUi.getDisplayedChanges(), commitWorkflowUi.getDisplayedUnversionedFiles())
+      else emptySet()
   }
 
-  private fun setData(changes: Iterable<Change>, unversioned: Iterable<FilePath>) {
+  private fun getBranches(changes: Iterable<Change>, unversioned: Iterable<FilePath>): Set<BranchData> {
     val fromChanges = changes.mapNotNull { getCurrentBranch(project, it) }.toSet()
     val fromUnversioned = unversioned.mapNotNull { getCurrentBranch(project, it) }.toSet()
 
-    branches = fromChanges + fromUnversioned
-    text = getText(branches)
-    toolTipText = getTooltip(branches)
+    return fromChanges + fromUnversioned
   }
 
   private fun getText(branches: Collection<BranchData>): String {
@@ -94,11 +111,12 @@ class CurrentBranchComponent(
   }
 
   private fun getMultiTooltip(branch: BranchData): String {
-    val linkedBranchPart = if (branch is LinkedBranchData && branch.branchName != null)
-      branch.linkedBranchName?.let { " ${rightArrow()} $it" } ?: " (no tracking branch)"
+    val linkedBranchPart = if (branch is LinkedBranchData && branch.branchName != null) {
+      branch.linkedBranchName?.let { " ${rightArrow()} $it" } ?: VcsBundle.message("changes.no.tracking.branch.suffix")
+    }
     else ""
 
-    return "<tr><td>${branch.presentableRootName}:</td><td>${getPresentableText(branch)}$linkedBranchPart</td></tr>"
+    return "<tr><td>${branch.presentableRootName}:</td><td>${getPresentableText(branch)}$linkedBranchPart</td></tr>" // NON-NLS
   }
 
   companion object {
@@ -131,7 +149,7 @@ class CurrentBranchComponent(
     else branch.branchName.orEmpty()
 
     fun getSingleTooltip(branch: BranchData) = if (branch is LinkedBranchData && branch.branchName != null)
-      branch.linkedBranchName?.let { "${branch.branchName} ${rightArrow()} $it" } ?: "No tracking branch"
+      branch.linkedBranchName?.let { "${branch.branchName} ${rightArrow()} $it" } ?: VcsBundle.message("changes.no.tracking.branch")
     else null
 
     @JvmStatic

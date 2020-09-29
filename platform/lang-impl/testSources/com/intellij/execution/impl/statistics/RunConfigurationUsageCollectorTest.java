@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.impl.statistics;
 
 import com.intellij.execution.RunManager;
@@ -391,7 +391,7 @@ public class RunConfigurationUsageCollectorTest extends LightPlatformTestCase {
     return result;
   }
 
-  private static class TestUsageDescriptor {
+  private static final class TestUsageDescriptor {
     private final String myKey;
     private final FeatureUsageData myData;
 
@@ -453,7 +453,12 @@ public class RunConfigurationUsageCollectorTest extends LightPlatformTestCase {
   private static RunnerAndConfigurationSettings configure(@NotNull RunnerAndConfigurationSettings configuration,
                                                           boolean isShared, boolean isEditBeforeRun,
                                                           boolean isActivate, boolean isParallel) {
-    configuration.setShared(isShared);
+    if (isShared) {
+      configuration.storeInDotIdeaFolder();
+    }
+    else {
+      configuration.storeInLocalWorkspace();
+    }
     configuration.setEditBeforeRun(isEditBeforeRun);
     configuration.setActivateToolWindowBeforeRun(isActivate);
     configuration.getConfiguration().setAllowRunningInParallel(isParallel);

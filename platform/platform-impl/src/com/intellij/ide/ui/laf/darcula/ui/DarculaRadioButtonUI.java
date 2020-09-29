@@ -1,9 +1,12 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.ui.laf.darcula.ui;
 
-import com.intellij.ui.scale.JBUIScale;
 import com.intellij.ide.ui.laf.darcula.DarculaLaf;
-import com.intellij.util.ui.*;
+import com.intellij.ui.scale.JBUIScale;
+import com.intellij.util.ui.EmptyIcon;
+import com.intellij.util.ui.JBInsets;
+import com.intellij.util.ui.LafIconLookup;
+import com.intellij.util.ui.UIUtilities;
 
 import javax.swing.*;
 import javax.swing.plaf.ComponentUI;
@@ -19,7 +22,7 @@ import static com.intellij.ide.ui.laf.darcula.DarculaUIUtil.isMultiLineHTML;
  * @author Konstantin Bulenkov
  */
 public class DarculaRadioButtonUI extends MetalRadioButtonUI {
-  private static final Icon DEFAULT_ICON = JBUI.scale(EmptyIcon.create(19)).asUIResource();
+  private static final Icon DEFAULT_ICON = JBUIScale.scaleIcon(EmptyIcon.create(19)).asUIResource();
 
   private final PropertyChangeListener textChangedListener = e -> updateTextPosition((AbstractButton)e.getSource());
 
@@ -31,7 +34,7 @@ public class DarculaRadioButtonUI extends MetalRadioButtonUI {
   @Override
   public void installDefaults(AbstractButton b) {
     super.installDefaults(b);
-    b.setIconTextGap(textIconGap());
+    b.setIconTextGap(textIconGap(b));
     updateTextPosition(b);
   }
 
@@ -47,7 +50,15 @@ public class DarculaRadioButtonUI extends MetalRadioButtonUI {
     button.removePropertyChangeListener(AbstractButton.TEXT_CHANGED_PROPERTY, textChangedListener);
   }
 
-  protected int textIconGap() {
+  protected int textIconGap(AbstractButton b) {
+    Object gap = UIManager.get("RadioButton.iconTextGap");
+    if (gap != null) {
+      try {
+        return JBUIScale.scale(Integer.parseInt(gap.toString()));
+      }
+      catch (NumberFormatException ignored) {
+      }
+    }
     return JBUIScale.scale(4);
   }
 
@@ -121,7 +132,8 @@ public class DarculaRadioButtonUI extends MetalRadioButtonUI {
 
   @Override
   public Dimension getPreferredSize(JComponent c) {
-    return updatePreferredSize(c, super.getPreferredSize(c));
+    Dimension dimension = computeOurPreferredSize(c);
+    return dimension != null ? dimension : super.getPreferredSize(c);
   }
 
   @Override
@@ -129,11 +141,8 @@ public class DarculaRadioButtonUI extends MetalRadioButtonUI {
     return getPreferredSize(c);
   }
 
-  protected Dimension updatePreferredSize(JComponent c, Dimension size) {
-    if (c.getBorder() instanceof DarculaRadioButtonBorder) {
-      JBInsets.removeFrom(size, c.getInsets());
-    }
-    return size;
+  protected Dimension computeOurPreferredSize(JComponent c) {
+    return DarculaCheckBoxUI.computeCheckboxPreferredSize(c, getDefaultIcon());
   }
 
   @Override

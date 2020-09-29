@@ -7,6 +7,7 @@ import com.intellij.ui.JBColor;
 import com.intellij.vcs.log.*;
 import com.intellij.vcs.log.data.VcsLogData;
 import com.intellij.vcs.log.util.VcsLogUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
@@ -19,18 +20,16 @@ public class CurrentBranchHighlighter implements VcsLogHighlighter {
   private static final JBColor CURRENT_BRANCH_BG = namedColor("VersionControl.Log.Commit.currentBranchBackground",
                                                               new JBColor(new Color(228, 250, 255), new Color(63, 71, 73)));
   @NotNull private final VcsLogData myLogData;
-  @NotNull private final VcsLogUi myLogUi;
   @NotNull private final Map<VirtualFile, Boolean> myIsHighlighted = new HashMap<>();
 
-  public CurrentBranchHighlighter(@NotNull VcsLogData logData, @NotNull VcsLogUi logUi) {
+  public CurrentBranchHighlighter(@NotNull VcsLogData logData) {
     myLogData = logData;
-    myLogUi = logUi;
   }
 
   @NotNull
   @Override
   public VcsCommitStyle getStyle(int commitId, @NotNull VcsShortCommitDetails details, boolean isSelected) {
-    if (isSelected || !myLogUi.isHighlighterEnabled(Factory.ID)) return VcsCommitStyle.DEFAULT;
+    if (isSelected) return VcsCommitStyle.DEFAULT;
     if (!myIsHighlighted.getOrDefault(details.getRoot(), false)) return VcsCommitStyle.DEFAULT;
 
     Condition<Integer> condition = myLogData.getContainingBranchesGetter().getContainedInCurrentBranchCondition(details.getRoot());
@@ -52,12 +51,12 @@ public class CurrentBranchHighlighter implements VcsLogHighlighter {
   }
 
   public static class Factory implements VcsLogHighlighterFactory {
-    @NotNull public static final String ID = "CURRENT_BRANCH";
+    @NonNls @NotNull public static final String ID = "CURRENT_BRANCH";
 
     @NotNull
     @Override
     public VcsLogHighlighter createHighlighter(@NotNull VcsLogData logData, @NotNull VcsLogUi logUi) {
-      return new CurrentBranchHighlighter(logData, logUi);
+      return new CurrentBranchHighlighter(logData);
     }
 
     @NotNull
@@ -69,7 +68,7 @@ public class CurrentBranchHighlighter implements VcsLogHighlighter {
     @NotNull
     @Override
     public String getTitle() {
-      return "Current Branch";
+      return VcsLogBundle.message("vcs.log.action.highlight.current.branch");
     }
 
     @Override

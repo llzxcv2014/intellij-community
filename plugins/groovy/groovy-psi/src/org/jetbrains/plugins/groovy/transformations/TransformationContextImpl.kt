@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.transformations
 
 import com.intellij.openapi.project.Project
@@ -9,11 +9,12 @@ import com.intellij.psi.util.MethodSignature
 import com.intellij.psi.util.MethodSignatureUtil.METHOD_PARAMETERS_ERASURE_EQUALITY
 import com.intellij.util.containers.FactoryMap
 import com.intellij.util.containers.toArray
-import gnu.trove.THashSet
+import it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrField
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.GrTypeDefinition
 import org.jetbrains.plugins.groovy.lang.psi.impl.PsiImplUtil.getAnnotation
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.TypesUtil.createType
+import org.jetbrains.plugins.groovy.lang.psi.impl.statements.typedef.GrEnumTypeDefinitionImpl
 import org.jetbrains.plugins.groovy.lang.psi.impl.synthetic.GrLightField
 import org.jetbrains.plugins.groovy.lang.psi.impl.synthetic.GrLightMethodBuilder
 import org.jetbrains.plugins.groovy.lang.psi.util.GrClassImplUtil.*
@@ -21,10 +22,10 @@ import org.jetbrains.plugins.groovy.transformations.dsl.MemberBuilder
 import java.util.*
 
 internal class TransformationContextImpl(private val myCodeClass: GrTypeDefinition) : TransformationContext {
-
   private val myProject: Project = myCodeClass.project
   private val myPsiManager: PsiManager = myCodeClass.manager
   private val myPsiFacade: JavaPsiFacade = JavaPsiFacade.getInstance(myProject)
+  private var myHierarchyView: PsiClass? = null
   private val myClassType: PsiClassType = myPsiFacade.elementFactory.createType(codeClass)
   private val myMemberBuilder = MemberBuilder(this)
 
@@ -44,7 +45,7 @@ internal class TransformationContextImpl(private val myCodeClass: GrTypeDefiniti
     getReferenceListTypes(myCodeClass.extendsClause).toMutableList()
   }
   private val mySignaturesCache: Map<String, MutableSet<MethodSignature>> = FactoryMap.create { name ->
-    val result = THashSet(METHOD_PARAMETERS_ERASURE_EQUALITY)
+    val result = ObjectOpenCustomHashSet(METHOD_PARAMETERS_ERASURE_EQUALITY)
     for (existingMethod in myMethods) {
       if (existingMethod.name == name) {
         result.add(existingMethod.getSignature(PsiSubstitutor.EMPTY))
@@ -60,6 +61,21 @@ internal class TransformationContextImpl(private val myCodeClass: GrTypeDefiniti
   override fun getManager(): PsiManager = myPsiManager
 
   override fun getPsiFacade(): JavaPsiFacade = myPsiFacade
+
+  override fun getHierarchyView(): PsiClass {
+    val hierarchyView = myHierarchyView
+    if (hierarchyView != null) {
+      return hierarchyView
+    }
+    val newView = HierarchyView(
+      myCodeClass,
+      myExtendsTypes.toArray(PsiClassType.EMPTY_ARRAY),
+      myImplementsTypes.toArray(PsiClassType.EMPTY_ARRAY),
+      myPsiManager
+    )
+    myHierarchyView = newView
+    return newView
+  }
 
   override fun getClassType(): PsiClassType = myClassType
 
@@ -188,6 +204,7 @@ internal class TransformationContextImpl(private val myCodeClass: GrTypeDefiniti
     if (!codeClass.isInterface) {
       myExtendsTypes.clear()
       myExtendsTypes.add(type)
+      myHierarchyView = null
     }
   }
 
@@ -195,14 +212,19 @@ internal class TransformationContextImpl(private val myCodeClass: GrTypeDefiniti
 
   override fun addInterface(type: PsiClassType) {
     (if (!codeClass.isInterface || codeClass.isTrait) myImplementsTypes else myExtendsTypes).add(type)
+    myHierarchyView = null
   }
 
   internal val transformationResult: TransformationResult
     get() = TransformationResult(
-      methods.toArray(PsiMethod.EMPTY_ARRAY),
+      (methods + enumMethods()).toArray(PsiMethod.EMPTY_ARRAY),
       fields.toArray(GrField.EMPTY_ARRAY),
       innerClasses.toArray(PsiClass.EMPTY_ARRAY),
       implementsTypes.toArray(PsiClassType.EMPTY_ARRAY),
       extendsTypes.toArray(PsiClassType.EMPTY_ARRAY)
     )
+
+  private fun enumMethods() : List<PsiMethod> {
+    return if (myCodeClass is GrEnumTypeDefinitionImpl) myCodeClass.defEnumMethods else emptyList()
+  }
 }

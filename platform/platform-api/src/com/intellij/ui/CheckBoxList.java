@@ -1,7 +1,9 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.components.JBList;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.ui.speedSearch.SpeedSearchSupply;
 import com.intellij.util.Function;
 import com.intellij.util.ObjectUtils;
@@ -9,6 +11,7 @@ import com.intellij.util.containers.BidirectionalMap;
 import com.intellij.util.ui.EmptyIcon;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,9 +24,6 @@ import java.awt.event.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * @author oleg
- */
 public class CheckBoxList<T> extends JBList<JCheckBox> {
   private final static int    RESET_ROLLOVER = -1;
 
@@ -163,7 +163,7 @@ public class CheckBoxList<T> extends JBList<JCheckBox> {
     }
     if (icon == null) {
       // com.intellij.ide.ui.laf.darcula.ui.DarculaCheckBoxUI.getDefaultIcon()
-      icon = JBUI.scale(EmptyIcon.create(20));
+      icon = JBUIScale.scaleIcon(EmptyIcon.create(20));
     }
     Insets margin = checkBox.getMargin();
     return new Dimension(margin.left + icon.getIconWidth(), margin.top + icon.getIconHeight());
@@ -236,23 +236,23 @@ public class CheckBoxList<T> extends JBList<JCheckBox> {
     return getModel().getElementAt(index);
   }
 
-  public void setStringItems(final Map<String, Boolean> items) {
+  public void setStringItems(final Map<@NlsContexts.Checkbox String, Boolean> items) {
     clear();
-    for (Map.Entry<String, Boolean> entry : items.entrySet()) {
+    for (Map.Entry<@NlsContexts.Checkbox String, Boolean> entry : items.entrySet()) {
       //noinspection unchecked
       addItem((T)entry.getKey(), entry.getKey(), entry.getValue());
     }
   }
 
-  public void setItems(final List<? extends T> items, @Nullable Function<? super T, String> converter) {
+  public void setItems(final List<? extends T> items, @Nullable Function<? super T, @NlsContexts.Checkbox String> converter) {
     clear();
     for (T item : items) {
-      String text = converter != null ? converter.fun(item) : item.toString();
+      @SuppressWarnings("HardCodedStringLiteral") String text = converter != null ? converter.fun(item) : item.toString();
       addItem(item, text, false);
     }
   }
 
-  public void addItem(T item, String text, boolean selected) {
+  public void addItem(T item, @NlsContexts.Checkbox String text, boolean selected) {
     JCheckBox checkBox = new JCheckBox(text, selected);
     checkBox.setOpaque(true); // to paint selection background
     myItemMap.put(item, checkBox);
@@ -260,7 +260,7 @@ public class CheckBoxList<T> extends JBList<JCheckBox> {
     ((DefaultListModel)getModel()).addElement(checkBox);
   }
 
-  public void updateItem(@NotNull T oldItem, @NotNull T newItem, @NotNull String newText) {
+  public void updateItem(@NotNull T oldItem, @NotNull T newItem, @NotNull @NlsContexts.Checkbox String newText) {
     JCheckBox checkBox = myItemMap.remove(oldItem);
     myItemMap.put(newItem, checkBox);
     checkBox.setText(newText);
@@ -327,7 +327,7 @@ public class CheckBoxList<T> extends JBList<JCheckBox> {
     return rootComponent;
   }
 
-  private class CellRenderer implements ListCellRenderer<JCheckBox> {
+  private final class CellRenderer implements ListCellRenderer<JCheckBox> {
     private final Border mySelectedBorder;
     private final Border myBorder;
     private final Insets myBorderInsets;
@@ -388,6 +388,7 @@ public class CheckBoxList<T> extends JBList<JCheckBox> {
     }
   }
 
+  @Nls
   @Nullable
   protected String getSecondaryText(int index) {
     return null;

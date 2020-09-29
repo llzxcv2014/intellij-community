@@ -47,6 +47,7 @@ import org.intellij.images.editor.ImageZoomModel;
 import org.intellij.images.editor.actionSystem.ImageEditorActions;
 import org.intellij.images.options.*;
 import org.intellij.images.thumbnail.actionSystem.ThumbnailViewActions;
+import org.intellij.images.thumbnail.actions.ShowBorderAction;
 import org.intellij.images.ui.ImageComponent;
 import org.intellij.images.ui.ImageComponentDecorator;
 import org.intellij.images.vfs.IfsUtil;
@@ -67,8 +68,6 @@ import java.awt.image.ColorModel;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.net.URL;
 
 /**
  * Image editor UI
@@ -93,12 +92,18 @@ final class ImageEditorUI extends JPanel implements DataProvider, CopyProvider, 
   private final ChangeListener changeListener = new DocumentChangeListener();
   private final ImageComponent imageComponent = new ImageComponent();
   private final JPanel contentPanel;
-  private final JLabel infoLabel;
+  private JLabel infoLabel = null;
 
   private final JScrollPane myScrollPane;
+  private final boolean isEmbedded;
 
   ImageEditorUI(@Nullable ImageEditor editor) {
+    this(editor, false);
+  }
+
+  ImageEditorUI(@Nullable ImageEditor editor, boolean isEmbedded) {
     this.editor = editor;
+    this.isEmbedded = isEmbedded;
 
     imageComponent.addPropertyChangeListener(ZOOM_FACTOR_PROP, e -> imageComponent.setZoomFactor(getZoomModel().getZoomFactor()));
     Options options = OptionsManager.getInstance().getOptions();
@@ -120,6 +125,7 @@ final class ImageEditorUI extends JPanel implements DataProvider, CopyProvider, 
     imageComponent.setGridLineZoomFactor(gridOptions.getLineZoomFactor());
     imageComponent.setGridLineSpan(gridOptions.getLineSpan());
     imageComponent.setGridLineColor(gridOptions.getLineColor());
+    imageComponent.setBorderVisible(ShowBorderAction.isBorderVisible());
 
     // Create layout
     ImageContainerPane view = new ImageContainerPane(imageComponent);
@@ -136,20 +142,25 @@ final class ImageEditorUI extends JPanel implements DataProvider, CopyProvider, 
     // Construct UI
     setLayout(new BorderLayout());
 
-    ActionManager actionManager = ActionManager.getInstance();
-    ActionGroup actionGroup = (ActionGroup)actionManager.getAction(ImageEditorActions.GROUP_TOOLBAR);
-    ActionToolbar actionToolbar = actionManager.createActionToolbar(
-      ImageEditorActions.ACTION_PLACE, actionGroup, true
-    );
 
-    // Make sure toolbar is 'ready' before it's added to component hierarchy
-    // to prevent ActionToolbarImpl.updateActionsImpl(boolean, boolean) from increasing popup size unnecessarily
-    actionToolbar.updateActionsImmediately();
+    // toolbar is disabled in embedded mode
+    JComponent toolbarPanel = null;
+    if (!isEmbedded) {
+      ActionManager actionManager = ActionManager.getInstance();
+      ActionGroup actionGroup = (ActionGroup)actionManager.getAction(ImageEditorActions.GROUP_TOOLBAR);
+      ActionToolbar actionToolbar = actionManager.createActionToolbar(
+        ImageEditorActions.ACTION_PLACE, actionGroup, true
+      );
 
-    actionToolbar.setTargetComponent(this);
+      // Make sure toolbar is 'ready' before it's added to component hierarchy
+      // to prevent ActionToolbarImpl.updateActionsImpl(boolean, boolean) from increasing popup size unnecessarily
+      actionToolbar.updateActionsImmediately();
 
-    JComponent toolbarPanel = actionToolbar.getComponent();
-    toolbarPanel.addMouseListener(new FocusRequester());
+      actionToolbar.setTargetComponent(this);
+
+      toolbarPanel = actionToolbar.getComponent();
+      toolbarPanel.addMouseListener(new FocusRequester());
+    }
 
     JLabel errorLabel = new JLabel(
       ImagesBundle.message("error.broken.image.file.format"),
@@ -164,10 +175,12 @@ final class ImageEditorUI extends JPanel implements DataProvider, CopyProvider, 
     contentPanel.add(errorPanel, ERROR_PANEL);
 
     JPanel topPanel = new JPanel(new BorderLayout());
-    topPanel.add(toolbarPanel, BorderLayout.WEST);
-    infoLabel = new JLabel((String)null, SwingConstants.RIGHT);
-    infoLabel.setBorder(JBUI.Borders.emptyRight(2));
-    topPanel.add(infoLabel, BorderLayout.EAST);
+    if (!isEmbedded) {
+      topPanel.add(toolbarPanel, BorderLayout.WEST);
+      infoLabel = new JLabel((String)null, SwingConstants.RIGHT);
+      infoLabel.setBorder(JBUI.Borders.emptyRight(2));
+      topPanel.add(infoLabel, BorderLayout.EAST);
+    }
 
     add(topPanel, BorderLayout.NORTH);
     add(contentPanel, BorderLayout.CENTER);
@@ -183,6 +196,7 @@ final class ImageEditorUI extends JPanel implements DataProvider, CopyProvider, 
   }
 
   private void updateInfo() {
+    if (isEmbedded) return;
     ImageDocument document = imageComponent.getDocument();
     BufferedImage image = document.getValue();
     if (image != null) {
@@ -307,7 +321,8 @@ final class ImageEditorUI extends JPanel implements DataProvider, CopyProvider, 
     private void centerComponents() {
       Rectangle bounds = getBounds();
       Point point = imageComponent.getLocation();
-      point.x = (bounds.width - imageComponent.getWidth()) / 2;
+      // in embedded mode images should be left-side aligned
+      point.x = isEmbedded ? 0 : (bounds.width - imageComponent.getWidth()) / 2;
       point.y = (bounds.height - imageComponent.getHeight()) / 2;
       imageComponent.setLocation(point);
     }
@@ -371,8 +386,7 @@ final class ImageEditorUI extends JPanel implements DataProvider, CopyProvider, 
 
         if (IfsUtil.isSVG(file)) {
           try {
-            URL url = new File(file.getPath()).toURI().toURL();
-            return Math.max(1, SVGLoader.getMaxZoomFactor(url, new ByteArrayInputStream(file.contentsToByteArray()), ScaleContext.create(editor.getComponent())));
+            return Math.max(1, SVGLoader.getMaxZoomFactor(file.getPath(), new ByteArrayInputStream(file.contentsToByteArray()), ScaleContext.create(editor.getComponent())));
           }
           catch (Throwable t) {
             Logger.getInstance("#org.intellij.images.editor.impl.ImageEditorUI").warn(t);

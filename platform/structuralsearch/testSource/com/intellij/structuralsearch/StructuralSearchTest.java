@@ -1,9 +1,13 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch;
 
+import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.openapi.fileTypes.LanguageFileType;
-import com.intellij.openapi.fileTypes.StdFileTypes;
+import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.*;
+import com.intellij.psi.search.LocalSearchScope;
+import com.intellij.structuralsearch.impl.matcher.CompiledPattern;
+import com.intellij.structuralsearch.impl.matcher.compiler.PatternCompiler;
 import com.intellij.testFramework.PlatformTestUtil;
 import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NotNull;
@@ -17,6 +21,13 @@ import java.util.List;
  */
 @SuppressWarnings("ALL")
 public class StructuralSearchTest extends StructuralSearchTestCase {
+
+  @Override
+  protected void setUp() throws Exception {
+    super.setUp();
+    setLanguageLevel(LanguageLevel.JDK_14);
+  }
+
   @Override
   protected int findMatchesCount(@Language("JAVA") String in, String pattern, LanguageFileType fileType) {
     return super.findMatchesCount(in, pattern, fileType);
@@ -1396,7 +1407,10 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
                         "class C extends B implements IC {}" +
                         "class D extends C {}";
     assertEquals("extends navigation match", 2, findMatchesCount(s107, "class '_ extends 'Type:+A {}"));
-    assertEquals("implements navigation match", 5, findMatchesCount(s107, "class '_ implements 'Type:+IA {}"));
+    assertEquals("extends navigation match 2", 3, findMatchesCount(s107, "interface '_ extends 'Type:*IA {}"));
+    assertEquals("extends navigation match 3", 2, findMatchesCount(s107, "interface '_ extends 'Type:+IA {}"));
+    assertEquals("implements navigation match", 3, findMatchesCount(s107, "class '_ implements 'Type:+IA {}"));
+    assertEquals("without hierarchy finds only direct implements", 1, findMatchesCount(s107, "class '_ implements '_T:IA {}"));
 
     final String s109 = "interface I {}" +
                         "interface I2 extends I {}" +
@@ -1999,8 +2013,10 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
                 "class B3 extends A { }\n" +
                 "class C extends B2 { static void foo(); }\n";
     assertEquals("Find class within type hierarchy with not", 1,
-                 findMatchesCount(s1, "class '_ extends '_Extends:[!regex( *A )] implements '_Implements:[regex( I )] {}"));
-    assertEquals("Find class within type hierarchy with not, 2", 1,
+                 findMatchesCount(s1, "class '_ extends '_Extends:[!regex( *A )] implements '_Implements:[regex( *I )] {}"));
+    assertEquals("Find class within type hierarchy with not 2", 2,
+                 findMatchesCount(s1, "class '_C:[!regex( *A )] implements '_Implements:[regex( *I )] {}"));
+    assertEquals("Find class within type hierarchy with not 3", 1,
                  findMatchesCount(s1, "class '_ extends '_Extends:[!regex( *A )]{}"));
     assertEquals("Search in hierarchy on class identifier", 2, findMatchesCount(s1, "class '_X:*B2 {}"));
 
@@ -2115,12 +2131,11 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
 
     MatchOptions options = new MatchOptions();
     options.fillSearchCriteria("try  { '_st*; } catch('_Type 't+) { '_st2*; }");
-    options.setFileType(StdFileTypes.JAVA);
-    Matcher testMatcher = new Matcher(getProject(), options);
+    options.setFileType(JavaFileType.INSTANCE);
 
     List<MatchResult> results = new ArrayList<>();
     for(PsiVariable var:vars) {
-      final List<MatchResult> matchResult = testMatcher.matchByDownUp(var);
+      final List<MatchResult> matchResult = new Matcher(getProject(), options).matchByDownUp(var);
       results.addAll(matchResult);
       assertTrue((var instanceof PsiParameter && var.getParent() instanceof PsiCatchSection && !matchResult.isEmpty()) ||
                  matchResult.isEmpty());
@@ -2139,7 +2154,7 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
 
     for(PsiVariable var:vars) {
       final PsiTypeElement typeElement = var.getTypeElement();
-      final List<MatchResult> matchResult = testMatcher.matchByDownUp(typeElement);
+      final List<MatchResult> matchResult = new Matcher(getProject(), options).matchByDownUp(typeElement);
       results.addAll(matchResult);
       assertTrue((var instanceof PsiParameter && var.getParent() instanceof PsiCatchSection && !matchResult.isEmpty()) ||
                  matchResult.isEmpty());
@@ -2249,20 +2264,31 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
 
   public void testFindEnums() {
     String s = "class Foo {} class Bar {} enum X {}";
-    String s2 = "enum 'x {}";
 
-    assertEquals(1, findMatchesCount(s,s2));
+    assertEquals(1, findMatchesCount(s, "enum 'x {}"));
+
+    String in = "enum E {" +
+                "  A(1), B(2), C(3)" +
+                "}";
+    assertEquals(1, findMatchesCount(in, "enum '_E { 'A(2) }"));
+    assertEquals(0, findMatchesCount(in, "enum '_E { 'A('_x{0,0}) }"));
+    assertEquals(0, findMatchesCount(in, "enum '_E { 'A(2) {} }"));
   }
 
   public void testFindDeclaration() {
-    String s = "public class F {\n" +
+    String in = "public class F {\n" +
                "  static Category cat = Category.getInstance(F.class.getName());\n" +
                "  Category cat2 = Category.getInstance(F.class.getName());\n" +
                "  Category cat3 = Category.getInstance(F.class.getName());\n" +
                "}";
-    String s2 = "static '_Category '_cat = '_Category.getInstance('_Arg);";
+    String pattern = "static '_Category '_cat = '_Category.getInstance('_Arg);";
 
-    assertEquals(1, findMatchesCount(s,s2));
+    assertEquals(1, findMatchesCount(in, pattern));
+
+    String in2 = "class X {" +
+                 "  private String s = new String();" +
+                 "}";
+    assertEquals(1, findMatchesCount(in2, "'_X '_a = new '_X();"));
   }
 
   public void testFindMethodCallWithTwoOrThreeParameters() {
@@ -2330,26 +2356,32 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
                     "  }" +
                     "}";
 
-    String pattern1 = "'_value='_value";
-    assertEquals(1, findMatchesCount(source, pattern1));
+    String pattern1a = "'_value='_value";
+    assertEquals(1, findMatchesCount(source, pattern1a));
 
-    String pattern2 = "System.out.println('_v);" +
+    String pattern1b = "System.out.println('_v);" +
                       "System.out.println('_v);";
-    assertEquals(1, findMatchesCount(source, pattern2));
+    assertEquals(1, findMatchesCount(source, pattern1b));
 
     String source2 = "class B {{" +
                      "  System.out.println((3 * 8) + 2 + (((2))));" +
                      "}}";
-    String pattern3 = "3 * 8 + 2 + 2";
-    assertEquals(1, findMatchesCount(source2, pattern3));
+    String pattern2 = "3 * 8 + 2 + 2";
+    assertEquals(1, findMatchesCount(source2, pattern2));
 
     String source3 = "class C {" +
                      "  static int foo() {\n" +
                      "    return (Integer.parseInt(\"3\"));\n" +
                      "  }" +
                      "}";
-    String pattern4 = "Integer.parseInt('_x)";
-    assertEquals(1, findMatchesCount(source3, pattern4));
+    String pattern3 = "Integer.parseInt('_x)";
+    assertEquals(1, findMatchesCount(source3, pattern3));
+
+    String source4 = "class X {{" +
+                     "  (System.out).println(1);" +
+                     "}}";
+    String pattern4 = "System.out.println('_x);";
+    assertEquals(1, findMatchesCount(source4, pattern4));
   }
 
   public void testFindSelfAssignment() {
@@ -2369,6 +2401,21 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
 
     String pattern = "'_var='_var";
     assertEquals(4, findMatchesCount(source, pattern));
+  }
+
+  public void testFindLambdaParameter() {
+    String source = "class LambdaParameter {" +
+                    "\n" +
+                    "    void x() {" +
+                    "        String s;" +
+                    "        java.util.function.Consumer<String> c = a -> System.out.println(a);" +
+                    "        java.util.function.Consumer<String> c2 = a -> System.out.println(a);" +
+                    "    }" +
+                    "}";
+    assertEquals("should find lambda parameter", 3, findMatchesCount(source, "String '_a;"));
+    assertEquals("should find lambda parameter 2", 1, findMatchesCount(source, "'_T:String '_a;"));
+    assertEquals("should find lambda parameter 3", 3, findMatchesCount(source, "'_T?:String '_a;"));
+    assertEquals("should find lambda parameter 4", 2, findMatchesCount(source, "'_T{,0}:String '_a;"));
   }
 
   public void testFindLambdas() {
@@ -2600,27 +2647,21 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
     } catch (MalformedPatternException ignored) {}
   }
 
-  public void testNotApplicableConstraints() {
-    options.fillSearchCriteria("class A extends '_B* {}");
-    assertEquals("MAXIMUM UNLIMITED not applicable for B", checkApplicableConstraints(options, getProject()));
+  public void testApplicableConstraints() {
+    final CompiledPattern pattern = compilePattern("class A extends '_B* {}", true);
+    assertEquals("MAXIMUM UNLIMITED not applicable for B", checkApplicableConstraints(options, pattern));
+    assertEquals("MINIMUM ZERO not applicable for b", checkApplicableConstraints(options, compilePattern("'_a?.'_b?", true)));
+    assertNull(checkApplicableConstraints(options, compilePattern("case '_a* :", true)));
+    assertEquals("TEXT HIERARCHY not applicable for a", checkApplicableConstraints(options, compilePattern("int '_a:* ;", true)));
+    assertEquals("TEXT HIERARCHY not applicable for a", checkApplicableConstraints(options, compilePattern("void '_a:* ();", true)));
+    assertEquals("MINIMUM ZERO not applicable for st", checkApplicableConstraints(options, compilePattern("if (true) '_st{0,0};", true)));
+    assertEquals("MAXIMUM UNLIMITED not applicable for st", checkApplicableConstraints(options, compilePattern("while (true) '_st+;", true)));
+    assertNull(checkApplicableConstraints(options, compilePattern("class A { '_body* }", false)));
+  }
 
-    options.fillSearchCriteria("'_a?.'_b?");
-    assertEquals("MINIMUM ZERO not applicable for b", checkApplicableConstraints(options, getProject()));
-
-    options.fillSearchCriteria("case '_a* :");
-    assertEquals("MINIMUM ZERO not applicable for a", checkApplicableConstraints(options, getProject()));
-
-    options.fillSearchCriteria("int '_a:* ;");
-    assertEquals("TEXT HIERARCHY not applicable for a", checkApplicableConstraints(options, getProject()));
-
-    options.fillSearchCriteria("void '_a:* ();");
-    assertEquals("TEXT HIERARCHY not applicable for a", checkApplicableConstraints(options, getProject()));
-
-    options.fillSearchCriteria("if (true) '_st{0,0};");
-    assertEquals("MINIMUM ZERO not applicable for st", checkApplicableConstraints(options, getProject()));
-
-    options.fillSearchCriteria("while (true) '_st+;");
-    assertEquals("MAXIMUM UNLIMITED not applicable for st", checkApplicableConstraints(options, getProject()));
+  private CompiledPattern compilePattern(String criteria, boolean checkForErrors) {
+    options.fillSearchCriteria(criteria);
+    return PatternCompiler.compilePattern(getProject(), options, checkForErrors, false);
   }
 
   public void testFindInnerClass() {
@@ -2753,12 +2794,12 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
     assertEquals("Find multi catch with variables", 1, findMatchesCount(source, pattern6));
 
     String pattern7 = "try { '_St1*; } catch ('E '_e) { '_St2*; }";
-    final List<MatchResult> matches = findMatches(source, pattern7, StdFileTypes.JAVA);
+    final List<MatchResult> matches = findMatches(source, pattern7, JavaFileType.INSTANCE);
     assertEquals(3, matches.size());
     assertEquals("NullPointerException  | UnsupportedOperationException", matches.get(1).getMatchImage());
 
     String pattern8 = "try { '_St1*; } catch ('_E '_e{2,2}) { '_St2*; }";
-    final List<MatchResult> matches2 = findMatches(source, pattern8, StdFileTypes.JAVA);
+    final List<MatchResult> matches2 = findMatches(source, pattern8, JavaFileType.INSTANCE);
     assertEquals(1, matches2.size());
     assertEquals("Find try with exactly 2 catch blocks",
                  "try {\n" +
@@ -2770,7 +2811,7 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
                  matches2.get(0).getMatchImage());
 
     String pattern9 = "try { '_st1*; } catch ('_E '_e{0,0}) { '_St2*; }";
-    final List<MatchResult> matches3 = findMatches(source, pattern9, StdFileTypes.JAVA);
+    final List<MatchResult> matches3 = findMatches(source, pattern9, JavaFileType.INSTANCE);
     assertEquals(1, matches3.size());
     assertEquals("Should find try without catch blocks",
                  "try (InputStream in = new FileInputStream(\"tmp\")) {\n" +
@@ -2782,7 +2823,7 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
                      "  try {} finally {}" +
                      "}}";
     String pattern10 = "try { '_st1*; } catch ('_E '_e{0,0}) { '_St2*; } finally { '_St3*; }";
-    final List<MatchResult> matches4 = findMatches(source2, pattern10, StdFileTypes.JAVA);
+    final List<MatchResult> matches4 = findMatches(source2, pattern10, JavaFileType.INSTANCE);
     assertEquals(1, matches4.size());
     assertEquals("Should find try without catch blocks",
                  "try {} finally {}",
@@ -3268,8 +3309,8 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
                                                                              "    '_st*;" +
                                                                              "}"));
     assertEquals("should find switch with 2 cases", 2, findMatchesCount(in, "switch ('_a) {" +
-                                                                            "  case '_c{2,2} :" +
-                                                                            "    '_st*;" +
+                                                                            "  case '_c1 :" +
+                                                                            "  case '_c2? :" +
                                                                             "}"));
     assertEquals("should find swith with one case and default", 2, findMatchesCount(in, "switch ('_a) {" +
                                                                                         "  case '_c :" +
@@ -3278,7 +3319,49 @@ public class StructuralSearchTest extends StructuralSearchTestCase {
                                                                                         "    '_st2*;" +
                                                                                         "  }"));
     assertEquals("should find defaults", 3, findMatchesCount(in, "default:"));
-    assertEquals("should find cases", 8, findMatchesCount(in, "case '_a :"));
+    assertEquals("should find cases", 5, findMatchesCount(in, "case '_a :"));
+    assertEquals("should find cases & defaults", 8, findMatchesCount(in, "case '_a? :"));
+    assertEquals("should match switch containing 2 statements", 3, findMatchesCount(in, "switch ('_x) {" +
+                                                                                        "  '_st{2,2};" +
+                                                                                        "}"));
+  }
+
+  public void testFindSwitchExpressions() {
+    final PsiElementFactory factory = JavaPsiFacade.getElementFactory(getProject());
+    final String in = "void dummy() {" +
+                      "  int j = switch (i) {\n" +
+                      "    case 10 -> {\n" +
+                      "      System.out.println(10);\n" +
+                      "    }\n" +
+                      "    default -> {}\n" +
+                      "  }\n" +
+                      "  int k = switch (i) {\n" +
+                      "    case 10 -> {\n" +
+                      "      yield 1;\n" +
+                      "    }\n" +
+                      "    default -> 0;\n" +
+                      "  };" +
+                      "  int l = switch (i) {" +
+                      "    case 1,2,3: " +
+                      "      break;" +
+                      "    case 5:" +
+                      "      break;" +
+                      "  }\n" +
+                      "}";
+    // hack to generate code of the right language level
+    // will no longer be necessary when long LanguageLevel.HIGHEST == JDK_14
+    // (probably after JDK14 release in March 2020)
+    final PsiMethod method = factory.createMethodFromText(in, null, LanguageLevel.JDK_14);
+
+    options.setScope(new LocalSearchScope(method));
+    assertEquals("find expressions & statements", 2, findMatchesCount(null, "switch (i) {" +
+                                                                          "  case 10 -> {" +
+                                                                          "    '_st;" +
+                                                                          "  }" +
+                                                                          "  default -> $X$;" +
+                                                                          "}"));
+    //options.setScope(new LocalSearchScope(method));
+    //assertEquals("find yield statement", 1, findMatchesCount(null, "yield '_x;"));
   }
 
   public void testRepeatedVars() {

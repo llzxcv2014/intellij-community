@@ -20,7 +20,8 @@ import com.intellij.diagnostic.hprof.classstore.ClassStore
 import com.intellij.diagnostic.hprof.classstore.HProfMetadata
 import com.intellij.diagnostic.hprof.parser.HProfEventBasedParser
 import com.intellij.diagnostic.hprof.visitors.CreateAuxiliaryFilesVisitor
-import gnu.trove.TLongArrayList
+import it.unimi.dsi.fastutil.longs.LongList
+import org.jetbrains.annotations.NonNls
 import java.nio.channels.FileChannel
 
 abstract class ObjectNavigator(val classStore: ClassStore, val instanceCount: Long) {
@@ -41,8 +42,8 @@ abstract class ObjectNavigator(val classStore: ClassStore, val instanceCount: Lo
 
   abstract fun getClass(): ClassDefinition
 
-  abstract fun getReferencesCopy(): TLongArrayList
-  abstract fun copyReferencesTo(outReferences: TLongArrayList)
+  abstract fun getReferencesCopy(): LongList
+  abstract fun copyReferencesTo(outReferences: LongList)
 
   abstract fun getClassForObjectId(id: Long): ClassDefinition
   abstract fun getRootReasonForObjectId(id: Long): RootReason?
@@ -53,27 +54,27 @@ abstract class ObjectNavigator(val classStore: ClassStore, val instanceCount: Lo
   abstract fun getWeakReferenceId(): Long
   abstract fun getSoftWeakReferenceIndex(): Int
 
-  fun goToInstanceField(className: String?, fieldName: String) {
+  fun goToInstanceField(@NonNls className: String?, @NonNls fieldName: String) {
     val objectId = getInstanceFieldObjectId(className, fieldName)
     goTo(objectId, ReferenceResolution.ALL_REFERENCES)
   }
 
-  fun getInstanceFieldObjectId(className: String?, name: String): Long {
+  fun getInstanceFieldObjectId(@NonNls className: String?, @NonNls name: String): Long {
     val refs = getReferencesCopy()
     className?.let {
       assert(className == getClass().name.substringBeforeLast('!')) { "Expected $className, got ${getClass().name}" }
     }
     val indexOfField = getClass().allRefFieldNames(classStore).indexOfFirst { it == name }
-    return refs[indexOfField]
+    return refs.getLong(indexOfField)
   }
 
-  fun goToStaticField(className: String, fieldName: String) {
+  fun goToStaticField(@NonNls className: String, @NonNls fieldName: String) {
     val objectId = getStaticFieldObjectId(className, fieldName)
     goTo(objectId, ReferenceResolution.ALL_REFERENCES)
   }
 
   private fun getStaticFieldObjectId(className: String, fieldName: String) =
-    classStore[className].staticFields.first { it.name == fieldName }.objectId
+    classStore[className].objectStaticFields.first { it.name == fieldName }.value
 
   companion object {
     fun createOnAuxiliaryFiles(parser: HProfEventBasedParser,
@@ -98,5 +99,7 @@ abstract class ObjectNavigator(val classStore: ClassStore, val instanceCount: Lo
 
   // Some objects may have additional data (varies by type). Only available when referenceResolution != NO_REFERENCES.
   abstract fun getExtraData(): Int
+
+  abstract fun getStringInstanceFieldValue(): String?
 }
 

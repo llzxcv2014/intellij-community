@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.diff.tools.util;
 
 import com.intellij.diff.util.Range;
@@ -13,7 +13,7 @@ import com.intellij.openapi.editor.event.VisibleAreaListener;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.impl.FoldingModelImpl;
 import com.intellij.util.ArrayUtil;
-import org.jetbrains.annotations.CalledInAwt;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,16 +22,16 @@ import java.awt.*;
 import java.util.Arrays;
 import java.util.List;
 
-public class SyncScrollSupport {
+public final class SyncScrollSupport {
   public interface SyncScrollable {
-    @CalledInAwt
+    @RequiresEdt
     boolean isSyncScrollEnabled();
 
-    @CalledInAwt
+    @RequiresEdt
     int transfer(@NotNull Side baseSide, int line);
 
     @NotNull
-    @CalledInAwt
+    @RequiresEdt
     Range getRange(@NotNull Side baseSide, int line);
   }
 
@@ -351,19 +351,24 @@ public class SyncScrollSupport {
       if (master.getDocument().getTextLength() == 0) return;
 
       Rectangle viewRect = master.getScrollingModel().getVisibleArea();
-      int middleY = viewRect.height / 3;
       int lineHeight = master.getLineHeight();
 
       boolean onlyMajorForward = false;
       boolean onlyMajorBackward = false;
       int offset;
       if (myAnchor == null) {
-        int masterVisualLine = master.yToVisualLine(viewRect.y + middleY);
+        int middleY = viewRect.height / 3;
+        int masterOffset = viewRect.y + middleY;
+
+        int masterVisualLine = master.yToVisualLine(masterOffset);
         int convertedVisualLine = transferVisualLine(masterVisualLine);
 
-        int pointY = slave.visualLineToY(convertedVisualLine);
-        int correction = (viewRect.y + middleY) % lineHeight;
-        offset = pointY - middleY + correction;
+        int slaveOffset = slave.visualLineToY(convertedVisualLine);
+        int masterOffsetRaw = master.visualLineToY(masterVisualLine);
+        // ensure that anchor lines are in the same phase
+        int correction = (masterOffset - masterOffsetRaw) % lineHeight;
+
+        offset = slaveOffset - middleY + correction;
 
         onlyMajorBackward = correction < lineHeight / 2 && masterVisualLine > 0 &&
                             convertedVisualLine == transferVisualLine(masterVisualLine - 1);
@@ -441,18 +446,16 @@ public class SyncScrollSupport {
     return header == null ? 0 : header.getHeight();
   }
 
-  @NotNull
-  public static int[] getTargetOffsets(@NotNull Editor editor1, @NotNull Editor editor2,
-                                       int startLine1, int endLine1, int startLine2, int endLine2,
-                                       int preferredTopShift) {
+  public static int @NotNull [] getTargetOffsets(@NotNull Editor editor1, @NotNull Editor editor2,
+                                                 int startLine1, int endLine1, int startLine2, int endLine2,
+                                                 int preferredTopShift) {
     return getTargetOffsets(new Editor[]{editor1, editor2},
                             new int[]{startLine1, startLine2},
                             new int[]{endLine1, endLine2},
                             preferredTopShift);
   }
 
-  @NotNull
-  private static int[] getTargetOffsets(@NotNull Editor[] editors, int[] startLines, int[] endLines, int preferredTopShift) {
+  private static int @NotNull [] getTargetOffsets(Editor @NotNull [] editors, int[] startLines, int[] endLines, int preferredTopShift) {
     int count = editors.length;
     assert startLines.length == count;
     assert endLines.length == count;

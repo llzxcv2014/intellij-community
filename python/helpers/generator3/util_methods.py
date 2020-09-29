@@ -1,8 +1,12 @@
 import ast
+import collections
 import errno
 import functools
 import hashlib
+import json
 import keyword
+import logging
+import multiprocessing
 import shutil
 from contextlib import contextmanager
 
@@ -429,7 +433,7 @@ def restore_by_inspect(p_func):
     """
     Returns paramlist restored by inspect.
     """
-    args, varg, kwarg, defaults = inspect.getargspec(p_func)
+    args, varg, kwarg, defaults, kwonlyargs, kwonlydefaults, _ = getfullargspec(p_func)
     spec = []
     if defaults:
         dcnt = len(defaults) - 1
@@ -444,6 +448,16 @@ def restore_by_inspect(p_func):
         spec.insert(0, arg)
     if varg:
         spec.append("*" + varg)
+    elif kwonlyargs:
+        spec.append("*")
+
+    kwonlydefaults = kwonlydefaults or {}
+    for arg in kwonlyargs:
+        if arg in kwonlydefaults:
+            spec.append(arg + '=' + sanitize_value(kwonlydefaults[arg]))
+        else:
+            spec.append(arg)
+
     if kwarg:
         spec.append("**" + kwarg)
     return flatten(spec)
@@ -529,8 +543,8 @@ def detect_constructor(p_class):
     # try to inspect the thing
     constr = getattr(p_class, "__init__")
     if constr and inspect and inspect.isfunction(constr):
-        args, _, _, _ = inspect.getargspec(constr)
-        return ", ".join(args)
+        args, _, _, _, kwonlyargs, _, _ = getfullargspec(constr)
+        return ", ".join(args + [a + '=' + a for a in kwonlyargs])
     else:
         return None
 
@@ -690,9 +704,18 @@ def copy(src, dst, merge=False, pre_copy_hook=None, conflict_handler=None, post_
     if not pre_copy_hook(src, dst):
         return
 
+    # Note about shutil.copy vs shutil.copy2.
+    # There is an open CPython bug which breaks copy2 on NFS when it tries to copy the xattr.
+    # https://bugs.python.org/issue24564
+    # https://youtrack.jetbrains.com/issue/PY-37523
+    # However, in all our use cases, we do not care about the xattr,
+    # so just always use shutil.copy to avoid this problem.
     if os.path.isdir(src):
         if not merge:
-            shutil.copytree(src, dst)
+            if version[0] >= 3:
+                shutil.copytree(src, dst, copy_function=shutil.copy)
+            else:
+                shutil.copytree(src, dst)
         else:
             mkdir(dst)
             for child in os.listdir(src):
@@ -710,7 +733,7 @@ def copy(src, dst, merge=False, pre_copy_hook=None, conflict_handler=None, post_
                     raise
     else:
         mkdir(os.path.dirname(dst))
-        shutil.copy2(src, dst)
+        shutil.copy(src, dst)
     post_copy_hook(src, dst)
 
 
@@ -844,8 +867,12 @@ _bytes_that_never_appears_in_text = set(range(7)) | {11} | set(range(14, 27)) | 
 
 
 # This wrapper is intentionally made top-level: local functions can't be pickled.
-def _multiprocessing_wrapper(result_conn, func, *args, **kwargs):
-    result_conn.send(func(*args, **kwargs))
+def _multiprocessing_wrapper(data, func, *args, **kwargs):
+    configure_logging(data.root_logger_level)
+    data.result_conn.send(func(*args, **kwargs))
+
+
+_MainProcessData = collections.namedtuple('_MainProcessData', ['result_conn', 'root_logger_level'])
 
 
 def execute_in_subprocess_synchronously(name, func, args, kwargs, failure_result=None):
@@ -860,9 +887,11 @@ def execute_in_subprocess_synchronously(name, func, args, kwargs, failure_result
     # TODO experiment with a shared queue maintained by multiprocessing.Manager
     #  (it will require an additional service process)
     recv_conn, send_conn = mp.Pipe(duplex=False)
+    data = _MainProcessData(result_conn=send_conn,
+                            root_logger_level=logging.getLogger().level)
     p = mp.Process(name=name,
                    target=_multiprocessing_wrapper,
-                   args=(send_conn, func) + args,
+                   args=(data, func) + args,
                    kwargs=kwargs,
                    **extra_process_kwargs)
     p.start()
@@ -876,3 +905,33 @@ def execute_in_subprocess_synchronously(name, func, args, kwargs, failure_result
         return recv_conn.recv()
     else:
         return failure_result
+
+
+def configure_logging(root_level):
+    logging.addLevelName(logging.DEBUG - 1, 'TRACE')
+
+    root = logging.getLogger()
+    root.setLevel(root_level)
+
+    # In environments where fork is implemented entire logging configuration is already inherited by child processes.
+    # Configuring it twice will lead to duplicated records.
+
+    # Reset logger similarly to how it's done in logging.config
+    for h in root.handlers[:]:
+        root.removeHandler(h)
+
+    for f in root.filters[:]:
+        root.removeFilter(f)
+
+    class JsonFormatter(logging.Formatter):
+        def format(self, record):
+            s = super(JsonFormatter, self).format(record)
+            return json.dumps({
+                'type': 'log',
+                'level': record.levelname.lower(),
+                'message': s
+            })
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(JsonFormatter())
+    root.addHandler(handler)

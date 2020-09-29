@@ -1,13 +1,16 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.lang.javascript.boilerplate;
 
 import com.intellij.ide.BrowserUtil;
 import com.intellij.ide.util.projectWizard.WebProjectTemplate;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -41,7 +44,7 @@ public abstract class AbstractGithubTagDownloadedProjectGenerator extends WebPro
   }
 
   @NotNull
-  protected abstract String getDisplayName();
+  protected abstract @Nls String getDisplayName();
 
   @NotNull
   public abstract String getGithubUserName();
@@ -53,7 +56,7 @@ public abstract class AbstractGithubTagDownloadedProjectGenerator extends WebPro
   @Nullable
   public abstract String getDescription();
 
-  private String getTitle() {
+  private @NlsContexts.ProgressTitle String getTitle() {
     return getDisplayName();
   }
 
@@ -103,7 +106,7 @@ public abstract class AbstractGithubTagDownloadedProjectGenerator extends WebPro
     }
     if (!downloaded) {
       if (ApplicationManager.getApplication().isUnitTestMode()) {
-        throw new GeneratorException("Download " + tag.getZipballUrl() + " is skipped in unit test mode");
+        throw new GeneratorException(LangBundle.message("dialog.message.download.skipped.in.unit.test.mode", tag.getZipballUrl()));
       }
       downloadAndUnzip(project, tag.getZipballUrl(), zipArchiveFile, extractToDir, true);
     }
@@ -153,18 +156,18 @@ public abstract class AbstractGithubTagDownloadedProjectGenerator extends WebPro
   }
 
   private void reportError(@NotNull Project project, @NotNull GeneratorException e) {
-    String message = "Error creating " + getDisplayName() + " project";
+    String message = LangBundle.message("dialog.message.error.creating.project", getDisplayName());
     if (ApplicationManager.getApplication().isUnitTestMode()) {
       LOG.error(message, e);
       return;
     }
     LOG.info(message, e);
-    String title = "Create " + getDisplayName() + " Project";
+    String title = LangBundle.message("dialog.title.create.project", getDisplayName());
     Messages.showErrorDialog(project, message + ". " + e.getMessage(), title);
   }
 
   public ActionLink createGitHubLink() {
-    ActionLink link = new ActionLink(getName() + " on GitHub", DumbAwareAction.create(e ->
+    ActionLink link = new ActionLink(LangBundle.message("link.label.on.github", getName()), DumbAwareAction.create(e ->
         BrowserUtil.open("https://github.com/" + getGithubUserName() + "/" + getGithubRepositoryName())));
     link.setFont(UIUtil.getLabelFont(UIUtil.FontSize.SMALL));
     return link;

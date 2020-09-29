@@ -5,21 +5,17 @@ import com.intellij.ide.IdeBundle;
 import com.intellij.ide.actions.runAnything.activity.RunAnythingProvider;
 import com.intellij.ide.actions.runAnything.items.RunAnythingItem;
 import com.intellij.openapi.actionSystem.DataContext;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collection;
 
 public class RunAnythingGeneralGroup extends RunAnythingGroupBase {
-  public static final RunAnythingGeneralGroup INSTANCE = new RunAnythingGeneralGroup();
-  public static final String GENERAL_GROUP_TITLE = IdeBundle.message("run.anything.general.group.title");
-
-  private RunAnythingGeneralGroup() {}
-
   @NotNull
   @Override
   public String getTitle() {
-    return GENERAL_GROUP_TITLE;
+    return getGroupTitle();
   }
 
   @NotNull
@@ -28,7 +24,7 @@ public class RunAnythingGeneralGroup extends RunAnythingGroupBase {
     Collection<RunAnythingItem> collector = new ArrayList<>();
 
     for (RunAnythingProvider provider : RunAnythingProvider.EP_NAME.getExtensions()) {
-      if (GENERAL_GROUP_TITLE.equals(provider.getCompletionGroupTitle())) {
+      if (getGroupTitle().equals(provider.getCompletionGroupTitle())) {
         Collection values = provider.getValues(dataContext, pattern);
         for (Object value : values) {
           //noinspection unchecked
@@ -43,5 +39,9 @@ public class RunAnythingGeneralGroup extends RunAnythingGroupBase {
   @Override
   protected int getMaxInitialItems() {
     return 15;
+  }
+
+  public static @Nls String getGroupTitle() {
+    return IdeBundle.message("run.anything.general.group.title");
   }
 }

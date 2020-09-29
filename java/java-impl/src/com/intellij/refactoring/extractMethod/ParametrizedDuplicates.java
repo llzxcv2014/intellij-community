@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.extractMethod;
 
 import com.intellij.openapi.diagnostic.Logger;
@@ -34,6 +20,7 @@ import com.intellij.util.text.UniqueNameGenerator;
 import gnu.trove.THashMap;
 import gnu.trove.THashSet;
 import one.util.streamex.StreamEx;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,12 +28,10 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
-import static com.intellij.refactoring.extractMethod.ExtractMethodHandler.REFACTORING_NAME;
-
 /**
  * @author Pavel.Dolgov
  */
-public class ParametrizedDuplicates {
+public final class ParametrizedDuplicates {
   private static final Logger LOG = Logger.getInstance(ParametrizedDuplicates.class);
 
   private final PsiElement[] myElements;
@@ -56,7 +41,7 @@ public class ParametrizedDuplicates {
   private PsiMethodCallExpression myParametrizedCall;
   private VariableData[] myVariableDatum;
 
-  private ParametrizedDuplicates(@NotNull PsiElement[] pattern, @NotNull ExtractMethodProcessor originalProcessor) {
+  private ParametrizedDuplicates(PsiElement @NotNull [] pattern, @NotNull ExtractMethodProcessor originalProcessor) {
     PsiElement[] filteredPattern = getFilteredElements(pattern);
     PsiElement firstElement = filteredPattern.length != 0 ? filteredPattern[0] : null;
     if (firstElement instanceof PsiStatement) {
@@ -73,7 +58,7 @@ public class ParametrizedDuplicates {
     }
   }
 
-  private static PsiElement[] copyElements(@NotNull PsiElement[] pattern) {
+  private static PsiElement[] copyElements(PsiElement @NotNull [] pattern) {
     Project project = pattern[0].getProject();
     return IntroduceParameterHandler.getElementsInCopy(project, pattern[0].getContainingFile(), pattern, false);
   }
@@ -223,7 +208,7 @@ public class ParametrizedDuplicates {
     return (PsiMethodCallExpression)originalCall.replace(call);
   }
 
-  private boolean initMatches(@NotNull PsiElement[] pattern, @NotNull List<Match> matches) {
+  private boolean initMatches(PsiElement @NotNull [] pattern, @NotNull List<Match> matches) {
     if (myElements.length == 0) {
       return false;
     }
@@ -365,7 +350,8 @@ public class ParametrizedDuplicates {
       createParameterDeclarations(originalProcessor, expressionsMapping, predefinedNames);
     putMatchParameters(parameterDeclarations);
 
-    JavaDuplicatesExtractMethodProcessor parametrizedProcessor = new JavaDuplicatesExtractMethodProcessor(myElements, REFACTORING_NAME);
+    JavaDuplicatesExtractMethodProcessor parametrizedProcessor =
+      new JavaDuplicatesExtractMethodProcessor(myElements, ExtractMethodHandler.getRefactoringName());
     if (!parametrizedProcessor.prepare(false)) {
       return false;
     }
@@ -379,9 +365,8 @@ public class ParametrizedDuplicates {
     return true;
   }
 
-  @NotNull
-  private static VariableData[] unmapVariableData(@NotNull VariableData[] variableDatum,
-                                                  @NotNull Map<PsiVariable, PsiVariable> variablesMapping) {
+  private static VariableData @NotNull [] unmapVariableData(VariableData @NotNull [] variableDatum,
+                                                            @NotNull Map<PsiVariable, PsiVariable> variablesMapping) {
     Map<PsiVariable, PsiVariable> reverseMapping = ContainerUtil.reverseMap(variablesMapping);
     return StreamEx.of(variableDatum)
                    .map(data -> data.substitute(reverseMapping.get(data.variable)))
@@ -447,8 +432,7 @@ public class ParametrizedDuplicates {
     return ContainerUtil.isEmpty(myMatches);
   }
 
-  @NotNull
-  private static PsiElement[] wrapWithCodeBlock(@NotNull PsiElement[] elements, @NotNull InputVariables inputVariables) {
+  private static PsiElement @NotNull [] wrapWithCodeBlock(PsiElement @NotNull [] elements, @NotNull InputVariables inputVariables) {
     PsiElement fragmentStart = elements[0];
     PsiElement fragmentEnd = elements[elements.length - 1];
     List<ReusedLocalVariable> reusedLocalVariables =
@@ -467,8 +451,7 @@ public class ParametrizedDuplicates {
     return elementsInBlock;
   }
 
-  @NotNull
-  private static PsiElement[] trimBracesAndWhitespaces(@NotNull PsiCodeBlock codeBlock) {
+  private static PsiElement @NotNull [] trimBracesAndWhitespaces(@NotNull PsiCodeBlock codeBlock) {
     PsiElement[] elements = codeBlock.getChildren();
     int start = 1;
     while (start < elements.length && elements[start] instanceof PsiWhiteSpace) {
@@ -503,7 +486,7 @@ public class ParametrizedDuplicates {
   }
 
   @Nullable
-  private static PsiExpression wrapExpressionWithCodeBlock(@NotNull PsiElement[] copy,
+  private static PsiExpression wrapExpressionWithCodeBlock(PsiElement @NotNull [] copy,
                                                            @NotNull ExtractMethodProcessor originalProcessor) {
     if (copy.length != 1 || !(copy[0] instanceof PsiExpression)) return null;
 
@@ -520,7 +503,7 @@ public class ParametrizedDuplicates {
     if (parentClassStart == null) return null;
 
     // It's syntactically correct to write "new Object() {void foo(){}}.foo()" - see JLS 15.9.5
-    String wrapperBodyText = (PsiType.VOID.equals(type) ? "" : "return ") + expression.getText() + ";";
+    @NonNls String wrapperBodyText = (PsiType.VOID.equals(type) ? "" : "return ") + expression.getText() + ";";
     String wrapperClassImmediateCallText = "new " + CommonClassNames.JAVA_LANG_OBJECT + "() { " +
                                            type.getCanonicalText() + " wrapperMethod() {" + wrapperBodyText + "} " +
                                            "}.wrapperMethod()";
@@ -604,8 +587,8 @@ public class ParametrizedDuplicates {
     return parameterDeclarations;
   }
 
-  private static void collectCopyMapping(@NotNull PsiElement[] pattern,
-                                         @NotNull PsiElement[] copy,
+  private static void collectCopyMapping(PsiElement @NotNull [] pattern,
+                                         PsiElement @NotNull [] copy,
                                          @NotNull List<? extends ClusterOfUsages> patternUsages,
                                          @NotNull Map<PsiExpression, PsiExpression> expressions,
                                          @NotNull Map<PsiVariable, PsiVariable> variables) {
@@ -617,8 +600,8 @@ public class ParametrizedDuplicates {
     collectCopyMapping(pattern, copy, patternExpressions::contains, expressions::put, variables::put);
   }
 
-  public static void collectCopyMapping(@NotNull PsiElement[] pattern,
-                                        @NotNull PsiElement[] copy,
+  public static void collectCopyMapping(PsiElement @NotNull [] pattern,
+                                        PsiElement @NotNull [] copy,
                                         @NotNull Predicate<? super PsiExpression> isReplaceablePattern,
                                         @NotNull BiConsumer<? super PsiExpression, ? super PsiExpression> expressionsMapping,
                                         @NotNull BiConsumer<? super PsiVariable, ? super PsiVariable> variablesMapping) {
@@ -664,8 +647,7 @@ public class ParametrizedDuplicates {
     collectCopyMapping(pattern.getChildren(), copy.getChildren(), isReplaceablePattern, expressionsMapping, variablesMapping);
   }
 
-  @NotNull
-  private static PsiElement[] getFilteredElements(@NotNull PsiElement[] elements) {
+  private static PsiElement @NotNull [] getFilteredElements(PsiElement @NotNull [] elements) {
     if (elements.length == 0) {
       return elements;
     }

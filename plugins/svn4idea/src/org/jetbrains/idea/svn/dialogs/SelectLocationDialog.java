@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn.dialogs;
 
 import com.intellij.openapi.actionSystem.ActionManager;
@@ -8,13 +8,13 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.idea.svn.SvnBundle;
 import org.jetbrains.idea.svn.SvnUtil;
 import org.jetbrains.idea.svn.SvnVcs;
 import org.jetbrains.idea.svn.api.Url;
@@ -25,30 +25,31 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.util.Objects;
 
 import static com.intellij.openapi.util.Pair.create;
-import static com.intellij.util.ObjectUtils.notNull;
+import static org.jetbrains.idea.svn.SvnBundle.message;
 import static org.jetbrains.idea.svn.SvnUtil.append;
 
 /**
  * @author alex
  */
-public class SelectLocationDialog extends DialogWrapper {
+public final class SelectLocationDialog extends DialogWrapper {
   private final Project myProject;
   private RepositoryBrowserComponent myRepositoryBrowser;
   private final Url myURL;
   private final String myDstName;
-  private final String myDstLabel;
+  private final @NlsContexts.Label @Nullable String myDstLabel;
   private JTextField myDstText;
   private final boolean myIsShowFiles;
   private final boolean myAllowActions;
 
-  @NonNls private static final String HELP_ID = "vcs.subversion.common";
+  private static final @NonNls String HELP_ID = "vcs.subversion.common";
 
   // todo check that works when authenticated
   @Nullable
   public static Url selectLocation(Project project, @NotNull Url url) {
-    SelectLocationDialog dialog = openDialog(project, url, null, null, true, false, null);
+    SelectLocationDialog dialog = openDialog(project, url, null, null, true, null);
 
     return dialog == null || !dialog.isOK() ? null : dialog.getSelectedURL();
   }
@@ -60,41 +61,44 @@ public class SelectLocationDialog extends DialogWrapper {
   }
 
   @Nullable
-  public static Url selectCopyDestination(Project project, @NotNull Url url, String dstLabel, String dstName, boolean showFiles)
-    throws SvnBindException {
-    SelectLocationDialog dialog =
-      openDialog(project, url, dstLabel, dstName, showFiles, false, SvnBundle.message("select.location.invalid.url.message", url));
+  public static Url selectCopyDestination(@NotNull Project project, @NotNull Url url, @NotNull String dstName) throws SvnBindException {
+    SelectLocationDialog dialog = openDialog(project, url, message("label.copy.select.location.dialog.copy.as"), dstName, false,
+                                             message("select.location.invalid.url.message", url));
 
-    return dialog == null || !dialog.isOK() ? null : append(notNull(dialog.getSelectedURL()), dialog.getDestinationName());
+    return dialog == null || !dialog.isOK() ? null : append(Objects.requireNonNull(dialog.getSelectedURL()), dialog.getDestinationName());
   }
 
   @Nullable
   private static SelectLocationDialog openDialog(Project project,
                                                  @NotNull Url url,
-                                                 String dstLabel,
+                                                 @NlsContexts.Label @Nullable String dstLabel,
                                                  String dstName,
                                                  boolean showFiles,
-                                                 boolean allowActions,
-                                                 String errorMessage) {
+                                                 @NlsContexts.DialogMessage @Nullable String errorMessage) {
     try {
       final Url repositoryUrl = initRoot(project, url);
       if (repositoryUrl == null) {
-        Messages.showErrorDialog(project, "Can not detect repository root for URL: " + url,
-                                 SvnBundle.message("dialog.title.select.repository.location"));
+        Messages.showErrorDialog(project, message("dialog.message.can.not.detect.repository.root.for.url", url),
+                                 message("dialog.title.select.repository.location"));
         return null;
       }
-      SelectLocationDialog dialog = new SelectLocationDialog(project, repositoryUrl, dstLabel, dstName, showFiles, allowActions);
+      SelectLocationDialog dialog = new SelectLocationDialog(project, repositoryUrl, dstLabel, dstName, showFiles, false);
       dialog.show();
       return dialog;
     }
     catch (SvnBindException e) {
       Messages.showErrorDialog(project, errorMessage != null ? errorMessage : e.getMessage(),
-                               SvnBundle.message("dialog.title.select.repository.location"));
+                               message("dialog.title.select.repository.location"));
       return null;
     }
   }
 
-  private SelectLocationDialog(Project project, Url url, String dstLabel, String dstName, boolean showFiles, boolean allowActions) {
+  private SelectLocationDialog(Project project,
+                               Url url,
+                               @NlsContexts.Label @Nullable String dstLabel,
+                               String dstName,
+                               boolean showFiles,
+                               boolean allowActions) {
     super(project, true);
     myProject = project;
     myDstLabel = dstLabel;
@@ -102,13 +106,12 @@ public class SelectLocationDialog extends DialogWrapper {
     myURL = url;
     myIsShowFiles = showFiles;
     myAllowActions = allowActions;
-    setTitle(SvnBundle.message("dialog.title.select.repository.location"));
+    setTitle(message("dialog.title.select.repository.location"));
     init();
   }
 
-  @Nullable
   @Override
-  protected String getHelpId() {
+  protected @NotNull String getHelpId() {
     return HELP_ID;
   }
 
@@ -129,7 +132,7 @@ public class SelectLocationDialog extends DialogWrapper {
       catch (SvnBindException e) {
         excRef.set(e);
       }
-    }, "Detecting repository root", true, project);
+    }, message("progress.title.detecting.repository.root"), true, project);
     if (!excRef.isNull()) {
       throw excRef.get();
     }

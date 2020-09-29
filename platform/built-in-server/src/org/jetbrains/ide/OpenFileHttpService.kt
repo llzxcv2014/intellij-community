@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.ide
 
 import com.intellij.ide.impl.ProjectUtil.focusProjectWindow
@@ -25,7 +25,6 @@ import io.netty.handler.codec.http.*
 import org.jetbrains.builtInWebServer.WebServerPathToFileManager
 import org.jetbrains.builtInWebServer.checkAccess
 import org.jetbrains.concurrency.*
-import org.jetbrains.io.orInSafeMode
 import org.jetbrains.io.send
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -33,6 +32,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.regex.Pattern
 import javax.swing.SwingUtilities
 
+@Suppress("HardCodedStringLiteral")
 private val NOT_FOUND = createError("not found")
 private val LINE_AND_COLUMN = Pattern.compile("^(.*?)(?::(\\d+))?(?::(\\d+))?$")
 
@@ -58,6 +58,7 @@ private val LINE_AND_COLUMN = Pattern.compile("^(.*?)(?::(\\d+))?(?::(\\d+))?$")
  * @apiExample {curl} Query parameters
  * curl http://localhost:63342/api/file?file=path/to/file.kt&line=100&column=34
  */
+@Suppress("HardCodedStringLiteral")
 internal class OpenFileHttpService : RestService() {
   @Volatile private var refreshSessionId: Long = 0
   private val requests = ConcurrentLinkedQueue<OpenFileTask>()
@@ -65,6 +66,8 @@ internal class OpenFileHttpService : RestService() {
   override fun getServiceName() = "file"
 
   override fun isMethodSupported(method: HttpMethod) = method === HttpMethod.GET || method === HttpMethod.POST
+
+  override fun isOriginAllowed(request: HttpRequest) = OriginCheckResult.ASK_CONFIRMATION
 
   override fun execute(urlDecoder: QueryStringDecoder, request: FullHttpRequest, context: ChannelHandlerContext): String? {
     val keepAlive = HttpUtil.isKeepAlive(request)
@@ -122,7 +125,7 @@ internal class OpenFileHttpService : RestService() {
     return null
   }
 
-  internal fun openFile(request: OpenFileRequest, context: ChannelHandlerContext, httpRequest: HttpRequest?): Promise<Void?>? {
+  private fun openFile(request: OpenFileRequest, context: ChannelHandlerContext, httpRequest: HttpRequest?): Promise<Void?>? {
     val systemIndependentPath = FileUtil.toSystemIndependentName(FileUtil.expandUserHome(request.file!!))
     val file = Paths.get(FileUtil.toSystemDependentName(systemIndependentPath))
     if (file.isAbsolute) {
@@ -171,8 +174,6 @@ internal class OpenFileHttpService : RestService() {
     session.launch()
     return mainTask.promise
   }
-
-  override fun isAccessible(request: HttpRequest) = true
 }
 
 internal class OpenFileRequest {
@@ -238,9 +239,11 @@ private fun openRelativePath(path: String, request: OpenFileRequest): Boolean {
 
 private fun openAbsolutePath(file: Path, request: OpenFileRequest): Promise<Void?> {
   val promise = AsyncPromise<Void?>()
-  ApplicationManager.getApplication().invokeLater {
+  val task = Runnable {
     promise.catchError {
-      val virtualFile = runWriteAction {  LocalFileSystem.getInstance().refreshAndFindFileByPath(file.systemIndependentPath) }
+      val virtualFile = runWriteAction {
+        LocalFileSystem.getInstance().refreshAndFindFileByPath(file.systemIndependentPath)
+      }
       if (virtualFile == null) {
         promise.setError(NOT_FOUND)
       }
@@ -249,6 +252,14 @@ private fun openAbsolutePath(file: Path, request: OpenFileRequest): Promise<Void
         promise.setResult(null)
       }
     }
+  }
+
+  val app = ApplicationManager.getApplication()
+  if (app.isUnitTestMode) {
+    app.invokeAndWait(task)
+  }
+  else {
+    app.invokeLater(task)
   }
   return promise
 }

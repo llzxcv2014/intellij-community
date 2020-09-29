@@ -8,15 +8,15 @@
   </extensions>
 
   <actions>
-    <action id="PyManagePackages" class="com.jetbrains.python.packaging.PyManagePackagesAction" text="Manage Python Packages...">
+    <action id="PyManagePackages" class="com.jetbrains.python.packaging.PyManagePackagesAction">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="RunPythonToolwindowAction" class="com.jetbrains.python.console.RunPythonToolwindowAction">
     </action>
   </actions>
 
-  <application-components>
-    <component>
-      <implementation-class>com.jetbrains.python.facet.PythonSdkTableListener</implementation-class>
-    </component>
-  </application-components>
+  <applicationListeners>
+    <listener class="com.jetbrains.python.facet.PythonSdkTableListener" topic="com.intellij.openapi.projectRoots.ProjectJdkTable$Listener"/>
+  </applicationListeners>
 
 </idea-plugin>

@@ -1,6 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.lookup.impl;
 
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.CodeInsightSettings;
 import com.intellij.codeInsight.completion.CodeCompletionFeatures;
 import com.intellij.codeInsight.completion.ShowHideIntentionIconLookupAction;
@@ -11,6 +12,7 @@ import com.intellij.featureStatistics.FeatureUsageTracker;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.IdeEventQueue;
 import com.intellij.ide.ui.UISettings;
+import com.intellij.idea.ActionsBundle;
 import com.intellij.injected.editor.EditorWindow;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.impl.ActionButton;
@@ -22,6 +24,7 @@ import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.registry.Registry;
+import com.intellij.ui.ComponentUtil;
 import com.intellij.ui.ScreenUtil;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.components.JBLayeredPane;
@@ -32,7 +35,6 @@ import com.intellij.util.Alarm;
 import com.intellij.util.PlatformIcons;
 import com.intellij.util.ui.AbstractLayoutManager;
 import com.intellij.util.ui.AsyncProcessIcon;
-import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -104,7 +106,7 @@ class LookupUi {
 
     myScrollPane = ScrollPaneFactory.createScrollPane(lookup.getList(), true);
     myScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-    UIUtil.putClientProperty(myScrollPane.getVerticalScrollBar(), JBScrollPane.IGNORE_SCROLLBAR_IN_INSETS, true);
+    ComponentUtil.putClientProperty(myScrollPane.getVerticalScrollBar(), JBScrollPane.IGNORE_SCROLLBAR_IN_INSETS, true);
 
     lookup.getComponent().add(layeredPane, BorderLayout.CENTER);
 
@@ -127,6 +129,11 @@ class LookupUi {
         myHintAlarm.cancelAllRequests();
         updateHint();
       }
+    });
+
+    myScrollPane.getVerticalScrollBar().addAdjustmentListener(e -> {
+      if (myLookup.myUpdating || myLookup.isLookupDisposed()) return;
+      myLookup.myCellRenderer.scheduleUpdateLookupWidthFromVisibleItems();
     });
   }
 
@@ -188,6 +195,7 @@ class LookupUi {
     if (myLookup.myResizePending || itemsChanged) {
       myLookup.myResizePending = false;
       myLookup.pack();
+      rectangle = calculatePosition();
     }
     HintManagerImpl.updateLocation(myLookup, editor, rectangle.getLocation());
 
@@ -216,7 +224,7 @@ class LookupUi {
     location.y += editor.getLineHeight();
     location.x -= myLookup.myCellRenderer.getTextIndent();
     // extra check for other borders
-    final Window window = UIUtil.getWindow(lookupComponent);
+    final Window window = ComponentUtil.getWindow(lookupComponent);
     if (window != null) {
       final Point point = SwingUtilities.convertPoint(lookupComponent, 0, 0, window);
       location.x -= point.x;
@@ -231,10 +239,6 @@ class LookupUi {
     }
     if (isPositionedAboveCaret()) {
       location.y -= dim.height + editor.getLineHeight();
-      if (pos.line == 0) {
-        location.y += 1;
-        //otherwise the lookup won't intersect with the editor and every editor's resize (e.g. after typing in console) will close the lookup
-      }
     }
 
     if (!screenRectangle.contains(location)) {
@@ -243,6 +247,16 @@ class LookupUi {
 
     Rectangle candidate = new Rectangle(location, dim);
     ScreenUtil.cropRectangleToFitTheScreen(candidate);
+
+    if (isPositionedAboveCaret()) {
+      // need to crop as well at bottom if lookup overlaps current line
+      Point caretLocation = editor.logicalPositionToXY(pos);
+      SwingUtilities.convertPointToScreen(caretLocation, editor.getContentComponent());
+      int offset = location.y + dim.height - caretLocation.y;
+      if (offset > 0) {
+        candidate.height -= offset;
+      }
+    }
 
     JRootPane rootPane = editor.getComponent().getRootPane();
     if (rootPane != null) {
@@ -256,7 +270,7 @@ class LookupUi {
     return new Rectangle(location.x, location.y, dim.width, candidate.height);
   }
 
-  private class LookupLayeredPane extends JBLayeredPane {
+  private final class LookupLayeredPane extends JBLayeredPane {
     final JPanel mainPanel = new JPanel(new BorderLayout());
 
     private LookupLayeredPane() {
@@ -266,7 +280,7 @@ class LookupUi {
       setLayout(new AbstractLayoutManager() {
         @Override
         public Dimension preferredLayoutSize(@Nullable Container parent) {
-          int maxCellWidth = myLookup.myLookupTextWidth + myLookup.myCellRenderer.getTextIndent();
+          int maxCellWidth = myLookup.myCellRenderer.getLookupTextWidth() + myLookup.myCellRenderer.getTextIndent();
           int scrollBarWidth = myScrollPane.getVerticalScrollBar().getWidth();
           int listWidth = Math.min(scrollBarWidth + maxCellWidth, UISettings.getInstance().getMaxLookupWidth());
 
@@ -304,14 +318,14 @@ class LookupUi {
     }
   }
 
-  private class HintAction extends DumbAwareAction {
+  private final class HintAction extends DumbAwareAction {
     private HintAction() {
-      super(null, null, AllIcons.Actions.IntentionBulb);
+      super(AllIcons.Actions.IntentionBulb);
 
       AnAction showIntentionAction = ActionManager.getInstance().getAction(IdeActions.ACTION_SHOW_INTENTION_ACTIONS);
       if (showIntentionAction != null) {
         copyShortcutFrom(showIntentionAction);
-        getTemplatePresentation().setText("Click or Press");
+        getTemplatePresentation().setText(CodeInsightBundle.messagePointer("action.presentation.LookupUi.text"));
       }
     }
 
@@ -321,32 +335,28 @@ class LookupUi {
     }
   }
 
-  private static class MenuAction extends DefaultActionGroup implements HintManagerImpl.ActionToIgnore {
+  private static final class MenuAction extends DefaultActionGroup implements HintManagerImpl.ActionToIgnore {
     private MenuAction() {
       setPopup(true);
     }
   }
 
-  private class ChangeSortingAction extends DumbAwareAction implements HintManagerImpl.ActionToIgnore {
-    private boolean sortByName = UISettings.getInstance().getSortLookupElementsLexicographically();
+  private final class ChangeSortingAction extends DumbAwareAction implements HintManagerImpl.ActionToIgnore {
     private ChangeSortingAction() {
-      super("Sort by Name");
+      super(ActionsBundle.messagePointer("action.ChangeSortingAction.text"));
     }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
-      if (e.getPlace() == ActionPlaces.EDITOR_POPUP) {
-        sortByName = !sortByName;
-
-        FeatureUsageTracker.getInstance().triggerFeatureUsed(CodeCompletionFeatures.EDITING_COMPLETION_CHANGE_SORTING);
-        UISettings.getInstance().setSortLookupElementsLexicographically(sortByName);
-        myLookup.resort(false);
-      }
+      FeatureUsageTracker.getInstance().triggerFeatureUsed(CodeCompletionFeatures.EDITING_COMPLETION_CHANGE_SORTING);
+      UISettings settings = UISettings.getInstance();
+      settings.setSortLookupElementsLexicographically(!settings.getSortLookupElementsLexicographically());
+      myLookup.resort(false);
     }
 
     @Override
     public void update(@NotNull AnActionEvent e) {
-      e.getPresentation().setIcon(sortByName ? PlatformIcons.CHECK_ICON : null);
+      e.getPresentation().setIcon(UISettings.getInstance().getSortLookupElementsLexicographically() ? PlatformIcons.CHECK_ICON : null);
     }
   }
 
@@ -360,9 +370,7 @@ class LookupUi {
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
-      if (e.getPlace() == ActionPlaces.EDITOR_POPUP) {
-        delegateAction.actionPerformed(e);
-      }
+      delegateAction.actionPerformed(e);
     }
   }
 

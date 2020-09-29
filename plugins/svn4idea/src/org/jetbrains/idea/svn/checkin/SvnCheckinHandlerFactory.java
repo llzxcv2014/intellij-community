@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn.checkin;
 
 import com.intellij.openapi.application.ApplicationManager;
@@ -9,14 +9,11 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.CheckinProjectPanel;
 import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.ProjectLevelVcsManager;
-import com.intellij.openapi.vcs.changes.Change;
-import com.intellij.openapi.vcs.changes.ChangesUtil;
-import com.intellij.openapi.vcs.changes.CommitExecutor;
-import com.intellij.openapi.vcs.changes.LocalCommitExecutor;
+import com.intellij.openapi.vcs.VcsBundle;
+import com.intellij.openapi.vcs.changes.*;
 import com.intellij.openapi.vcs.checkin.CheckinHandler;
 import com.intellij.openapi.vcs.checkin.VcsCheckinHandlerFactory;
 import com.intellij.openapi.vcs.ui.RefreshableOnComponent;
-import com.intellij.openapi.vcs.update.ActionInfo;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.PairConsumer;
@@ -33,6 +30,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static com.intellij.openapi.ui.Messages.showOkCancelDialog;
+import static org.jetbrains.idea.svn.SvnBundle.message;
+
 public class SvnCheckinHandlerFactory extends VcsCheckinHandlerFactory {
   public SvnCheckinHandlerFactory() {
     super(SvnVcs.getKey());
@@ -40,7 +40,7 @@ public class SvnCheckinHandlerFactory extends VcsCheckinHandlerFactory {
 
   @NotNull
   @Override
-  protected CheckinHandler createVcsHandler(final CheckinProjectPanel panel) {
+  protected CheckinHandler createVcsHandler(@NotNull CheckinProjectPanel panel, @NotNull CommitContext commitContext) {
     final Project project = panel.getProject();
     return new CheckinHandler() {
       @Override
@@ -61,9 +61,12 @@ public class SvnCheckinHandlerFactory extends VcsCheckinHandlerFactory {
         }
         if (! repoUrls.isEmpty()) {
           String join = StringUtil.join(repoUrls, Url::toDecodedString, ",\n");
-          final int isOk = Messages.showOkCancelDialog(project,
-            SvnBundle.message("checkin.different.formats.involved", repoUrls.size() > 1 ? 1 : 0, join),
-            "Subversion: Commit Will Split", Messages.getWarningIcon());
+          final int isOk = showOkCancelDialog(
+            project,
+            message("checkin.different.formats.involved", repoUrls.size() > 1 ? 1 : 0, join),
+            message("dialog.title.commit.will.split"),
+            Messages.getWarningIcon()
+          );
 
           return Messages.OK == isOk ? ReturnResult.COMMIT : ReturnResult.CANCEL;
         }
@@ -90,7 +93,7 @@ public class SvnCheckinHandlerFactory extends VcsCheckinHandlerFactory {
           if (paths.isEmpty()) return;
           ApplicationManager.getApplication().invokeLater(
             () -> AutoSvnUpdater
-              .run(new AutoSvnUpdater(project, paths.toArray(new FilePath[0])), ActionInfo.UPDATE.getActionName()),
+              .run(new AutoSvnUpdater(project, paths.toArray(new FilePath[0])), VcsBundle.message("action.name.update")),
             ModalityState.NON_MODAL);
         }
       }

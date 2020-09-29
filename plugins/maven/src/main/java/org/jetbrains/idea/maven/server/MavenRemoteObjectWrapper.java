@@ -1,6 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.maven.server;
 
+import com.intellij.openapi.util.NlsContexts;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.maven.server.security.MavenToken;
 import org.jetbrains.idea.maven.utils.MavenProgressIndicator;
@@ -18,7 +19,7 @@ public abstract class MavenRemoteObjectWrapper<T> extends RemoteObjectWrapper<T>
     super(parent);
   }
 
-  protected <Some extends MavenRemoteObject> Some doWrapAndExport(Some object) {
+  static <Some extends MavenRemoteObject> Some doWrapAndExport(Some object) {
     try {
       Remote remote = UnicastRemoteObject
         .exportObject(object, 0);
@@ -32,7 +33,7 @@ public abstract class MavenRemoteObjectWrapper<T> extends RemoteObjectWrapper<T>
     }
   }
 
-  protected MavenServerProgressIndicator wrapAndExport(final MavenProgressIndicator indicator) {
+  public static MavenServerProgressIndicator wrapAndExport(final MavenProgressIndicator indicator) {
     return doWrapAndExport(new RemoteMavenServerProgressIndicator(indicator));
   }
 
@@ -44,12 +45,12 @@ public abstract class MavenRemoteObjectWrapper<T> extends RemoteObjectWrapper<T>
     }
 
     @Override
-    public void setText(String text) {
+    public void setText(@NlsContexts.ProgressText String text) {
       myProcess.setText(text);
     }
 
     @Override
-    public void setText2(String text) {
+    public void setText2(@NlsContexts.ProgressDetails String text) {
       myProcess.setText2(text);
     }
 

@@ -1,6 +1,4 @@
-// Copyright 2000-2017 JetBrains s.r.o.
-// Use of this source code is governed by the Apache 2.0 license that can be
-// found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.actions.generate.equals;
 
 import com.intellij.openapi.diagnostic.Logger;
@@ -19,7 +17,7 @@ import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.plugins.groovy.actions.generate.GroovyCodeInsightBundle;
+import org.jetbrains.plugins.groovy.GroovyBundle;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElementFactory;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrMethod;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.TypesUtil;
@@ -152,13 +150,13 @@ public class GroovyGenerateEqualsHelper {
     final PsiType fieldType = field.getType();
     if (isNestedArray(fieldType)) {
       buffer.append(" ");
-      buffer.append(GroovyCodeInsightBundle.message("generate.equals.compare.nested.arrays.comment", field.getName()));
+      buffer.append(GroovyBundle.message("generate.equals.compare.nested.arrays.comment", field.getName()));
       buffer.append("\n");
       return;
     }
     if (isArrayOfObjects(fieldType)) {
       buffer.append(" ");
-      buffer.append(GroovyCodeInsightBundle.message("generate.equals.compare.arrays.comment"));
+      buffer.append(GroovyBundle.message("generate.equals.compare.arrays.comment"));
       buffer.append("\n");
     }
 
@@ -240,7 +238,7 @@ public class GroovyGenerateEqualsHelper {
 
       ArrayList<PsiField> equalsFields = new ArrayList<>();
       ContainerUtil.addAll(equalsFields, myEqualsFields);
-      Collections.sort(equalsFields, EqualsFieldsComparator.INSTANCE);
+      equalsFields.sort(EqualsFieldsComparator.INSTANCE);
 
       for (PsiField field : equalsFields) {
         if (!field.hasModifierProperty(PsiModifier.STATIC)) {

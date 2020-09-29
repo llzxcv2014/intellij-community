@@ -1,10 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.dnd;
 
-import com.intellij.openapi.util.Pair;
 import com.intellij.ui.components.JBTabbedPane;
+import com.intellij.ui.tree.TreeTestUtil;
 import com.intellij.ui.treeStructure.Tree;
-import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
@@ -17,6 +16,7 @@ public class DnDDemo implements DnDEvent.DropTargetHighlightingType {
 
     JPanel panel = new JPanel(new BorderLayout());
     final JTree source = new Tree();
+    TreeTestUtil.assertTreeUI(source);
     panel.add(source, BorderLayout.WEST);
     final DnDManager dndManager = new DnDManagerImpl();
     dndManager.registerSource(new DnDSource() {
@@ -28,21 +28,6 @@ public class DnDDemo implements DnDEvent.DropTargetHighlightingType {
       @Override
       public DnDDragStartBean startDragging(DnDAction action, Point point) {
         return new DnDDragStartBean(source.getLastSelectedPathComponent().toString());
-      }
-
-
-      @Override
-      @Nullable
-      public Pair<Image, Point> createDraggedImage(DnDAction action, Point dragOrigin) {
-        return null;
-      }
-
-      @Override
-      public void dragDropEnd() {
-      }
-
-      @Override
-      public void dropActionChanged(final int gestureModifiers) {
       }
     }, source);
 
@@ -66,14 +51,6 @@ public class DnDDemo implements DnDEvent.DropTargetHighlightingType {
       public void drop(DnDEvent aEvent) {
         System.out.println("Delegee 1 accepted drop");
       }
-
-      @Override
-      public void cleanUpOnLeave() {
-      }
-
-      @Override
-      public void updateDraggedImage(Image image, Point dropPoint, Point imageOffset) {
-      }
     };
 
     final DnDTarget delegee2 = new DnDTarget() {
@@ -92,14 +69,6 @@ public class DnDDemo implements DnDEvent.DropTargetHighlightingType {
       @Override
       public void drop(DnDEvent aEvent) {
 
-      }
-
-      @Override
-      public void cleanUpOnLeave() {
-      }
-
-      @Override
-      public void updateDraggedImage(Image image, Point dropPoint, Point imageOffset) {
       }
     };
 
@@ -122,18 +91,7 @@ public class DnDDemo implements DnDEvent.DropTargetHighlightingType {
           aEvent.delegateDropTo(delegee1);
         }
       }
-
-      @Override
-      public void cleanUpOnLeave() {
-      }
-
-
-      @Override
-      public void updateDraggedImage(Image image, Point dropPoint, Point imageOffset) {
-      }
     }, delegates);
-
-
 
     tabs.add("Delegates", delegates);
 
@@ -148,14 +106,6 @@ public class DnDDemo implements DnDEvent.DropTargetHighlightingType {
       @Override
       public void drop(DnDEvent aEvent) {
         System.out.println("Droppped to " + asXyString(aEvent));
-      }
-
-      @Override
-      public void cleanUpOnLeave() {
-      }
-
-      @Override
-      public void updateDraggedImage(Image image, Point dropPoint, Point imageOffset) {
       }
     }, xy);
 

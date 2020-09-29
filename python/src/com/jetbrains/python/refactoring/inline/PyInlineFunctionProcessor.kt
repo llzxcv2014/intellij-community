@@ -79,7 +79,7 @@ class PyInlineFunctionProcessor(project: Project,
     return showConflicts(conflicts, filtered.toTypedArray())
   }
 
-  private fun handleUsageError(element: PsiElement, @PropertyKey(resourceBundle = "com.jetbrains.python.PyBundle") error: String, conflicts: MultiMap<PsiElement, String>): Boolean {
+  private fun handleUsageError(element: PsiElement, @PropertyKey(resourceBundle = PyBundle.BUNDLE) error: String, conflicts: MultiMap<PsiElement, String>): Boolean {
     val errorText = PyBundle.message(error, myFunction.name)
     if (myInlineThis) {
       // shortcut for inlining single reference: show error hint instead of modal dialog
@@ -131,7 +131,7 @@ class PyInlineFunctionProcessor(project: Project,
     }
 
     val typeEvalContext = TypeEvalContext.userInitiated(myProject, null)
-    val resolveContext = PyResolveContext.noImplicits().withTypeEvalContext(typeEvalContext)
+    val resolveContext = PyResolveContext.defaultContext().withTypeEvalContext(typeEvalContext)
 
     val selfUsed = myFunction.parameterList.parameters.firstOrNull()?.let { firstParam ->
       if (!firstParam.isSelf) return@let false
@@ -376,13 +376,13 @@ class PyInlineFunctionProcessor(project: Project,
     return myGenerator.createFromText(level, PyAssignmentStatement::class.java, "$uniqueName = $uniqueName")
   }
 
-  override fun getCommandName() = "Inlining ${myFunction.name}"
+  override fun getCommandName() = PyBundle.message("refactoring.inline.function.command.name", myFunction.name)
   override fun getRefactoringId() = PyInlineFunctionHandler.REFACTORING_ID
 
   override fun createUsageViewDescriptor(usages: Array<out UsageInfo>) = object : UsageViewDescriptor {
     override fun getElements(): Array<PsiElement> = arrayOf(myFunction)
     override fun getProcessedElementsHeader(): String = "Function to inline "
-    override fun getCodeReferencesText(usagesCount: Int, filesCount: Int): String = "Invocations to be inlined in $filesCount files"
+    override fun getCodeReferencesText(usagesCount: Int, filesCount: Int): String = PyBundle.message("refactoring.inline.function.invocations.to.be.inlined", filesCount)
     override fun getCommentReferencesText(usagesCount: Int, filesCount: Int): String = ""
   }
 }

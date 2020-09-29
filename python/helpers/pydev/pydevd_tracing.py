@@ -73,30 +73,24 @@ def _internal_set_trace(tracing_func):
 
 def SetTrace(tracing_func):
     if TracingFunctionHolder._original_tracing is None:
-        #This may happen before replace_sys_set_trace_func is called.
+        # This may happen before replace_sys_set_trace_func is called.
         sys.settrace(tracing_func)
-        return
-
-    current_thread = threading.currentThread()
-    do_not_trace_before = getattr(current_thread, 'pydev_do_not_trace', None)
-    if do_not_trace_before:
         return
 
     try:
         TracingFunctionHolder._lock.acquire()
-        current_thread.pydev_do_not_trace = True  # avoid settrace reentering
         TracingFunctionHolder._warn = False
         _internal_set_trace(tracing_func)
         TracingFunctionHolder._warn = True
     finally:
         TracingFunctionHolder._lock.release()
-        current_thread.pydev_do_not_trace = do_not_trace_before
 
 
 def replace_sys_set_trace_func():
     if TracingFunctionHolder._original_tracing is None:
         TracingFunctionHolder._original_tracing = sys.settrace
         sys.settrace = _internal_set_trace
+
 
 def restore_sys_set_trace_func():
     if TracingFunctionHolder._original_tracing is not None:
@@ -133,11 +127,11 @@ def load_python_helper_lib():
         filename = os.path.join(os.path.dirname(__file__), 'pydevd_attach_to_process', 'attach_%s' % (suffix,))
 
     else:
-        pydev_log.info('Unable to set trace to all threads in platform: %s', sys.platform)
+        pydev_log.info('Unable to set trace to all threads in platform: %s' % sys.platform)
         return None
 
     if not os.path.exists(filename):
-        pydev_log.error('Expected: %s to exist.', filename)
+        pydev_log.error('Expected: %s to exist.' % filename)
         return None
 
     try:
@@ -147,7 +141,7 @@ def load_python_helper_lib():
     except:
         # Only show message if tracing is on (we don't have pre-compiled
         # binaries for all architectures -- i.e.: ARM).
-        pydev_log.error('Error loading: %s', filename)
+        pydev_log.error('Error loading: %s' % filename)
         return None
 
 
@@ -246,7 +240,7 @@ def set_trace_to_threads(tracing_func):
                 ctypes.py_object(None),
             )
             if result != 0:
-                pydev_log.info('Unable to set tracing for existing threads. Result: %s', result)
+                pydev_log.info('Unable to set tracing for existing threads. Result: %s' % result)
                 ret = result
     finally:
         if not IS_PY37_OR_GREATER:

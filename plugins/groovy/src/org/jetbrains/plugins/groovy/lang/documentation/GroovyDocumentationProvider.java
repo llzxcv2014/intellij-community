@@ -5,6 +5,7 @@ import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.editorActions.CodeDocumentationUtil;
 import com.intellij.codeInsight.javadoc.JavaDocInfoGenerator;
 import com.intellij.codeInsight.javadoc.JavaDocUtil;
+import com.intellij.java.JavaBundle;
 import com.intellij.lang.CodeDocumentationAwareCommenter;
 import com.intellij.lang.LanguageCommenters;
 import com.intellij.lang.documentation.CodeDocumentationProvider;
@@ -376,7 +377,7 @@ public class GroovyDocumentationProvider implements CodeDocumentationProvider, E
   }
 
   @Override
-  public String fetchExternalDocumentation(final Project project, PsiElement element, final List<String> docUrls) {
+  public String fetchExternalDocumentation(final Project project, PsiElement element, final List<String> docUrls, boolean onHover) {
     return JavaDocumentationProvider.fetchExternalJavadoc(element, project, docUrls);
   }
 
@@ -412,7 +413,7 @@ public class GroovyDocumentationProvider implements CodeDocumentationProvider, E
       }
       return CodeInsightBundle.message("javadoc.candidates", text, sb);
     }
-    return CodeInsightBundle.message("javadoc.candidates.not.found", text);
+    return JavaBundle.message("javadoc.candidates.not.found", text);
   }
 
   private static void createElementLink(@NonNls final StringBuilder sb, final PsiElement element, final String str) {

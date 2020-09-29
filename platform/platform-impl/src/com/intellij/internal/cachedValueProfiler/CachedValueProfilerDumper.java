@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.internal.cachedValueProfiler;
 
 import com.google.gson.stream.JsonWriter;
@@ -19,7 +19,7 @@ import java.util.*;
 
 import static java.time.temporal.ChronoField.*;
 
-public class CachedValueProfilerDumper {
+public final class CachedValueProfilerDumper {
   private final MultiMap<StackTraceElement, ProfilingInfo> myStorage;
 
   private CachedValueProfilerDumper(MultiMap<StackTraceElement, ProfilingInfo> storage) {
@@ -50,11 +50,11 @@ public class CachedValueProfilerDumper {
     List<TotalInfo> list = new ArrayList<>();
     myStorage.entrySet().forEach((entry) -> list.add(new TotalInfo(entry.getKey(), entry.getValue())));
 
-    Collections.sort(list, Comparator.comparing(info -> ((double)info.getTotalUseCount()) / info.getInfos().size()));
+    list.sort(Comparator.comparing(info -> ((double)info.getTotalUseCount()) / info.getInfos().size()));
     return list;
   }
 
-  private static class TotalInfo {
+  private static final class TotalInfo {
     private final StackTraceElement myOrigin;
     private final long myTotalLifeTime;
     private final long myTotalUseCount;
@@ -105,7 +105,7 @@ public class CachedValueProfilerDumper {
     return LocalDateTime.now().format(formatter);
   }
 
-  private static class MyWriter {
+  private static final class MyWriter {
     private final JsonWriter myWriter;
 
     private MyWriter(@NotNull JsonWriter writer) {

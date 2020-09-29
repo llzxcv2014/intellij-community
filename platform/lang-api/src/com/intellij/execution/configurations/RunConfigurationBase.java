@@ -8,10 +8,12 @@ import com.intellij.execution.BeforeRunTask;
 import com.intellij.execution.ExecutionTarget;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ProgramRunner;
+import com.intellij.execution.ui.FragmentedSettings;
 import com.intellij.openapi.components.BaseState;
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.InvalidDataException;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.UserDataHolderBase;
 import com.intellij.openapi.util.text.StringUtilRt;
 import com.intellij.util.ReflectionUtil;
@@ -27,11 +29,13 @@ import javax.swing.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Standard base class for run configuration implementations.
  */
-public abstract class RunConfigurationBase<T> extends UserDataHolderBase implements RunConfiguration, TargetAwareRunProfile, ConfigurationCreationListener {
+public abstract class RunConfigurationBase<T> extends UserDataHolderBase implements RunConfiguration, TargetAwareRunProfile,
+                                                                                    ConfigurationCreationListener, FragmentedSettings {
   private static final String SHOW_CONSOLE_ON_STD_OUT = "show_console_on_std_out";
   private static final String SHOW_CONSOLE_ON_STD_ERR = "show_console_on_std_err";
 
@@ -231,6 +235,16 @@ public abstract class RunConfigurationBase<T> extends UserDataHolderBase impleme
     XmlSerializer.serializeObjectInto(myOptions, element);
   }
 
+  @Override
+  public @NotNull Set<String> getSelectedOptions() {
+    return myOptions.getSelectedOptions();
+  }
+
+  @Override
+  public void setSelectedOptions(@NotNull Set<String> fragmentIds) {
+    myOptions.setSelectedOptions(fragmentIds);
+  }
+
   @ApiStatus.Experimental
   public void setOptionsFromConfigurationFile(@NotNull BaseState state) {
     myOptions.copyFrom(state, /* isMustBeTheSameType= */false);
@@ -291,11 +305,11 @@ public abstract class RunConfigurationBase<T> extends UserDataHolderBase impleme
   }
 
   @Transient
-  public String getOutputFilePath() {
+  public @NlsSafe String getOutputFilePath() {
     return myOptions.getFileOutput().getFileOutputPath();
   }
 
-  public void setFileOutputPath(String fileOutputPath) {
+  public void setFileOutputPath(@NlsSafe String fileOutputPath) {
     myOptions.getFileOutput().setFileOutputPath(fileOutputPath);
   }
 

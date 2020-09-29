@@ -5,6 +5,7 @@ package com.intellij.refactoring.extractMethodObject;
 import com.intellij.application.options.CodeStyle;
 import com.intellij.codeInsight.NullableNotNullManager;
 import com.intellij.codeInsight.generation.GenerateMembersUtil;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.diagnostic.Logger;
@@ -13,6 +14,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
@@ -54,7 +56,6 @@ import java.util.*;
 
 public class ExtractMethodObjectProcessor extends BaseRefactoringProcessor {
   private static final Logger LOG = Logger.getInstance(ExtractMethodObjectProcessor.class);
-  @NonNls public static final String REFACTORING_NAME = "Extract Method Object";
 
   private final PsiElementFactory myElementFactory;
 
@@ -81,7 +82,8 @@ public class ExtractMethodObjectProcessor extends BaseRefactoringProcessor {
   public ExtractMethodObjectProcessor(Project project, Editor editor, PsiElement[] elements, @NotNull String innerClassName) {
     super(project);
     myInnerClassName = innerClassName;
-    myExtractProcessor = new MyExtractMethodProcessor(project, editor, elements, null, REFACTORING_NAME, innerClassName, HelpID.EXTRACT_METHOD_OBJECT);
+    myExtractProcessor = new MyExtractMethodProcessor(project, editor, elements, null,
+                                                      JavaRefactoringBundle.message("extract.method.object"), innerClassName, HelpID.EXTRACT_METHOD_OBJECT);
     myElementFactory = JavaPsiFacade.getElementFactory(project);
     myStyleSettings = editor != null ? CodeStyle.getSettings(editor) :
                       CodeStyle.getSettings(elements[0].getContainingFile());
@@ -89,15 +91,14 @@ public class ExtractMethodObjectProcessor extends BaseRefactoringProcessor {
 
   @Override
   @NotNull
-  protected UsageViewDescriptor createUsageViewDescriptor(@NotNull final UsageInfo[] usages) {
+  protected UsageViewDescriptor createUsageViewDescriptor(final UsageInfo @NotNull [] usages) {
     return new ExtractMethodObjectViewDescriptor(getMethod());
   }
 
   @Override
-  @NotNull
-  protected UsageInfo[] findUsages() {
+  protected UsageInfo @NotNull [] findUsages() {
     final ArrayList<UsageInfo> result = new ArrayList<>();
-    final PsiClass containingClass = getMethod().getContainingClass();
+    final PsiClass containingClass = Objects.requireNonNull(getMethod().getContainingClass());
     final SearchScope scope = PsiUtilCore.getVirtualFile(containingClass) == null
                               ? new LocalSearchScope(containingClass)
                               : GlobalSearchScope.projectScope(myProject);
@@ -105,7 +106,7 @@ public class ExtractMethodObjectProcessor extends BaseRefactoringProcessor {
         ReferencesSearch.search(getMethod(), scope, false).toArray(PsiReference.EMPTY_ARRAY);
     for (PsiReference ref : refs) {
       final PsiElement element = ref.getElement();
-      if (element != null && element.isValid()) {
+      if (element.isValid()) {
         result.add(new UsageInfo(element));
       }
     }
@@ -144,10 +145,11 @@ public class ExtractMethodObjectProcessor extends BaseRefactoringProcessor {
   }
 
   @Override
-  public void performRefactoring(@NotNull final UsageInfo[] usages) {
+  public void performRefactoring(final UsageInfo @NotNull [] usages) {
     try {
       if (isCreateInnerClass()) {
-        myInnerClass = (PsiClass)addInnerClass(getMethod().getContainingClass(), myElementFactory.createClass(getInnerClassName()));
+        PsiClass containingClass = Objects.requireNonNull(getMethod().getContainingClass());
+        myInnerClass = (PsiClass)addInnerClass(containingClass, myElementFactory.createClass(getInnerClassName()));
         final boolean isStatic = copyMethodModifiers() && notHasGeneratedFields();
         for (UsageInfo usage : usages) {
           final PsiMethodCallExpression methodCallExpression = PsiTreeUtil.getParentOfType(usage.getElement(), PsiMethodCallExpression.class);
@@ -213,11 +215,11 @@ public class ExtractMethodObjectProcessor extends BaseRefactoringProcessor {
         memberInfos.add(new MemberInfo((PsiMethod)usage.getElement()));
       }
 
-      final MemberSelectionPanel panel = new MemberSelectionPanel("&Methods to move to the extracted class", memberInfos, null);
+      final MemberSelectionPanel panel = new MemberSelectionPanel(JavaRefactoringBundle.message("move.methods.panel.title"), memberInfos, null);
       DialogWrapper dlg = new DialogWrapper(myProject, false) {
         {
           init();
-          setTitle("Move Methods Used in Extracted Block Only");
+          setTitle(JavaRefactoringBundle.message("move.methods.used.in.extracted.block.only"));
         }
 
 
@@ -522,7 +524,7 @@ public class ExtractMethodObjectProcessor extends BaseRefactoringProcessor {
   @Override
   @NotNull
   protected String getCommandName() {
-    return REFACTORING_NAME;
+    return JavaRefactoringBundle.message("extract.method.object");
   }
 
 
@@ -738,12 +740,12 @@ public class ExtractMethodObjectProcessor extends BaseRefactoringProcessor {
   public class MyExtractMethodProcessor extends ExtractMethodProcessor {
 
     public MyExtractMethodProcessor(Project project,
-                                        Editor editor,
-                                        PsiElement[] elements,
-                                        PsiType forcedReturnType,
-                                        String refactoringName,
-                                        String initialMethodName,
-                                        String helpId) {
+                                    Editor editor,
+                                    PsiElement[] elements,
+                                    PsiType forcedReturnType,
+                                    @NlsContexts.DialogTitle String refactoringName,
+                                    String initialMethodName,
+                                    String helpId) {
       super(project, editor, elements, forcedReturnType, refactoringName, initialMethodName, helpId);
 
     }
@@ -788,7 +790,10 @@ public class ExtractMethodObjectProcessor extends BaseRefactoringProcessor {
         final IElementType elementType = ((PsiUnaryExpression)expression).getOperationTokenType();
         if (elementType == JavaTokenType.PLUSPLUS || elementType == JavaTokenType.MINUSMINUS) {
           PsiExpression operand = ((PsiUnaryExpression)expression).getOperand();
-          return ((PsiBinaryExpression)expression.replace(myElementFactory.createExpressionFromText(operand.getText() + " + x", operand))).getROperand();
+          if (operand != null) {
+            return ((PsiBinaryExpression)expression.replace(
+              myElementFactory.createExpressionFromText(operand.getText() + " + x", operand))).getROperand();
+          }
         }
       }
       return super.expressionToReplace(expression);

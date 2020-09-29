@@ -14,9 +14,6 @@ import org.jetbrains.jps.model.library.JpsOrderRootType
 
 import static com.intellij.util.io.URLUtil.*
 
-/**
- * @author nik
- */
 @CompileStatic
 class JdkUtils {
   static void defineJdk(JpsGlobal global, String jdkName, String jdkHomePath, BuildMessages messages) {
@@ -55,7 +52,7 @@ class JdkUtils {
     return jdkDir
   }
 
-  private static String getCurrentJdk() {
+  static String getCurrentJdk() {
     def javaHome = SystemProperties.javaHome
     if (new File(javaHome).name == "jre") {
       return new File(javaHome).getParent()

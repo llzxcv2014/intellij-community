@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.configurationStore.schemeManager
 
 import com.intellij.configurationStore.*
@@ -12,21 +12,21 @@ import com.intellij.openapi.options.Scheme
 import com.intellij.openapi.options.SchemeManager
 import com.intellij.openapi.options.SchemeManagerFactory
 import com.intellij.openapi.options.SchemeProcessor
-import com.intellij.openapi.project.DumbAwareRunnable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.util.SmartList
 import com.intellij.util.containers.ContainerUtil
-import com.intellij.util.lang.CompoundRuntimeException
+import com.intellij.util.throwIfNotEmpty
+import org.jetbrains.annotations.NonNls
 import org.jetbrains.annotations.TestOnly
 import java.nio.file.Path
 import java.nio.file.Paths
 
-const val ROOT_CONFIG = "\$ROOT_CONFIG$"
+@NonNls const val ROOT_CONFIG = "\$ROOT_CONFIG$"
 
 internal typealias FileChangeSubscriber = (schemeManager: SchemeManagerImpl<*, *>) -> Unit
 
-sealed class SchemeManagerFactoryBase : SchemeManagerFactory(), com.intellij.openapi.components.SettingsSavingComponent {
+sealed class SchemeManagerFactoryBase : SchemeManagerFactory(), SettingsSavingComponent {
   private val managers = ContainerUtil.createLockFreeCopyOnWriteList<SchemeManagerImpl<Scheme, Scheme>>()
 
   protected open val componentManager: ComponentManager? = null
@@ -89,17 +89,19 @@ sealed class SchemeManagerFactoryBase : SchemeManagerFactory(), com.intellij.ope
     }
   }
 
-  final override fun save() {
+  final override suspend fun save() {
     val errors = SmartList<Throwable>()
-    for (registeredManager in managers) {
-      try {
-        registeredManager.save(errors)
-      }
-      catch (e: Throwable) {
-        errors.add(e)
+    withEdtContext(componentManager) {
+      for (registeredManager in managers) {
+        try {
+          registeredManager.save(errors)
+        }
+        catch (e: Throwable) {
+          errors.add(e)
+        }
       }
     }
-    CompoundRuntimeException.throwIfNotEmpty(errors)
+    throwIfNotEmpty(errors)
   }
 
   @Suppress("unused")
@@ -118,7 +120,7 @@ sealed class SchemeManagerFactoryBase : SchemeManagerFactory(), com.intellij.ope
     }
 
     override fun pathToFile(path: String): Path {
-      return Paths.get(ApplicationManager.getApplication().stateStore.storageManager.expandMacros(ROOT_CONFIG), path)!!
+      return ApplicationManager.getApplication().stateStore.storageManager.expandMacro(ROOT_CONFIG).resolve(path)
     }
   }
 
@@ -135,29 +137,32 @@ sealed class SchemeManagerFactoryBase : SchemeManagerFactory(), com.intellij.ope
 
     override fun createFileChangeSubscriber(): FileChangeSubscriber? {
       return { schemeManager ->
-        val startupManager = if (ApplicationManager.getApplication().isUnitTestMode) null else StartupManagerEx.getInstanceEx(project)
-        if (startupManager == null || startupManager.postStartupActivityPassed()) {
-          addVfsListener(schemeManager)
-        }
-        else {
-          startupManager.registerPostStartupActivity(DumbAwareRunnable { addVfsListener(schemeManager) })
+        if (!ApplicationManager.getApplication().isUnitTestMode || project.getUserData(LISTEN_SCHEME_VFS_CHANGES_IN_TEST_MODE) == true) {
+          StartupManagerEx.getInstanceEx(project).runAfterOpened {
+            addVfsListener(schemeManager)
+          }
         }
       }
     }
 
     override fun pathToFile(path: String): Path {
-      val projectFileDir = (project.stateStore as? IProjectStore)?.projectConfigDir
+      if (project.isDefault) {
+        // no idea how to solve this issue (run SingleInspectionProfilePanelTest) in a quick and safe way
+        return Paths.get("__not_existent_path__")
+      }
+
+      val projectFileDir = (project.stateStore as? IProjectStore)?.directoryStorePath
       if (projectFileDir == null) {
-        return Paths.get(project.basePath, ".$path")
+        return Paths.get(project.basePath!!, ".$path")
       }
       else {
-        return Paths.get(projectFileDir, path)
+        return projectFileDir.resolve(path)
       }
     }
   }
 
   @TestOnly
   class TestSchemeManagerFactory(private val basePath: Path) : SchemeManagerFactoryBase() {
-    override fun pathToFile(path: String) = basePath.resolve(path)!!
+    override fun pathToFile(path: String): Path = basePath.resolve(path)
   }
 }

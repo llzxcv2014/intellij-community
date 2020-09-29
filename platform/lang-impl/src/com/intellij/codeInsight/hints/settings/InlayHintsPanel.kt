@@ -3,6 +3,7 @@ package com.intellij.codeInsight.hints.settings
 
 import com.intellij.codeInsight.CodeInsightBundle
 import com.intellij.codeInsight.hints.InlayHintsSettings
+import com.intellij.codeInsight.hints.ParameterHintsPassFactory
 import com.intellij.lang.Language
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
@@ -11,7 +12,7 @@ import javax.swing.border.EmptyBorder
 
 class InlayHintsPanel(languages: Iterable<Language>,
                       val settings: InlayHintsSettings) : JPanel() {
-  private val hintsEnabledGlobally = JCheckBox("Show hints for:", true)
+  private val hintsEnabledGlobally = JCheckBox(CodeInsightBundle.message("inlay.hints.show.hints.for"), true)
   private val languagePanels = languages.map { LanguagePanel(it) }
 
   init {
@@ -58,6 +59,7 @@ class InlayHintsPanel(languages: Iterable<Language>,
     for ((index, panel) in languagePanels.withIndex()) {
       settings.setHintsEnabledForLanguage(panel.language, languagePanels[index].selected())
     }
+    ParameterHintsPassFactory.forceHintsUpdateOnNextPass()
   }
 
   fun reset() {

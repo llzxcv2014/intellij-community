@@ -17,6 +17,7 @@ package com.intellij.codeInsight.daemon.impl.quickfix;
 
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.codeInsight.intention.IntentionAction;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
@@ -45,7 +46,7 @@ public class AddTypeArgumentsConditionalFix implements IntentionAction {
   @NotNull
   @Override
   public String getText() {
-    return "Add explicit type arguments";
+    return JavaAnalysisBundle.message("add.explicit.type.arguments");
   }
 
   @NotNull
@@ -82,7 +83,7 @@ public class AddTypeArgumentsConditionalFix implements IntentionAction {
         withTypeArgsText = aClass.getQualifiedName();
       }
       else {
-        withTypeArgsText = "this";
+        withTypeArgsText = PsiKeyword.THIS;
       }
     }
     withTypeArgsText += "." + typeArguments + myExpression.getMethodExpression().getReferenceName();
@@ -128,7 +129,7 @@ public class AddTypeArgumentsConditionalFix implements IntentionAction {
       if (returnType != null && aClass != null && aClass.getQualifiedName() != null) {
         final JavaPsiFacade javaPsiFacade = JavaPsiFacade.getInstance(method.getProject());
         final PsiDeclarationStatement variableDeclarationStatement =
-          javaPsiFacade.getElementFactory().createVariableDeclarationStatement("xxx", lType, thenExpression);
+          javaPsiFacade.getElementFactory().createVariableDeclarationStatement("xxx", lType, thenExpression, thenExpression);
         final PsiExpression initializer =
           ((PsiLocalVariable)variableDeclarationStatement.getDeclaredElements()[0]).getInitializer();
         LOG.assertTrue(initializer != null);

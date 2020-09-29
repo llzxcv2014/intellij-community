@@ -36,6 +36,7 @@ import com.intellij.usages.UsageInfo2UsageAdapter;
 import com.intellij.usages.UsageSearcher;
 import com.intellij.util.Processor;
 import org.intellij.plugins.xpathView.HistoryElement;
+import org.intellij.plugins.xpathView.XPathBundle;
 import org.intellij.plugins.xpathView.support.XPathSupport;
 import org.intellij.plugins.xpathView.util.CachedVariableContext;
 import org.jaxen.Context;
@@ -69,10 +70,11 @@ class XPathUsageSearcher implements UsageSearcher {
     }
 
     @Override
-    public void generate(@NotNull final Processor<Usage> processor) {
+    public void generate(@NotNull final Processor<? super Usage> processor) {
         Runnable runnable = () -> {
             myIndicator.setIndeterminate(true);
-            myIndicator.setText2(findBundleMessage("find.searching.for.string.in.file.occurrences.progress", 0));
+            //noinspection DialogTitleCapitalization
+            myIndicator.setText2(FindBundle.message("find.searching.for.string.in.file.occurrences.progress", 0));
             final CountProcessor counter = new CountProcessor();
             myScope.iterateContent(myProject, counter);
 
@@ -97,7 +99,8 @@ class XPathUsageSearcher implements UsageSearcher {
 
         @Override
         protected void processXmlFile(VirtualFile t) {
-            myIndicator.setText(findBundleMessage("find.searching.for.string.in.file.progress", myExpression.expression, t.getPresentableUrl()));
+            myIndicator.setText(
+              FindBundle.message("find.searching.for.string.in.file.progress", myExpression.expression, t.getPresentableUrl()));
 
             final PsiFile psiFile = myManager.findFile(t);
             if (psiFile instanceof XmlFile) {
@@ -178,19 +181,18 @@ class XPathUsageSearcher implements UsageSearcher {
                     }
                 }
             } catch (JaxenException e) {
-                Messages.showErrorDialog(myProject, "Error while evaluating XPath:\n" + e.getMessage(), "XPath Error");
+                Messages.showErrorDialog(myProject, XPathBundle.message("dialog.message.error.while.evaluating.xpath", e.getMessage()),
+                                         XPathBundle.message("dialog.title.xpath.error"));
             } catch (SAXPathException e) {
                 Logger.getInstance(getClass().getName()).error(e);
             }
         }
 
         private void matchFound() {
-            myIndicator.setText2(findBundleMessage("find.searching.for.string.in.file.occurrences.progress", ++myMatchCount));
+            Object[] args = new Object[]{++myMatchCount};
+            //noinspection DialogTitleCapitalization
+            myIndicator.setText2(FindBundle.message("find.searching.for.string.in.file.occurrences.progress", args));
         }
-    }
-
-    private static String findBundleMessage(String s, Object... args) {
-        return FindBundle.message(s, args);
     }
 
     static class CountProcessor extends BaseProcessor {

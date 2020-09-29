@@ -41,12 +41,6 @@ public class SizeReplaceableByIsEmptyInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("size.replaceable.by.isempty.display.name");
-  }
-
-  @Override
-  @NotNull
   protected String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message("expression.can.be.replaced.problem.descriptor", infos[0]);
   }
@@ -56,7 +50,7 @@ public class SizeReplaceableByIsEmptyInspection extends BaseInspection {
   public JComponent createOptionsPanel() {
     final JComponent panel = new JPanel(new BorderLayout());
     final ListTable table =
-      new ListTable(new ListWrappingTableModel(ignoredTypes, InspectionGadgetsBundle.message("ignored.classes.table")));
+      new ListTable(new ListWrappingTableModel(ignoredTypes, InspectionGadgetsBundle.message("options.title.ignored.classes")));
     JPanel tablePanel =
       UiUtils.createAddRemoveTreeClassChooserPanel(table, InspectionGadgetsBundle.message("choose.class.type.to.ignore"));
     final CheckBox checkBox = new CheckBox(InspectionGadgetsBundle.message(
@@ -66,9 +60,8 @@ public class SizeReplaceableByIsEmptyInspection extends BaseInspection {
     return panel;
   }
 
-  @NotNull
   @Override
-  protected InspectionGadgetsFix[] buildFixes(Object... infos) {
+  protected InspectionGadgetsFix @NotNull [] buildFixes(Object... infos) {
     final List<InspectionGadgetsFix> result = new SmartList<>();
     final PsiExpression expression = (PsiExpression)infos[1];
     final String methodName = (String)infos[2];
@@ -76,7 +69,8 @@ public class SizeReplaceableByIsEmptyInspection extends BaseInspection {
     if (aClass != null) {
       final String name = aClass.getQualifiedName();
       if (name != null) {
-        result.add(new IgnoreClassFix(name, ignoredTypes, "Ignore '." + methodName + "()' calls on type '" + name + "'"));
+        result.add(new IgnoreClassFix(name, ignoredTypes,
+                                      InspectionGadgetsBundle.message("size.replaceable.by.isempty.fix.ignore.calls", methodName, name)));
       }
     }
     result.add(new SizeReplaceableByIsEmptyFix());
@@ -145,7 +139,7 @@ public class SizeReplaceableByIsEmptyInspection extends BaseInspection {
         return;
       }
       final PsiMethodCallExpression callExpression = (PsiMethodCallExpression)(flipped ? rhs : lhs);
-      String isEmptyCall = null;
+      @NonNls String isEmptyCall = null;
       final PsiReferenceExpression methodExpression = callExpression.getMethodExpression();
       final String referenceName = methodExpression.getReferenceName();
       if (!HardcodedMethodConstants.SIZE.equals(referenceName) && !HardcodedMethodConstants.LENGTH.equals(referenceName)) {

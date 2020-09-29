@@ -15,6 +15,7 @@ import com.intellij.vcs.log.util.VcsLogUtil
 import com.intellij.vcs.log.util.VcsUserUtil
 import com.intellij.vcsUtil.VcsUtil
 import gnu.trove.TObjectHashingStrategy
+import org.jetbrains.annotations.Nls
 import java.util.*
 import java.util.regex.Pattern
 import java.util.regex.PatternSyntaxException
@@ -22,11 +23,11 @@ import java.util.regex.PatternSyntaxException
 private val LOG = Logger.getInstance("#com.intellij.vcs.log.visible.filters.VcsLogFilters")
 
 object VcsLogFilterObject {
-  const val ME = "me"
+  const val ME = "*"
 
   @JvmStatic
   fun fromPattern(text: String, isRegexpAllowed: Boolean = false, isMatchCase: Boolean = false): VcsLogTextFilter {
-    if (isRegexpAllowed && VcsLogUtil.maybeRegexp(text)) {
+    if (isRegexpAllowed && VcsLogUtil.isRegexp(text)) {
       try {
         return VcsLogRegexTextFilter(Pattern.compile(text, if (isMatchCase) 0 else Pattern.CASE_INSENSITIVE))
       }
@@ -63,51 +64,60 @@ object VcsLogFilterObject {
     return VcsLogRangeFilterImpl(ranges)
   }
 
+  @JvmOverloads
   @JvmStatic
-  fun fromBranchPatterns(strings: Collection<String>, existingBranches: Set<String>): VcsLogBranchFilter {
-    val branchNames = ArrayList<String>()
-    val excludedBranches = ArrayList<String>()
-    val patterns = ArrayList<Pattern>()
-    val excludedPatterns = ArrayList<Pattern>()
+  fun fromBranchPatterns(patterns: Collection<String>,
+                         existingBranches: Set<String>,
+                         excludeNotMatched: Boolean = false): VcsLogBranchFilter {
 
-    for (s in strings) {
-      val isExcluded = s.startsWith("-")
-      val string = if (isExcluded) s.substring(1) else s
-      val isRegexp = (existingBranches.isNotEmpty() && !existingBranches.contains(string)) ||
-                     (existingBranches.isEmpty() && VcsLogUtil.maybeRegexp(string))
+    val includedBranches = ArrayList<String>()
+    val excludedBranches = ArrayList<String>()
+    val includedPatterns = ArrayList<Pattern>()
+    val excludedPatterns = ArrayList<Pattern>()
+    val shouldExcludeNotMatched = existingBranches.isNotEmpty() && excludeNotMatched
+
+    for (pattern in patterns) {
+      val isExcluded = pattern.startsWith("-")
+      val string = if (isExcluded) pattern.substring(1) else pattern
+      val isRegexp = !existingBranches.contains(string) && VcsLogUtil.isRegexp(string)
 
       if (isRegexp) {
         try {
-          val pattern = Pattern.compile(string)
+          val regex = Pattern.compile(string)
           if (isExcluded) {
-            excludedPatterns.add(pattern)
+            excludedPatterns.add(regex)
           }
           else {
-            patterns.add(pattern)
+            includedPatterns.add(regex)
           }
         }
         catch (e: PatternSyntaxException) {
           LOG.warn("Pattern $string is not a proper regular expression and no branch can be found with that name.", e)
+          if (shouldExcludeNotMatched) {
+            continue
+          }
           if (isExcluded) {
             excludedBranches.add(string)
           }
           else {
-            branchNames.add(string)
+            includedBranches.add(string)
           }
         }
-
       }
       else {
+        if (shouldExcludeNotMatched && !existingBranches.contains(string)) {
+          continue
+        }
         if (isExcluded) {
           excludedBranches.add(string)
         }
         else {
-          branchNames.add(string)
+          includedBranches.add(string)
         }
       }
     }
 
-    return VcsLogBranchFilterImpl(branchNames, patterns, excludedBranches, excludedPatterns)
+    return VcsLogBranchFilterImpl(includedBranches, includedPatterns, excludedBranches, excludedPatterns)
   }
 
   @JvmStatic
@@ -208,39 +218,51 @@ fun VcsLogFilterCollection.with(filter: VcsLogFilter?): VcsLogFilterCollection {
   return VcsLogFilterCollectionImpl(filterSet)
 }
 
-fun VcsLogFilterCollection.without(filterKey: FilterKey<*>): VcsLogFilterCollection {
+fun VcsLogFilterCollection.without(condition: (VcsLogFilter) -> Boolean): VcsLogFilterCollection {
   val filterSet = createFilterSet()
-  this.filters.forEach { if (it.key != filterKey) filterSet.add(it) }
+  this.filters.forEach { if (!(condition(it))) filterSet.add(it) }
   return VcsLogFilterCollectionImpl(filterSet)
+}
+
+fun VcsLogFilterCollection.without(filterKey: FilterKey<*>): VcsLogFilterCollection {
+  return without { it.key == filterKey }
+}
+
+fun <T : VcsLogFilter> VcsLogFilterCollection.without(filterClass: Class<T>): VcsLogFilterCollection {
+  return without { filterClass.isInstance(it) }
 }
 
 fun VcsLogFilterCollection.matches(vararg filterKey: FilterKey<*>): Boolean {
   return this.filters.mapTo(mutableSetOf()) { it.key } == filterKey.toSet()
 }
 
+@Nls
 fun VcsLogFilterCollection.getPresentation(): String {
   if (get(HASH_FILTER) != null) {
     return get(HASH_FILTER)!!.displayText
   }
-  return filters.joinToString(" ") { filter ->
-    val prefix = if (filters.size != 1) filter.getPrefix() else ""
-    prefix + filter.displayText
-  }
+  return StringUtil.join(filters, { filter: VcsLogFilter ->
+    if (filters.size != 1) {
+      filter.withPrefix()
+    }
+    else filter.displayText
+  }, " ")
 }
 
-private fun VcsLogFilter.getPrefix(): String {
+@Nls
+private fun VcsLogFilter.withPrefix(): String {
   when (this) {
-    is VcsLogTextFilter -> return "containing "
-    is VcsLogUserFilter -> return "by "
-    is VcsLogDateFilter -> return "made "
-    is VcsLogBranchFilter -> return "on "
-    is VcsLogRootFilter -> return "in "
-    is VcsLogStructureFilter -> return "for "
+    is VcsLogTextFilter -> return VcsLogBundle.message("vcs.log.filter.text.presentation.with.prefix", displayText)
+    is VcsLogUserFilter -> return VcsLogBundle.message("vcs.log.filter.user.presentation.with.prefix", displayText)
+    is VcsLogDateFilter -> return displayTextWithPrefix
+    is VcsLogBranchFilter -> return VcsLogBundle.message("vcs.log.filter.branch.presentation.with.prefix", displayText)
+    is VcsLogRootFilter -> return VcsLogBundle.message("vcs.log.filter.root.presentation.with.prefix", displayText)
+    is VcsLogStructureFilter -> return VcsLogBundle.message("vcs.log.filter.structure.presentation.with.prefix", displayText)
   }
-  return ""
+  return displayText
 }
 
-private fun createFilterSet() = OpenTHashSet<VcsLogFilter>(FilterByKeyHashingStrategy())
+private fun createFilterSet() = OpenTHashSet(FilterByKeyHashingStrategy())
 
 private fun <T> OpenTHashSet<T>.replace(element: T): Boolean {
   val isModified = remove(element)

@@ -2,6 +2,7 @@
 package com.intellij.debugger.memory.ui;
 
 import com.intellij.codeInsight.lookup.LookupManager;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.engine.DebuggerUtils;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -36,7 +37,7 @@ class ExpressionEditorWithHistory extends XDebuggerExpressionEditor {
     super(project, debuggerEditorsProvider, HISTORY_ID_PREFIX + className, null,
           XExpressionImpl.EMPTY_EXPRESSION, false, true, true);
 
-    new AnAction("InstancesWindow.ShowHistory") {
+    new AnAction(JavaDebuggerBundle.message("instances.window.show.history")) {
       @Override
       public void actionPerformed(@NotNull AnActionEvent e) {
         showHistory();
@@ -61,7 +62,7 @@ class ExpressionEditorWithHistory extends XDebuggerExpressionEditor {
   private void showHistory() {
     List<XExpression> expressions = getRecentExpressions();
     if (!expressions.isEmpty()) {
-      ListPopupImpl historyPopup = new ListPopupImpl(getProject(), new BaseListPopupStep<XExpression>(null, expressions) {
+      ListPopupImpl historyPopup = new ListPopupImpl(getProject(), new BaseListPopupStep<>(null, expressions) {
         @Override
         public PopupStep onChosen(XExpression selectedValue, boolean finalChoice) {
           setExpression(selectedValue);

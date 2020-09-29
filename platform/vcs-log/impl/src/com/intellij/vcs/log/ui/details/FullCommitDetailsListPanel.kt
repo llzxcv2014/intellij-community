@@ -9,6 +9,7 @@ import com.intellij.openapi.progress.*
 import com.intellij.openapi.progress.impl.CoreProgressManager
 import com.intellij.openapi.progress.util.ProgressWindow
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.NlsContexts
 import com.intellij.openapi.vcs.VcsException
 import com.intellij.openapi.vcs.changes.Change
 import com.intellij.openapi.vcs.changes.ui.SimpleChangesBrowser
@@ -18,13 +19,15 @@ import com.intellij.ui.SideBorder
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBLoadingPanel
 import com.intellij.util.Consumer
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import com.intellij.vcs.log.VcsCommitMetadata
+import com.intellij.vcs.log.VcsLogBundle
 import com.intellij.vcs.log.data.SingleTaskController
 import com.intellij.vcs.log.ui.details.commit.CommitDetailsPanel
 import org.jetbrains.annotations.ApiStatus
-import org.jetbrains.annotations.CalledInBackground
+import org.jetbrains.annotations.NonNls
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.border.Border
@@ -36,6 +39,7 @@ abstract class FullCommitDetailsListPanel(
   modalityState: ModalityState
 ) : BorderLayoutPanel() {
   companion object {
+    @NonNls
     private const val DETAILS_SPLITTER = "Full.Commit.Details.List.Splitter"
   }
 
@@ -62,7 +66,7 @@ abstract class FullCommitDetailsListPanel(
     changesLoadingController.request(selectedCommits)
   }
 
-  @CalledInBackground
+  @RequiresBackgroundThread
   @Throws(VcsException::class)
   protected abstract fun loadChanges(commits: List<VcsCommitMetadata>): List<Change>
 }
@@ -93,7 +97,7 @@ private class ChangesBrowserWithLoadingPanel(project: Project, disposable: Dispo
     changesBrowser.setChangesToDisplay(changes)
   }
 
-  fun setErrorText(error: String) {
+  fun setErrorText(@NlsContexts.StatusText error: String) {
     changesBrowser.setChangesToDisplay(emptyList())
     changesBrowser.viewer.emptyText.setText(error, SimpleTextAttributes.ERROR_ATTRIBUTES)
   }
@@ -106,7 +110,7 @@ private class ChangesLoadingController(
   private val changesBrowser: ChangesBrowserWithLoadingPanel,
   private val loader: (List<VcsCommitMetadata>) -> List<Change>
 ) : SingleTaskController<List<VcsCommitMetadata>, List<Change>>(
-  "Loading Commit Changes",
+  VcsLogBundle.message("loading.commit.changes"),
   Consumer { changes ->
     runInEdt(modalityState = modalityState) {
       changesBrowser.stopLoading(changes)
@@ -118,7 +122,7 @@ private class ChangesLoadingController(
     runInEdt(modalityState = modalityState) {
       changesBrowser.startLoading()
     }
-    val task: Task.Backgroundable = object : Task.Backgroundable(project, "Loading Commit Changes") {
+    val task: Task.Backgroundable = object : Task.Backgroundable(project, VcsLogBundle.message("loading.commit.changes")) {
       override fun run(indicator: ProgressIndicator) {
         var result: List<Change>? = null
         try {
@@ -143,5 +147,5 @@ private class ChangesLoadingController(
     return SingleTaskImpl(future, indicator)
   }
 
-  override fun cancelRunningTasks(requests: Array<out List<VcsCommitMetadata>>) = true
+  override fun cancelRunningTasks(requests: List<List<VcsCommitMetadata>>) = true
 }

@@ -1,10 +1,11 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.siyeh.ig;
 
 import com.intellij.codeHighlighting.HighlightDisplayLevel;
 import com.intellij.codeInsight.daemon.HighlightDisplayKey;
 import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.codeInspection.InspectionProfileEntry;
+import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.codeInspection.ex.InspectionProfileImpl;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
@@ -15,11 +16,14 @@ import com.intellij.profile.codeInspection.ProjectInspectionProfileManager;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.testFramework.InspectionTestUtil;
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase;
 import com.intellij.util.ArrayUtilRt;
 import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Objects;
 
 /**
  * @author Bas Leijdekkers
@@ -32,7 +36,7 @@ public abstract class LightJavaInspectionTestCase extends LightJavaCodeInsightFi
   protected void setUp() throws Exception {
     super.setUp();
 
-    for (String environmentClass : getEnvironmentClasses()) {
+    for (@Language("JAVA") String environmentClass : getEnvironmentClasses()) {
       myFixture.addClass(environmentClass);
     }
     final InspectionProfileEntry inspection = getInspection();
@@ -49,11 +53,11 @@ public abstract class LightJavaInspectionTestCase extends LightJavaCodeInsightFi
     }
 
     Sdk sdk = ModuleRootManager.getInstance(ModuleManager.getInstance(getProject()).getModules()[0]).getSdk();
-    if (JAVA_1_7.getSdk().getName().equals(sdk == null ? null : sdk.getName())) {
-      PsiClass object = JavaPsiFacade.getInstance(getProject()).findClass("java.lang.Object", GlobalSearchScope.allScope(getProject()));
+    if (Objects.requireNonNull(JAVA_1_7.getSdk()).getName().equals(sdk == null ? null : sdk.getName())) {
+      final PsiClass object = JavaPsiFacade.getInstance(getProject()).findClass("java.lang.Object", GlobalSearchScope.allScope(getProject()));
       assertNotNull(object);
 
-      PsiClass component = JavaPsiFacade.getInstance(getProject()).findClass("java.awt.Component", GlobalSearchScope.allScope(getProject()));
+      final PsiClass component = JavaPsiFacade.getInstance(getProject()).findClass("java.awt.Component", GlobalSearchScope.allScope(getProject()));
       assertNotNull(component);
     }
   }
@@ -62,7 +66,6 @@ public abstract class LightJavaInspectionTestCase extends LightJavaCodeInsightFi
   protected abstract InspectionProfileEntry getInspection();
 
   @Language("JAVA")
-  @SuppressWarnings("LanguageMismatch")
   protected String[] getEnvironmentClasses() {
     return ArrayUtilRt.EMPTY_STRING_ARRAY;
   }
@@ -99,6 +102,12 @@ public abstract class LightJavaInspectionTestCase extends LightJavaCodeInsightFi
     assertNotNull(intention);
     myFixture.launchAction(intention);
     myFixture.checkResultByFile(getTestName(false) + ".after.java");
+  }
+
+  protected final void checkQuickFixAll() { 
+    InspectionProfileEntry inspection = InspectionTestUtil.instantiateTool(getInspectionClass());
+    assert inspection != null : "getInspection() needs to return a non-null value for checkQuickFixAll() to work";
+    checkQuickFix(InspectionsBundle.message("fix.all.inspection.problems.in.file", inspection.getDisplayName()));
   }
 
   protected final void doTest(@Language("JAVA") @NotNull String classText, String fileName) {

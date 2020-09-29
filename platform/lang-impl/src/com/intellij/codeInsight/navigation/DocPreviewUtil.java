@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.navigation;
 
 import com.intellij.codeInsight.documentation.DocumentationManagerProtocol;
@@ -6,6 +6,7 @@ import com.intellij.lang.documentation.DocumentationProvider;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import gnu.trove.TIntHashSet;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -20,7 +21,7 @@ import java.util.regex.Pattern;
  *
  * @author Denis Zhdanov
  */
-public class DocPreviewUtil {
+public final class DocPreviewUtil {
 
   private static final TIntHashSet ALLOWED_LINK_SEPARATORS = new TIntHashSet();
   static {
@@ -84,7 +85,9 @@ public class DocPreviewUtil {
    * @param fullText                   full documentation text (if available)
    */
   @NotNull
-  public static String buildPreview(@NotNull final String header, @Nullable final String qName, @Nullable final String fullText) {
+  public static @Nls String buildPreview(@NotNull @Nls final String header,
+                                         @Nullable final String qName,
+                                         @Nullable @Nls final String fullText) {
     if (fullText == null) {
       return header;
     }
@@ -113,8 +116,8 @@ public class DocPreviewUtil {
     // Apply links info to the header template.
     List<TextRange> modifiedRanges = new ArrayList<>();
     List<String> sortedReplacements = new ArrayList<>(links.keySet());
-    Collections.sort(sortedReplacements, REPLACEMENTS_COMPARATOR);
-    StringBuilder buffer = new StringBuilder(header);
+    sortedReplacements.sort(REPLACEMENTS_COMPARATOR);
+    @Nls StringBuilder buffer = new StringBuilder(header);
     replace(buffer, "\n", "<br/>", modifiedRanges);
     for (String replaceFrom : sortedReplacements) {
       replace(buffer, replaceFrom, String.format("<a href=\"%s\">%s</a>", links.get(replaceFrom), replaceFrom), modifiedRanges);
@@ -159,8 +162,12 @@ public class DocPreviewUtil {
   private static void replace(@NotNull StringBuilder text,
                               @NotNull String replaceFrom,
                               @NotNull String replaceTo,
-                              @NotNull List<TextRange> readOnlyChanges)
-  {
+                              @NotNull List<TextRange> readOnlyChanges) {
+
+    if (replaceFrom.isEmpty()) {
+      return;
+    }
+
     for (int i = text.indexOf(replaceFrom); i >= 0; i = text.indexOf(replaceFrom, i + 1)) {
       int end = i + replaceFrom.length();
       if (intersects(readOnlyChanges, i, end)) {

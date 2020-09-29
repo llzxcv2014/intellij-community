@@ -2,7 +2,7 @@
 package com.intellij.ide.util.newProjectWizard;
 
 import com.intellij.CommonBundle;
-import com.intellij.ide.IdeBundle;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.ide.util.BrowseFilesListener;
 import com.intellij.ide.util.ElementsChooser;
 import com.intellij.ide.util.projectWizard.AbstractStepWithProgress;
@@ -17,6 +17,7 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.MultiLineLabelUI;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -39,10 +40,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.*;
 
 /**
  * @author Eugene Zhuravlev
@@ -67,7 +66,7 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
   private JPanel myResultPanel;
 
   public SourcePathsStep(SourcePathsBuilder builder, Icon icon, @NonNls String helpId) {
-    super(IdeBundle.message("prompt.stop.searching.for.sources", ApplicationNamesInfo.getInstance().getProductName()));
+    super(JavaUiBundle.message("prompt.stop.searching.for.sources", ApplicationNamesInfo.getInstance().getProductName()));
     myBuilder = builder;
     myIcon = icon;
     myHelpId = helpId;
@@ -83,19 +82,19 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
 
   private JComponent createComponentForEmptyRootCase() {
     final JPanel panel = new JPanel(new GridBagLayout());
-    final String text = IdeBundle.message("prompt.please.specify.java.sources.directory");
+    final String text = JavaUiBundle.message("prompt.please.specify.java.sources.directory");
 
     final JLabel label = new JLabel(text);
     label.setUI(new MultiLineLabelUI());
     panel.add(label, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1.0, 0.0, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE,
                                             JBUI.insets(8, 10, 0, 10), 0, 0));
 
-    myRbCreateSource = new JRadioButton(IdeBundle.message("radio.create.source.directory"), true);
+    myRbCreateSource = new JRadioButton(JavaUiBundle.message("radio.create.source.directory"), true);
     panel.add(myRbCreateSource, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1.0, 0.0, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE,
                                                        JBUI.insets(8, 10, 0, 10), 0, 0));
 
     myTfSourceDirectoryName = new JTextField(suggestSourceDirectoryName());
-    final JLabel srcPathLabel = new JLabel(IdeBundle.message("prompt.enter.relative.path.to.module.content.root", File.separator));
+    final JLabel srcPathLabel = new JLabel(JavaUiBundle.message("prompt.enter.relative.path.to.module.content.root", File.separator));
     panel.add(srcPathLabel, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1.0, 0.0, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL,
                                                    JBUI.insets(8, 30, 0, 0), 0, 0));
     final FileChooserDescriptor chooserDescriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
@@ -104,11 +103,11 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
     panel.add(fieldPanel, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1.0, 0.0, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL,
                                                  JBUI.insets(8, 30, 0, 10), 0, 0));
 
-    myRbNoSource = new JRadioButton(IdeBundle.message("radio.do.not.create.source.directory"), true);
+    myRbNoSource = new JRadioButton(JavaUiBundle.message("radio.do.not.create.source.directory"), true);
     panel.add(myRbNoSource, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1.0, 1.0, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE,
                                                    JBUI.insets(8, 10, 0, 10), 0, 0));
 
-    final JLabel fullPathLabel = new JLabel(IdeBundle.message("label.source.directory"));
+    final JLabel fullPathLabel = new JLabel(JavaUiBundle.message("label.source.directory"));
     panel.add(fullPathLabel, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 1.0, 0.0, GridBagConstraints.SOUTHWEST, GridBagConstraints.NONE,
                                                     JBUI.insets(8, 10, 0, 10), 0, 0));
 
@@ -143,7 +142,7 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
     return panel;
   }
 
-  @NonNls protected String suggestSourceDirectoryName() {
+  protected @NlsSafe String suggestSourceDirectoryName() {
     return "src";
   }
 
@@ -159,7 +158,7 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
 
   private JComponent createComponentForChooseSources() {
     final JPanel panel = new JPanel(new GridBagLayout());
-    mySourcePathsChooser = new ElementsChooser<JavaModuleSourceRoot>(true) {
+    mySourcePathsChooser = new ElementsChooser<>(true) {
       @Override
       public String getItemText(@NotNull JavaModuleSourceRoot sourceRoot) {
         String packagePrefix = sourceRoot.getPackagePrefix();
@@ -168,7 +167,7 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
                " [" + sourceRoot.getRootTypeName() + "]";
       }
     };
-    final String text = IdeBundle.message("label.java.source.files.have.been.found");
+    final String text = JavaUiBundle.message("label.java.source.files.have.been.found");
     final JLabel label = new JLabel(text);
     label.setUI(new MultiLineLabelUI());
     panel.add(label, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 2, 1, 1.0, 0.0, GridBagConstraints.NORTHWEST, GridBagConstraints.HORIZONTAL,
@@ -176,11 +175,11 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
     panel.add(mySourcePathsChooser, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 2, 1, 1.0, 1.0, GridBagConstraints.NORTHWEST, GridBagConstraints.BOTH,
                                                            JBInsets.create(8, 10), 0, 0));
 
-    final JButton markAllButton = new JButton(IdeBundle.message("button.mark.all"));
+    final JButton markAllButton = new JButton(JavaUiBundle.message("button.mark.all"));
     panel.add(markAllButton, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 1, 1, 0.0, 0.0, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE,
                                                     JBUI.insets(0, 10, 8, 2), 0, 0));
 
-    final JButton unmarkAllButton = new JButton(IdeBundle.message("button.unmark.all"));
+    final JButton unmarkAllButton = new JButton(JavaUiBundle.message("button.unmark.all"));
     panel.add(unmarkAllButton, new GridBagConstraints(1, GridBagConstraints.RELATIVE, 1, 1, 1.0, 0.0, GridBagConstraints.NORTHWEST, GridBagConstraints.NONE,
                                                       JBUI.insets(0, 0, 8, 10), 0, 0));
 
@@ -234,32 +233,35 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
     if (CREATE_SOURCE_PANEL.equals(myCurrentMode) && myRbCreateSource.isSelected()) {
       final String sourceDirectoryPath = getSourceDirectoryPath();
       final String relativePath = myTfSourceDirectoryName.getText().trim();
-      if (relativePath.isEmpty()) {
-        String text = IdeBundle.message("prompt.relative.path.to.sources.empty", FileUtil.toSystemDependentName(sourceDirectoryPath));
-        final int answer = Messages.showYesNoCancelDialog(myTfSourceDirectoryName, text, IdeBundle.message("title.mark.source.directory"),
-                                               IdeBundle.message("action.mark"), IdeBundle.message("action.do.not.mark"),
-                                                 CommonBundle.getCancelButtonText(), Messages.getQuestionIcon());
-        if (answer == Messages.CANCEL) {
-          return false; // cancel
-        }
-        if (answer == Messages.NO) { // don't mark
-          myRbNoSource.doClick();
-        }
-      }
       if (sourceDirectoryPath != null) {
-        final File rootDir = new File(getContentRootPath());
-        final File srcDir = new File(sourceDirectoryPath);
-        if (!FileUtil.isAncestor(rootDir, srcDir, false)) {
-          Messages.showErrorDialog(myTfSourceDirectoryName,
-                                   IdeBundle.message("error.source.directory.should.be.under.module.content.root.directory"),
-                                   CommonBundle.getErrorTitle());
-          return false;
+        if (relativePath.isEmpty()) {
+          String text = JavaUiBundle.message("prompt.relative.path.to.sources.empty", FileUtil.toSystemDependentName(sourceDirectoryPath));
+          final int answer = Messages.showYesNoCancelDialog(myTfSourceDirectoryName, text, JavaUiBundle.message("title.mark.source.directory"),
+                                                            JavaUiBundle.message("action.mark"), JavaUiBundle.message("action.do.not.mark"),
+                                                            CommonBundle.getCancelButtonText(), Messages.getQuestionIcon());
+          if (answer == Messages.CANCEL) {
+            return false; // cancel
+          }
+          if (answer == Messages.NO) { // don't mark
+            myRbNoSource.doClick();
+          }
         }
-        try {
-          VfsUtil.createDirectories(srcDir.getPath());
-        }
-        catch (IOException e) {
-          throw new ConfigurationException(e.getMessage());
+        final String contentRootPath = getContentRootPath();
+        if (contentRootPath != null) {
+          final File rootDir = new File(contentRootPath);
+          final File srcDir = new File(sourceDirectoryPath);
+          if (!FileUtil.isAncestor(rootDir, srcDir, false)) {
+            Messages.showErrorDialog(myTfSourceDirectoryName,
+                                     JavaUiBundle.message("error.source.directory.should.be.under.module.content.root.directory"),
+                                     CommonBundle.getErrorTitle());
+            return false;
+          }
+          try {
+            VfsUtil.createDirectories(srcDir.getPath());
+          }
+          catch (IOException e) {
+            throw new ConfigurationException(e.getMessage());
+          }
         }
       }
     }
@@ -308,7 +310,7 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
 
   private boolean isContentEntryChanged() {
     final String contentEntryPath = getContentRootPath();
-    return myCurrentContentEntryPath == null? contentEntryPath != null : !myCurrentContentEntryPath.equals(contentEntryPath);
+    return !Objects.equals(myCurrentContentEntryPath, contentEntryPath);
   }
 
   @Override
@@ -332,16 +334,14 @@ public class SourcePathsStep extends AbstractStepWithProgress<List<JavaModuleSou
   @Override
   protected String getProgressText() {
     final String root = getContentRootPath();
-    return IdeBundle.message("progress.searching.for.sources", root != null? root.replace('/', File.separatorChar) : "") ;
+    return JavaUiBundle.message("progress.searching.for.sources", root != null? root.replace('/', File.separatorChar) : "") ;
   }
 
   private class BrowsePathListener extends BrowseFilesListener {
-    private final FileChooserDescriptor myChooserDescriptor;
     private final JTextField myField;
 
     BrowsePathListener(JTextField textField, final FileChooserDescriptor chooserDescriptor) {
-      super(textField, IdeBundle.message("prompt.select.source.directory"), "", chooserDescriptor);
-      myChooserDescriptor = chooserDescriptor;
+      super(textField, JavaUiBundle.message("prompt.select.source.directory"), "", chooserDescriptor);
       myField = textField;
     }
 

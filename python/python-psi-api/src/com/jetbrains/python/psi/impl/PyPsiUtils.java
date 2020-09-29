@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.psi.impl;
 
 import com.google.common.base.Preconditions;
@@ -27,9 +27,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 import java.util.stream.Stream;
 
-/**
- * @author max
- */
 public final class PyPsiUtils {
 
   private static final Logger LOG = Logger.getInstance(PyPsiUtils.class.getName());
@@ -37,8 +34,7 @@ public final class PyPsiUtils {
   private PyPsiUtils() {
   }
 
-  @NotNull
-  static <T extends PyElement> T[] nodesToPsi(ASTNode[] nodes, T[] array) {
+  static <T extends PyElement> T @NotNull [] nodesToPsi(ASTNode[] nodes, T[] array) {
     T[] psiElements = ArrayUtil.newArray(ArrayUtil.getComponentType(array), nodes.length);
     for (int i = 0; i < nodes.length; i++) {
       //noinspection unchecked
@@ -102,7 +98,7 @@ public final class PyPsiUtils {
   }
 
   /**
-   * Finds first non-whitespace sibling after given PSI element but stops at first whitespace containing line feed.
+   * Returns the first non-whitespace sibling following the given element but within its line boundaries.
    */
   @Nullable
   public static PsiElement getNextNonWhitespaceSiblingOnSameLine(@NotNull PsiElement element) {
@@ -115,6 +111,24 @@ public final class PyPsiUtils {
         break;
       }
       cur = cur.getNextSibling();
+    }
+    return null;
+  }
+
+  /**
+   * Returns the first non-whitespace sibling preceding the given element but within its line boundaries.
+   */
+  @Nullable
+  public static PsiElement getPrevNonWhitespaceSiblingOnSameLine(@NotNull PsiElement element) {
+    PsiElement cur = element.getPrevSibling();
+    while (cur != null) {
+      if (!(cur instanceof PsiWhiteSpace)) {
+        return cur;
+      }
+      else if (cur.textContains('\n')) {
+        break;
+      }
+      cur = cur.getPrevSibling();
     }
     return null;
   }
@@ -236,7 +250,7 @@ public final class PyPsiUtils {
     return null;
   }
 
-  public static void addBeforeInParent(@NotNull final PsiElement anchor, @NotNull final PsiElement... newElements) {
+  public static void addBeforeInParent(@NotNull final PsiElement anchor, final PsiElement @NotNull ... newElements) {
     final ASTNode anchorNode = anchor.getNode();
     LOG.assertTrue(anchorNode != null);
     for (PsiElement newElement : newElements) {
@@ -244,7 +258,7 @@ public final class PyPsiUtils {
     }
   }
 
-  public static void removeElements(@NotNull final PsiElement... elements) {
+  public static void removeElements(final PsiElement @NotNull ... elements) {
     final ASTNode parentNode = elements[0].getParent().getNode();
     LOG.assertTrue(parentNode != null);
     for (PsiElement element : elements) {
@@ -613,18 +627,18 @@ public final class PyPsiUtils {
 
   private static abstract class TopLevelVisitor extends PyRecursiveElementVisitor {
     @Override
-    public void visitPyElement(final PyElement node) {
+    public void visitPyElement(final @NotNull PyElement node) {
       super.visitPyElement(node);
       checkAddElement(node);
     }
 
     @Override
-    public void visitPyClass(final PyClass node) {
+    public void visitPyClass(final @NotNull PyClass node) {
       checkAddElement(node);  // do not recurse into functions
     }
 
     @Override
-    public void visitPyFunction(final PyFunction node) {
+    public void visitPyFunction(final @NotNull PyFunction node) {
       checkAddElement(node);  // do not recurse into classes
     }
 

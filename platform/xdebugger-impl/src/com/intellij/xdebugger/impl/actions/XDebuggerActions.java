@@ -17,9 +17,6 @@ package com.intellij.xdebugger.impl.actions;
 
 import org.jetbrains.annotations.NonNls;
 
-/**
- * @author nik
- */
 public interface XDebuggerActions {
   @NonNls String VIEW_BREAKPOINTS = "ViewBreakpoints";
 
@@ -50,8 +47,10 @@ public interface XDebuggerActions {
   @NonNls String VARIABLES_TREE_TOOLBAR_GROUP = "XDebugger.Variables.Tree.Toolbar";
   @NonNls String VARIABLES_TREE_POPUP_GROUP = "XDebugger.Variables.Tree.Popup";
   @NonNls String WATCHES_TREE_POPUP_GROUP = "XDebugger.Watches.Tree.Popup";
+  @NonNls String WATCHES_INLINE_POPUP_GROUP = "XDebugger.Watches.Inline.Popup";
   @NonNls String WATCHES_TREE_TOOLBAR_GROUP = "XDebugger.Watches.Tree.Toolbar";
   @NonNls String FRAMES_TREE_POPUP_GROUP = "XDebugger.Frames.Tree.Popup";
+  @NonNls String THREADS_TREE_POPUP_GROUP = "XDebugger.Threads.Tree.Popup";
   @NonNls String FRAMES_TOP_TOOLBAR_GROUP = "XDebugger.Frames.TopToolbar";
 
   @NonNls String ADD_TO_WATCH = "Debugger.AddToWatch";
@@ -69,9 +68,6 @@ public interface XDebuggerActions {
   @NonNls String TOGGLE_SORT_VALUES = "XDebugger.ToggleSortValues";
 
   @NonNls String INLINE_DEBUGGER = "XDebugger.Inline";
-
-  @NonNls String AUTO_TOOLTIP = "XDebugger.AutoTooltip";
-  @NonNls String AUTO_TOOLTIP_ON_SELECTION = "XDebugger.AutoTooltipOnSelection";
 
   @NonNls String MARK_OBJECT = "Debugger.MarkObject";
 

@@ -1,10 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.xml;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.io.StreamUtil;
-import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.util.text.Strings;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.containers.Stack;
@@ -15,49 +14,40 @@ import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Reader;
-import java.io.StringReader;
+import java.io.*;
 import java.util.Properties;
 
-/**
- * @author mike
- */
-public class NanoXmlUtil {
+public final class NanoXmlUtil {
   private static final Logger LOG = Logger.getInstance(NanoXmlUtil.class);
 
   private NanoXmlUtil() {
   }
 
-  private static MyXMLReader createReader(PsiFile psiFile) {
+  private static MyXMLReader createReader(@NotNull PsiFile psiFile) {
     return new MyXMLReader(new CharSequenceReader(psiFile.getViewProvider().getContents()));
   }
 
-  public static void parseFile(PsiFile psiFile, final IXMLBuilder builder) {
-    MyXMLReader reader = createReader(psiFile);
-    parse(reader, builder);
+  public static void parseFile(@NotNull PsiFile psiFile, @NotNull IXMLBuilder builder) {
+    parse(createReader(psiFile), builder);
   }
 
-  public static void parse(final InputStream is, final IXMLBuilder builder) {
+  public static void parse(@NotNull InputStream is, @NotNull IXMLBuilder builder) {
     try {
       parse(new MyXMLReader(is), builder);
     }
-    catch(IOException e) {
+    catch (IOException e) {
       LOG.error(e);
     }
     finally {
-
       try {
         is.close();
       }
       catch (IOException ignore) {
-
       }
     }
   }
 
-  public static void parse(final Reader reader, final IXMLBuilder builder) {
+  public static void parse(@NotNull Reader reader, @NotNull IXMLBuilder builder) {
     parse(reader, builder, null);
   }
 
@@ -73,16 +63,15 @@ public class NanoXmlUtil {
         reader.close();
       }
       catch (IOException ignore) {
-
       }
     }
   }
 
-  public static void parse(final IXMLReader r, final IXMLBuilder builder) {
+  public static void parse(@NotNull IXMLReader r, @NotNull IXMLBuilder builder) {
     parse(r, builder, null);
   }
 
-  public static void parse(final IXMLReader r, final IXMLBuilder builder, @Nullable final IXMLValidator validator) {
+  public static void parse(@NotNull IXMLReader r, @NotNull IXMLBuilder builder, @Nullable IXMLValidator validator) {
     try {
       final IXMLParser parser = XMLParserFactory.createDefaultXMLParser();
       parser.setReader(r);
@@ -103,14 +92,12 @@ public class NanoXmlUtil {
     }
   }
 
-  @NotNull
-  public static XmlFileHeader parseHeader(VirtualFile file) {
+  public static @NotNull XmlFileHeader parseHeader(VirtualFile file) {
     try {
       return parseHeaderWithException(file);
     }
     catch (IOException e) {
-      LOG.error(e);
-      return null;
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -190,7 +177,7 @@ public class NanoXmlUtil {
       return StringFactory.createShared(StreamUtil.readTextAndConvertSeparators(reader));
     }
 
-    protected String getLocation() {
+    protected @NonNls String getLocation() {
       return myLocation.peek();
     }
   }
@@ -272,7 +259,7 @@ public class NanoXmlUtil {
     }
   }
 
-  private static class MyXMLReader extends StdXMLReader {
+  private static final class MyXMLReader extends StdXMLReader {
     private String publicId;
     private String systemId;
 
@@ -286,14 +273,13 @@ public class NanoXmlUtil {
 
     @Override
     public Reader openStream(String publicId, String systemId) {
-      this.publicId = StringUtil.isEmpty(publicId) ? null : publicId;
-      this.systemId = StringUtil.isEmpty(systemId) ? null : systemId;
-
+      this.publicId = Strings.isEmpty(publicId) ? null : publicId;
+      this.systemId = Strings.isEmpty(systemId) ? null : systemId;
       return new StringReader(" ");
     }
   }
 
-  public static class ParserStoppedXmlException extends XMLException {
+  public static final class ParserStoppedXmlException extends XMLException {
     public static final ParserStoppedXmlException INSTANCE = new ParserStoppedXmlException();
 
     private ParserStoppedXmlException() {
@@ -306,7 +292,7 @@ public class NanoXmlUtil {
     }
   }
 
-  private static class RootTagInfoBuilder implements IXMLBuilder {
+  private static final class RootTagInfoBuilder implements IXMLBuilder {
     private String myRootTagName;
     private String myNamespace;
 
@@ -354,5 +340,4 @@ public class NanoXmlUtil {
       return myRootTagName;
     }
   }
-
 }

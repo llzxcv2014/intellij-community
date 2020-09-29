@@ -4,13 +4,17 @@ package com.intellij.openapi.actionSystem.ex;
 import com.intellij.ide.DataManager;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.editor.actionSystem.EditorAction;
+import com.intellij.openapi.editor.actionSystem.EditorActionHandlerBean;
 import com.intellij.openapi.extensions.PluginId;
+import com.intellij.util.TriConsumer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.event.InputEvent;
 import java.util.Comparator;
+import java.util.List;
 
 public abstract class ActionManagerEx extends ActionManager {
   public static ActionManagerEx getInstanceEx() {
@@ -26,6 +30,8 @@ public abstract class ActionManagerEx extends ActionManager {
 
 
   public abstract void fireBeforeEditorTyping(char c, @NotNull DataContext dataContext);
+
+  public abstract void fireAfterEditorTyping(char c, @NotNull DataContext dataContext);
 
   /**
    * For logging purposes
@@ -72,8 +78,7 @@ public abstract class ActionManagerEx extends ActionManager {
   }
 
 
-  @NotNull
-  public abstract String[] getPluginActions(@NotNull PluginId pluginId);
+  public abstract String @NotNull [] getPluginActions(@NotNull PluginId pluginId);
 
   public abstract void queueActionPerformedEvent(@NotNull AnAction action, @NotNull DataContext context, @NotNull AnActionEvent event);
 
@@ -81,12 +86,25 @@ public abstract class ActionManagerEx extends ActionManager {
 
   public abstract boolean isTransparentOnlyActionsUpdateNow();
 
-  public void fireBeforeActionPerformed(@NotNull String actionId, @NotNull InputEvent event) {
-    final AnAction action = getAction(actionId);
-    if (action != null) {
-      AnActionEvent e = AnActionEvent.createFromAnAction(action, event, ActionPlaces.UNKNOWN, DataManager.getInstance().getDataContext());
-      fireBeforeActionPerformed(action, DataManager.getInstance().getDataContext(), e);
-    }
+  public void fireBeforeActionPerformed(@NotNull String actionId, @NotNull InputEvent event, @NotNull String place) {
+    fireActionPerformed(actionId, event, place, this::fireBeforeActionPerformed);
+  }
+
+  public void fireAfterActionPerformed(@NotNull String actionId, @NotNull InputEvent event, @NotNull String place) {
+    fireActionPerformed(actionId, event, place, this::fireAfterActionPerformed);
+  }
+
+  private void fireActionPerformed(@NotNull String actionId,
+                                   @NotNull InputEvent event,
+                                   @NotNull String place,
+                                   TriConsumer<AnAction, DataContext, AnActionEvent> firingFunction) {
+    DataManager.getInstance().getDataContextFromFocusAsync().onSuccess(dataContext -> {
+      final AnAction action = getAction(actionId);
+      if (action != null) {
+        AnActionEvent e = AnActionEvent.createFromAnAction(action, event, place, dataContext);
+        firingFunction.accept(action, dataContext, e);
+      }
+    });
   }
 
   /**
@@ -94,5 +112,7 @@ public abstract class ActionManagerEx extends ActionManager {
    */
   @SuppressWarnings("unused")  // used in Rider
   public abstract void addActionPopupMenuListener(@NotNull ActionPopupMenuListener listener, @NotNull Disposable parentDisposable);
+
+  public abstract @NotNull List<EditorActionHandlerBean> getRegisteredHandlers(@NotNull EditorAction editorAction);
 }
 

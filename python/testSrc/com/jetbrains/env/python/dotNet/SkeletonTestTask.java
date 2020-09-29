@@ -1,3 +1,4 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.env.python.dotNet;
 
 import com.google.common.collect.Sets;
@@ -12,7 +13,6 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.progress.util.AbstractProgressIndicatorBase;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.util.io.FileUtil;
-import com.intellij.openapi.util.io.StreamUtil;
 import com.intellij.psi.PsiDocumentManager;
 import com.jetbrains.env.PyExecutionFixtureTestTask;
 import com.jetbrains.env.PyTestTask;
@@ -21,7 +21,7 @@ import com.jetbrains.python.PyNames;
 import com.jetbrains.python.inspections.quickfix.GenerateBinaryStubsFix;
 import com.jetbrains.python.inspections.unresolvedReference.PyUnresolvedReferencesInspection;
 import com.jetbrains.python.sdk.InvalidSdkException;
-import com.jetbrains.python.sdk.PythonSdkType;
+import com.jetbrains.python.sdk.PythonSdkUtil;
 import com.jetbrains.python.tools.sdkTools.SdkCreationType;
 import org.hamcrest.Matchers;
 import org.jetbrains.annotations.NotNull;
@@ -29,9 +29,9 @@ import org.jetbrains.annotations.Nullable;
 import org.junit.Assert;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -86,7 +86,7 @@ class SkeletonTestTask extends PyExecutionFixtureTestTask {
   @Override
   public void runTestOn(@NotNull final String sdkHome, @Nullable Sdk existingSdk) throws IOException, InvalidSdkException {
     final Sdk sdk = createTempSdk(sdkHome, SdkCreationType.SDK_PACKAGES_ONLY);
-    final File skeletonsPath = new File(PythonSdkType.getSkeletonsPath(PathManager.getSystemPath(), sdk.getHomePath()));
+    final File skeletonsPath = new File(PythonSdkUtil.getSkeletonsPath(PathManager.getSystemPath(), sdk.getHomePath()));
     Arrays.stream(skeletonsPath.listFiles()).forEach(FileUtil::delete);
     File skeletonFileOrDirectory = new File(skeletonsPath, myModuleNameToBeGenerated); // File with module skeleton
 
@@ -112,7 +112,6 @@ class SkeletonTestTask extends PyExecutionFixtureTestTask {
     }, ModalityState.NON_MODAL);
     myFixture.enableInspections(PyUnresolvedReferencesInspection.class); // This inspection should suggest us to generate stubs
 
-
     ApplicationManager.getApplication().invokeAndWait(() -> {
       PsiDocumentManager.getInstance(myFixture.getProject()).commitAllDocuments();
       final String intentionName = PyBundle.message("sdk.gen.stubs.for.binary.modules", myUseQuickFixWithThisModuleOnly);
@@ -129,11 +128,8 @@ class SkeletonTestTask extends PyExecutionFixtureTestTask {
 
     FileUtil.copy(skeletonFile, new File(myFixture.getTempDirPath(), skeletonFile.getName()));
     if (myExpectedSkeletonFile != null) {
-      final String actual = StreamUtil.readText(new FileInputStream(skeletonFile), Charset.defaultCharset());
-      final String skeletonText =
-        StreamUtil.readText(new FileInputStream(new File(getTestDataPath(), myExpectedSkeletonFile)), Charset.defaultCharset());
-
-
+      String actual = new String(Files.readAllBytes(skeletonFile.toPath()), StandardCharsets.UTF_8);
+      String skeletonText = new String(Files.readAllBytes(new File(getTestDataPath(), myExpectedSkeletonFile).toPath()), StandardCharsets.UTF_8);
       Assert.assertThat("Wrong skeleton generated", removeComments(actual),
                         Matchers.equalToIgnoringCase(removeComments(skeletonText)));
     }

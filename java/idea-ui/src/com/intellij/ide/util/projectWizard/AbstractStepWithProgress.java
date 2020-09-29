@@ -2,14 +2,16 @@
 
 package com.intellij.ide.util.projectWizard;
 
-import com.intellij.ide.IdeBundle;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.ConfigurationException;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.util.ProgressIndicatorBase;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.concurrency.SwingWorker;
@@ -17,6 +19,7 @@ import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.StartupUiUtil;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.update.UiNotifyConnector;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.TestOnly;
 
@@ -25,9 +28,6 @@ import java.awt.*;
 
 import static java.awt.GridBagConstraints.*;
 
-/**
- * @author nik
- */
 public abstract class AbstractStepWithProgress<Result> extends ModuleWizardStep {
   private static final Logger LOG = Logger.getInstance(AbstractStepWithProgress.class);
   @NonNls private static final String PROGRESS_PANEL = "progress_panel";
@@ -38,9 +38,9 @@ public abstract class AbstractStepWithProgress<Result> extends ModuleWizardStep 
   private JLabel myProgressLabel;
   private JLabel myProgressLabel2;
   private ProgressIndicator myProgressIndicator;
-  private final String myPromptStopSearch;
+  private final @NlsContexts.DialogMessage String myPromptStopSearch;
 
-  public AbstractStepWithProgress(final String promptStopSearching) {
+  public AbstractStepWithProgress(final @NlsContexts.DialogMessage String promptStopSearching) {
     myPromptStopSearch = promptStopSearching;
   }
 
@@ -58,7 +58,7 @@ public abstract class AbstractStepWithProgress<Result> extends ModuleWizardStep 
 
   protected abstract JComponent createResultsPanel();
 
-  protected abstract String getProgressText();
+  protected abstract @NlsContexts.ProgressText String getProgressText();
 
   protected abstract boolean shouldRunProgress();
 
@@ -77,13 +77,13 @@ public abstract class AbstractStepWithProgress<Result> extends ModuleWizardStep 
 
     myProgressLabel2 = new JLabel() {
           @Override
-          public void setText(String text) {
+          public void setText(@Nls String text) {
             super.setText(StringUtil.trimMiddle(text, 80));
           }
         };
     progressPanel.add(myProgressLabel2, new GridBagConstraints(0, RELATIVE, 1, 1, 1.0, 1.0, NORTHWEST, HORIZONTAL, JBUI.insets(8, 10, 0, 10), 0, 0));
 
-    JButton stopButton = new JButton(IdeBundle.message("button.stop.searching"));
+    JButton stopButton = new JButton(JavaUiBundle.message("button.stop.searching"));
     stopButton.addActionListener(__ -> cancelSearch());
     progressPanel.add(stopButton, new GridBagConstraints(1, RELATIVE, 1, 2, 0.0, 1.0, NORTHWEST, NONE, JBUI.insets(10, 0, 0, 10), 0, 0));
     return progressPanel;
@@ -130,7 +130,7 @@ public abstract class AbstractStepWithProgress<Result> extends ModuleWizardStep 
 
     if (ApplicationManager.getApplication().isUnitTestMode()) {
 
-      Result result = ProgressManager.getInstance().runProcess(() -> calculate(), progress);
+      Result result = ProgressManager.getInstance().runProcess(this::calculate, progress);
       onFinished(result, false);
       return;
     }
@@ -140,8 +140,13 @@ public abstract class AbstractStepWithProgress<Result> extends ModuleWizardStep 
       public Result construct() {
         LOG.debug("Start calculation in " + AbstractStepWithProgress.this + " using worker " + toString());
         final Ref<Result> result = Ref.create(null);
-        ProgressManager.getInstance().runProcess(() -> result.set(calculate()), progress);
-        LOG.debug("Finish calculation in " + AbstractStepWithProgress.this + " using worker " + toString());
+        try {
+          ProgressManager.getInstance().runProcess(() -> result.set(calculate()), progress);
+          LOG.debug("Finish calculation in " + AbstractStepWithProgress.this + " using worker " + toString());
+        }
+        catch (ProcessCanceledException e) {
+          LOG.debug("Calculation in " + AbstractStepWithProgress.this + " was cancelled");
+        }
         return result.get();
       }
 
@@ -168,7 +173,7 @@ public abstract class AbstractStepWithProgress<Result> extends ModuleWizardStep 
   public boolean validate() throws ConfigurationException {
     if (isProgressRunning()) {
       final int answer = Messages.showOkCancelDialog(getComponent(), myPromptStopSearch,
-                                             IdeBundle.message("title.question"), IdeBundle.message("action.continue.searching"), IdeBundle.message("action.stop.searching"), Messages.getWarningIcon());
+                                             JavaUiBundle.message("title.question"), JavaUiBundle.message("action.continue.searching"), JavaUiBundle.message("action.stop.searching"), Messages.getWarningIcon());
       if (answer != Messages.OK) { // terminate
         cancelSearch();
       }
@@ -197,7 +202,7 @@ public abstract class AbstractStepWithProgress<Result> extends ModuleWizardStep 
       super.setText2(text);
     }
 
-    private void updateLabel(final JLabel label, final String text) {
+    private void updateLabel(final JLabel label, @NlsContexts.Label final String text) {
       UIUtil.invokeLaterIfNeeded(() -> label.setText(text));
     }
   }

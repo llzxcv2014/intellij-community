@@ -2,6 +2,7 @@
 package com.intellij.openapi.editor.impl;
 
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.*;
 import com.intellij.openapi.editor.colors.EditorColors;
 import com.intellij.openapi.editor.ex.RangeHighlighterEx;
@@ -45,6 +46,7 @@ import static com.intellij.util.ui.UIUtil.useSafely;
  * @author Pavel Fatin
  */
 class ImmediatePainter {
+  private static final Logger LOG = Logger.getInstance(ImmediatePainter.class);
   private static final int DEBUG_PAUSE_DURATION = 1000;
 
   static final RegistryValue ENABLED = Registry.get("editor.zero.latency.rendering");
@@ -77,8 +79,13 @@ class ImmediatePainter {
 
       final int caretOffset = replacement.getBegin();
       final char c = replacement.getText().charAt(0);
-      paintImmediately((Graphics2D)g, caretOffset, c);
-      return true;
+      try {
+        paintImmediately((Graphics2D)g, caretOffset, c);
+        return true;
+      }
+      catch (Exception e) {
+        LOG.error(e);
+      }
     }
     return false;
   }
@@ -122,7 +129,15 @@ class ImmediatePainter {
 
     final char c1 = offset == 0 ? ' ' : document.getCharsSequence().charAt(offset - 1);
 
-    final List<TextAttributes> attributes = highlighter.getAttributesForPreviousAndTypedChars(document, offset, c2);
+    final List<TextAttributes> attributes;
+    try {
+      attributes = highlighter.getAttributesForPreviousAndTypedChars(document, offset, c2);
+    }
+    catch (Exception e) {
+      throw new RuntimeException("Error calculating attributes, highlighter: " + highlighter + ", offset: " + offset + ", document length" +
+                                 document.getTextLength() + ", highlighter's last offset:" + highlighter.getSegments().getLastValidOffset(),
+                                 e);
+    }
     updateAttributes(editor, offset, attributes);
 
     final TextAttributes attributes1 = attributes.get(0);
@@ -173,6 +188,11 @@ class ImmediatePainter {
                                                    g, PaintUtil.RoundingMode.FLOOR);
     float clipEndX = (float)PaintUtil.alignToInt(p2x + width2 - caretShift + caretWidth,
                                                  g, PaintUtil.RoundingMode.CEIL);
+    if (clipEndX > editor.getContentComponent().getWidth()) {
+      // we cannot paint beyond component bounds (this will go beyond dev clip in graphics anyway)
+      return;
+    }
+
     g.setClip(new Rectangle2D.Float(clipStartX, p2y, clipEndX - clipStartX, lineHeight));
     // at the moment, lines in editor are not aligned to dev pixel grid along Y axis, when fractional scale is used,
     // so double buffering is disabled (as it might not produce the same result as direct painting, and will case text jitter)
@@ -302,7 +322,7 @@ class ImmediatePainter {
                                        final TextAttributes attributes,
                                        final List<? extends RangeHighlighterEx> highlighters) {
     if (highlighters.size() > 1) {
-      ContainerUtil.quickSort(highlighters, IterationState.BY_LAYER_THEN_ATTRIBUTES);
+      ContainerUtil.quickSort(highlighters, IterationState.createByLayerThenByAttributesComparator(editor.getColorsScheme()));
     }
 
     TextAttributes syntax = attributes;
@@ -313,7 +333,7 @@ class ImmediatePainter {
     //noinspection ForLoopReplaceableByForEach
     for (int i = 0; i < size; i++) {
       RangeHighlighterEx highlighter = highlighters.get(i);
-      if (highlighter.getTextAttributes() == TextAttributes.ERASE_MARKER) {
+      if (highlighter.getTextAttributes(editor.getColorsScheme()) == TextAttributes.ERASE_MARKER) {
         syntax = null;
       }
     }
@@ -334,7 +354,7 @@ class ImmediatePainter {
         syntax = null;
       }
 
-      TextAttributes textAttributes = highlighter.getTextAttributes();
+      TextAttributes textAttributes = highlighter.getTextAttributes(editor.getColorsScheme());
       if (textAttributes != null && textAttributes != TextAttributes.ERASE_MARKER) {
         cachedAttributes.add(textAttributes);
       }

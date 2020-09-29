@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.psi.impl.synthetic;
 
 import com.intellij.navigation.ItemPresentation;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.openapi.util.text.StringUtil;
@@ -26,6 +27,9 @@ import org.jetbrains.plugins.groovy.lang.psi.impl.statements.typedef.code.FileCo
 import org.jetbrains.plugins.groovy.lang.psi.util.GrClassImplUtil;
 
 import javax.swing.*;
+
+import static org.jetbrains.plugins.groovy.lang.resolve.ResolveUtilKt.shouldProcessMethods;
+import static org.jetbrains.plugins.groovy.lang.resolve.ResolveUtilKt.shouldProcessProperties;
 
 public final class GroovyScriptClass extends GrLightTypeDefinitionBase implements SyntheticElement {
   private final GroovyFile myFile;
@@ -97,57 +101,48 @@ public final class GroovyScriptClass extends GrLightTypeDefinitionBase implement
     return myFile.addBefore(element, anchor);
   }
 
-  @NotNull
   @Override
-  public PsiClassType[] getExtendsListTypes(boolean includeSynthetic) {
+  public PsiClassType @NotNull [] getExtendsListTypes(boolean includeSynthetic) {
     return myCache.getExtendsListTypes(includeSynthetic);
   }
 
-  @NotNull
   @Override
-  public PsiClassType[] getImplementsListTypes(boolean includeSynthetic) {
+  public PsiClassType @NotNull [] getImplementsListTypes(boolean includeSynthetic) {
     return myCache.getImplementsListTypes(includeSynthetic);
   }
 
-  @NotNull
   @Override
-  public GrField[] getFields() {
+  public GrField @NotNull [] getFields() {
     return myCache.getFields();
   }
 
-  @NotNull
   @Override
-  public PsiMethod[] getMethods() {
+  public PsiMethod @NotNull [] getMethods() {
     return myCache.getMethods();
   }
 
-  @NotNull
   @Override
-  public PsiMethod[] getConstructors() {
+  public PsiMethod @NotNull [] getConstructors() {
     return myCache.getConstructors();
   }
 
-  @NotNull
   @Override
-  public PsiClass[] getInnerClasses() {
+  public PsiClass @NotNull [] getInnerClasses() {
     return myCache.getInnerClasses();
   }
 
-  @NotNull
   @Override
-  public GrField[] getCodeFields() {
+  public GrField @NotNull [] getCodeFields() {
     return GrField.EMPTY_ARRAY;
   }
 
-  @NotNull
   @Override
-  public GrMethod[] getCodeConstructors() {
+  public GrMethod @NotNull [] getCodeConstructors() {
     return GrMethod.EMPTY_ARRAY;
   }
 
-  @NotNull
   @Override
-  public GrMethod[] getCodeMethods() {
+  public GrMethod @NotNull [] getCodeMethods() {
     return myCache.getCodeMethods();
   }
 
@@ -159,6 +154,7 @@ public final class GroovyScriptClass extends GrLightTypeDefinitionBase implement
 
   @Override
   @NotNull
+  @NlsSafe
   public String getName() {
     return FileUtilRt.getNameWithoutExtension(myFile.getName());
   }
@@ -174,7 +170,12 @@ public final class GroovyScriptClass extends GrLightTypeDefinitionBase implement
                                      @NotNull final ResolveState state,
                                      @Nullable PsiElement lastParent,
                                      @NotNull PsiElement place) {
-    return GrClassImplUtil.processDeclarations(this, processor, state, lastParent, place);
+    if (shouldProcessMethods(processor) || shouldProcessProperties(processor)) {
+      return GrClassImplUtil.processDeclarations(this, processor, state, lastParent, place);
+    }
+    else {
+      return true;
+    }
   }
 
   @Override

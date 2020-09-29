@@ -18,10 +18,10 @@ package com.intellij.ide.fileTemplates.impl;
 
 import com.intellij.ide.fileTemplates.FileTemplate;
 import com.intellij.ide.fileTemplates.FileTemplateUtil;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.ListSpeedSearch;
 import com.intellij.ui.SimpleListCellRenderer;
 import com.intellij.ui.components.JBList;
-import com.intellij.util.Function;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -35,7 +35,7 @@ abstract class FileTemplateTabAsList extends FileTemplateTab {
   private final JList<FileTemplate> myList = new JBList<>();
   private MyListModel myModel;
 
-  FileTemplateTabAsList(String title) {
+  FileTemplateTabAsList(@NlsContexts.TabTitle String title) {
     super(title);
     myList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
     myList.setCellRenderer(SimpleListCellRenderer.create((label, value, index) -> {
@@ -46,7 +46,7 @@ abstract class FileTemplateTabAsList extends FileTemplateTab {
       }
     }));
     myList.addListSelectionListener(__ -> onTemplateSelected());
-    new ListSpeedSearch<>(myList, (Function<FileTemplate, String>)FileTemplate::getName);
+    new ListSpeedSearch<>(myList, FileTemplate::getName);
   }
 
   @Override
@@ -94,8 +94,7 @@ abstract class FileTemplateTabAsList extends FileTemplateTab {
   }
 
   @Override
-  @NotNull
-  public FileTemplate[] getTemplates() {
+  public FileTemplate @NotNull [] getTemplates() {
     final int size = myModel.getSize();
     List<FileTemplate> templates = new ArrayList<>(size);
     for (int i =0; i<size; i++) {

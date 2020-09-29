@@ -15,6 +15,8 @@
  */
 package com.intellij.util.xml;
 
+import com.intellij.openapi.util.NlsSafe;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,14 +30,14 @@ public interface GenericDomValue<T> extends DomElement, MutableGenericValue<T>{
 
   @Override
   @TagValue
-  void setStringValue(String value);
+  void setStringValue(@NonNls String value);
 
   @Override
   void setValue(T value);
 
   /**
-   * @return text of the value as it is specified in the underlying XML. No conversions or substitutions are made 
+   * @return text of the value as it is specified in the underlying XML. No conversions or substitutions are made
    */
   @Nullable
-  String getRawText();
+  @NlsSafe String getRawText();
 }

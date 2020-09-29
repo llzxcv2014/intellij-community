@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.refactoring.classes.membersManager;
 
 import com.google.common.base.Predicate;
@@ -30,6 +16,7 @@ import com.jetbrains.python.codeInsight.imports.AddImportHelper.ImportPriority;
 import com.jetbrains.python.psi.*;
 import com.jetbrains.python.psi.impl.PyFunctionBuilder;
 import com.jetbrains.python.psi.types.TypeEvalContext;
+import com.jetbrains.python.refactoring.PyPsiRefactoringUtil;
 import com.jetbrains.python.refactoring.classes.PyClassRefactoringUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -84,7 +71,7 @@ class MethodsManager extends MembersManager<PyFunction> {
   @Override
   protected Collection<PyElement> moveMembers(@NotNull final PyClass from,
                                               @NotNull final Collection<PyMemberInfo<PyFunction>> members,
-                                              @NotNull final PyClass... to) {
+                                              final PyClass @NotNull ... to) {
     final Collection<PyFunction> methodsToMove = fetchElements(Collections2.filter(members, new AbstractFilter(false)));
     final Collection<PyFunction> methodsToAbstract = fetchElements(Collections2.filter(members, new AbstractFilter(true)));
 
@@ -119,7 +106,7 @@ class MethodsManager extends MembersManager<PyFunction> {
       final PyClass abcMetaClass = PyPsiFacade.getInstance(project).createClassByQName(PyNames.ABC_META, aClass);
       final TypeEvalContext context = TypeEvalContext.userInitiated(project, file);
 
-      if (abcMetaClass != null && PyClassRefactoringUtil.addMetaClassIfNotExist(aClass, abcMetaClass, context)) {
+      if (abcMetaClass != null && PyPsiRefactoringUtil.addMetaClassIfNotExist(aClass, abcMetaClass, context)) {
         filesToCheckImport.add(file);
       }
     }
@@ -214,7 +201,7 @@ class MethodsManager extends MembersManager<PyFunction> {
   /**
    * Filters member infos to find if they should be abstracted
    */
-  private static class AbstractFilter extends NotNullPredicate<PyMemberInfo<PyFunction>> {
+  private static final class AbstractFilter extends NotNullPredicate<PyMemberInfo<PyFunction>> {
     private final boolean myAllowAbstractOnly;
 
     /**
@@ -232,7 +219,7 @@ class MethodsManager extends MembersManager<PyFunction> {
 
   private static class MyPyRecursiveElementVisitor extends PyRecursiveElementVisitorWithResult {
     @Override
-    public void visitPyCallExpression(final PyCallExpression node) {
+    public void visitPyCallExpression(final @NotNull PyCallExpression node) {
       // TODO: refactor, messy code
       final PyExpression callee = node.getCallee();
       if (callee != null) {

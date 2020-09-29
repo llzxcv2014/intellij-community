@@ -1,13 +1,11 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.buildout.config;
 
 import com.intellij.lang.Language;
+import com.jetbrains.python.PyBundle;
 import org.jetbrains.annotations.NotNull;
 
-/**
- * @author traff
- */
-public class BuildoutCfgLanguage extends Language {
+public final class BuildoutCfgLanguage extends Language {
   public static final BuildoutCfgLanguage INSTANCE = new BuildoutCfgLanguage();
 
   private BuildoutCfgLanguage() {
@@ -17,6 +15,6 @@ public class BuildoutCfgLanguage extends Language {
   @NotNull
   @Override
   public String getDisplayName() {
-    return "Buildout config";
+    return PyBundle.message("buildout.config.language");
   }
 }

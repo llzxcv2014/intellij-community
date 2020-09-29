@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.testFramework.fixtures;
 
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementPresentation;
+import com.intellij.codeInsight.lookup.LookupElementRenderer;
 import com.intellij.ui.DeferredIcon;
 import com.intellij.ui.LayeredIcon;
 import com.intellij.ui.icons.RowIcon;
@@ -14,17 +15,18 @@ import javax.swing.*;
 /**
  * @author peter
  */
-public class TestLookupElementPresentation extends LookupElementPresentation {
-
+public final class TestLookupElementPresentation extends LookupElementPresentation {
   @NotNull
   public static TestLookupElementPresentation renderReal(@NotNull LookupElement e) {
-    TestLookupElementPresentation p = new TestLookupElementPresentation() {
-      @Override
-      public boolean isReal() {
-        return true;
-      }
-    };
-    e.renderElement(p);
+    TestLookupElementPresentation p = new TestLookupElementPresentation();
+    //noinspection rawtypes
+    LookupElementRenderer renderer = e.getExpensiveRenderer();
+    if (renderer != null) {
+      //noinspection unchecked
+      renderer.renderElement(e, p);
+    } else {
+      e.renderElement(p);
+    }
     return p;
   }
 
@@ -37,5 +39,4 @@ public class TestLookupElementPresentation extends LookupElementPresentation {
       else return icon;
     }
   }
-
 }

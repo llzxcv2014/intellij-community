@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.wm.impl.status;
 
 import com.intellij.ide.util.EditorGotoLineNumberDialog;
@@ -12,6 +12,7 @@ import com.intellij.openapi.keymap.KeymapUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.StatusBar;
@@ -19,6 +20,9 @@ import com.intellij.openapi.wm.StatusBarWidget;
 import com.intellij.ui.UIBundle;
 import com.intellij.util.Alarm;
 import com.intellij.util.Consumer;
+import com.intellij.util.ui.update.MergingUpdateQueue;
+import com.intellij.util.ui.update.Update;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -40,9 +44,10 @@ public class PositionPanel extends EditorBasedWidget
   private static final String CHAR_COUNT_UNKNOWN = "...";
 
   private Alarm myAlarm;
+  private MergingUpdateQueue myQueue;
   private CodePointCountTask myCountTask;
 
-  private String myText;
+  private @NlsContexts.Label String myText;
 
   public PositionPanel(@NotNull Project project) {
     super(project);
@@ -120,6 +125,7 @@ public class PositionPanel extends EditorBasedWidget
   public void install(@NotNull StatusBar statusBar) {
     super.install(statusBar);
     myAlarm = new Alarm(Alarm.ThreadToUse.POOLED_THREAD, this);
+    myQueue = new MergingUpdateQueue("PositionPanel", 100, true, null, this);
     EditorEventMulticaster multicaster = EditorFactory.getInstance().getEventMulticaster();
     multicaster.addCaretListener(this, this);
     multicaster.addSelectionListener(this, this);
@@ -155,13 +161,10 @@ public class PositionPanel extends EditorBasedWidget
 
   @Override
   public void afterDocumentChange(@NotNull Document document) {
-    Editor[] editors = EditorFactory.getInstance().getEditors(document);
-    for (Editor editor : editors) {
-      if (isFocusedEditor(editor)) {
-        updatePosition(editor);
-        break;
-      }
-    }
+    EditorFactory.getInstance().editors(document)
+      .filter(this::isFocusedEditor)
+      .findFirst()
+      .ifPresent(this::updatePosition);
   }
 
   private boolean isFocusedEditor(Editor editor) {
@@ -170,16 +173,18 @@ public class PositionPanel extends EditorBasedWidget
   }
 
   private void updatePosition(final Editor editor) {
-    if (editor == null || DISABLE_FOR_EDITOR.isIn(editor)) {
-      myText = "";
-    }
-    else {
-      if (!isOurEditor(editor)) return;
-      myText = getPositionText(editor);
-    }
-    if (myStatusBar != null) {
-      myStatusBar.updateWidget(ID());
-    }
+    myQueue.queue(Update.create(this, () -> {
+      boolean empty = editor == null || DISABLE_FOR_EDITOR.isIn(editor);
+      if (!empty && !isOurEditor(editor)) return;
+
+      String newText = empty ? "" : getPositionText(editor);
+      if (newText.equals(myText)) return;
+
+      myText = newText;
+      if (myStatusBar != null) {
+        myStatusBar.updateWidget(ID());
+      }
+    }));
   }
 
   private void updateTextWithCodePointCount(int codePointCount) {
@@ -191,10 +196,10 @@ public class PositionPanel extends EditorBasedWidget
     }
   }
 
-  private String getPositionText(@NotNull Editor editor) {
+  private @NlsContexts.Label String getPositionText(@NotNull Editor editor) {
     myCountTask = null;
     if (!editor.isDisposed() && !myAlarm.isDisposed()) {
-      StringBuilder message = new StringBuilder();
+      @Nls StringBuilder message = new StringBuilder();
 
       SelectionModel selectionModel = editor.getSelectionModel();
       int caretCount = editor.getCaretModel().getCaretCount();
@@ -202,10 +207,13 @@ public class PositionPanel extends EditorBasedWidget
         message.append(UIBundle.message("position.panel.caret.count", caretCount));
       }
       else {
+        LogicalPosition caret = editor.getCaretModel().getLogicalPosition();
+        message.append(caret.line + 1).append(SEPARATOR).append(caret.column + 1);
         if (selectionModel.hasSelection()) {
           int selectionStart = selectionModel.getSelectionStart();
           int selectionEnd = selectionModel.getSelectionEnd();
           if (selectionEnd > selectionStart) {
+            message.append(" (");
             CodePointCountTask countTask = new CodePointCountTask(editor.getDocument().getImmutableCharSequence(),
                                                                   selectionStart, selectionEnd);
             if (countTask.isQuick()) {
@@ -224,11 +232,9 @@ public class PositionPanel extends EditorBasedWidget
               message.append(", ");
               message.append(UIBundle.message("position.panel.selected.line.breaks.count", selectionEndLine - selectionStartLine));
             }
-            message.append(SPACE);
+            message.append(")");
           }
         }
-        LogicalPosition caret = editor.getCaretModel().getLogicalPosition();
-        message.append(caret.line + 1).append(SEPARATOR).append(caret.column + 1);
       }
 
       return message.toString();
@@ -243,7 +249,7 @@ public class PositionPanel extends EditorBasedWidget
     updatePosition(getFocusedEditor());
   }
 
-  private class CodePointCountTask implements Runnable {
+  private final class CodePointCountTask implements Runnable {
     private final CharSequence text;
     private final int startOffset;
     private final int endOffset;
@@ -265,7 +271,6 @@ public class PositionPanel extends EditorBasedWidget
     @Override
     public void run() {
       int count = calculate();
-      //noinspection SSBasedInspection
       SwingUtilities.invokeLater(() -> {
         if (this == myCountTask) {
           updateTextWithCodePointCount(count);

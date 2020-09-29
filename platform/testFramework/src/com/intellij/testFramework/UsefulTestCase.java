@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.testFramework;
 
 import com.intellij.codeInsight.CodeInsightSettings;
@@ -10,9 +10,8 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.application.impl.ApplicationInfoImpl;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.fileTypes.StdFileTypes;
+import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.util.JDOMUtil;
@@ -36,35 +35,72 @@ import com.intellij.util.containers.PeekableIterator;
 import com.intellij.util.containers.PeekableIteratorWrapper;
 import com.intellij.util.indexing.FileBasedIndex;
 import com.intellij.util.indexing.FileBasedIndexImpl;
-import com.intellij.util.lang.CompoundRuntimeException;
+import com.intellij.util.io.PathKt;
 import com.intellij.util.ui.UIUtil;
-import gnu.trove.Equality;
 import gnu.trove.THashSet;
+import it.unimi.dsi.fastutil.objects.Object2LongMap;
+import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import junit.framework.AssertionFailedError;
 import junit.framework.TestCase;
 import org.jdom.Element;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.Assert;
+import org.junit.AssumptionViolatedException;
 import org.junit.ComparisonFailure;
+import org.junit.Rule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 
+import static org.junit.Assume.assumeTrue;
+
 /**
- * @author peter
+ * This class is compatible with both JUnit 3 and JUnit 4. To use JUnit 4, just annotate your test subclass
+ * with @RunWith(JUnit4.class) or any other (like Parametrized.class), and you are all set.
+ *
+ * Don't annotate the JUnit 3 setUp()/tearDown() methods as @Before/@After, and don't call them from other @Before/@After methods.
+ * Also don't define @Rule's calling runBare(), just subclassing this class (directly or indirectly) is enough. <p/>
+ *
+ * The execution order is the following:
+ * <pre{@code
+ *
+ *   - (JUnit 4 only) #checkShouldRunTest(Description) that can be used to ignore tests with meaningful message
+ *   - #shouldRunTest() is also called (both JUnit 3 and JUnit 4)
+ *
+ *   - #setUp(), usually overridden so that it initializes classes in order from base to specific
+ *
+ *       - (JUnit 4 only) any @Rule fields, then @Rule methods
+ *       - (JUnit 4 only) any @Before methods
+ *
+ *           - the testXxx() method (JUnit 3), or the @Test method (JUnit 4)
+ *
+ *       - (JUnit 4 only) any @After methods
+ *       - (JUnit 4 only) any @Rule methods, then @Rule fields, cleanup
+ *
+ *   - #tearDown(), usually overridden in the reverse order: from specific to base
+ * } </pre>
+ *
+ * Note that @Rule, @Before and @After methods execute within the same context/thread as the @Test method,
+ * which may differ from how setUp()/tearDown() are executed.
  */
 public abstract class UsefulTestCase extends TestCase {
   public static final boolean IS_UNDER_TEAMCITY = System.getenv("TEAMCITY_VERSION") != null;
@@ -73,26 +109,22 @@ public abstract class UsefulTestCase extends TestCase {
 
   private static final String ORIGINAL_TEMP_DIR = FileUtil.getTempDirectory();
 
-  private static final Map<String, Long> TOTAL_SETUP_COST_MILLIS = new HashMap<>();
-  private static final Map<String, Long> TOTAL_TEARDOWN_COST_MILLIS = new HashMap<>();
+  private static final Object2LongOpenHashMap<String> TOTAL_SETUP_COST_MILLIS = new Object2LongOpenHashMap<>();
+  private static final Object2LongOpenHashMap<String> TOTAL_TEARDOWN_COST_MILLIS = new Object2LongOpenHashMap<>();
+
+  protected static final Logger LOG = Logger.getInstance(UsefulTestCase.class);
+
+  private @Nullable Disposable myTestRootDisposable;
+
+  private @Nullable Path myTempDir;
+
+  private static final String DEFAULT_SETTINGS_EXTERNALIZED;
+  private static final CodeInsightSettings defaultSettings = new CodeInsightSettings();
 
   static {
     IdeaForkJoinWorkerThreadFactory.setupPoisonFactory();
     Logger.setFactory(TestLoggerFactory.class);
-  }
-  protected static final Logger LOG = Logger.getInstance(UsefulTestCase.class);
 
-  @NotNull
-  private final Disposable myTestRootDisposable = new TestDisposable();
-
-  static Path ourPathToKeep;
-  private final List<String> myPathsToKeep = new ArrayList<>();
-
-  private String myTempDir;
-
-  private static final String DEFAULT_SETTINGS_EXTERNALIZED;
-  private static final CodeInsightSettings defaultSettings = new CodeInsightSettings();
-  static {
     // Radar #5755208: Command line Java applications need a way to launch without a Dock icon.
     System.setProperty("apple.awt.UIElement", "true");
 
@@ -104,6 +136,40 @@ public abstract class UsefulTestCase extends TestCase {
     catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  /**
+   * This @Rule ensures that JUnit4 tests defined in subclasses annotated with @RunWith are executed
+   * in the exactly the same context as if they would have been executed were they plain old JUnit3 tests.
+   * This includes calling all the necessary setUp()/tearDown() together with any other customization defined by the
+   * platform subclasses like {@link LightPlatformTestCase} or {@link HeavyPlatformTestCase}: running on EDT,
+   * in a write action, wrapped in a command, etc.
+   *
+   * It's executed around any other rules and @Before/@After methods defined in subclasses.
+   * Subclasses may change this by using {@link #asOuterRule}.
+   */
+  @Rule
+  public @NotNull TestRule runBareTestRule = (base, description) -> new Statement() {
+    @Override
+    public void evaluate() throws Throwable {
+      String name = description.getMethodName();
+      name = StringUtil.notNullize(StringUtil.substringBefore(name, "["), name);
+      setName(name);
+      checkShouldRunTest(description);
+      runBare(base::evaluate);
+    }
+  };
+
+  /**
+   * Use to make the specified rule applied around the base rule.
+   * This may be useful in case you need to access the rule from {@link #setUp()}.
+   *
+   * NB. Do not annotate the field that you assign the result of an asOuterRule() call to, as @Rule.
+   *     Otherwise the rule is going to be applied twice.
+   */
+  protected @NotNull <R extends TestRule> R asOuterRule(@NotNull R rule) {
+    runBareTestRule = RuleChain.outerRule(rule).around(runBareTestRule);
+    return rule;
   }
 
   /**
@@ -123,7 +189,6 @@ public abstract class UsefulTestCase extends TestCase {
    *   }
    * }
    * </pre>
-   *
    */
   protected void addSuppressedException(@NotNull Throwable e) {
     List<Throwable> list = mySuppressedExceptions;
@@ -134,12 +199,15 @@ public abstract class UsefulTestCase extends TestCase {
   }
   private List<Throwable> mySuppressedExceptions;
 
-
   public UsefulTestCase() {
   }
 
   public UsefulTestCase(@NotNull String name) {
     super(name);
+  }
+
+  protected void checkShouldRunTest(@NotNull Description description) throws AssumptionViolatedException {
+    assumeTrue("skipped: shouldRunTest() returned false", shouldRunTest());
   }
 
   protected boolean shouldContainTempFiles() {
@@ -150,19 +218,7 @@ public abstract class UsefulTestCase extends TestCase {
   protected void setUp() throws Exception {
     super.setUp();
 
-    if (shouldContainTempFiles()) {
-      IdeaTestExecutionPolicy policy = IdeaTestExecutionPolicy.current();
-      String testName = null;
-      if (policy != null) {
-        testName = policy.getPerTestTempDirName();
-      }
-      if (testName == null) {
-        testName = FileUtil.sanitizeFileName(getTestName(true));
-      }
-      testName = new File(testName).getName(); // in case the test name contains file separators
-      myTempDir = FileUtil.createTempDirectory(TEMP_DIR_MARKER + testName, "", false).getPath();
-      FileUtil.resetCanonicalTempPathCache(myTempDir);
-    }
+    setupTempDir();
 
     boolean isStressTest = isStressTest();
     ApplicationInfoImpl.setInStressTest(isStressTest);
@@ -180,6 +236,36 @@ public abstract class UsefulTestCase extends TestCase {
     }
   }
 
+  // some brilliant tests overrides setup and change setup flow in an alien way - quite unsafe and error prone to fix for now,
+  // so, expose method for such a brilliant test classes
+  protected final void setupTempDir() throws IOException {
+    if (myTempDir == null && shouldContainTempFiles()) {
+      myTempDir = createGlobalTempDirectory();
+    }
+  }
+
+  @ApiStatus.Internal
+  @NotNull Path createGlobalTempDirectory() throws IOException {
+    IdeaTestExecutionPolicy policy = IdeaTestExecutionPolicy.current();
+    String testName = null;
+    if (policy != null) {
+      testName = policy.getPerTestTempDirName();
+    }
+    if (testName == null) {
+      testName = FileUtil.sanitizeFileName(getTestName(true));
+    }
+
+    Path result = TemporaryDirectory.generateTemporaryPath(TEMP_DIR_MARKER + testName);
+    Files.createDirectories(result);
+    FileUtil.resetCanonicalTempPathCache(result.toString());
+    return result;
+  }
+
+  @ApiStatus.Internal
+  void removeGlobalTempDirectory(@NotNull Path dir) {
+    PathKt.delete(dir);
+  }
+
   protected boolean isIconRequired() {
     return false;
   }
@@ -189,57 +275,23 @@ public abstract class UsefulTestCase extends TestCase {
     // don't use method references here to make stack trace reading easier
     //noinspection Convert2MethodRef
     new RunAll(
-      () -> {
-        if (isIconRequired()) {
-          //IconManager.deactivate();
-        }
-      },
       () -> disposeRootDisposable(),
       () -> cleanupSwingDataStructures(),
       () -> cleanupDeleteOnExitHookList(),
       () -> Disposer.setDebugMode(true),
       () -> {
-        if (shouldContainTempFiles()) {
+        if (myTempDir != null) {
           FileUtil.resetCanonicalTempPathCache(ORIGINAL_TEMP_DIR);
-          if (hasTmpFilesToKeep()) {
-            File[] files = new File(myTempDir).listFiles();
-            if (files != null) {
-              for (File file : files) {
-                if (!shouldKeepTmpFile(file)) {
-                  FileUtil.delete(file);
-                }
-              }
-            }
-          }
-          else {
-            FileUtil.delete(new File(myTempDir));
-          }
+          removeGlobalTempDirectory(myTempDir);
         }
       },
-      () -> UIUtil.removeLeakingAppleListeners(),
-      () -> waitForAppLeakingThreads(10, TimeUnit.SECONDS)
+      () -> waitForAppLeakingThreads(10, TimeUnit.SECONDS),
+      () -> clearFields(this)
     ).run(ObjectUtils.notNull(mySuppressedExceptions, Collections.emptyList()));
   }
 
   protected final void disposeRootDisposable() {
     Disposer.dispose(getTestRootDisposable());
-  }
-
-  protected void addTmpFileToKeep(@NotNull File file) {
-    myPathsToKeep.add(file.getPath());
-  }
-
-  private boolean hasTmpFilesToKeep() {
-    return ourPathToKeep != null && FileUtil.isAncestor(myTempDir, ourPathToKeep.toString(), false) || !myPathsToKeep.isEmpty();
-  }
-
-  private boolean shouldKeepTmpFile(@NotNull File file) {
-    String path = file.getPath();
-    if (FileUtil.pathsEqual(path, ourPathToKeep.toString())) return true;
-    for (String pathToKeep : myPathsToKeep) {
-      if (FileUtil.pathsEqual(path, pathToKeep)) return true;
-    }
-    return false;
   }
 
   private static final Set<String> DELETE_ON_EXIT_HOOK_DOT_FILES;
@@ -307,7 +359,7 @@ public abstract class UsefulTestCase extends TestCase {
         }
       })
       .append(() -> {
-        currentCodeStyleSettings.getIndentOptions(StdFileTypes.JAVA);
+        currentCodeStyleSettings.getIndentOptions(FileTypeManager.getInstance().getStdFileType("JAVA"));
         try {
           checkCodeStyleSettingsEqual(oldCodeStyleSettings, currentCodeStyleSettings);
         }
@@ -318,42 +370,28 @@ public abstract class UsefulTestCase extends TestCase {
       .run();
   }
 
+  /**
+   * Test root disposable is used for add an activity on test {@link #tearDown()}
+   *
+   * @see #disposeOnTearDown(Disposable)
+   * @see #tearDown()
+   */
   @NotNull
   public Disposable getTestRootDisposable() {
-    return myTestRootDisposable;
+    Disposable disposable = myTestRootDisposable;
+    if (disposable == null) {
+      myTestRootDisposable = disposable = new TestDisposable();
+    }
+    return disposable;
   }
 
+  /**
+   * @deprecated not JUnit4-friendly; to override the way tests are executed use {@link #runTestRunnable} instead
+   */
   @Override
-  protected void runTest() throws Throwable {
-    final Throwable[] throwables = new Throwable[1];
-
-    Runnable runnable = () -> {
-      try {
-        TestLoggerFactory.onTestStarted();
-        super.runTest();
-        TestLoggerFactory.onTestFinished(true);
-      }
-      catch (InvocationTargetException e) {
-        TestLoggerFactory.onTestFinished(false);
-        e.fillInStackTrace();
-        throwables[0] = e.getTargetException();
-      }
-      catch (IllegalAccessException e) {
-        TestLoggerFactory.onTestFinished(false);
-        e.fillInStackTrace();
-        throwables[0] = e;
-      }
-      catch (Throwable e) {
-        TestLoggerFactory.onTestFinished(false);
-        throwables[0] = e;
-      }
-    };
-
-    invokeTestRunnable(runnable);
-
-    if (throwables[0] != null) {
-      throw throwables[0];
-    }
+  @Deprecated
+  protected final void runTest() throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("Use runTestRunnable() to override the way tests are executed");
   }
 
   protected boolean shouldRunTest() {
@@ -364,44 +402,39 @@ public abstract class UsefulTestCase extends TestCase {
     return TestFrameworkUtil.canRunTest(getClass());
   }
 
-  protected void invokeTestRunnable(@NotNull Runnable runnable) throws Exception {
-    if (runInDispatchThread()) {
-      EdtTestUtilKt.runInEdtAndWait(() -> {
-        runnable.run();
-        return null;
-      });
-    }
-    else {
-      runnable.run();
+  protected void runTestRunnable(@NotNull ThrowableRunnable<Throwable> testRunnable) throws Throwable {
+    testRunnable.run();
+  }
+
+  /**
+   * This reflects the way the default {@link TestCase#runBare} works, with few notable exceptions:
+   * <ul>
+   *   <li/> {@link #tearDown} is called even if {@link #setUp} has failed;
+   *   <li/> exceptions from tearDown() don't shadow those from the main test method, but are rather linked as suppressed;
+   *   <li/> it allows to customise the way the methods are invoked through {@link #runTestRunnable},
+   *         {@link #invokeSetUp} and {@link #invokeTearDown}, for example, to make them execute on a different thread.
+   * </ul>
+   */
+  protected void defaultRunBare(@NotNull ThrowableRunnable<Throwable> testRunnable) throws Throwable {
+    try (AutoCloseable ignored = this::invokeTearDown) {
+      invokeSetUp();
+
+      runTestRunnable(testRunnable);
     }
   }
 
-  protected void defaultRunBare() throws Throwable {
-    Throwable exception = null;
-    try {
-      long setupStart = System.nanoTime();
-      setUp();
-      long setupCost = (System.nanoTime() - setupStart) / 1000000;
-      logPerClassCost(setupCost, TOTAL_SETUP_COST_MILLIS);
+  protected void invokeSetUp() throws Exception {
+    long setupStart = System.nanoTime();
+    setUp();
+    long setupCost = (System.nanoTime() - setupStart) / 1000000;
+    logPerClassCost(setupCost, TOTAL_SETUP_COST_MILLIS);
+  }
 
-      runTest();
-    }
-    catch (Throwable running) {
-      exception = running;
-    }
-    finally {
-      try {
-        long teardownStart = System.nanoTime();
-        tearDown();
-        long teardownCost = (System.nanoTime() - teardownStart) / 1000000;
-        logPerClassCost(teardownCost, TOTAL_TEARDOWN_COST_MILLIS);
-      }
-      catch (Throwable tearingDown) {
-        if (exception == null) exception = tearingDown;
-        else exception = new CompoundRuntimeException(Arrays.asList(exception, tearingDown));
-      }
-    }
-    if (exception != null) throw exception;
+  protected void invokeTearDown() throws Exception {
+    long teardownStart = System.nanoTime();
+    tearDown();
+    long teardownCost = (System.nanoTime() - teardownStart) / 1000000;
+    logPerClassCost(teardownCost, TOTAL_TEARDOWN_COST_MILLIS);
   }
 
   /**
@@ -409,43 +442,61 @@ public abstract class UsefulTestCase extends TestCase {
    *
    * @param cost setup cost in milliseconds
    */
-  private void logPerClassCost(long cost, @NotNull Map<String, Long> costMap) {
-    Class<?> superclass = getClass().getSuperclass();
-    Long oldCost = costMap.get(superclass.getName());
-    long newCost = oldCost == null ? cost : oldCost + cost;
-    costMap.put(superclass.getName(), newCost);
+  private void logPerClassCost(long cost, @NotNull Object2LongOpenHashMap<String> costMap) {
+    costMap.addTo(getClass().getSuperclass().getName(), cost);
   }
 
   @SuppressWarnings("UseOfSystemOutOrSystemErr")
   static void logSetupTeardownCosts() {
     System.out.println("Setup costs");
     long totalSetup = 0;
-    for (Map.Entry<String, Long> entry : TOTAL_SETUP_COST_MILLIS.entrySet()) {
-      System.out.println(String.format("  %s: %d ms", entry.getKey(), entry.getValue()));
-      totalSetup += entry.getValue();
+    for (Object2LongMap.Entry<String> entry : TOTAL_SETUP_COST_MILLIS.object2LongEntrySet()) {
+      System.out.printf("  %s: %d ms%n", entry.getKey(), entry.getLongValue());
+      totalSetup += entry.getLongValue();
     }
     System.out.println("Teardown costs");
     long totalTeardown = 0;
-    for (Map.Entry<String, Long> entry : TOTAL_TEARDOWN_COST_MILLIS.entrySet()) {
-      System.out.println(String.format("  %s: %d ms", entry.getKey(), entry.getValue()));
-      totalTeardown += entry.getValue();
+    for (Object2LongMap.Entry<String> entry : TOTAL_TEARDOWN_COST_MILLIS.object2LongEntrySet()) {
+      System.out.printf("  %s: %d ms%n", entry.getKey(), entry.getLongValue());
+      totalTeardown += entry.getLongValue();
     }
-    System.out.println(String.format("Total overhead: setup %d ms, teardown %d ms", totalSetup, totalTeardown));
-    System.out.println(String.format("##teamcity[buildStatisticValue key='ideaTests.totalSetupMs' value='%d']", totalSetup));
-    System.out.println(String.format("##teamcity[buildStatisticValue key='ideaTests.totalTeardownMs' value='%d']", totalTeardown));
+    System.out.printf("Total overhead: setup %d ms, teardown %d ms%n", totalSetup, totalTeardown);
+    System.out.printf("##teamcity[buildStatisticValue key='ideaTests.totalSetupMs' value='%d']%n", totalSetup);
+    System.out.printf("##teamcity[buildStatisticValue key='ideaTests.totalTeardownMs' value='%d']%n", totalTeardown);
   }
 
   @Override
-  public void runBare() throws Throwable {
-    if (!shouldRunTest()) return;
+  public final void runBare() throws Throwable {
+    if (!shouldRunTest()) {
+      return;
+    }
+    runBare(super::runTest);
+  }
+
+  protected void runBare(@NotNull ThrowableRunnable<Throwable> testRunnable) throws Throwable {
+    final ThrowableRunnable<Throwable> wrappedRunnable = wrapTestRunnable(testRunnable);
 
     if (runInDispatchThread()) {
-      TestRunnerUtil.replaceIdeEventQueueSafely();
-      EdtTestUtil.runInEdtAndWait(this::defaultRunBare);
+      TestApplicationManagerKt.replaceIdeEventQueueSafely();
+      EdtTestUtil.runInEdtAndWait(() -> defaultRunBare(wrappedRunnable));
     }
     else {
-      defaultRunBare();
+      defaultRunBare(wrappedRunnable);
     }
+  }
+
+  protected @NotNull ThrowableRunnable<Throwable> wrapTestRunnable(@NotNull ThrowableRunnable<Throwable> testRunnable) {
+    return () -> {
+      boolean success = false;
+      TestLoggerFactory.onTestStarted();
+      try {
+        testRunnable.run();
+        success = true;
+      }
+      finally {
+        TestLoggerFactory.onTestFinished(success);
+      }
+    };
   }
 
   protected boolean runInDispatchThread() {
@@ -459,7 +510,7 @@ public abstract class UsefulTestCase extends TestCase {
   /**
    * If you want a more shorter name than runInEdtAndWait.
    */
-  protected void edt(@NotNull ThrowableRunnable<Throwable> runnable) {
+  protected static <T extends Throwable> void edt(@NotNull ThrowableRunnable<T> runnable) throws T {
     EdtTestUtil.runInEdtAndWait(runnable);
   }
 
@@ -469,8 +520,8 @@ public abstract class UsefulTestCase extends TestCase {
       return "<empty>";
     }
 
-    final StringBuilder builder = new StringBuilder();
-    for (final Object o : collection) {
+    StringBuilder builder = new StringBuilder();
+    for (Object o : collection) {
       if (o instanceof THashSet) {
         builder.append(new TreeSet<>((THashSet<?>)o));
       }
@@ -483,16 +534,16 @@ public abstract class UsefulTestCase extends TestCase {
   }
 
   @SafeVarargs
-  public static <T> void assertOrderedEquals(@NotNull T[] actual, @NotNull T... expected) {
+  public static <T> void assertOrderedEquals(T @NotNull [] actual, T @NotNull ... expected) {
     assertOrderedEquals(Arrays.asList(actual), expected);
   }
 
   @SafeVarargs
-  public static <T> void assertOrderedEquals(@NotNull Iterable<? extends T> actual, @NotNull T... expected) {
+  public static <T> void assertOrderedEquals(@NotNull Iterable<? extends T> actual, T @NotNull ... expected) {
     assertOrderedEquals("", actual, expected);
   }
 
-  public static void assertOrderedEquals(@NotNull byte[] actual, @NotNull byte[] expected) {
+  public static void assertOrderedEquals(byte @NotNull [] actual, byte @NotNull [] expected) {
     assertEquals(expected.length, actual.length);
     for (int i = 0; i < actual.length; i++) {
       byte a = actual[i];
@@ -501,7 +552,7 @@ public abstract class UsefulTestCase extends TestCase {
     }
   }
 
-  public static void assertOrderedEquals(@NotNull int[] actual, @NotNull int[] expected) {
+  public static void assertOrderedEquals(int @NotNull [] actual, int @NotNull [] expected) {
     if (actual.length != expected.length) {
       fail("Expected size: "+expected.length+"; actual: "+actual.length+"\nexpected: "+Arrays.toString(expected)+"\nactual  : "+Arrays.toString(actual));
     }
@@ -513,7 +564,7 @@ public abstract class UsefulTestCase extends TestCase {
   }
 
   @SafeVarargs
-  public static <T> void assertOrderedEquals(@NotNull String errorMsg, @NotNull Iterable<? extends T> actual, @NotNull T... expected) {
+  public static <T> void assertOrderedEquals(@NotNull String errorMsg, @NotNull Iterable<? extends T> actual, T @NotNull ... expected) {
     assertOrderedEquals(errorMsg, actual, Arrays.asList(expected));
   }
 
@@ -524,15 +575,14 @@ public abstract class UsefulTestCase extends TestCase {
   public static <T> void assertOrderedEquals(@NotNull String errorMsg,
                                              @NotNull Iterable<? extends T> actual,
                                              @NotNull Iterable<? extends T> expected) {
-    //noinspection unchecked
-    assertOrderedEquals(errorMsg, actual, expected, Equality.CANONICAL);
+    assertOrderedEquals(errorMsg, actual, expected, Objects::equals);
   }
 
   public static <T> void assertOrderedEquals(@NotNull String errorMsg,
                                              @NotNull Iterable<? extends T> actual,
                                              @NotNull Iterable<? extends T> expected,
-                                             @NotNull Equality<? super T> comparator) {
-    if (!equals(actual, expected, comparator)) {
+                                             @NotNull BiPredicate<? super T, ? super T> predicate) {
+    if (!equals(actual, expected, predicate)) {
       String expectedString = toString(expected);
       String actualString = toString(actual);
       Assert.assertEquals(errorMsg, expectedString, actualString);
@@ -542,18 +592,19 @@ public abstract class UsefulTestCase extends TestCase {
 
   private static <T> boolean equals(@NotNull Iterable<? extends T> a1,
                                     @NotNull Iterable<? extends T> a2,
-                                    @NotNull Equality<? super T> comparator) {
+                                    @NotNull BiPredicate<? super T, ? super T> predicate) {
     Iterator<? extends T> it1 = a1.iterator();
     Iterator<? extends T> it2 = a2.iterator();
     while (it1.hasNext() || it2.hasNext()) {
-      if (!it1.hasNext() || !it2.hasNext()) return false;
-      if (!comparator.equals(it1.next(), it2.next())) return false;
+      if (!it1.hasNext() || !it2.hasNext() || !predicate.test(it1.next(), it2.next())) {
+        return false;
+      }
     }
     return true;
   }
 
   @SafeVarargs
-  public static <T> void assertOrderedCollection(@NotNull T[] collection, @NotNull Consumer<T>... checkers) {
+  public static <T> void assertOrderedCollection(T @NotNull [] collection, Consumer<T> @NotNull ... checkers) {
     assertOrderedCollection(Arrays.asList(collection), checkers);
   }
 
@@ -561,7 +612,7 @@ public abstract class UsefulTestCase extends TestCase {
    * Checks {@code actual} contains same elements (in {@link #equals(Object)} meaning) as {@code expected} irrespective of their order
    */
   @SafeVarargs
-  public static <T> void assertSameElements(@NotNull T[] actual, @NotNull T... expected) {
+  public static <T> void assertSameElements(T @NotNull [] actual, T @NotNull ... expected) {
     assertSameElements(Arrays.asList(actual), expected);
   }
 
@@ -569,7 +620,7 @@ public abstract class UsefulTestCase extends TestCase {
    * Checks {@code actual} contains same elements (in {@link #equals(Object)} meaning) as {@code expected} irrespective of their order
    */
   @SafeVarargs
-  public static <T> void assertSameElements(@NotNull Collection<? extends T> actual, @NotNull T... expected) {
+  public static <T> void assertSameElements(@NotNull Collection<? extends T> actual, T @NotNull ... expected) {
     assertSameElements(actual, Arrays.asList(expected));
   }
 
@@ -590,7 +641,7 @@ public abstract class UsefulTestCase extends TestCase {
   }
 
   @SafeVarargs
-  public static <T> void assertContainsOrdered(@NotNull Collection<? extends T> collection, @NotNull T... expected) {
+  public static <T> void assertContainsOrdered(@NotNull Collection<? extends T> collection, T @NotNull ... expected) {
     assertContainsOrdered(collection, Arrays.asList(expected));
   }
 
@@ -612,28 +663,28 @@ public abstract class UsefulTestCase extends TestCase {
   }
 
   @SafeVarargs
-  public static <T> void assertContainsElements(@NotNull Collection<? extends T> collection, @NotNull T... expected) {
+  public static <T> void assertContainsElements(@NotNull Collection<? extends T> collection, T @NotNull ... expected) {
     assertContainsElements(collection, Arrays.asList(expected));
   }
 
   public static <T> void assertContainsElements(@NotNull Collection<? extends T> collection, @NotNull Collection<? extends T> expected) {
-    ArrayList<T> copy = new ArrayList<>(collection);
+    List<T> copy = new ArrayList<>(collection);
     copy.retainAll(expected);
     assertSameElements(toString(collection), copy, expected);
   }
 
   @NotNull
-  public static String toString(@NotNull Object[] collection, @NotNull String separator) {
+  public static String toString(Object @NotNull [] collection, @NotNull String separator) {
     return toString(Arrays.asList(collection), separator);
   }
 
   @SafeVarargs
-  public static <T> void assertDoesntContain(@NotNull Collection<? extends T> collection, @NotNull T... notExpected) {
+  public static <T> void assertDoesntContain(@NotNull Collection<? extends T> collection, T @NotNull ... notExpected) {
     assertDoesntContain(collection, Arrays.asList(notExpected));
   }
 
   public static <T> void assertDoesntContain(@NotNull Collection<? extends T> collection, @NotNull Collection<? extends T> notExpected) {
-    ArrayList<T> expected = new ArrayList<>(collection);
+    List<T> expected = new ArrayList<>(collection);
     expected.removeAll(notExpected);
     assertSameElements(collection, expected);
   }
@@ -655,7 +706,7 @@ public abstract class UsefulTestCase extends TestCase {
   }
 
   @SafeVarargs
-  public static <T> void assertOrderedCollection(@NotNull Collection<? extends T> collection, @NotNull Consumer<T>... checkers) {
+  public static <T> void assertOrderedCollection(@NotNull Collection<? extends T> collection, Consumer<T> @NotNull ... checkers) {
     if (collection.size() != checkers.length) {
       Assert.fail(toString(collection));
     }
@@ -674,12 +725,12 @@ public abstract class UsefulTestCase extends TestCase {
   }
 
   @SafeVarargs
-  public static <T> void assertUnorderedCollection(@NotNull T[] collection, @NotNull Consumer<T>... checkers) {
+  public static <T> void assertUnorderedCollection(T @NotNull [] collection, Consumer<T> @NotNull ... checkers) {
     assertUnorderedCollection(Arrays.asList(collection), checkers);
   }
 
   @SafeVarargs
-  public static <T> void assertUnorderedCollection(@NotNull Collection<? extends T> collection, @NotNull Consumer<T>... checkers) {
+  public static <T> void assertUnorderedCollection(@NotNull Collection<? extends T> collection, Consumer<T> @NotNull ... checkers) {
     if (collection.size() != checkers.length) {
       Assert.fail(toString(collection));
     }
@@ -728,21 +779,17 @@ public abstract class UsefulTestCase extends TestCase {
   }
 
   public static <T> T assertOneElement(@NotNull Collection<? extends T> collection) {
-    Iterator<? extends T> iterator = collection.iterator();
-    String toString = toString(collection);
-    Assert.assertTrue(toString, iterator.hasNext());
-    T t = iterator.next();
-    Assert.assertFalse(toString, iterator.hasNext());
-    return t;
+    Assert.assertEquals(collection.toString(), 1, collection.size());
+    return collection.iterator().next();
   }
 
-  public static <T> T assertOneElement(@NotNull T[] ts) {
-    Assert.assertEquals(Arrays.asList(ts).toString(), 1, ts.length);
+  public static <T> T assertOneElement(T @NotNull [] ts) {
+    Assert.assertEquals(Arrays.toString(ts), 1, ts.length);
     return ts[0];
   }
 
   @SafeVarargs
-  public static <T> void assertOneOf(T value, @NotNull T... values) {
+  public static <T> void assertOneOf(T value, T @NotNull ... values) {
     for (T v : values) {
       if (Objects.equals(value, v)) {
         return;
@@ -755,7 +802,7 @@ public abstract class UsefulTestCase extends TestCase {
     PerformanceWatcher.dumpThreadsToConsole("Thread dump:");
   }
 
-  public static void assertEmpty(@NotNull Object[] array) {
+  public static void assertEmpty(Object @NotNull [] array) {
     assertOrderedEquals(array);
   }
 
@@ -781,7 +828,7 @@ public abstract class UsefulTestCase extends TestCase {
     assertOrderedEquals(errorMsg, collection, Collections.emptyList());
   }
 
-  public static void assertSize(int expectedSize, @NotNull Object[] array) {
+  public static void assertSize(int expectedSize, Object @NotNull [] array) {
     if (array.length != expectedSize) {
       assertEquals(toString(Arrays.asList(array)), expectedSize, array.length);
     }
@@ -869,7 +916,7 @@ public abstract class UsefulTestCase extends TestCase {
     }
     String expected = StringUtil.convertLineSeparators(trimBeforeComparing ? fileText.trim() : fileText);
     String actual = StringUtil.convertLineSeparators(trimBeforeComparing ? actualText.trim() : actualText);
-    if (!Comparing.equal(expected, actual)) {
+    if (!Objects.equals(expected, actual)) {
       throw new FileComparisonFailure(messageProducer == null ? null : messageProducer.get(), expected, actual, filePath);
     }
   }
@@ -908,7 +955,8 @@ public abstract class UsefulTestCase extends TestCase {
     }
   }
 
-  private static void checkCodeInsightSettingsEqual(@NotNull CodeInsightSettings oldSettings, @NotNull CodeInsightSettings settings) {
+  private static void checkCodeInsightSettingsEqual(@SuppressWarnings("SameParameterValue") @NotNull CodeInsightSettings oldSettings,
+                                                    @NotNull CodeInsightSettings settings) {
     if (!oldSettings.equals(settings)) {
       Element newS = new Element("temp");
       settings.writeExternal(newS);
@@ -1041,8 +1089,11 @@ public abstract class UsefulTestCase extends TestCase {
 
       if (shouldOccur) {
         wasThrown = true;
-        final String errorMessage = exceptionCase.getAssertionErrorMessage();
-        assertEquals(errorMessage, exceptionCase.getExpectedExceptionClass(), cause.getClass());
+        Class<T> expected = exceptionCase.getExpectedExceptionClass();
+        if (!expected.isInstance(cause)) {
+          throw new AssertionError("Expected instance of: " + expected + " actual: " + cause.getClass(), cause);
+        }
+
         if (expectedErrorMsgPart != null) {
           assertTrue(cause.getMessage(), cause.getMessage().contains(expectedErrorMsgPart));
         }
@@ -1063,14 +1114,14 @@ public abstract class UsefulTestCase extends TestCase {
     }
     finally {
       if (shouldOccur && !wasThrown) {
-        fail(exceptionCase.getAssertionErrorMessage());
+        fail(exceptionCase.getExpectedExceptionClass().getName() + " must be thrown.");
       }
     }
   }
 
   protected boolean annotatedWith(@NotNull Class<? extends Annotation> annotationClass) {
     Class<?> aClass = getClass();
-    String methodName = "test" + getTestName(false);
+    String methodName = ObjectUtils.notNull(getName(), "");
     boolean methodChecked = false;
     while (aClass != null && aClass != Object.class) {
       if (aClass.getAnnotation(annotationClass) != null) return true;
@@ -1106,13 +1157,13 @@ public abstract class UsefulTestCase extends TestCase {
     return UIUtil.invokeAndWaitIfNeeded(() -> LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file));
   }
 
-  public static void waitForAppLeakingThreads(long timeout, @NotNull TimeUnit timeUnit) {
+  public static void waitForAppLeakingThreads(long timeout, @NotNull TimeUnit timeUnit) throws Exception {
     EdtTestUtil.runInEdtAndWait(() -> {
       Application app = ApplicationManager.getApplication();
       if (app != null && !app.isDisposed()) {
-        FileBasedIndexImpl index = (FileBasedIndexImpl)app.getServiceIfCreated(FileBasedIndex.class);
-        if (index != null) {
-          index.waitForVfsEventsExecuted(timeout, timeUnit);
+        FileBasedIndex index = app.getServiceIfCreated(FileBasedIndex.class);
+        if (index instanceof FileBasedIndexImpl) {
+          ((FileBasedIndexImpl)index).getChangedFilesCollector().waitForVfsEventsExecuted(timeout, timeUnit);
         }
 
         DocumentCommitThread commitThread = (DocumentCommitThread)app.getServiceIfCreated(DocumentCommitProcessor.class);
@@ -1123,11 +1174,10 @@ public abstract class UsefulTestCase extends TestCase {
     });
   }
 
-  protected class TestDisposable implements Disposable {
+  protected final class TestDisposable implements Disposable {
     private volatile boolean myDisposed;
 
-    public TestDisposable() {
-    }
+    public TestDisposable() { }
 
     @Override
     public void dispose() {

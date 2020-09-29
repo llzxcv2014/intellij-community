@@ -1,7 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.template.postfix.templates;
 
-import com.google.common.collect.Sets;
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.completion.OffsetTranslator;
 import com.intellij.codeInsight.template.CustomLiveTemplateBase;
 import com.intellij.codeInsight.template.CustomTemplateCallback;
@@ -16,14 +16,12 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.command.undo.UndoConstants;
-import com.intellij.openapi.diagnostic.Attachment;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.util.Condition;
-import com.intellij.openapi.util.Conditions;
-import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.project.DumbService;
+import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
@@ -33,6 +31,7 @@ import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.impl.source.PsiFileImpl;
 import com.intellij.psi.templateLanguages.TemplateLanguageUtil;
 import com.intellij.psi.util.PsiUtilCore;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,12 +40,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class PostfixLiveTemplate extends CustomLiveTemplateBase {
-  public static final String POSTFIX_TEMPLATE_ID = "POSTFIX_TEMPLATE_ID";
+  public static final @NonNls String POSTFIX_TEMPLATE_ID = "POSTFIX_TEMPLATE_ID";
   private static final Logger LOG = Logger.getInstance(PostfixLiveTemplate.class);
 
   @NotNull
-  public Set<String> getAllTemplateKeys(PsiFile file, int offset) {
-    Set<String> keys = Sets.newHashSet();
+  public Set<@NlsSafe String> getAllTemplateKeys(PsiFile file, int offset) {
+    Set<String> keys = new HashSet<String>();
     Language language = PsiUtilCore.getLanguageAtOffset(file, offset);
     for (PostfixTemplateProvider provider : LanguagePostfixTemplate.LANG_EP.allForLanguage(language)) {
       ProgressManager.checkCanceled();
@@ -56,9 +55,9 @@ public class PostfixLiveTemplate extends CustomLiveTemplateBase {
   }
 
   @Nullable
-  private static String computeTemplateKeyWithoutContextChecking(@NotNull PostfixTemplateProvider provider,
-                                                                 @NotNull CharSequence documentContent,
-                                                                 int currentOffset) {
+  private static @NlsSafe String computeTemplateKeyWithoutContextChecking(@NotNull PostfixTemplateProvider provider,
+                                                                          @NotNull CharSequence documentContent,
+                                                                          int currentOffset) {
     int startOffset = currentOffset;
     if (documentContent.length() < startOffset) {
       return null;
@@ -81,7 +80,7 @@ public class PostfixLiveTemplate extends CustomLiveTemplateBase {
 
   @Nullable
   @Override
-  public String computeTemplateKey(@NotNull CustomTemplateCallback callback) {
+  public @NlsSafe String computeTemplateKey(@NotNull CustomTemplateCallback callback) {
     Editor editor = callback.getEditor();
     CharSequence charsSequence = editor.getDocument().getCharsSequence();
     int offset = editor.getCaretModel().getOffset();
@@ -96,7 +95,7 @@ public class PostfixLiveTemplate extends CustomLiveTemplateBase {
 
   @Nullable
   @Override
-  public String computeTemplateKeyWithoutContextChecking(@NotNull CustomTemplateCallback callback) {
+  public @NlsSafe String computeTemplateKeyWithoutContextChecking(@NotNull CustomTemplateCallback callback) {
     Editor editor = callback.getEditor();
     int currentOffset = editor.getCaretModel().getOffset();
     for (PostfixTemplateProvider provider : LanguagePostfixTemplate.LANG_EP.allForLanguage(getLanguage(callback))) {
@@ -188,8 +187,8 @@ public class PostfixLiveTemplate extends CustomLiveTemplateBase {
 
   @NotNull
   @Override
-  public String getTitle() {
-    return "Postfix";
+  public @NlsActions.ActionText String getTitle() {
+    return CodeInsightBundle.message("postfix.live.template.title");
   }
 
   @Override
@@ -241,7 +240,7 @@ public class PostfixLiveTemplate extends CustomLiveTemplateBase {
       ApplicationManager.getApplication().runWriteAction(() -> CommandProcessor.getInstance()
                                                                                .executeCommand(context.getProject(),
                                                                                                () -> template.expand(context, editor),
-                                                                                               "Expand postfix template",
+                                                                                               CodeInsightBundle.message("command.expand.postfix.template"),
                                                                                                POSTFIX_TEMPLATE_ID));
     }
     else {
@@ -304,7 +303,13 @@ public class PostfixLiveTemplate extends CustomLiveTemplateBase {
 
     final PsiElement context = CustomTemplateCallback.getContext(copyFile, positiveOffset(newOffset));
     final Document finalCopyDocument = copyDocument;
-    return template -> template != null && template.isEnabled(provider) && template.isApplicable(context, finalCopyDocument, newOffset);
+    return template -> template != null && isDumbEnough(template, context) &&
+                       template.isEnabled(provider) && template.isApplicable(context, finalCopyDocument, newOffset);
+  }
+
+  private static boolean isDumbEnough(@NotNull PostfixTemplate template, @NotNull PsiElement context) {
+    DumbService dumbService = DumbService.getInstance(context.getProject());
+    return !dumbService.isDumb() || DumbService.isDumbAware(template);
   }
 
   @NotNull

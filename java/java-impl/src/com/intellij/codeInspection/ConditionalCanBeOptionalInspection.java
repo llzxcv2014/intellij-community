@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection;
 
 import com.intellij.codeInsight.ExpressionUtil;
@@ -7,6 +7,7 @@ import com.intellij.codeInspection.dataFlow.NullabilityUtil;
 import com.intellij.codeInspection.util.LambdaGenerationUtil;
 import com.intellij.codeInspection.util.OptionalRefactoringUtil;
 import com.intellij.codeInspection.util.OptionalUtil;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
@@ -55,7 +56,7 @@ public class ConditionalCanBeOptionalInspection extends AbstractBaseJavaLocalIns
           !ExpressionUtils.isNullLiteral(nullBranch) && NullabilityUtil.getExpressionNullability(notNullBranch, true) != Nullability.NOT_NULL;
         if (!isOnTheFly && mayChangeSemantics) return;
         holder.registerProblem(ternary.getCondition(),
-                               "Can be replaced with Optional.ofNullable()",
+                               JavaBundle.message("inspection.message.can.be.replaced.with.optional.of.nullable"),
                                mayChangeSemantics ? ProblemHighlightType.INFORMATION : ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
                                new ReplaceConditionWithOptionalFix(mayChangeSemantics));
       }
@@ -83,14 +84,14 @@ public class ConditionalCanBeOptionalInspection extends AbstractBaseJavaLocalIns
     @NotNull
     @Override
     public String getName() {
-      return getFamilyName() + (myChangesSemantics ? " (may change semantics)" : "");
+      return getFamilyName() + (myChangesSemantics ? JavaBundle.message("quickfix.text.suffix.may.change.semantics") : "");
     }
 
     @Nls
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Replace with Optional.ofNullable() chain";
+      return JavaBundle.message("quickfix.family.replace.with.optional.of.nullable.chain");
     }
 
     @Override
@@ -142,7 +143,7 @@ public class ConditionalCanBeOptionalInspection extends AbstractBaseJavaLocalIns
     }
   }
 
-  private static class TernaryNullCheck {
+  private static final class TernaryNullCheck {
     final PsiVariable myVariable;
     final PsiExpression myNullBranch;
     final PsiExpression myNotNullBranch;

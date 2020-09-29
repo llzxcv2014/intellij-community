@@ -1,14 +1,15 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.jarRepository;
 
 import com.intellij.CommonBundle;
+import com.intellij.core.JavaPsiBundle;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.jarRepository.services.MavenRepositoryServicesManager;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
-import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.components.PathMacroManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.*;
@@ -20,7 +21,8 @@ import com.intellij.openapi.roots.libraries.NewLibraryConfiguration;
 import com.intellij.openapi.roots.libraries.ui.OrderRoot;
 import com.intellij.openapi.roots.ui.configuration.libraryEditor.LibraryEditor;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
@@ -59,7 +61,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class JarRepositoryManager {
+public final class JarRepositoryManager {
   private static final Logger LOG = Logger.getInstance(JarRepositoryManager.class);
 
   private static final String MAVEN_REPOSITORY_MACRO = "$MAVEN_REPOSITORY$";
@@ -75,7 +77,7 @@ public class JarRepositoryManager {
     ourClassifierToRootType.put(ArtifactKind.ANNOTATIONS.getClassifier(), AnnotationOrderRootType.getInstance());
   }
 
-  private static class JobExecutor {
+  private static final class JobExecutor {
     static final ExecutorService INSTANCE = SequentialTaskExecutor.createSequentialApplicationPoolExecutor("RemoteLibraryDownloader");
   }
 
@@ -105,7 +107,7 @@ public class JarRepositoryManager {
       project, libraryDescriptor, artifactKinds, copyTo, RemoteRepositoriesConfiguration.getInstance(project).getRepositories()
     );
     if (config == null) {
-      Messages.showErrorDialog(parentComponent, "No files were downloaded for " + libraryDescriptor.getMavenId(), CommonBundle.getErrorTitle());
+      Messages.showErrorDialog(parentComponent, JavaUiBundle.message("error.message.no.files.were.downloaded.for.0", libraryDescriptor.getMavenId()), CommonBundle.getErrorTitle());
     }
     return config;
   }
@@ -142,7 +144,8 @@ public class JarRepositoryManager {
   }
 
   @NotNull
-  protected static NewLibraryConfiguration createNewLibraryConfiguration(RepositoryLibraryProperties props, Collection<? extends OrderRoot> roots) {
+  private static NewLibraryConfiguration createNewLibraryConfiguration(RepositoryLibraryProperties props,
+                                                                       Collection<? extends OrderRoot> roots) {
     return new NewLibraryConfiguration(
       RepositoryLibraryDescription.findDescription(props).getDisplayName(props.getVersion()),
       RepositoryLibraryType.getInstance(),
@@ -207,7 +210,7 @@ public class JarRepositoryManager {
                                                             @Nullable String copyTo) {
     Collection<RemoteRepositoryDescription> effectiveRepos = addDefaultsIfEmpty(project, repositories);
     return submitModalJob(
-      project, "Resolving Maven dependencies...", newOrderRootResolveJob(desc, artifactKinds, effectiveRepos, copyTo)
+      project, JavaUiBundle.message("jar.repository.manager.dialog.resolving.dependencies.title", 1), newOrderRootResolveJob(desc, artifactKinds, effectiveRepos, copyTo)
     );
   }
 
@@ -235,6 +238,14 @@ public class JarRepositoryManager {
     return submitBackgroundJob(newOrderRootResolveJob(desc, artifactKinds, effectiveRepos, copyTo));
   }
 
+  public static @NotNull Promise<Collection<Artifact>> loadArtifactForDependenciesAsync(@NotNull Project project,
+                                                                                        @NotNull JpsMavenRepositoryLibraryDescriptor desc,
+                                                                                        @NotNull final Set<ArtifactKind> artifactKinds,
+                                                                                        @Nullable List<RemoteRepositoryDescription> repos) {
+    Collection<RemoteRepositoryDescription> effectiveRepos = addDefaultsIfEmpty(project, repos);
+    return submitBackgroundJob(new LibraryResolveJob(desc, artifactKinds, effectiveRepos));
+  }
+
   @Nullable
   public static List<OrderRoot> loadDependenciesSync(@NotNull Project project,
                                                                JpsMavenRepositoryLibraryDescriptor desc,
@@ -246,8 +257,8 @@ public class JarRepositoryManager {
   }
 
   @NotNull
-  protected static Collection<RemoteRepositoryDescription> addDefaultsIfEmpty(@NotNull Project project,
-                                                                              @Nullable Collection<RemoteRepositoryDescription> repositories) {
+  private static Collection<RemoteRepositoryDescription> addDefaultsIfEmpty(@NotNull Project project,
+                                                                            @Nullable Collection<RemoteRepositoryDescription> repositories) {
     if (repositories == null || repositories.isEmpty()) {
       repositories = RemoteRepositoriesConfiguration.getInstance(project).getRepositories();
     }
@@ -263,32 +274,36 @@ public class JarRepositoryManager {
   @Nullable
   public static ArtifactDependencyNode loadDependenciesTree(@NotNull RepositoryLibraryDescription description, @NotNull String version, Project project) {
     List<RemoteRepositoryDescription> repositories = RemoteRepositoriesConfiguration.getInstance(project).getRepositories();
-    return submitModalJob(project, "Resolving Maven Dependencies", new AetherJob<ArtifactDependencyNode>(repositories) {
-      @Override
-      protected String getProgressText() {
-        return "Loading dependencies of " + description.getMavenCoordinates(version);
-      }
+    return submitModalJob(project, JavaUiBundle.message("jar.repository.manager.dialog.resolving.dependencies.title", 0),
+                          new AetherJob<>(repositories) {
+                            @Override
+                            protected String getProgressText() {
+                              return JavaUiBundle.message("jar.repository.manager.progress.text.loading.dependencies",
+                                                          description.getMavenCoordinates(version));
+                            }
 
-      @Override
-      protected ArtifactDependencyNode perform(ProgressIndicator progress, @NotNull ArtifactRepositoryManager manager) throws Exception {
-        return manager.collectDependencies(description.getGroupId(), description.getArtifactId(), version);
-      }
+                            @Override
+                            protected ArtifactDependencyNode perform(ProgressIndicator progress, @NotNull ArtifactRepositoryManager manager)
+                              throws Exception {
+                              return manager.collectDependencies(description.getGroupId(), description.getArtifactId(), version);
+                            }
 
-      @Override
-      protected ArtifactDependencyNode getDefaultResult() {
-        return null;
-      }
-    });
+                            @Override
+                            protected ArtifactDependencyNode getDefaultResult() {
+                              return null;
+                            }
+                          });
   }
 
   private static void notifyArtifactsDownloaded(Project project, Collection<OrderRoot> roots) {
     final StringBuilder sb = new StringBuilder();
-    final String title = "The following files were downloaded:";
+    final String title = JavaUiBundle.message("jar.repository.manager.notification.title.downloaded");
     for (OrderRoot root : roots) {
       sb.append("<p/>");
       sb.append(root.getFile().getName());
     }
-    Notifications.Bus.notify(new Notification("Repository", title, sb.toString(), NotificationType.INFORMATION), project);
+    @NlsSafe final String content = sb.toString();
+    Notifications.Bus.notify(new Notification("Repository", title, content, NotificationType.INFORMATION), project);
   }
 
   public static void searchArtifacts(Project project,
@@ -311,7 +326,7 @@ public class JarRepositoryManager {
     else {
       template = new RepositoryArtifactDescription(new RepositoryLibraryProperties(coord, packaging, true), null);
     }
-    ProgressManager.getInstance().run(new Task.Backgroundable(project, "Maven", false) {
+    ProgressManager.getInstance().run(new Task.Backgroundable(project, JavaPsiBundle.message("task.background.title.maven"), false) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         final List<Pair<RepositoryArtifactDescription, RemoteRepositoryDescription>> resultList = new ArrayList<>();
@@ -350,7 +365,7 @@ public class JarRepositoryManager {
   public static void searchRepositories(Project project,
                                         Collection<String> serviceUrls,
                                         Processor<? super Collection<RemoteRepositoryDescription>> resultProcessor) {
-    ProgressManager.getInstance().run(new Task.Backgroundable(project, "Maven", false) {
+    ProgressManager.getInstance().run(new Task.Backgroundable(project, JavaPsiBundle.message("task.background.title.maven"), false) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         final Ref<List<RemoteRepositoryDescription>> result = Ref.create(Collections.emptyList());
@@ -392,7 +407,7 @@ public class JarRepositoryManager {
   }
 
   @Nullable
-  private static <T> T submitModalJob(@Nullable Project project, String title, Function<? super ProgressIndicator, ? extends T> job) {
+  private static <T> T submitModalJob(@Nullable Project project, @NlsContexts.DialogTitle String title, Function<? super ProgressIndicator, ? extends T> job) {
     Ref<T> result = Ref.create(null);
     new Task.Modal(project, title, true) {
       @Override
@@ -469,12 +484,14 @@ public class JarRepositoryManager {
 
         final ArrayList<RemoteRepository> remotes = new ArrayList<>();
         for (RemoteRepositoryDescription repository : myRepositories) {
-          remotes.add(ArtifactRepositoryManager.createRemoteRepository(repository.getId(), repository.getUrl()));
+          remotes.add(
+            ArtifactRepositoryManager.createRemoteRepository(repository.getId(), repository.getUrl(), repository.isAllowSnapshots())
+          );
         }
         try {
           return perform(indicator, new ArtifactRepositoryManager(getLocalRepositoryPath(), remotes, new ProgressConsumer() {
             @Override
-            public void consume(String message) {
+            public void consume(@NlsContexts.ProgressText String message) {
               indicator.setText(message);
             }
 
@@ -494,7 +511,7 @@ public class JarRepositoryManager {
       return getDefaultResult();
     }
 
-    protected abstract String getProgressText();
+    protected abstract @NlsContexts.ProgressText String getProgressText();
     protected abstract T perform(ProgressIndicator progress, @NotNull ArtifactRepositoryManager manager) throws Exception;
     protected abstract T getDefaultResult();
   }
@@ -504,10 +521,10 @@ public class JarRepositoryManager {
                                                                                      @NotNull Collection<RemoteRepositoryDescription> repositories,
                                                                                      @Nullable String copyTo) {
     return new LibraryResolveJob(desc, kinds, repositories).andThen(
-      resolved -> resolved.isEmpty() ? Collections.<OrderRoot>emptyList() : WriteAction.computeAndWait(() -> createRoots(resolved, copyTo)));
+      resolved -> resolved.isEmpty() ? Collections.emptyList() : copyAndRefreshFiles(resolved, copyTo));
   }
 
-  private static List<OrderRoot> createRoots(@NotNull Collection<? extends Artifact> artifacts, @Nullable String copyTo) {
+  static List<OrderRoot> copyAndRefreshFiles(@NotNull Collection<Artifact> artifacts, @Nullable String copyTo) {
     final List<OrderRoot> result = new ArrayList<>();
     final VirtualFileManager manager = VirtualFileManager.getInstance();
     for (Artifact each : artifacts) {
@@ -558,7 +575,7 @@ public class JarRepositoryManager {
 
     @Override
     protected String getProgressText() {
-      return "Loading " + RepositoryLibraryDescription.findDescription(myDesc).getDisplayName();
+      return JavaUiBundle.message("jar.repository.manager.library.resolve.progress.text", RepositoryLibraryDescription.findDescription(myDesc).getDisplayName());
     }
 
     @Override
@@ -581,7 +598,7 @@ public class JarRepositoryManager {
       }
       catch (Exception e) {
         final String resolvedVersion = resolveVersion(manager, version);
-        if (Comparing.equal(version, resolvedVersion)) { // no changes
+        if (Objects.equals(version, resolvedVersion)) { // no changes
           throw e;
         }
         try {
@@ -626,7 +643,7 @@ public class JarRepositoryManager {
 
     @Override
     protected String getProgressText() {
-      return "Loading " + myDescription.getDisplayName() + " versions";
+      return JavaUiBundle.message("jar.repository.manager.version.resolve.progress.text", myDescription.getDisplayName());
     }
 
     @Override

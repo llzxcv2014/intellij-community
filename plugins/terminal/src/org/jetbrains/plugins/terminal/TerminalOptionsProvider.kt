@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.terminal
 
 import com.intellij.execution.configuration.EnvironmentVariablesData
@@ -6,13 +6,9 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
-import com.intellij.openapi.util.SystemInfo
 import com.intellij.util.xmlb.annotations.Property
-import java.io.File
+import org.jetbrains.annotations.Nls
 
-/**
- * @author traff
- */
 @State(name = "TerminalOptionsProvider", storages = [(Storage("terminal.xml"))])
 class TerminalOptionsProvider : PersistentStateComponent<TerminalOptionsProvider.State> {
   private var myState = State()
@@ -23,12 +19,6 @@ class TerminalOptionsProvider : PersistentStateComponent<TerminalOptionsProvider
 
   override fun loadState(state: State) {
     myState = state
-  }
-
-  fun getShellPath(): String = getEffectiveShellPath(myState.myShellPath)
-
-  fun setShellPath(shellPath: String) {
-    myState.myShellPath = if (shellPath == defaultShellPath()) null else shellPath
   }
 
   fun closeSessionOnLogout(): Boolean {
@@ -44,8 +34,9 @@ class TerminalOptionsProvider : PersistentStateComponent<TerminalOptionsProvider
   }
 
   var tabName: String
-    get() = myState.myTabName
-    set(tabName) {
+    @Nls
+    get() : String = myState.myTabName ?: TerminalBundle.message("local.terminal.default.name")
+    set(@Nls tabName) {
       myState.myTabName = tabName
     }
 
@@ -67,7 +58,8 @@ class TerminalOptionsProvider : PersistentStateComponent<TerminalOptionsProvider
 
   class State {
     var myShellPath: String? = null
-    var myTabName: String = "Local"
+    @Nls
+    var myTabName: String? = null
     var myCloseSessionOnLogout: Boolean = true
     var myReportMouse: Boolean = true
     var mySoundBell: Boolean = true
@@ -124,24 +116,12 @@ class TerminalOptionsProvider : PersistentStateComponent<TerminalOptionsProvider
     myState.envDataOptions.set(envData)
   }
 
-  fun defaultShellPath(): String {
-    val shell = System.getenv("SHELL")
-    if (shell != null && File(shell).canExecute()) {
-      return shell
+  // replace with property delegate when Kotlin 1.4 arrives (KT-8658)
+  var shellPath: String?
+    get() = myState.myShellPath
+    set(value) {
+      myState.myShellPath = value
     }
-    if (SystemInfo.isUnix) {
-      val bashPath = "/bin/bash"
-      if (File(bashPath).exists()) {
-        return bashPath
-      }
-      return "/bin/sh"
-    }
-    return "cmd.exe"
-  }
-
-  fun getEffectiveShellPath(shellPath: String?): String {
-    return if (shellPath.isNullOrEmpty()) defaultShellPath() else shellPath
-  }
 
   companion object {
     val instance: TerminalOptionsProvider

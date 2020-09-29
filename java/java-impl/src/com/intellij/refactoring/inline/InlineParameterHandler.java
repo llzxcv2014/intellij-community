@@ -18,6 +18,7 @@ package com.intellij.refactoring.inline;
 import com.intellij.codeInsight.PsiEquivalenceUtil;
 import com.intellij.codeInsight.TargetElementUtil;
 import com.intellij.codeInspection.sameParameterValue.SameParameterValueInspection;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.lang.java.JavaLanguage;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
@@ -25,6 +26,7 @@ import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.*;
 import com.intellij.psi.controlFlow.DefUseUtil;
@@ -39,6 +41,7 @@ import com.intellij.refactoring.listeners.RefactoringEventListener;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
 import com.intellij.refactoring.util.InlineUtil;
 import com.intellij.refactoring.util.RefactoringMessageDialog;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -48,7 +51,6 @@ import java.util.*;
  * @author yole
  */
 public class InlineParameterHandler extends JavaInlineActionHandler {
-  public static final String REFACTORING_NAME = RefactoringBundle.message("inline.parameter.refactoring");
   private static final String REFACTORING_ID = "refactoring.inline.parameter";
 
   @Override
@@ -76,7 +78,7 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
 
     String errorMessage = getCannotInlineMessage(psiParameter, method);
     if (errorMessage != null) {
-      CommonRefactoringUtil.showErrorHint(project, editor, errorMessage, RefactoringBundle.message("inline.parameter.refactoring"), null);
+      CommonRefactoringUtil.showErrorHint(project, editor, errorMessage, JavaRefactoringBundle.message("inline.parameter.refactoring"), null);
       return;
     }
 
@@ -99,9 +101,7 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
           if (expressions.length <= index) return false;
           PsiExpression argument = expressions[index];
           if (!refInitializer.isNull()) {
-            return argument != null
-                   && PsiEquivalenceUtil.areElementsEquivalent(refInitializer.get(), argument)
-                   && PsiEquivalenceUtil.areElementsEquivalent(refMethodCall.get(), methodCall);
+            return argument != null && PsiEquivalenceUtil.areElementsEquivalent(refInitializer.get(), argument);
           }
           if (InlineToAnonymousConstructorProcessor.isConstant(argument) || getReferencedFinalField(argument) != null) {
             if (refConstantInitializer.isNull()) {
@@ -119,7 +119,7 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
         }
         return true;
       });
-    }, "Searching for Method Usages", true, project)) {
+    }, JavaRefactoringBundle.message("inline.parameter.method.usages.progress"), true, project)) {
       return;
     }
     final PsiReference reference = TargetElementUtil.findReference(editor);
@@ -152,11 +152,12 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
     }
     if (occurrences.isEmpty()) {
       CommonRefactoringUtil
-        .showErrorHint(project, editor, "Method has no usages", RefactoringBundle.message("inline.parameter.refactoring"), null);
+        .showErrorHint(project, editor, JavaRefactoringBundle.message("inline.parameter.no.usages.warning.message"), JavaRefactoringBundle.message("inline.parameter.refactoring"), null);
       return;
     }
     if (!result[0]) {
-      CommonRefactoringUtil.showErrorHint(project, editor, "Cannot find constant initializer for parameter", RefactoringBundle.message("inline.parameter.refactoring"), null);
+      CommonRefactoringUtil.showErrorHint(project, editor, JavaRefactoringBundle.message("inline.parameter.cannot.find.initializer.warning.message"),
+                                          JavaRefactoringBundle.message("inline.parameter.refactoring"), null);
       return;
     }
     if (!refInitializer.isNull()) {
@@ -175,7 +176,8 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
       return;
     }
     if (refConstantInitializer.isNull()) {
-      CommonRefactoringUtil.showErrorHint(project, editor, "Cannot find constant initializer for parameter", RefactoringBundle.message("inline.parameter.refactoring"), null);
+      CommonRefactoringUtil.showErrorHint(project, editor,
+                                          JavaRefactoringBundle.message("inline.parameter.cannot.find.initializer.warning.message"), JavaRefactoringBundle.message("inline.parameter.refactoring"), null);
       return;
     }
 
@@ -192,24 +194,24 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
       }
     });
     if (!isNotConstantAccessible.isNull() && isNotConstantAccessible.get()) {
-      CommonRefactoringUtil.showErrorHint(project, editor, "Constant initializer is not accessible in method body", RefactoringBundle.message("inline.parameter.refactoring"), null);
+      CommonRefactoringUtil.showErrorHint(project, editor, JavaRefactoringBundle.message("inline.parameter.not.accessible.warning.message"), JavaRefactoringBundle.message("inline.parameter.refactoring"), null);
       return;
     }
 
     for (PsiReference psiReference : ReferencesSearch.search(psiParameter)) {
       final PsiElement element = psiReference.getElement();
       if (element instanceof PsiExpression && PsiUtil.isAccessedForWriting((PsiExpression)element)) {
-        CommonRefactoringUtil.showErrorHint(project, editor, "Inline parameter which has write usages is not supported", RefactoringBundle.message("inline.parameter.refactoring"), null);
+        CommonRefactoringUtil.showErrorHint(project, editor, JavaRefactoringBundle.message("inline.parameter.write.usages.warning.message"), JavaRefactoringBundle.message("inline.parameter.refactoring"), null);
         return;
       }
     }
 
     if (!ApplicationManager.getApplication().isUnitTestMode()) {
-      String occurencesString = RefactoringBundle.message("occurrences.string", occurrences.size());
-      String question = RefactoringBundle.message("inline.parameter.confirmation", psiParameter.getName(),
-                                                  constantExpression.getText()) + " " + occurencesString;
+      String occurrencesString = RefactoringBundle.message("occurrences.string", occurrences.size());
+      String question = JavaRefactoringBundle.message("inline.parameter.confirmation", psiParameter.getName(),
+                                                  constantExpression.getText()) + " " + occurrencesString;
       RefactoringMessageDialog dialog = new RefactoringMessageDialog(
-        REFACTORING_NAME,
+        getRefactoringName(),
         question,
         HelpID.INLINE_VARIABLE,
         "OptionPane.questionIcon",
@@ -227,7 +229,7 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
       project.getMessageBus().syncPublisher(RefactoringEventListener.REFACTORING_EVENT_TOPIC).refactoringStarted(REFACTORING_ID, data);
       SameParameterValueInspection.InlineParameterValueFix.inlineSameParameterValue(method, psiParameter, constantExpression);
       project.getMessageBus().syncPublisher(RefactoringEventListener.REFACTORING_EVENT_TOPIC).refactoringDone(REFACTORING_ID, null);
-    }, REFACTORING_NAME, null);
+    }, getRefactoringName(), null);
   }
 
   @Nullable
@@ -264,7 +266,10 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
     final PsiField field1 = getReferencedFinalField(expr1);
     final PsiField field2 = getReferencedFinalField(expr2);
     if (field1 != null && field1 == field2) {
-      return true;
+      PsiExpression q1 = ((PsiReferenceExpression)expr1).getQualifierExpression();
+      PsiExpression q2 = ((PsiReferenceExpression)expr2).getQualifierExpression();
+      return q1 == null && q2 == null ||
+             q1 != null && q2 != null && PsiEquivalenceUtil.areElementsEquivalent(q1, q2);
     }
     Object value1 = JavaPsiFacade.getInstance(expr1.getProject()).getConstantEvaluationHelper().computeConstantExpression(expr1);
     Object value2 = JavaPsiFacade.getInstance(expr2.getProject()).getConstantEvaluationHelper().computeConstantExpression(expr2);
@@ -272,17 +277,17 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
   }
 
   @Nullable
-  private static String getCannotInlineMessage(final PsiParameter psiParameter, final PsiMethod method) {
+  private static @NlsContexts.DialogMessage String getCannotInlineMessage(final PsiParameter psiParameter, final PsiMethod method) {
     if (psiParameter.isVarArgs()) {
-      return RefactoringBundle.message("inline.parameter.error.varargs");
+      return JavaRefactoringBundle.message("inline.parameter.error.varargs");
     }
     if (method.findSuperMethods().length > 0 ||
         OverridingMethodsSearch.search(method).toArray(PsiMethod.EMPTY_ARRAY).length > 0) {
-      return RefactoringBundle.message("inline.parameter.error.hierarchy");
+      return JavaRefactoringBundle.message("inline.parameter.error.hierarchy");
     }
 
     if (!method.getManager().isInProject(method)) {
-      return "Inline is not supported for non-project methods";
+      return JavaRefactoringBundle.message("inline.parameter.error.non.project.method");
     }
     return null;
   }
@@ -290,6 +295,10 @@ public class InlineParameterHandler extends JavaInlineActionHandler {
   @Nullable
   @Override
   public String getActionName(PsiElement element) {
-    return REFACTORING_NAME + "...";
+    return JavaRefactoringBundle.message("inline.parameter.action.name");
+  }
+
+  public static @NlsContexts.DialogTitle String getRefactoringName() {
+    return JavaRefactoringBundle.message("inline.parameter.refactoring");
   }
 }

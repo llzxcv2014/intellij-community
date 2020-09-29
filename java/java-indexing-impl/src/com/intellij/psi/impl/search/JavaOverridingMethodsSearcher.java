@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.search;
 
 import com.intellij.ide.highlighter.JavaFileType;
@@ -25,11 +25,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 
-/**
- * @author max
- */
 public class JavaOverridingMethodsSearcher implements QueryExecutor<PsiMethod, OverridingMethodsSearch.SearchParameters> {
   @Override
   public boolean execute(@NotNull final OverridingMethodsSearch.SearchParameters parameters, @NotNull final Processor<? super PsiMethod> consumer) {
@@ -66,7 +63,7 @@ public class JavaOverridingMethodsSearcher implements QueryExecutor<PsiMethod, O
     return true;
   }
 
-  static boolean isJavaOnlyScope(@NotNull VirtualFile[] files) {
+  static boolean isJavaOnlyScope(VirtualFile @NotNull [] files) {
     return Arrays.stream(files).allMatch(file -> FileTypeRegistry.getInstance().isFileOfType(file, JavaFileType.INSTANCE));
   }
 
@@ -114,11 +111,13 @@ public class JavaOverridingMethodsSearcher implements QueryExecutor<PsiMethod, O
   private static Iterable<PsiMethod> compute(@NotNull PsiMethod method, @NotNull Project project) {
     final PsiClass containingClass = ReadAction.compute(method::getContainingClass);
     assert containingClass != null;
-    Collection<PsiMethod> result = new LinkedHashSet<>();
+    Collection<PsiMethod> result = new HashSet<>();
     Processor<PsiClass> inheritorsProcessor = inheritor -> {
       PsiMethod found = ReadAction.compute(() -> findOverridingMethod(inheritor, method, containingClass));
       if (found != null) {
-        result.add(found);
+        synchronized (result) {
+          result.add(found);
+        }
       }
       return true;
     };

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xdebugger.impl;
 
 import com.intellij.AppTopics;
@@ -6,7 +6,6 @@ import com.intellij.codeInsight.hint.LineTooltipRenderer;
 import com.intellij.codeInsight.hint.TooltipController;
 import com.intellij.codeInsight.hint.TooltipGroup;
 import com.intellij.execution.ExecutionException;
-import com.intellij.execution.ExecutionManager;
 import com.intellij.execution.Executor;
 import com.intellij.execution.executors.DefaultDebugExecutor;
 import com.intellij.execution.process.ProcessHandler;
@@ -15,8 +14,15 @@ import com.intellij.execution.ui.ExecutionConsole;
 import com.intellij.execution.ui.RunContentDescriptor;
 import com.intellij.execution.ui.RunContentManager;
 import com.intellij.execution.ui.RunContentWithExecutorListener;
+import com.intellij.ide.plugins.CannotUnloadPluginException;
+import com.intellij.ide.plugins.DynamicPluginListener;
+import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.idea.ActionsBundle;
 import com.intellij.notification.NotificationGroup;
+import com.intellij.openapi.Disposable;
+import com.intellij.openapi.actionSystem.ActionPlaces;
+import com.intellij.openapi.actionSystem.IdeActions;
+import com.intellij.openapi.actionSystem.ex.ActionManagerEx;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.State;
@@ -25,14 +31,12 @@ import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorFactory;
-import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.editor.event.*;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.editor.markup.GutterIconRenderer;
 import com.intellij.openapi.editor.markup.RangeHighlighter;
-import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.fileEditor.FileDocumentManagerListener;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
@@ -72,11 +76,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * @author nik
- */
 @State(name = "XDebuggerManager", storages = @Storage(StoragePathMacros.WORKSPACE_FILE))
-public class XDebuggerManagerImpl extends XDebuggerManager implements PersistentStateComponent<XDebuggerState> {
+public final class XDebuggerManagerImpl extends XDebuggerManager implements PersistentStateComponent<XDebuggerState>, Disposable {
   public static final NotificationGroup NOTIFICATION_GROUP =
     NotificationGroup.toolWindowGroup("Debugger messages", ToolWindowId.DEBUG, false);
 
@@ -93,10 +94,10 @@ public class XDebuggerManagerImpl extends XDebuggerManager implements Persistent
   public XDebuggerManagerImpl(@NotNull Project project) {
     myProject = project;
 
-    MessageBusConnection messageBusConnection = project.getMessageBus().connect();
+    MessageBusConnection messageBusConnection = project.getMessageBus().connect(this);
 
-    myBreakpointManager = new XBreakpointManagerImpl(project, this);
-    myWatchesManager = new XDebuggerWatchesManager();
+    myBreakpointManager = new XBreakpointManagerImpl(project, this, messageBusConnection);
+    myWatchesManager = new XDebuggerWatchesManager(project);
     myPinToTopManager = new XDebuggerPinToTopManager();
     myExecutionPointHighlighter = new ExecutionPointHighlighter(project);
 
@@ -142,7 +143,7 @@ public class XDebuggerManagerImpl extends XDebuggerManager implements Persistent
     messageBusConnection.subscribe(RunContentManager.TOPIC, new RunContentWithExecutorListener() {
       @Override
       public void contentSelected(@Nullable RunContentDescriptor descriptor, @NotNull Executor executor) {
-        if (descriptor != null && executor.equals(DefaultDebugExecutor.getDebugExecutorInstance())) {
+        if (descriptor != null && ToolWindowId.DEBUG.equals(executor.getToolWindowId())) {
           XDebugSessionImpl session = mySessions.get(descriptor.getProcessHandler());
           if (session != null) {
             session.activateSession();
@@ -155,16 +156,38 @@ public class XDebuggerManagerImpl extends XDebuggerManager implements Persistent
 
       @Override
       public void contentRemoved(@Nullable RunContentDescriptor descriptor, @NotNull Executor executor) {
-        if (descriptor != null && executor.equals(DefaultDebugExecutor.getDebugExecutorInstance())) {
+        if (descriptor != null && ToolWindowId.DEBUG.equals(executor.getToolWindowId())) {
           mySessions.remove(descriptor.getProcessHandler());
+        }
+      }
+    });
+
+    messageBusConnection.subscribe(DynamicPluginListener.TOPIC, new DynamicPluginListener() {
+      @Override
+      public void checkUnloadPlugin(@NotNull IdeaPluginDescriptor pluginDescriptor) {
+        XDebugSession[] sessions = getDebugSessions();
+        for (XDebugSession session : sessions) {
+          XDebugProcess process = session.getDebugProcess();
+          if (process.dependsOnPlugin(pluginDescriptor)) {
+            throw new CannotUnloadPluginException("Plugin is not unload-safe because of the started debug session");
+          }
         }
       }
     });
 
     DebuggerEditorListener listener = new DebuggerEditorListener();
     EditorEventMulticaster eventMulticaster = EditorFactory.getInstance().getEventMulticaster();
-    eventMulticaster.addEditorMouseMotionListener(listener, myProject);
-    eventMulticaster.addEditorMouseListener(listener, myProject);
+    eventMulticaster.addEditorMouseMotionListener(listener, this);
+    eventMulticaster.addEditorMouseListener(listener, this);
+  }
+
+  @Override
+  public void dispose() {
+  }
+
+  @Override
+  public void initializeComponent() {
+    myBreakpointManager.init();
   }
 
   private void updateExecutionPoint(@NotNull VirtualFile file, boolean navigate) {
@@ -261,7 +284,7 @@ public class XDebuggerManagerImpl extends XDebuggerManager implements Persistent
         !myProject.isDisposed() &&
         !ApplicationManager.getApplication().isUnitTestMode() &&
         XDebuggerSettingManagerImpl.getInstanceImpl().getGeneralSettings().isHideDebuggerOnProcessTermination()) {
-      ExecutionManager.getInstance(myProject).getContentManager().hideRunContent(DefaultDebugExecutor.getDebugExecutorInstance(),
+      RunContentManager.getInstance(myProject).hideRunContent(DefaultDebugExecutor.getDebugExecutorInstance(),
                                                                                  sessionTab.getRunContentDescriptor());
     }
     if (myActiveSession.compareAndSet(session, null)) {
@@ -290,8 +313,7 @@ public class XDebuggerManagerImpl extends XDebuggerManager implements Persistent
   }
 
   @Override
-  @NotNull
-  public XDebugSession[] getDebugSessions() {
+  public XDebugSession @NotNull [] getDebugSessions() {
     // ConcurrentHashMap.values().toArray(new T[0]) guaranteed to return array with no nulls
     return mySessions.values().toArray(new XDebugSessionImpl[0]);
   }
@@ -365,6 +387,11 @@ public class XDebuggerManagerImpl extends XDebuggerManager implements Persistent
     myPinToTopManager.loadState(state.getPinToTopManagerState());
   }
 
+  @Override
+  public void noStateLoaded() {
+    myBreakpointManager.noStateLoaded();
+  }
+
   public void showExecutionPosition() {
     myExecutionPointHighlighter.navigateTo();
   }
@@ -399,11 +426,10 @@ public class XDebuggerManagerImpl extends XDebuggerManager implements Persistent
         return;
       }
 
-      TextAttributes attributes = EditorColorsManager.getInstance().getGlobalScheme().getAttributes(DebuggerColors.NOT_TOP_FRAME_ATTRIBUTES);
       Editor editor = e.getEditor();
-      myCurrentHighlighter = editor.getMarkupModel().addLineHighlighter(lineNumber,
-                                                                        DebuggerColors.EXECUTION_LINE_HIGHLIGHTERLAYER,
-                                                                        attributes);
+      myCurrentHighlighter = editor.getMarkupModel().addLineHighlighter(DebuggerColors.NOT_TOP_FRAME_ATTRIBUTES,
+                                                                        lineNumber,
+                                                                        DebuggerColors.EXECUTION_LINE_HIGHLIGHTERLAYER);
 
       HintHint hint = new HintHint(e.getMouseEvent()).setAwtTooltip(true).setPreferredPosition(Balloon.Position.above);
       String text = UIUtil.removeMnemonic(ActionsBundle.actionText(XDebuggerActions.RUN_TO_CURSOR));
@@ -430,12 +456,10 @@ public class XDebuggerManagerImpl extends XDebuggerManager implements Persistent
 
     private int getLineNumber(EditorMouseEvent event) {
       Editor editor = event.getEditor();
-      int line = editor.yToVisualLine(event.getMouseEvent().getY());
-      if (line >= ((EditorImpl)editor).getVisibleLineCount()) {
+      if (event.getVisualPosition().line >= ((EditorImpl)editor).getVisibleLineCount()) {
         return -1;
       }
-      int offset = ((EditorImpl)editor).visualLineStartOffset(line);
-      int lineStartOffset = EditorUtil.getNotFoldedLineStartOffset(editor, offset);
+      int lineStartOffset = EditorUtil.getNotFoldedLineStartOffset(editor, event.getOffset());
       return editor.getDocument().getLineNumber(lineStartOffset);
     }
 
@@ -445,8 +469,14 @@ public class XDebuggerManagerImpl extends XDebuggerManager implements Persistent
         int lineNumber = getLineNumber(e);
         XDebugSessionImpl session = getCurrentSession();
         if (session != null && lineNumber >= 0) {
-          session.runToPosition(XSourcePositionImpl.create(((EditorEx)e.getEditor()).getVirtualFile(), lineNumber), false);
-          e.consume();
+          XSourcePositionImpl position = XSourcePositionImpl.create(((EditorEx)e.getEditor()).getVirtualFile(), lineNumber);
+          if (position != null) {
+            ActionManagerEx am = ActionManagerEx.getInstanceEx();
+            am.fireBeforeActionPerformed(IdeActions.ACTION_RUN_TO_CURSOR, e.getMouseEvent(), ActionPlaces.EDITOR_GUTTER);
+            session.runToPosition(position, false);
+            am.fireAfterActionPerformed(IdeActions.ACTION_RUN_TO_CURSOR, e.getMouseEvent(), ActionPlaces.EDITOR_GUTTER);
+            e.consume();
+          }
         }
       }
     }

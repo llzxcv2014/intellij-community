@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.idea;
 
 import com.intellij.openapi.diagnostic.Logger;
@@ -25,21 +11,21 @@ import org.jetbrains.annotations.Nullable;
 import java.util.LinkedList;
 import java.util.List;
 
-public class RareLogger extends Logger {
+public final class RareLogger extends Logger {
   // key to last log time for key
   private final SLRUMap<Object, Long> myCache;
-  private final List<LogFilter> myConvertors;
+  private final List<LogFilter> myConverters = new LinkedList<>();
   private final LogFilter myProxy;
   private final Logger myLogger;
 
-  private RareLogger(final Logger logger, final boolean fairSynch) {
+  private RareLogger(final Logger logger, final boolean fairSync) {
     myLogger = logger;
 
     final Object lock = new Object();
     myCache = new SLRUMap<Object, Long>(64, 32) {
       @Override
       public Long get(Object key) {
-        if (fairSynch) {
+        if (fairSync) {
           synchronized (lock) {
             return super.get(key);
           }
@@ -49,7 +35,7 @@ public class RareLogger extends Logger {
 
       @Override
       public void put(Object key, @NotNull Long value) {
-        if (fairSynch) {
+        if (fairSync) {
           synchronized (lock) {
             super.put(key, value);
             return;
@@ -60,7 +46,7 @@ public class RareLogger extends Logger {
 
       @Override
       public boolean remove(Object key) {
-        if (fairSynch) {
+        if (fairSync) {
           synchronized (lock) {
             return super.remove(key);
           }
@@ -68,7 +54,6 @@ public class RareLogger extends Logger {
         return super.remove(key);
       }
     };
-    myConvertors = new LinkedList<>();
 
     // just passes to parent logger
     myProxy = new LogFilter() {
@@ -97,15 +82,15 @@ public class RareLogger extends Logger {
   }
 
   public void addFilter(final LogFilter logFilter) {
-    myConvertors.add(logFilter);
+    myConverters.add(logFilter);
   }
 
-  public static Logger wrap(final Logger logger, final boolean fairSynch) {
-    return new RareLogger(logger, fairSynch);
+  public static Logger wrap(final Logger logger, final boolean fairSync) {
+    return new RareLogger(logger, fairSync);
   }
 
-  public static Logger wrap(final Logger logger, final boolean fairSynch, final LogFilter... filters) {
-    final RareLogger rareLogger = new RareLogger(logger, fairSynch);
+  public static Logger wrap(final Logger logger, final boolean fairSync, final LogFilter... filters) {
+    final RareLogger rareLogger = new RareLogger(logger, fairSync);
     for (LogFilter filter : filters) {
       rareLogger.addFilter(filter);
     }
@@ -148,7 +133,7 @@ public class RareLogger extends Logger {
   }
 
   @Override
-  public void error(@NonNls String message, @Nullable Throwable t, @NotNull @NonNls String... details) {
+  public void error(@NonNls String message, @Nullable Throwable t, @NonNls String @NotNull ... details) {
     process(Level.ERROR, message, t, details);
   }
 
@@ -174,7 +159,7 @@ public class RareLogger extends Logger {
 
   private void process(@NotNull final Level level, @NonNls @Nullable final String message, @Nullable final Throwable t, @NonNls final String... details) {
     if (! Level.ERROR.equals(level)) {
-      for (LogFilter convertor : myConvertors) {
+      for (LogFilter convertor : myConverters) {
         final Object key = convertor.getKey(level, message, t, details);
         if (key != null) {
           final Long latestMoment = myCache.get(key);

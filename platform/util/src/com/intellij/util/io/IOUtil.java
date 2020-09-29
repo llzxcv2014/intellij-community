@@ -1,24 +1,30 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.io;
 
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.ThreadLocalCachedValue;
 import com.intellij.openapi.util.ThrowableComputable;
-import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.openapi.vfs.CharsetToolkit;
-import com.intellij.util.SystemProperties;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.*;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.IntFunction;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class IOUtil {
+public final class IOUtil {
   @SuppressWarnings("SpellCheckingInspection") public static final boolean BYTE_BUFFERS_USE_NATIVE_BYTE_ORDER =
-    SystemProperties.getBooleanProperty("idea.bytebuffers.use.native.byte.order", true);
+    Boolean.parseBoolean(System.getProperty("idea.bytebuffers.use.native.byte.order", "true"));
 
   private static final int STRING_HEADER_SIZE = 1;
   private static final int STRING_LENGTH_THRESHOLD = 255;
@@ -79,9 +85,8 @@ public class IOUtil {
   }
 
   private static final ThreadLocalCachedValue<byte[]> ourReadWriteBuffersCache = new ThreadLocalCachedValue<byte[]>() {
-    @NotNull
     @Override
-    protected byte[] create() {
+    protected byte @NotNull [] create() {
       return allocReadWriteUTFBuffer();
     }
   };
@@ -94,12 +99,11 @@ public class IOUtil {
     return readUTFFast(ourReadWriteBuffersCache.getValue(), storage);
   }
 
-  @NotNull
-  public static byte[] allocReadWriteUTFBuffer() {
+  public static byte @NotNull [] allocReadWriteUTFBuffer() {
     return new byte[STRING_LENGTH_THRESHOLD + STRING_HEADER_SIZE];
   }
 
-  public static void writeUTFFast(@NotNull byte[] buffer, @NotNull DataOutput storage, @NotNull String value) throws IOException {
+  public static void writeUTFFast(byte @NotNull [] buffer, @NotNull DataOutput storage, @NotNull String value) throws IOException {
     int len = value.length();
     if (len < STRING_LENGTH_THRESHOLD) {
       buffer[0] = (byte)len;
@@ -128,7 +132,7 @@ public class IOUtil {
     }
   }
 
-  public static String readUTFFast(@NotNull byte[] buffer, @NotNull DataInput storage) throws IOException {
+  public static String readUTFFast(byte @NotNull [] buffer, @NotNull DataInput storage) throws IOException {
     int len = 0xFF & (int)storage.readByte();
     if (len == 0xFF) {
       String result = storage.readUTF();
@@ -160,6 +164,36 @@ public class IOUtil {
     return c < 128;
   }
 
+  public static boolean deleteAllFilesStartingWith(@NotNull Path file) {
+    String baseName = file.getFileName().toString();
+    Path parentFile = file.getParent();
+    if (parentFile == null) {
+      return true;
+    }
+
+    List<Path> files;
+    try (Stream<Path> stream = Files.list(parentFile)) {
+      files = stream.filter(it -> it.getFileName().toString().startsWith(baseName)).collect(Collectors.toList());
+    }
+    catch (NoSuchFileException ignore) {
+      return true;
+    }
+    catch (IOException ignore) {
+      return false;
+    }
+
+    boolean ok = true;
+    for (Path f : files) {
+      try {
+        Files.deleteIfExists(f);
+      }
+      catch (IOException ignore) {
+        ok = false;
+      }
+    }
+    return ok;
+  }
+
   public static boolean deleteAllFilesStartingWith(@NotNull File file) {
     final String baseName = file.getName();
     File parentFile = file.getParentFile();
@@ -168,7 +202,7 @@ public class IOUtil {
     boolean ok = true;
     if (files != null) {
       for (File f : files) {
-        ok &= FileUtil.delete(f);
+        ok &= FileUtilRt.delete(f);
       }
     }
 
@@ -200,7 +234,12 @@ public class IOUtil {
   }
 
   public static <T> T openCleanOrResetBroken(@NotNull ThrowableComputable<T, ? extends IOException> factoryComputable,
-                                             @NotNull final File file) throws IOException {
+                                             @NotNull Path file) throws IOException {
+    return openCleanOrResetBroken(factoryComputable, file.toFile());
+  }
+
+  public static <T> T openCleanOrResetBroken(@NotNull ThrowableComputable<T, ? extends IOException> factoryComputable,
+                                             @NotNull File file) throws IOException {
     return openCleanOrResetBroken(factoryComputable, () -> deleteAllFilesStartingWith(file));
   }
 
@@ -216,6 +255,9 @@ public class IOUtil {
     return factoryComputable.compute();
   }
 
+  /**
+   * Consider to use {@link com.intellij.util.io.externalizer.StringCollectionExternalizer}.
+   */
   public static void writeStringList(@NotNull DataOutput out, @NotNull Collection<String> list) throws IOException {
     DataInputOutputUtil.writeINT(out, list.size());
     for (String s : list) {
@@ -223,13 +265,37 @@ public class IOUtil {
     }
   }
 
+  /**
+   * Consider to use {@link com.intellij.util.io.externalizer.StringCollectionExternalizer}.
+   */
   @NotNull
-  public static List<String> readStringList(@NotNull DataInput in) throws IOException {
+  public static <C extends Collection<String>> C readStringCollection(@NotNull DataInput in, @NotNull IntFunction<C> generator) throws IOException {
     int size = DataInputOutputUtil.readINT(in);
-    List<String> strings = new ArrayList<>(size);
+    C strings = generator.apply(size);
     for (int i = 0; i < size; i++) {
       strings.add(readUTF(in));
     }
     return strings;
+  }
+
+  /**
+   * Consider to use {@link com.intellij.util.io.externalizer.StringCollectionExternalizer}.
+   */
+  @NotNull
+  public static List<String> readStringList(@NotNull DataInput in) throws IOException {
+    return readStringCollection(in, ArrayList::new);
+  }
+
+  public static void closeSafe(@NotNull Logger log, Closeable... closeables) {
+    for (Closeable closeable : closeables) {
+      if (closeable != null) {
+        try {
+          closeable.close();
+        }
+        catch (IOException e) {
+          log.error(e);
+        }
+      }
+    }
   }
 }

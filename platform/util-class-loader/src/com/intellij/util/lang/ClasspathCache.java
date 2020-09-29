@@ -1,13 +1,12 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.lang;
 
 import com.intellij.openapi.util.io.DataInputOutputUtilRt;
 import com.intellij.openapi.util.text.StringHash;
 import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.BloomFilterBase;
-import gnu.trove.TIntHashSet;
-import gnu.trove.TLongHashSet;
-import gnu.trove.TLongProcedure;
+import com.intellij.util.lang.fastutil.StrippedIntOpenHashSet;
+import com.intellij.util.lang.fastutil.StrippedLongOpenHashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,9 +16,6 @@ import java.io.IOException;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-/**
- * @author max
- */
 public final class ClasspathCache {
   static final int NUMBER_OF_ACCESSES_FOR_LAZY_CACHING = 1000;
   private final IntObjectHashMap myResourcePackagesCache = new IntObjectHashMap();
@@ -27,7 +23,7 @@ public final class ClasspathCache {
 
   private static final double PROBABILITY = 0.005d;
 
-  static class LoaderData {
+  static final class LoaderData {
     private final int[] myResourcePackageHashes;
     private final int[] myClassPackageHashes;
     private final NameFilter myNameFilter;
@@ -74,12 +70,10 @@ public final class ClasspathCache {
     }
   }
 
-  static class LoaderDataBuilder {
-    private final TLongHashSet myUsedNameFingerprints = new TLongHashSet();
-    private final TIntHashSet myResourcePackageHashes = new TIntHashSet();
-    private final TIntHashSet myClassPackageHashes = new TIntHashSet();
-
-    LoaderDataBuilder() {}
+  static final class LoaderDataBuilder {
+    private final StrippedLongOpenHashSet myUsedNameFingerprints = new StrippedLongOpenHashSet();
+    private final StrippedIntOpenHashSet myResourcePackageHashes = new StrippedIntOpenHashSet();
+    private final StrippedIntOpenHashSet myClassPackageHashes = new StrippedIntOpenHashSet();
 
     void addPossiblyDuplicateNameEntry(@NotNull String name) {
       name = transformName(name);
@@ -94,21 +88,17 @@ public final class ClasspathCache {
       myClassPackageHashes.add(getPackageNameHash(path));
     }
 
-    @NotNull
-    LoaderData build() {
+    @NotNull LoaderData build() {
       int uniques = myUsedNameFingerprints.size();
       if (uniques > 20000) {
-        uniques += (int)(uniques * 0.03d); // allow some growth for Idea main loader
+        // allow some growth for Idea main loader
+        uniques += (int)(uniques * 0.03d);
       }
-      final NameFilter nameFilter = new NameFilter(uniques, PROBABILITY);
-      myUsedNameFingerprints.forEach(new TLongProcedure() {
-        @Override
-        public boolean execute(long value) {
-          nameFilter.addNameFingerprint(value);
-          return true;
-        }
-      });
-
+      NameFilter nameFilter = new NameFilter(uniques, PROBABILITY);
+      StrippedLongOpenHashSet.SetIterator iterator = myUsedNameFingerprints.iterator();
+      while (iterator.hasNext()) {
+        nameFilter.addNameFingerprint(iterator.nextLong());
+      }
       return new ClasspathCache.LoaderData(myResourcePackageHashes.toArray(), myClassPackageHashes.toArray(), nameFilter);
     }
   }
@@ -127,7 +117,8 @@ public final class ClasspathCache {
       }
 
       loader.applyData(loaderData);
-    } finally {
+    }
+    finally {
       myLock.writeLock().unlock();
     }
   }
@@ -213,7 +204,7 @@ public final class ClasspathCache {
     return name;
   }
 
-  static class NameFilter extends BloomFilterBase {
+  final static class NameFilter extends BloomFilterBase {
     private static final int SEED = 31;
 
     NameFilter(int _maxElementCount, double probability) {

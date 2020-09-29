@@ -15,6 +15,7 @@ package com.intellij.openapi.roots.libraries.ui;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.ui.configuration.libraryEditor.LibraryEditor;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,18 +26,17 @@ import javax.swing.*;
  * Describes an 'attach' button in the library roots component.
  *
  * @see ChooserBasedAttachRootButtonDescriptor
- * @author nik
  */
 public abstract class AttachRootButtonDescriptor {
   private final OrderRootType myOrderRootType;
-  protected final String myButtonText;
+  protected final @NlsContexts.Button String myButtonText;
   private final Icon myToolbarIcon;
 
   /**
    * Creates a descriptor for 'attach' button shown in popup when user click on '+' button.
-   * Consider using {@link #AttachRootButtonDescriptor(com.intellij.openapi.roots.OrderRootType, javax.swing.Icon, String)} instead.
+   * Consider using {@link #AttachRootButtonDescriptor(OrderRootType, Icon, String)} instead.
    */
-  protected AttachRootButtonDescriptor(@NotNull OrderRootType orderRootType, @NotNull String buttonText) {
+  protected AttachRootButtonDescriptor(@NotNull OrderRootType orderRootType, @NotNull @NlsContexts.Button String buttonText) {
     myOrderRootType = orderRootType;
     myButtonText = buttonText;
     myToolbarIcon = null;
@@ -45,16 +45,18 @@ public abstract class AttachRootButtonDescriptor {
   /**
    * Creates a descriptor for 'attach' button shown in toolbar of a library editor
    */
-  protected AttachRootButtonDescriptor(@NotNull OrderRootType orderRootType, @NotNull Icon toolbarIcon, @NotNull String description) {
+  protected AttachRootButtonDescriptor(@NotNull OrderRootType orderRootType,
+                                       @NotNull Icon toolbarIcon,
+                                       @NotNull @NlsContexts.Button String buttonText) {
     myOrderRootType = orderRootType;
-    myButtonText = description;
+    myButtonText = buttonText;
     myToolbarIcon = toolbarIcon;
   }
 
   public abstract VirtualFile[] selectFiles(@NotNull JComponent parent, @Nullable VirtualFile initialSelection,
                                             @Nullable Module contextModule, @NotNull LibraryEditor libraryEditor);
 
-  public String getButtonText() {
+  public @NlsContexts.Button String getButtonText() {
     return myButtonText;
   }
 
@@ -66,8 +68,7 @@ public abstract class AttachRootButtonDescriptor {
     return false;
   }
 
-  @NotNull
-  public VirtualFile[] scanForActualRoots(@NotNull VirtualFile[] rootCandidates, JComponent parent) {
+  public VirtualFile @NotNull [] scanForActualRoots(VirtualFile @NotNull [] rootCandidates, JComponent parent) {
     return rootCandidates;
   }
 

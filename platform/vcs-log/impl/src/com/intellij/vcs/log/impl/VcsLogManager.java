@@ -1,6 +1,8 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.vcs.log.impl;
 
+import static com.intellij.vcs.log.impl.CustomVcsLogUiFactoryProvider.LOG_CUSTOM_UI_FACTORY_PROVIDER_EP;
+
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -14,6 +16,7 @@ import com.intellij.openapi.vcs.VcsRoot;
 import com.intellij.openapi.vcs.ui.VcsBalloonProblemNotifier;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.Consumer;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.vcs.log.VcsLogFilterCollection;
 import com.intellij.vcs.log.VcsLogProvider;
@@ -24,6 +27,7 @@ import com.intellij.vcs.log.data.VcsLogStorage;
 import com.intellij.vcs.log.data.index.VcsLogModifiableIndex;
 import com.intellij.vcs.log.graph.PermanentGraph;
 import com.intellij.vcs.log.ui.MainVcsLogUi;
+import com.intellij.vcs.log.ui.VcsLogColorManager;
 import com.intellij.vcs.log.ui.VcsLogColorManagerImpl;
 import com.intellij.vcs.log.ui.VcsLogUiEx;
 import com.intellij.vcs.log.ui.VcsLogUiImpl;
@@ -31,13 +35,17 @@ import com.intellij.vcs.log.util.VcsLogUtil;
 import com.intellij.vcs.log.visible.VcsLogFiltererImpl;
 import com.intellij.vcs.log.visible.VisiblePackRefresherImpl;
 import com.intellij.vcs.log.visible.filters.VcsLogFilterObject;
-import org.jetbrains.annotations.*;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.CalledInAny;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class VcsLogManager implements Disposable {
   private static final Logger LOG = Logger.getInstance(VcsLogManager.class);
@@ -85,7 +93,7 @@ public class VcsLogManager implements Disposable {
     myLogData.initialize();
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public boolean isLogVisible() {
     return myPostponableRefresher.isLogVisible();
   }
@@ -106,38 +114,49 @@ public class VcsLogManager implements Disposable {
   }
 
   @NotNull
-  public MainVcsLogUi createLogUi(@NotNull String logId, boolean isToolWindowTab, boolean isClosedOnDispose) {
-    return createLogUi(getMainLogUiFactory(logId, null), isToolWindowTab, isClosedOnDispose);
+  public MainVcsLogUi createLogUi(@NotNull String logId, @NotNull LogWindowKind kind) {
+    return createLogUi(getMainLogUiFactory(logId, null), kind, true);
+  }
+
+  @NotNull
+  MainVcsLogUi createLogUi(@NotNull String logId, @NotNull LogWindowKind kind, boolean isClosedOnDispose) {
+    return createLogUi(getMainLogUiFactory(logId, null), kind, isClosedOnDispose);
   }
 
   @NotNull
   public VcsLogUiFactory<? extends MainVcsLogUi> getMainLogUiFactory(@NotNull String logId, @Nullable VcsLogFilterCollection filters) {
-    return new MainVcsLogUiFactory(logId, filters);
+    CustomVcsLogUiFactoryProvider factoryProvider = LOG_CUSTOM_UI_FACTORY_PROVIDER_EP.findFirstSafe(myProject, p -> p.isActive(this));
+    if (factoryProvider == null) {
+      return new MainVcsLogUiFactory(logId, filters, myUiProperties, myColorManager);
+    }
+    return factoryProvider.createLogUiFactory(logId, this, filters);
   }
 
   @NotNull
-  public <U extends VcsLogUiEx> U createLogUi(@NotNull VcsLogUiFactory<U> factory, boolean isToolWindowTab) {
-    return createLogUi(factory, isToolWindowTab, true);
+  private VcsLogTabsWatcher getTabsWatcher() {
+    LOG.assertTrue(!myDisposed);
+    if (myTabsLogRefresher == null) myTabsLogRefresher = new VcsLogTabsWatcher(myProject, myPostponableRefresher);
+    return myTabsLogRefresher;
   }
 
   @NotNull
-  public <U extends VcsLogUiEx> U createLogUi(@NotNull VcsLogUiFactory<U> factory,
-                                              boolean isToolWindowTab,
-                                              boolean isClosedOnDispose) {
+  public <U extends VcsLogUiEx> U createLogUi(@NotNull VcsLogUiFactory<U> factory, @NotNull LogWindowKind kind) {
+    return createLogUi(factory, kind, true);
+  }
+
+  @NotNull
+  private <U extends VcsLogUiEx> U createLogUi(@NotNull VcsLogUiFactory<U> factory,
+                                               @NotNull LogWindowKind kind,
+                                               boolean isClosedOnDispose) {
     ApplicationManager.getApplication().assertIsDispatchThread();
-    if (isDisposed()) throw new ProcessCanceledException();
+    if (isDisposed()) {
+      LOG.error("Trying to create new VcsLogUi on a disposed VcsLogManager instance");
+      throw new ProcessCanceledException();
+    }
 
     U ui = factory.createLogUi(myProject, myLogData);
+    Disposer.register(ui, getTabsWatcher().addTabToWatch(ui.getId(), ui.getRefresher(), kind, isClosedOnDispose));
 
-    Disposable disposable;
-    if (isToolWindowTab) {
-      if (myTabsLogRefresher == null) myTabsLogRefresher = new VcsLogTabsWatcher(myProject, myPostponableRefresher);
-      disposable = myTabsLogRefresher.addTabToWatch(ui.getId(), ui.getRefresher(), isClosedOnDispose);
-    }
-    else {
-      disposable = myPostponableRefresher.addLogWindow(ui.getId(), ui.getRefresher());
-    }
-    Disposer.register(ui, disposable);
     return ui;
   }
 
@@ -145,6 +164,7 @@ public class VcsLogManager implements Disposable {
    * For diagnostic purposes only
    */
   @ApiStatus.Internal
+  @NonNls
   public String getLogWindowsInformation() {
     return StringUtil.join(myPostponableRefresher.getLogWindows(),
                            window -> window.toString() + (window.isVisible() ? " (visible)" : ""), "\n");
@@ -186,7 +206,7 @@ public class VcsLogManager implements Disposable {
     return logProviders;
   }
 
-  @CalledInAwt
+  @RequiresEdt
   void disposeUi() {
     myDisposed = true;
     LOG.assertTrue(ApplicationManager.getApplication().isDispatchThread());
@@ -199,7 +219,7 @@ public class VcsLogManager implements Disposable {
    *
    * @param callback activity to run after log is disposed. Is executed in background thread. null means execution of additional activity after dispose is not required.
    */
-  @CalledInAwt
+  @RequiresEdt
   public void dispose(@Nullable Runnable callback) {
     disposeUi();
     ApplicationManager.getApplication().executeOnPooledThread(() -> {
@@ -219,7 +239,7 @@ public class VcsLogManager implements Disposable {
     LOG.debug("Disposed Vcs Log for " + VcsLogUtil.getProvidersMapText(myLogData.getLogProviders()));
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public boolean isDisposed() {
     return myDisposed;
   }
@@ -251,28 +271,33 @@ public class VcsLogManager implements Disposable {
     }
 
     @Override
-    public void displayFatalErrorMessage(@NotNull String message) {
+    public void displayFatalErrorMessage(@Nls @NotNull String message) {
       VcsBalloonProblemNotifier.showOverChangesView(myProject, message, MessageType.ERROR);
     }
   }
 
   @FunctionalInterface
   public interface VcsLogUiFactory<T extends VcsLogUiEx> {
+    @ApiStatus.OverrideOnly
     T createLogUi(@NotNull Project project, @NotNull VcsLogData logData);
   }
 
-  private class MainVcsLogUiFactory implements VcsLogUiFactory<MainVcsLogUi> {
+  public abstract static class BaseVcsLogUiFactory<T extends VcsLogUiImpl> implements VcsLogUiFactory<T> {
     @NotNull private final String myLogId;
     @Nullable private final VcsLogFilterCollection myFilters;
+    @NotNull private final VcsLogTabsProperties myUiProperties;
+    @NotNull private final VcsLogColorManager myColorManager;
 
-    MainVcsLogUiFactory(@NotNull String logId, @Nullable VcsLogFilterCollection filters) {
+    public BaseVcsLogUiFactory(@NotNull String logId, @Nullable VcsLogFilterCollection filters, @NotNull VcsLogTabsProperties uiProperties,
+                               @NotNull VcsLogColorManager colorManager) {
       myLogId = logId;
       myFilters = filters;
+      myUiProperties = uiProperties;
+      myColorManager = colorManager;
     }
 
     @Override
-    public MainVcsLogUi createLogUi(@NotNull Project project,
-                                    @NotNull VcsLogData logData) {
+    public T createLogUi(@NotNull Project project, @NotNull VcsLogData logData) {
       MainVcsLogUiProperties properties = myUiProperties.createProperties(myLogId);
       VcsLogFiltererImpl vcsLogFilterer = new VcsLogFiltererImpl(logData.getLogProviders(), logData.getStorage(),
                                                                  logData.getTopCommitsCache(),
@@ -281,7 +306,39 @@ public class VcsLogManager implements Disposable {
       VcsLogFilterCollection initialFilters = myFilters == null ? VcsLogFilterObject.collection() : myFilters;
       VisiblePackRefresherImpl refresher = new VisiblePackRefresherImpl(project, logData, initialFilters, initialSortType,
                                                                         vcsLogFilterer, myLogId);
-      return new VcsLogUiImpl(myLogId, logData, myColorManager, properties, refresher, myFilters);
+      return createVcsLogUiImpl(myLogId, logData, properties, myColorManager, refresher, myFilters);
     }
+
+    @NotNull
+    protected abstract T createVcsLogUiImpl(@NotNull String logId,
+                                            @NotNull VcsLogData logData,
+                                            @NotNull MainVcsLogUiProperties properties,
+                                            @NotNull VcsLogColorManager colorManager,
+                                            @NotNull VisiblePackRefresherImpl refresher,
+                                            @Nullable VcsLogFilterCollection filters);
+  }
+
+  private static class MainVcsLogUiFactory extends BaseVcsLogUiFactory<VcsLogUiImpl> {
+    MainVcsLogUiFactory(@NotNull String logId, @Nullable VcsLogFilterCollection filters, @NotNull VcsLogTabsProperties properties,
+                        @NotNull VcsLogColorManager colorManager) {
+      super(logId, filters, properties, colorManager);
+    }
+
+    @Override
+    @NotNull
+    protected VcsLogUiImpl createVcsLogUiImpl(@NotNull String logId,
+                                              @NotNull VcsLogData logData,
+                                              @NotNull MainVcsLogUiProperties properties,
+                                              @NotNull VcsLogColorManager colorManager,
+                                              @NotNull VisiblePackRefresherImpl refresher,
+                                              @Nullable VcsLogFilterCollection filters) {
+      return new VcsLogUiImpl(logId, logData, colorManager, properties, refresher, filters);
+    }
+  }
+
+  public enum LogWindowKind {
+    TOOL_WINDOW,
+    EDITOR,
+    STANDALONE
   }
 }

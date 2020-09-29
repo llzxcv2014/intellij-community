@@ -1,8 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.projectView.impl.nodes;
 
 import com.intellij.ide.projectView.PresentationData;
-import com.intellij.ide.projectView.PsiClassChildrenSource;
 import com.intellij.ide.projectView.ViewSettings;
 import com.intellij.ide.util.treeView.AbstractTreeNode;
 import com.intellij.openapi.project.IndexNotReadyException;
@@ -16,10 +15,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 public class ClassTreeNode extends BasePsiMemberNode<PsiClass> {
-
-  private final Collection<? extends AbstractTreeNode> myMandatoryChildren;
+  private final Collection<? extends AbstractTreeNode<?>> myMandatoryChildren;
 
   public ClassTreeNode(Project project, @NotNull PsiClass value, ViewSettings viewSettings) {
     this(project, value, viewSettings, ContainerUtil.emptyList());
@@ -28,45 +27,39 @@ public class ClassTreeNode extends BasePsiMemberNode<PsiClass> {
   public ClassTreeNode(Project project,
                        @NotNull PsiClass value,
                        ViewSettings viewSettings,
-                       @NotNull Collection<? extends AbstractTreeNode> mandatoryChildren) {
+                       @NotNull Collection<? extends AbstractTreeNode<?>> mandatoryChildren) {
     super(project, value, viewSettings);
     myMandatoryChildren = mandatoryChildren;
   }
 
   @Override
-  public Collection<AbstractTreeNode> getChildrenImpl() {
+  public Collection<AbstractTreeNode<?>> getChildrenImpl() {
     PsiClass parent = getValue();
-    final ArrayList<AbstractTreeNode> treeNodes = new ArrayList<>(myMandatoryChildren);
-
-    if (getSettings().isShowMembers()) {
-      ArrayList<PsiElement> result = new ArrayList<>();
+    List<AbstractTreeNode<?>> treeNodes = new ArrayList<>(myMandatoryChildren);
+    if (parent != null) {
       try {
-        PsiClassChildrenSource.DEFAULT_CHILDREN.addChildren(parent, result);
+        for (PsiClass psi : parent.getInnerClasses()) {
+          if (psi.isPhysical()) {
+            treeNodes.add(new ClassTreeNode(getProject(), psi, getSettings()));
+          }
+        }
+        if (getSettings().isShowMembers()) {
+          for (PsiMethod psi : parent.getMethods()) {
+            if (psi.isPhysical()) {
+              treeNodes.add(new PsiMethodNode(getProject(), psi, getSettings()));
+            }
+          }
+          for (PsiField psi : parent.getFields()) {
+            if (psi.isPhysical()) {
+              treeNodes.add(new PsiFieldNode(getProject(), psi, getSettings()));
+            }
+          }
+        }
       }
       catch (IndexNotReadyException ignore) {
       }
-      for (PsiElement psiElement : result) {
-        if (!psiElement.isPhysical()) {
-          continue;
-        }
-
-        if (psiElement instanceof PsiClass) {
-          treeNodes.add(new ClassTreeNode(getProject(), (PsiClass)psiElement, getSettings()));
-        }
-        else if (psiElement instanceof PsiMethod) {
-          treeNodes.add(new PsiMethodNode(getProject(), (PsiMethod)psiElement, getSettings()));
-        }
-        else if (psiElement instanceof PsiField) {
-          treeNodes.add(new PsiFieldNode(getProject(), (PsiField)psiElement, getSettings()));
-        }
-      }
     }
     return treeNodes;
-  }
-
-  @Override
-  public boolean isAlwaysLeaf() {
-    return !getSettings().isShowMembers() && myMandatoryChildren.isEmpty();
   }
 
   @Override

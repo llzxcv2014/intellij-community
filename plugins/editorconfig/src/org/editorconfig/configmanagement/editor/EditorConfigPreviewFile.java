@@ -3,7 +3,6 @@ package org.editorconfig.configmanagement.editor;
 
 import com.intellij.application.options.CodeStyle;
 import com.intellij.lang.Language;
-import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.editor.Document;
@@ -18,12 +17,13 @@ import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.codeStyle.*;
 import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.util.LocalTimeCounter;
+import org.editorconfig.language.messages.EditorConfigBundle;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Paths;
 
-public class EditorConfigPreviewFile extends LightVirtualFile implements CodeStyleSettingsListener, Disposable {
+public class EditorConfigPreviewFile extends LightVirtualFile implements CodeStyleSettingsListener {
   private final Project  myProject;
   private final String   myOriginalPath;
   private final Document myDocument;
@@ -55,6 +55,7 @@ public class EditorConfigPreviewFile extends LightVirtualFile implements CodeSty
   }
 
   private void reformat() {
+    if (!myProject.isInitialized()) return;
     CommandProcessor.getInstance().executeCommand(
       myProject,
       () -> ApplicationManager.getApplication().runWriteAction(
@@ -68,7 +69,7 @@ public class EditorConfigPreviewFile extends LightVirtualFile implements CodeSty
             myDocument.replaceString(0, myDocument.getTextLength(), psiFile.getText());
           }
         }),
-      "reformat", null);
+      EditorConfigBundle.message("command.name.reformat"), null);
   }
 
   @Nullable
@@ -83,8 +84,7 @@ public class EditorConfigPreviewFile extends LightVirtualFile implements CodeSty
     return null;
   }
 
-  @Override
-  public void dispose() {
+  public void unregisterListener() {
     CodeStyleSettingsManager.removeListener(myProject, this);
   }
 }

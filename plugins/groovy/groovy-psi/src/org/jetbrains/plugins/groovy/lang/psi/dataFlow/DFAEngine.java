@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.psi.dataFlow;
 
 import com.intellij.openapi.progress.ProgressManager;
@@ -24,13 +24,13 @@ public class DFAEngine<E> {
 
   private WorkCounter myCounter = null;
 
-  public DFAEngine(@NotNull Instruction[] flow, @NotNull DfaInstance<? super E> dfa, @NotNull Semilattice<E> semilattice) {
+  public DFAEngine(Instruction @NotNull [] flow, @NotNull DfaInstance<? super E> dfa, @NotNull Semilattice<E> semilattice) {
     myFlow = flow;
     myDfa = dfa;
     mySemilattice = semilattice;
   }
 
-  private static class MyCallEnvironment implements CallEnvironment {
+  private static final class MyCallEnvironment implements CallEnvironment {
     ArrayList<Deque<CallInstruction>> myEnv;
 
     private MyCallEnvironment(int instructionNum) {
@@ -92,8 +92,7 @@ public class DFAEngine<E> {
     return info;
   }
 
-  @NotNull
-  private int[] getFlowOrder() {
+  private int @NotNull [] getFlowOrder() {
     if (myDfa.isForward()) {
       return reversedPostOrder(myFlow, myDfa.isReachable());
     }

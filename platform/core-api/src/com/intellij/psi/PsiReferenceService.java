@@ -17,26 +17,30 @@ public abstract class PsiReferenceService {
   }
 
   /**
-   * By default, return the same as {@link com.intellij.psi.PsiElement#getReferences()}.
-   * For elements implementing {@link com.intellij.psi.ContributedReferenceHost} also run
-   * the reference providers registered in {@link com.intellij.psi.PsiReferenceContributor}
+   * By default, return the same as {@link PsiElement#getReferences()}.
+   * For elements implementing {@link ContributedReferenceHost} also run
+   * the reference providers registered in {@link PsiReferenceContributor}
    * extensions.
    * @param element PSI element to which the references will be bound
-   * @param hints optional hints which are passed to {@link com.intellij.psi.PsiReferenceProvider#acceptsHints(PsiElement, com.intellij.psi.PsiReferenceService.Hints)} and
-   * {@link com.intellij.psi.PsiReferenceProvider#acceptsTarget(PsiElement)} before the {@link com.intellij.patterns.ElementPattern} is matched, for performing
+   * @param hints optional hints which are passed to {@link PsiReferenceProvider#acceptsHints(PsiElement, PsiReferenceService.Hints)} and
+   * {@link PsiReferenceProvider#acceptsTarget(PsiElement)} before the {@link com.intellij.patterns.ElementPattern} is matched, for performing
    * fail-fast checks in case the pattern takes long to match.
    * @return the references
    */
   @NotNull
   public abstract List<PsiReference> getReferences(@NotNull final PsiElement element, @NotNull final Hints hints);
 
-  @NotNull
-  public PsiReference[] getContributedReferences(@NotNull final PsiElement element) {
+  public PsiReference @NotNull [] getContributedReferences(@NotNull final PsiElement element) {
     final List<PsiReference> list = getReferences(element, Hints.NO_HINTS);
     return list.toArray(PsiReference.EMPTY_ARRAY);
   }
 
-
+  /**
+   * Hints to be passed to PSI when searching for usages, allowing to avoid creating all references when none of them would be suitable.
+   * @see PsiReferenceProvider#acceptsHints
+   * @see ContributedReferenceHost
+   * @see HintedReferenceHost
+   */
   public static class Hints {
     public static final Hints NO_HINTS = new Hints();
 

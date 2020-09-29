@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.projectWizard;
 
 import com.intellij.framework.addSupport.FrameworkSupportInModuleProvider;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.ide.util.frameworkSupport.FrameworkRole;
 import com.intellij.ide.util.frameworkSupport.FrameworkSupportUtil;
@@ -28,8 +29,8 @@ import com.intellij.openapi.roots.ui.configuration.ModulesProvider;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.LibrariesContainer;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.LibrariesContainerFactory;
 import com.intellij.openapi.ui.popup.ListItemDescriptorAdapter;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.platform.ProjectTemplate;
 import com.intellij.platform.ProjectTemplateEP;
@@ -44,11 +45,13 @@ import com.intellij.ui.components.JBList;
 import com.intellij.ui.popup.list.GroupedItemsListRenderer;
 import com.intellij.util.Function;
 import com.intellij.util.PlatformUtils;
-import com.intellij.util.containers.*;
+import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.containers.Convertor;
+import com.intellij.util.containers.FactoryMap;
+import com.intellij.util.containers.MultiMap;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.update.UiNotifyConnector;
-import gnu.trove.THashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
@@ -56,8 +59,6 @@ import org.jetbrains.annotations.TestOnly;
 import javax.swing.*;
 import java.awt.*;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.*;
 
@@ -65,7 +66,7 @@ import java.util.*;
  * @author Dmitry Avdeev
  */
 @SuppressWarnings("unchecked")
-public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, Disposable {
+public final class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, Disposable {
   private static final Logger LOG = Logger.getInstance(ProjectTypeStep.class);
 
   private static final Convertor<FrameworkSupportInModuleProvider,String> PROVIDER_STRING_CONVERTOR =
@@ -80,7 +81,7 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
   private final AddSupportForFrameworksPanel myFrameworksPanel;
   private final ModuleBuilder.ModuleConfigurationUpdater myConfigurationUpdater;
   private final Map<ProjectTemplate, ModuleBuilder> myBuilders = FactoryMap.create(key -> (ModuleBuilder)key.createModuleBuilder());
-  private final Map<String, ModuleWizardStep> myCustomSteps = new THashMap<>();
+  private final Map<String, ModuleWizardStep> myCustomSteps = new HashMap<>();
   private final MultiMap<TemplatesGroup,ProjectTemplate> myTemplatesMap;
   private JPanel myPanel;
   private JPanel myOptionsPanel;
@@ -98,14 +99,14 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
     myContext = context;
     myWizard = wizard;
 
-    myTemplatesMap = new ConcurrentMultiMap<>();
+    myTemplatesMap = MultiMap.createConcurrent();
     final List<TemplatesGroup> groups = fillTemplatesMap(context);
     LOG.debug("groups=" + groups);
 
     myProjectTypeList.setModel(new CollectionListModel<>(groups));
     myProjectTypeList.setSelectionModel(new SingleSelectionModel());
     myProjectTypeList.addListSelectionListener(__ -> updateSelection());
-    myProjectTypeList.setCellRenderer(new GroupedItemsListRenderer<TemplatesGroup>(new ListItemDescriptorAdapter<TemplatesGroup>() {
+    myProjectTypeList.setCellRenderer(new GroupedItemsListRenderer<>(new ListItemDescriptorAdapter<TemplatesGroup>() {
       @Nullable
       @Override
       public String getTextFor(TemplatesGroup value) {
@@ -130,8 +131,8 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
         if (index < 1) return false;
         TemplatesGroup upper = groups.get(index - 1);
         if (upper.getParentGroup() == null && value.getParentGroup() == null) return true;
-        return !Comparing.equal(upper.getParentGroup(), value.getParentGroup()) &&
-               !Comparing.equal(upper.getName(), value.getParentGroup());
+        return !Objects.equals(upper.getParentGroup(), value.getParentGroup()) &&
+               !Objects.equals(upper.getName(), value.getParentGroup());
       }
     }) {
       @Override
@@ -273,8 +274,12 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
 
     for (ProjectCategory category : ProjectCategory.EXTENSION_POINT_NAME.getExtensions()) {
       TemplatesGroup group = new TemplatesGroup(category);
-      myTemplatesMap.remove(group);
-      myTemplatesMap.put(group, new ArrayList<>());
+
+      ModuleBuilder builder = group.getModuleBuilder();
+      if (builder == null || builder.isAvailable()) {
+        myTemplatesMap.remove(group);
+        myTemplatesMap.put(group, new ArrayList<>());
+      }
     }
 
     if (context.isCreatingNewProject()) {
@@ -292,7 +297,7 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
       ModuleType type = getModuleType(group);
       moduleTypes.putValue(type, group);
     }
-    Collections.sort(groups, (o1, o2) -> {
+    groups.sort((o1, o2) -> {
       int i = o2.getWeight() - o1.getWeight();
       if (i != 0) return i;
       int i1 = moduleTypes.get(getModuleType(o2)).size() - moduleTypes.get(getModuleType(o1)).size();
@@ -331,6 +336,12 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
     }
 
     return groups;
+  }
+
+  @TestOnly
+  @Nullable
+  ModuleWizardStep getSettingsStep() {
+    return mySettingsStep;
   }
 
   // new TemplatesGroup selected
@@ -388,7 +399,9 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
 
     myHeaderPanel.setVisible(myHeaderPanel.getComponentCount() > 0);
     // align header labels
-    List<JLabel> labels = UIUtil.findComponentsOfType(myHeaderPanel, JLabel.class);
+    List<JLabel> labels = ContainerUtil.filter(UIUtil.findComponentsOfType(myHeaderPanel, JLabel.class), label ->
+      label.isVisible() && label.getLabelFor() != null
+    );
     int width = 0;
     for (JLabel label : labels) {
       int width1 = label.getPreferredSize().width;
@@ -546,7 +559,7 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
   }
 
   private MultiMap<String, ProjectTemplate> loadLocalTemplates() {
-    ConcurrentMultiMap<String, ProjectTemplate> map = new ConcurrentMultiMap<>();
+    MultiMap<String, ProjectTemplate> map = MultiMap.createConcurrent();
     ProjectTemplateEP[] extensions = ProjectTemplateEP.EP_NAME.getExtensions();
     for (ProjectTemplateEP ep : extensions) {
       ClassLoader classLoader = ep.getLoaderForClass();
@@ -585,7 +598,7 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
   private void startLoadingRemoteTemplates(ChooseTemplateStep chooseTemplateStep) {
     myTemplatesList.setPaintBusy(true);
     chooseTemplateStep.getTemplateList().setPaintBusy(true);
-    ProgressManager.getInstance().run(new Task.Backgroundable(myContext.getProject(), "Loading Templates") {
+    ProgressManager.getInstance().run(new Task.Backgroundable(myContext.getProject(), JavaUiBundle.message("progress.title.loading.templates")) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         RemoteTemplatesFactory factory = new RemoteTemplatesFactory();
@@ -594,7 +607,7 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
           for (ProjectTemplate template : templates) {
             String id = ((ArchivedProjectTemplate)template).getCategory();
             for (TemplatesGroup templatesGroup : myTemplatesMap.keySet()) {
-              if (Comparing.equal(id, templatesGroup.getId()) || Comparing.equal(group, templatesGroup.getName())) {
+              if (Objects.equals(id, templatesGroup.getId()) || Objects.equals(group, templatesGroup.getName())) {
                 myTemplatesMap.putValue(templatesGroup, template);
               }
             }
@@ -641,22 +654,22 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
 
   @TestOnly
   public String availableTemplateGroupsToString() {
-    ListModel model = myProjectTypeList.getModel();
+    ListModel<TemplatesGroup> model = myProjectTypeList.getModel();
     StringBuilder builder = new StringBuilder();
     for (int i = 0; i < model.getSize(); i++) {
       if (builder.length() > 0) {
         builder.append(", ");
       }
-      builder.append(((TemplatesGroup)model.getElementAt(i)).getName());
+      builder.append(model.getElementAt(i).getName());
     }
     return builder.toString();
   }
 
   @TestOnly
   public boolean setSelectedTemplate(@NotNull String group, @Nullable String name) {
-    ListModel model = myProjectTypeList.getModel();
+    ListModel<TemplatesGroup> model = myProjectTypeList.getModel();
     for (int i = 0; i < model.getSize(); i++) {
-      TemplatesGroup templatesGroup = (TemplatesGroup)model.getElementAt(i);
+      TemplatesGroup templatesGroup = model.getElementAt(i);
       if (group.equals(templatesGroup.getName())) {
         myProjectTypeList.setSelectedIndex(i);
         if (name == null) {
@@ -686,7 +699,7 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
   }
 
   @Override
-  public void addSettingsField(@NotNull String label, @NotNull JComponent field) {
+  public void addSettingsField(@NotNull @NlsContexts.Label String label, @NotNull JComponent field) {
     ProjectSettingsStep.addField(label, field, myHeaderPanel);
   }
 
@@ -700,7 +713,7 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
   }
 
   @Override
-  public void addExpertField(@NotNull String label, @NotNull JComponent field) {
+  public void addExpertField(@NotNull @NlsContexts.Label String label, @NotNull JComponent field) {
 
   }
 
@@ -727,7 +740,9 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
     FeatureUsageData data = new FeatureUsageData();
     data.addData("projectType", group.getId());
     data.addPluginInfo(group.getPluginInfo());
-    myFrameworksPanel.reportSelectedFrameworks(eventId, data);
+    if (myCurrentCard.equals(FRAMEWORKS_CARD)) {
+      myFrameworksPanel.reportSelectedFrameworks(eventId, data);
+    }
     ModuleWizardStep step = getCustomStep();
     if (step instanceof StatisticsAwareModuleWizardStep) {
       ((StatisticsAwareModuleWizardStep) step).addCustomFeatureUsageData(eventId, data);

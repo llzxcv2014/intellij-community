@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.build
 
 import com.intellij.compiler.BaseCompilerTestCase
@@ -10,10 +10,12 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.roots.ModuleRootModificationUtil
+import com.intellij.openapi.roots.NativeLibraryOrderRootType
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.io.FileUtilRt
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.project.stateStore
 import com.intellij.util.SmartList
 import com.intellij.util.io.assertMatches
 import com.intellij.util.io.directoryContent
@@ -25,9 +27,6 @@ import org.jetbrains.idea.devkit.projectRoots.Sandbox
 import java.io.File
 import java.util.*
 
-/**
- * @author nik
- */
 class PluginModuleCompilationTest : BaseCompilerTestCase() {
   override fun setUpJdk() {
     super.setUpJdk()
@@ -95,6 +94,36 @@ class PluginModuleCompilationTest : BaseCompilerTestCase() {
     })
   }
 
+  fun testNativeLibraries() {
+    val module = setupSimplePluginProject()
+    ModuleRootModificationUtil.updateModel(module) { model ->
+      val library = model.moduleLibraryTable.createLibrary()
+      val libModel = library.modifiableModel
+      libModel.addRoot(createFile("lib/a.so"), NativeLibraryOrderRootType.getInstance())
+      libModel.commit()
+    }
+    rebuild()
+    prepareForDeployment(module)
+
+    val outputFile = File("$projectBasePath/pluginProject.zip")
+    outputFile.assertMatches(zipFile {
+      dir("pluginProject") {
+        dir("lib") {
+          zip("pluginProject.jar") {
+            dir("META-INF") {
+              file("plugin.xml")
+              file("MANIFEST.MF")
+            }
+            dir("xxx") {
+              file("MyAction.class")
+            }
+          }
+          file("a.so")
+        }
+      }
+    })
+  }
+
   fun testBuildProjectWithJpsModule() {
     val module = setupPluginProjectWithJpsModule()
     rebuild()
@@ -131,14 +160,14 @@ class PluginModuleCompilationTest : BaseCompilerTestCase() {
 
   private fun copyAndCreateModule(relativePath: String): Module {
     copyToProject(relativePath)
-    val module = loadModule("$projectBasePath/pluginProject.iml")
+    val module = loadModule(myProject.stateStore.projectBasePath.resolve("pluginProject.iml"))
     assertThat(ModuleType.get(module)).isEqualTo(PluginModuleType.getInstance())
     return module
   }
 
   private fun setupPluginProjectWithJpsModule(): Module {
     val module = copyAndCreateModule("plugins/devkit/devkit-java-tests/testData/build/withJpsModule")
-    val jpsModule = loadModule("$projectBasePath/jps-plugin/jps-plugin.iml")
+    val jpsModule = loadModule(myProject.stateStore.projectBasePath.resolve("jps-plugin/jps-plugin.iml"))
     ModuleRootModificationUtil.setModuleSdk(jpsModule, testProjectJdk)
     return module
   }

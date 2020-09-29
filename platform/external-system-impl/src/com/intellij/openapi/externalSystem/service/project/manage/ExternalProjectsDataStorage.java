@@ -1,9 +1,12 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.externalSystem.service.project.manage;
 
 import com.intellij.concurrency.ConcurrentCollectionFactory;
 import com.intellij.configurationStore.SettingsSavingComponentJavaAdapter;
 import com.intellij.ide.SaveAndSyncHandler;
+import com.intellij.ide.plugins.DynamicPluginListener;
+import com.intellij.ide.plugins.IdeaPluginDescriptor;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManagerEx;
 import com.intellij.openapi.components.*;
 import com.intellij.openapi.diagnostic.Logger;
@@ -25,6 +28,7 @@ import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.registry.Registry;
+import com.intellij.serialization.ObjectSerializer;
 import com.intellij.serialization.SerializationException;
 import com.intellij.serialization.VersionedFile;
 import com.intellij.util.containers.ContainerUtil;
@@ -34,8 +38,6 @@ import com.intellij.util.xmlb.annotations.MapAnnotation;
 import com.intellij.util.xmlb.annotations.Property;
 import com.intellij.util.xmlb.annotations.XCollection;
 import com.intellij.util.xmlb.annotations.XMap;
-import gnu.trove.THashMap;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,6 +48,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static com.intellij.openapi.externalSystem.model.ProjectKeys.MODULE;
 import static com.intellij.openapi.externalSystem.model.ProjectKeys.PROJECT;
@@ -53,8 +56,8 @@ import static com.intellij.openapi.externalSystem.model.ProjectKeys.PROJECT;
 /**
  * @author Vladislav.Soroka
  */
-@State(name = "ExternalProjectsData", storages = {@Storage(StoragePathMacros.WORKSPACE_FILE)})
-public class ExternalProjectsDataStorage implements SettingsSavingComponentJavaAdapter, PersistentStateComponent<ExternalProjectsDataStorage.State> {
+@State(name = "ExternalProjectsData", storages = @Storage(StoragePathMacros.WORKSPACE_FILE))
+public final class ExternalProjectsDataStorage implements SettingsSavingComponentJavaAdapter, PersistentStateComponent<ExternalProjectsDataStorage.State> {
   private static final Logger LOG = Logger.getInstance(ExternalProjectsDataStorage.class);
 
   // exposed for tests
@@ -75,6 +78,32 @@ public class ExternalProjectsDataStorage implements SettingsSavingComponentJavaA
 
   public ExternalProjectsDataStorage(@NotNull Project project) {
     myProject = project;
+    ApplicationManager.getApplication().getMessageBus().connect(project).
+      subscribe(DynamicPluginListener.TOPIC, new DynamicPluginListener() {
+        @Override
+        public void beforePluginUnload(@NotNull IdeaPluginDescriptor pluginDescriptor, boolean isUpdate) {
+          ObjectSerializer.getInstance().clearBindingCache();
+        }
+
+        @Override
+        public void pluginUnloaded(@NotNull IdeaPluginDescriptor pluginDescriptor, boolean isUpdate) {
+          Set<ProjectSystemId> existingEPs =
+            ExternalSystemManager.EP_NAME.getExtensionList().stream()
+              .map(ExternalSystemManager::getSystemId)
+              .collect(Collectors.toSet());
+
+          Iterator<Map.Entry<Pair<ProjectSystemId, File>, InternalExternalProjectInfo>> iter =
+            myExternalRootProjects.entrySet().iterator();
+
+          while(iter.hasNext()) {
+            Map.Entry<Pair<ProjectSystemId, File>, InternalExternalProjectInfo> entry = iter.next();
+            if (!existingEPs.contains(entry.getKey().first)) {
+              iter.remove();
+              markDirty(entry.getValue().getExternalProjectPath());
+            }
+          }
+        }
+      });
   }
 
   public synchronized void load() {
@@ -230,8 +259,8 @@ public class ExternalProjectsDataStorage implements SettingsSavingComponentJavaA
   synchronized void saveInclusionSettings(@Nullable DataNode<ProjectData> projectDataNode) {
     if (projectDataNode == null) return;
 
-    final MultiMap<String, String> inclusionMap = MultiMap.createSmart();
-    final MultiMap<String, String> exclusionMap = MultiMap.createSmart();
+    final MultiMap<String, String> inclusionMap = new MultiMap<>();
+    final MultiMap<String, String> exclusionMap = new MultiMap<>();
     projectDataNode.visit(dataNode -> {
       DataNode<ExternalConfigPathAware> projectNode = resolveProjectNode(dataNode);
       if (projectNode != null) {
@@ -265,7 +294,7 @@ public class ExternalProjectsDataStorage implements SettingsSavingComponentJavaA
 
   private void markAsChangedAndScheduleSave() {
     if (changed.compareAndSet(false, true)) {
-      SaveAndSyncHandler.getInstance().scheduleSave(SaveAndSyncHandler.SaveTask.projectIncludingAllSettings(myProject), false);
+      SaveAndSyncHandler.getInstance().scheduleProjectSave(myProject, true);
     }
   }
 
@@ -459,13 +488,13 @@ public class ExternalProjectsDataStorage implements SettingsSavingComponentJavaA
   static final class State {
     @Property(surroundWithTag = false)
     @MapAnnotation(surroundWithTag = false, surroundValueWithTag = false, surroundKeyWithTag = false, keyAttributeName = "path", entryTagName = "projectState")
-    public final Map<String, ProjectState> map = new THashMap<>();
+    public final Map<String, ProjectState> map = new HashMap<>();
   }
 
   static class ProjectState {
     @Property(surroundWithTag = false)
     @XMap(keyAttributeName = "path", entryTagName = "dataType")
-    public final Map<String, ModuleState> map = new THashMap<>();
+    public final Map<String, ModuleState> map = new HashMap<>();
     public boolean isInclusion;
   }
 
@@ -476,11 +505,11 @@ public class ExternalProjectsDataStorage implements SettingsSavingComponentJavaA
 
     @SuppressWarnings("unused")
     ModuleState() {
-      set = new THashSet<>();
+      set = new HashSet<>();
     }
 
     ModuleState(@NotNull Collection<String> values) {
-      set = new THashSet<>(values);
+      set = new HashSet<>(values);
     }
   }
 }

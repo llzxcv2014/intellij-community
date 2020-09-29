@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.sh.formatter;
 
 import com.intellij.openapi.editor.ex.EditorEx;
@@ -6,7 +6,7 @@ import com.intellij.openapi.editor.highlighter.HighlighterIterator;
 import com.intellij.psi.tree.IElementType;
 import org.jetbrains.annotations.NotNull;
 
-class ShSemanticEditorPosition {
+final class ShSemanticEditorPosition {
   private final HighlighterIterator myIterator;
 
   private ShSemanticEditorPosition(@NotNull EditorEx editor, int offset) {
@@ -19,19 +19,19 @@ class ShSemanticEditorPosition {
     }
   }
 
-  void moveBeforeOptionalMix(@NotNull IElementType... elements) {
+  void moveBeforeOptionalMix(IElementType @NotNull ... elements) {
     while (isAtAnyOf(elements)) {
       myIterator.retreat();
     }
   }
 
-  void moveAfterOptionalMix(@NotNull IElementType... elements) {
+  void moveAfterOptionalMix(IElementType @NotNull ... elements) {
     while (isAtAnyOf(elements)) {
       myIterator.advance();
     }
   }
 
-  boolean isAtAnyOf(@NotNull IElementType... syntaxElements) {
+  boolean isAtAnyOf(IElementType @NotNull ... syntaxElements) {
     if (!myIterator.atEnd()) {
       IElementType currElement = myIterator.getTokenType();
       for (IElementType element : syntaxElements) {

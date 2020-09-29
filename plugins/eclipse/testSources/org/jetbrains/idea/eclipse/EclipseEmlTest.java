@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package org.jetbrains.idea.eclipse;
 
@@ -7,7 +7,7 @@ import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.module.StdModuleTypes;
-import com.intellij.openapi.module.impl.ModuleManagerImpl;
+import com.intellij.openapi.module.impl.ModuleManagerEx;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ModifiableRootModel;
 import com.intellij.openapi.roots.ModuleRootManager;
@@ -44,7 +44,7 @@ public class EclipseEmlTest extends JavaProjectTestCase {
     assertTrue(currentTestRoot.getAbsolutePath(), currentTestRoot.isDirectory());
 
     VirtualFile vTestRoot = LocalFileSystem.getInstance().findFileByIoFile(currentTestRoot);
-    copyDirContentsTo(vTestRoot, getProject().getBaseDir());
+    copyDirContentsTo(vTestRoot, getOrCreateProjectBaseDir());
   }
 
 
@@ -58,7 +58,7 @@ public class EclipseEmlTest extends JavaProjectTestCase {
 
   private static Module doLoadModule(@NotNull String path, @NotNull Project project) throws IOException, JDOMException, InvalidDataException {
     Module module = WriteAction.compute(
-      () -> ModuleManager.getInstance(project).newModule(path + '/' + EclipseProjectFinder.findProjectName(path) + ModuleManagerImpl.IML_EXTENSION, StdModuleTypes.JAVA.getId()));
+      () -> ModuleManager.getInstance(project).newModule(path + '/' + EclipseProjectFinder.findProjectName(path) + ModuleManagerEx.IML_EXTENSION, StdModuleTypes.JAVA.getId()));
 
     replaceRoot(path, EclipseXml.DOT_CLASSPATH_EXT, project);
 

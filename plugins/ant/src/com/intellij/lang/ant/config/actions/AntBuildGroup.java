@@ -1,6 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.lang.ant.config.actions;
 
+import com.intellij.lang.ant.AntBundle;
 import com.intellij.lang.ant.config.*;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.DumbAware;
@@ -9,6 +10,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+
+import static com.intellij.openapi.util.NlsActions.ActionDescription;
+import static com.intellij.openapi.util.NlsActions.ActionText;
 
 public final class AntBuildGroup extends ActionGroup implements DumbAware {
 
@@ -20,8 +24,7 @@ public final class AntBuildGroup extends ActionGroup implements DumbAware {
   }
 
   @Override
-  @NotNull
-  public AnAction[] getChildren(@Nullable AnActionEvent e) {
+  public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e) {
     if (e == null) return AnAction.EMPTY_ARRAY;
     Project project = e.getProject();
     if (project == null) return AnAction.EMPTY_ARRAY;
@@ -47,7 +50,7 @@ public final class AntBuildGroup extends ActionGroup implements DumbAware {
     if (model.getDefaultTargetName() != null) {
       DefaultActionGroup subgroup = new DefaultActionGroup();
       subgroup.add(getOrCreateAction(
-        buildFile, TargetAction.DEFAULT_TARGET_NAME, Collections.singletonList(TargetAction.DEFAULT_TARGET_NAME), null, model.getDefaultTargetActionId())
+        buildFile, TargetAction.getDefaultTargetName(), Collections.singletonList(TargetAction.getDefaultTargetName()), null, model.getDefaultTargetActionId())
       );
       group.add(subgroup);
     }
@@ -78,9 +81,9 @@ public final class AntBuildGroup extends ActionGroup implements DumbAware {
   }
 
   private static AnAction getOrCreateAction(final AntBuildFile buildFile,
-                                            final String displayName,
+                                            final @ActionText String displayName,
                                             final List<String> targets,
-                                            final String targetDescription,
+                                            final @ActionDescription String targetDescription,
                                             final String actionId) {
     AnAction action = null;
     if (actionId != null) {
@@ -94,6 +97,6 @@ public final class AntBuildGroup extends ActionGroup implements DumbAware {
 
   @Override
   public String getTemplateText() {
-    return "Ant Build Group";
+    return AntBundle.message("action.ant.build.group.text");
   }
 }

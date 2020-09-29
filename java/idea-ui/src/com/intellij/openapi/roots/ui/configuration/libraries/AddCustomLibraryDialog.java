@@ -1,24 +1,10 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.ui.configuration.libraries;
 
 import com.intellij.facet.impl.ui.libraries.LibraryCompositionSettings;
 import com.intellij.facet.impl.ui.libraries.LibraryOptionsPanel;
 import com.intellij.framework.library.FrameworkLibraryVersionFilter;
-import com.intellij.ide.IdeBundle;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.roots.ModifiableRootModel;
@@ -37,10 +23,7 @@ import javax.swing.*;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
-* @author nik
-*/
-public class AddCustomLibraryDialog extends DialogWrapper {
+public final class AddCustomLibraryDialog extends DialogWrapper {
   private final LibraryOptionsPanel myPanel;
   private final LibrariesContainer myLibrariesContainer;
   private final Module myModule;
@@ -57,7 +40,7 @@ public class AddCustomLibraryDialog extends DialogWrapper {
     myModule = module;
     myModifiableRootModel = modifiableRootModel;
     myBeforeLibraryAdded = beforeLibraryAdded;
-    setTitle(IdeBundle.message("setup.library.dialog.title"));
+    setTitle(JavaUiBundle.message("setup.library.dialog.title"));
     VirtualFile baseDir = myModule.getProject().getBaseDir();
     final String baseDirPath = baseDir != null ? baseDir.getPath() : "";
     myPanel = new LibraryOptionsPanel(description, baseDirPath, FrameworkLibraryVersionFilter.ALL, myLibrariesContainer, false);

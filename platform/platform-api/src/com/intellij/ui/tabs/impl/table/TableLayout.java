@@ -2,12 +2,15 @@
 package com.intellij.ui.tabs.impl.table;
 
 import com.intellij.ui.tabs.TabInfo;
+import com.intellij.ui.tabs.TabsUtil;
 import com.intellij.ui.tabs.impl.JBTabsImpl;
 import com.intellij.ui.tabs.impl.LayoutPassInfo;
 import com.intellij.ui.tabs.impl.TabLabel;
 import com.intellij.ui.tabs.impl.TabLayout;
+import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.NotNull;
 
+import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +39,8 @@ public class TableLayout extends TabLayout {
     data.requiredRows = 1;
     for (TabInfo eachInfo : data.myVisibleInfos) {
       final TabLabel eachLabel = myTabs.myInfo2Label.get(eachInfo);
-      final Dimension size = eachLabel.getPreferredSize();
-      if (eachX + size.width >= data.toFitRec.getMaxX()) {
+      final Dimension size = eachLabel.getNotStrictPreferredSize();
+      if (eachX + size.width >= data.toFitRec.getMaxX() || eachLabel.isNextToLastPinned()) {
         data.requiredRows++;
         eachX = data.toFitRec.x;
       }
@@ -65,7 +68,7 @@ public class TableLayout extends TabLayout {
     for (TabInfo eachInfo : data.myVisibleInfos) {
       final TabLabel eachLabel = myTabs.myInfo2Label.get(eachInfo);
       final Dimension size = eachLabel.getPreferredSize();
-      if (eachX + size.width <= data.rowToFitMaxX) {
+      if (eachX + size.width <= data.rowToFitMaxX && !eachLabel.isNextToLastPinned()) {
         eachTableRow.add(eachInfo);
         if (myTabs.getSelectedInfo() == eachInfo) {
           selectedRow = eachRow;
@@ -139,7 +142,10 @@ public class TableLayout extends TabLayout {
           label.putClientProperty(JBTabsImpl.STRETCHED_BY_WIDTH, Boolean.valueOf(toAjust));
 
           int width;
-          if (i < eachRow.myColumns.size() - 1 || !toAjust) {
+          if (label.isPinned()) {
+            width = label.getNotStrictPreferredSize().width;
+          }
+          else if (i < eachRow.myColumns.size() - 1 || !toAjust) {
             width = label.getPreferredSize().width + deltaToFit;
           }
           else {
@@ -240,5 +246,11 @@ public class TableLayout extends TabLayout {
       }
     }
     return result;
+  }
+
+  @Override
+  @MagicConstant(intValues = {SwingConstants.CENTER, SwingConstants.TOP, SwingConstants.LEFT, SwingConstants.BOTTOM, SwingConstants.RIGHT, -1})
+  public int getDropSideFor(@NotNull Point point) {
+    return TabsUtil.getDropSideFor(point, myTabs);
   }
 }

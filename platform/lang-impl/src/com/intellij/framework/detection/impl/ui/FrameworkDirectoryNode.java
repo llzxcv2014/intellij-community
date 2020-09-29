@@ -17,6 +17,7 @@ package com.intellij.framework.detection.impl.ui;
 
 import com.intellij.framework.detection.DetectionExcludesConfiguration;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.ColoredTreeCellRenderer;
@@ -25,9 +26,6 @@ import com.intellij.util.PlatformIcons;
 import javax.swing.tree.TreeNode;
 import java.io.File;
 
-/**
- * @author nik
- */
 class FrameworkDirectoryNode extends DetectedFrameworkTreeNodeBase {
   private static final Logger LOG = Logger.getInstance(FrameworkDirectoryNode.class);
   private final VirtualFile myDirectory;
@@ -43,7 +41,7 @@ class FrameworkDirectoryNode extends DetectedFrameworkTreeNodeBase {
     renderer.append(getRelativePath());
   }
 
-  private String getRelativePath() {
+  private @NlsSafe String getRelativePath() {
     final TreeNode parent = getParent();
     String path;
     if (parent instanceof FrameworkDirectoryNode) {

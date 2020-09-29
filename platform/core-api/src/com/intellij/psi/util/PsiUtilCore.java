@@ -1,6 +1,7 @@
 // Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.util;
 
+import com.intellij.diagnostic.PluginException;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.FileASTNode;
 import com.intellij.lang.Language;
@@ -65,8 +66,7 @@ public class PsiUtilCore {
     }
 
     @Override
-    @NotNull
-    public PsiElement[] getChildren() {
+    public PsiElement @NotNull [] getChildren() {
       throw createException();
     }
 
@@ -141,8 +141,7 @@ public class PsiUtilCore {
     }
 
     @Override
-    @NotNull
-    public char[] textToCharArray() {
+    public char @NotNull [] textToCharArray() {
       throw createException();
     }
 
@@ -262,8 +261,7 @@ public class PsiUtilCore {
     }
 
     @Override
-    @NotNull
-    public PsiReference[] getReferences() {
+    public PsiReference @NotNull [] getReferences() {
       throw createException();
     }
 
@@ -338,8 +336,7 @@ public class PsiUtilCore {
     }
   }
 
-  @NotNull
-  public static PsiElement[] toPsiElementArray(@NotNull Collection<? extends PsiElement> collection) {
+  public static PsiElement @NotNull [] toPsiElementArray(@NotNull Collection<? extends PsiElement> collection) {
     return collection.isEmpty() ? PsiElement.EMPTY_ARRAY : collection.toArray(PsiElement.EMPTY_ARRAY);
   }
 
@@ -420,8 +417,7 @@ public class PsiUtilCore {
     return viewProvider.getPsi(viewProvider.getBaseLanguage());
   }
 
-  @NotNull
-  public static PsiFile[] toPsiFileArray(@NotNull Collection<? extends PsiFile> collection) {
+  public static PsiFile @NotNull [] toPsiFileArray(@NotNull Collection<? extends PsiFile> collection) {
     if (collection.isEmpty()) return PsiFile.EMPTY_ARRAY;
     return collection.toArray(PsiFile.EMPTY_ARRAY);
   }
@@ -462,7 +458,7 @@ public class PsiUtilCore {
     return narrowLanguage(element.getLanguage(), element.getContainingFile().getLanguage());
   }
 
-  public static Language narrowLanguage(final Language language, @NotNull Language candidate) {
+  protected static Language narrowLanguage(final Language language, @NotNull Language candidate) {
     if (candidate.isKindOf(language)) return candidate;
     return language;
   }
@@ -479,7 +475,7 @@ public class PsiUtilCore {
         LOG.error("PSI resurrected: " + element + " of " + element.getClass());
         return;
       }
-      throw new PsiInvalidElementAccessException(element);
+      throw PluginException.createByClass(new PsiInvalidElementAccessException(element), element.getClass());
     }
   }
 
@@ -506,7 +502,7 @@ public class PsiUtilCore {
     VirtualFile vDir = file.getParent();
     PsiDirectory psiDir = vDir == null ? null : PsiManager.getInstance(project).findDirectory(vDir);
     FileIndexFacade indexFacade = FileIndexFacade.getInstance(project);
-    StringBuilder sb = new StringBuilder();
+    @NonNls StringBuilder sb = new StringBuilder();
     sb.append("valid=").append(file.isValid()).
       append(" isDirectory=").append(file.isDirectory()).
       append(" hasDocument=").append(document != null).
@@ -598,7 +594,7 @@ public class PsiUtilCore {
   @Contract("null -> null")
   public static IElementType getElementType(@Nullable PsiElement element) {
     return element == null ? null :
-           element instanceof StubBasedPsiElement ? ((StubBasedPsiElement)element).getElementType() :
+           element instanceof StubBasedPsiElement ? ((StubBasedPsiElement<?>)element).getElementType() :
            element instanceof PsiFile ? ((PsiFile)element).getFileElementType() :
            getElementType(element.getNode());
   }
@@ -642,9 +638,8 @@ public class PsiUtilCore {
       throw createException();
     }
 
-    @NotNull
     @Override
-    public PsiFile[] getPsiRoots() {
+    public PsiFile @NotNull [] getPsiRoots() {
       throw createException();
     }
 
@@ -671,7 +666,7 @@ public class PsiUtilCore {
     }
 
     @Override
-    public boolean processChildren(@NotNull PsiElementProcessor<PsiFileSystemItem> processor) {
+    public boolean processChildren(@NotNull PsiElementProcessor<? super PsiFileSystemItem> processor) {
       throw createException();
     }
 

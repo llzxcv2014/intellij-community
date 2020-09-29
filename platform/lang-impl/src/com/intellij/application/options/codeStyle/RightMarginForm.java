@@ -1,11 +1,13 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.application.options.codeStyle;
 
+import com.intellij.lang.LangBundle;
 import com.intellij.lang.Language;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationBundle;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.DumbAwareAction;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.codeStyle.CodeStyleConstraints;
 import com.intellij.psi.codeStyle.CodeStyleSettings;
 import com.intellij.psi.codeStyle.CodeStyleSettingsCustomizable;
@@ -23,6 +25,8 @@ import org.jetbrains.annotations.NotNull;
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
+
+import static com.intellij.psi.codeStyle.CodeStyleSettingsCustomizableOptions.getInstance;
 
 /**
  * Can be used for languages which do not use standard "Wrapping and Braces" panel.
@@ -57,7 +61,7 @@ public class RightMarginForm {
 
     //noinspection unchecked
     myWrapOnTypingCombo.setModel(new DefaultComboBoxModel(
-      CodeStyleSettingsCustomizable.WRAP_ON_TYPING_OPTIONS
+      getInstance().WRAP_ON_TYPING_OPTIONS
     ));
     MarginOptionsUtil.customizeWrapOnTypingCombo(myWrapOnTypingCombo, settings);
     myVisualGuidesHint.setForeground(JBColor.GRAY);
@@ -68,7 +72,7 @@ public class RightMarginForm {
   void createUIComponents() {
     myRightMarginField = new IntegerField(ApplicationBundle.message("editbox.right.margin.columns"),
                                           0, CodeStyleConstraints.MAX_RIGHT_MARGIN);
-    myRightMarginField.getValueEditor().addListener(new ValueEditor.Listener<Integer>() {
+    myRightMarginField.getValueEditor().addListener(new ValueEditor.Listener<>() {
       @Override
       public void valueChanged(@NotNull Integer newValue) {
         myResetLink.setVisible(!newValue.equals(myRightMarginField.getDefaultValue()));
@@ -78,17 +82,19 @@ public class RightMarginForm {
     myRightMarginField.setCanBeEmpty(true);
     myRightMarginField.setDefaultValue(-1);
     myRightMarginField.setMinimumSize(new Dimension(JBUIScale.scale(120), myRightMarginField.getMinimumSize().height));
-    myVisualGuidesField = new CommaSeparatedIntegersField(ApplicationBundle.message("settings.code.style.visual.guides"), 0, CodeStyleConstraints.MAX_RIGHT_MARGIN, "Optional");
-    myVisualGuidesField.getValueEditor().addListener(new ValueEditor.Listener<List<Integer>>() {
+    myVisualGuidesField = new CommaSeparatedIntegersField(ApplicationBundle.message("settings.code.style.visual.guides"),
+                                                          0, CodeStyleConstraints.MAX_RIGHT_MARGIN,
+                                                          ApplicationBundle.message("settings.code.style.visual.guides.optional"));
+    myVisualGuidesField.getValueEditor().addListener(new ValueEditor.Listener<>() {
       @Override
       public void valueChanged(@NotNull List<Integer> newValue) {
         myResetGuidesLink.setVisible(!myVisualGuidesField.isEmpty());
         myVisualGuidesField.getEmptyText().setText(getDefaultVisualGuidesText(mySettings));
       }
     });
-    myResetLink = new ActionLink("Reset", new ResetRightMarginAction());
+    myResetLink = new ActionLink(LangBundle.message("action.link.reset"), new ResetRightMarginAction());
     myVisualGuidesLabel = new JLabel();
-    myResetGuidesLink = new ActionLink("Reset", new ResetGuidesAction());
+    myResetGuidesLink = new ActionLink(LangBundle.message("action.link.reset"), new ResetGuidesAction());
   }
 
   private class ResetRightMarginAction extends DumbAwareAction {
@@ -150,7 +156,7 @@ public class RightMarginForm {
     return myTopPanel;
   }
 
-  private static String getDefaultVisualGuidesText(@NotNull CodeStyleSettings settings) {
+  private static @NlsContexts.Label String getDefaultVisualGuidesText(@NotNull CodeStyleSettings settings) {
     List<Integer> margins = settings.getDefaultSoftMargins();
     String marginsString =
       margins.size() <= 2 ?

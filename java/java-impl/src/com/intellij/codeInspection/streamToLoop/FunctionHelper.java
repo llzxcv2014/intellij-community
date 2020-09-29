@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.streamToLoop;
 
 import com.intellij.openapi.diagnostic.Logger;
@@ -328,7 +328,7 @@ public abstract class FunctionHelper {
     public String tryLightTransform() {
       PsiLambdaExpression lambdaExpression = LambdaRefactoringUtil.createLambda(myMethodRef, true);
       if(lambdaExpression == null) return null;
-      String typedParamList = LambdaRefactoringUtil.createLambdaParameterListWithFormalTypes(myType, lambdaExpression, false);
+      String typedParamList = LambdaUtil.createLambdaParameterListWithFormalTypes(myType, lambdaExpression, false);
       if(typedParamList != null && lambdaExpression.getBody() != null) {
         lambdaExpression = (PsiLambdaExpression)JavaPsiFacade.getElementFactory(myMethodRef.getProject())
           .createExpressionFromText(typedParamList + "->" + lambdaExpression.getBody().getText(), myMethodRef);
@@ -418,7 +418,7 @@ public abstract class FunctionHelper {
     }
   }
 
-  private static class ComplexExpressionFunctionHelper extends FunctionHelper {
+  private static final class ComplexExpressionFunctionHelper extends FunctionHelper {
     private final String myMethodName;
     private final String myNameCandidate;
     private final String myFnType;

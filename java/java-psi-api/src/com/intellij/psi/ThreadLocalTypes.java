@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi;
 
 import com.intellij.openapi.util.RecursionGuard;
@@ -11,11 +11,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public class ThreadLocalTypes {
+public final class ThreadLocalTypes {
   private static final RecursionGuard<ThreadLocalTypes> ourGuard = RecursionManager.createGuard("ThreadLocalTypes");
   private final Map<PsiElement, PsiType> myMap = new HashMap<>();
+  private final boolean myProhibitCaching;
 
-  private ThreadLocalTypes() {}
+  private ThreadLocalTypes(boolean prohibitCaching) {
+    myProhibitCaching = prohibitCaching;
+  }
 
   @Nullable
   public static PsiType getElementType(@NotNull PsiElement psi) {
@@ -24,7 +27,9 @@ public class ThreadLocalTypes {
       ThreadLocalTypes types = stack.get(i);
       PsiType type = types.myMap.get(psi);
       if (type != null) {
-        ourGuard.prohibitResultCaching(types);
+        if (types.myProhibitCaching) {
+          ourGuard.prohibitResultCaching(types);
+        }
         return type;
       }
     }
@@ -36,15 +41,22 @@ public class ThreadLocalTypes {
     for (int i = stack.size() - 1; i >= 0; i--) {
       ThreadLocalTypes types = stack.get(i);
       if (types.myMap.containsKey(psi)) {
-        ourGuard.prohibitResultCaching(types);
+        if (types.myProhibitCaching) {
+          ourGuard.prohibitResultCaching(types);
+        }
         return true;
       }
     }
     return false;
   }
 
-  public static <T> T performWithTypes(@NotNull Function<ThreadLocalTypes, T> action) {
-    ThreadLocalTypes types = new ThreadLocalTypes();
+  public static <T> T performWithTypes(@NotNull Function<? super ThreadLocalTypes, ? extends T> action) {
+    return performWithTypes(action, true);
+  }
+
+  public static <T> T performWithTypes(@NotNull Function<? super ThreadLocalTypes, ? extends T> action,
+                                       boolean prohibitCaching) {
+    ThreadLocalTypes types = new ThreadLocalTypes(prohibitCaching);
     return ourGuard.doPreventingRecursion(types, false, () -> action.apply(types));
   }
 

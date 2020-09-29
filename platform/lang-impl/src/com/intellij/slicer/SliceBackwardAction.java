@@ -23,14 +23,11 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 
-/**
- * @author cdr
- */
 public class SliceBackwardAction extends CodeInsightAction {
   @NotNull
   @Override
   protected SliceHandler getHandler() {
-    return new SliceHandler(true);
+    return SliceHandler.create(true);
   }
 
   @Override
@@ -45,6 +42,6 @@ public class SliceBackwardAction extends CodeInsightAction {
       return false;
     }
     PsiElement expression = getHandler().getExpressionAtCaret(editor, file);
-    return expression == null || expression.isPhysical();
+    return expression != null;
   }
 }

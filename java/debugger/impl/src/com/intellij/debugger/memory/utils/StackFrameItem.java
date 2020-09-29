@@ -1,7 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.memory.utils;
 
-import com.intellij.debugger.DebuggerBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.engine.*;
 import com.intellij.debugger.engine.evaluation.EvaluateException;
 import com.intellij.debugger.impl.DebuggerUtilsEx;
@@ -17,21 +17,23 @@ import com.intellij.ide.DataManager;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.ShowSettingsUtil;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.CommonClassNames;
 import com.intellij.ui.ColoredTextContainer;
 import com.intellij.ui.SimpleTextAttributes;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.PlatformIcons;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.EmptyIcon;
-import com.intellij.util.ui.JBUI;
 import com.intellij.xdebugger.XSourcePosition;
 import com.intellij.xdebugger.frame.*;
 import com.intellij.xdebugger.frame.presentation.XStringValuePresentation;
 import com.intellij.xdebugger.impl.frame.XDebuggerFramesList;
 import com.intellij.xdebugger.impl.ui.XDebuggerUIConstants;
 import com.sun.jdi.*;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -45,12 +47,13 @@ import java.util.Map;
 public class StackFrameItem {
   private static final Logger LOG = Logger.getInstance(StackFrameItem.class);
   private static final List<XNamedValue> VARS_CAPTURE_DISABLED = Collections.singletonList(
-    JavaStackFrame.createMessageNode(DebuggerBundle.message("message.node.local.variables.capture.disabled"), null));
+    JavaStackFrame.createMessageNode(JavaDebuggerBundle.message("message.node.local.variables.capture.disabled"), null));
   private static final List<XNamedValue> VARS_NOT_CAPTURED = Collections.singletonList(
-    JavaStackFrame.createMessageNode(DebuggerBundle.message("message.node.local.variables.not.captured"),
+    JavaStackFrame.createMessageNode(JavaDebuggerBundle.message("message.node.local.variables.not.captured"),
                                      XDebuggerUIConstants.INFORMATION_MESSAGE_ICON));
 
-  public static final XDebuggerTreeNodeHyperlink CAPTURE_SETTINGS_OPENER = new XDebuggerTreeNodeHyperlink(" settings") {
+  public static final XDebuggerTreeNodeHyperlink CAPTURE_SETTINGS_OPENER = new XDebuggerTreeNodeHyperlink(
+    JavaDebuggerBundle.message("capture.node.settings.link")) {
     @Override
     public void onClick(MouseEvent event) {
       ShowSettingsUtil.getInstance().showSettingsDialog(
@@ -66,6 +69,10 @@ public class StackFrameItem {
   public StackFrameItem(@NotNull Location location, List<XNamedValue> variables) {
     myLocation = location;
     myVariables = variables;
+  }
+
+  public Location location() {
+    return myLocation;
   }
 
   @NotNull
@@ -215,19 +222,29 @@ public class StackFrameItem {
     }
   }
 
-  public CapturedStackFrame createFrame(DebugProcessImpl debugProcess) {
+  public XStackFrame createFrame(DebugProcessImpl debugProcess) {
     return new CapturedStackFrame(debugProcess, this);
+  }
+
+  public static void setWithSeparator(XStackFrame frame, boolean withSeparator) {
+    if (frame instanceof CapturedStackFrame) {
+      ((CapturedStackFrame)frame).setWithSeparator(withSeparator);
+    }
+  }
+
+  @Nls
+  public static String getAsyncStacktraceMessage() {
+    return JavaDebuggerBundle.message("frame.panel.async.stacktrace");
   }
 
   public static class CapturedStackFrame extends XStackFrame implements JVMStackFrameInfoProvider,
                                                                         XDebuggerFramesList.ItemWithSeparatorAbove {
-    private static final String ASYNC_STACKTRACE_MESSAGE = DebuggerBundle.message("frame.panel.async.stacktrace");
     private final XSourcePosition mySourcePosition;
     private final boolean myIsSynthetic;
     private final boolean myIsInLibraryContent;
 
     private final String myPath;
-    private final String myMethodName;
+    private final @NlsSafe String myMethodName;
     private final int myLineNumber;
 
     private final List<XNamedValue> myVariables;
@@ -266,14 +283,14 @@ public class StackFrameItem {
 
     @Override
     public void customizePresentation(@NotNull ColoredTextContainer component) {
-      component.setIcon(JBUI.scale(EmptyIcon.create(6)));
-      component.append(String.format("%s:%d", myMethodName, myLineNumber), getAttributes());
+      component.setIcon(JBUIScale.scaleIcon(EmptyIcon.create(6)));
+      component.append(myMethodName + ":" + myLineNumber, getAttributes());
       ThreadsViewSettings settings = ThreadsViewSettings.getInstance();
       if (settings.SHOW_CLASS_NAME) {
-        component.append(String.format(", %s", StringUtil.getShortName(myPath)), getAttributes());
+        component.append(", " + StringUtil.getShortName(myPath), getAttributes());
         String packageName = StringUtil.getPackageName(myPath);
         if (settings.SHOW_PACKAGE_NAME && !packageName.trim().isEmpty()) {
-          component.append(String.format(" (%s)", packageName), SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES);
+          component.append(" (" + packageName + ")", SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES);
         }
       }
     }
@@ -282,7 +299,7 @@ public class StackFrameItem {
     public void computeChildren(@NotNull XCompositeNode node) {
       XValueChildrenList children = XValueChildrenList.EMPTY;
       if (myVariables == VARS_CAPTURE_DISABLED) {
-        node.setMessage(DebuggerBundle.message("message.node.local.variables.capture.disabled"), null,
+        node.setMessage(JavaDebuggerBundle.message("message.node.local.variables.capture.disabled"), null,
                         SimpleTextAttributes.REGULAR_ATTRIBUTES, CAPTURE_SETTINGS_OPENER);
       }
       else if (myVariables != null) {
@@ -301,7 +318,7 @@ public class StackFrameItem {
 
     @Override
     public String getCaptionAboveOf() {
-      return ASYNC_STACKTRACE_MESSAGE;
+      return getAsyncStacktraceMessage();
     }
 
     @Override

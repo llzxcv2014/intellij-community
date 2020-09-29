@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.vcs.log.ui.render;
 
 import com.intellij.openapi.ui.GraphicsConfig;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.changes.ui.CurrentBranchComponent;
@@ -9,7 +10,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.SimpleColoredComponent;
 import com.intellij.ui.scale.JBUIScale;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.GraphicsUtil;
 import com.intellij.util.ui.JBValue;
@@ -72,7 +72,7 @@ public class LabelPainter {
   public static VcsLogRefManager getRefManager(@NotNull VcsLogData logData, @NotNull Collection<? extends VcsRef> references) {
     if (references.isEmpty()) return null;
 
-    VirtualFile root = ObjectUtils.assertNotNull(ContainerUtil.getFirstItem(references)).getRoot();
+    VirtualFile root = Objects.requireNonNull(ContainerUtil.getFirstItem(references)).getRoot();
     return logData.getLogProvider(root).getReferenceManager();
   }
 
@@ -265,7 +265,7 @@ public class LabelPainter {
   }
 
   @NotNull
-  private static String shortenRefName(@NotNull String refName, @NotNull FontMetrics fontMetrics, int availableWidth) {
+  private static String shortenRefName(@NotNull @NlsSafe String refName, @NotNull FontMetrics fontMetrics, int availableWidth) {
     if (fontMetrics.stringWidth(refName) > availableWidth && refName.length() > MAX_LENGTH) {
       int separatorIndex = refName.indexOf(SEPARATOR);
       if (separatorIndex > TWO_DOTS.length()) {

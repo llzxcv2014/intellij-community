@@ -48,7 +48,7 @@ public class PyStringFormatCompletionContributor extends CompletionContributor {
       }
     };
 
-  private static final PsiElementPattern.Capture<PyStringLiteralExpression> FORMAT_STRING_CAPTURE =
+  public static final PsiElementPattern.Capture<PyStringLiteralExpression> FORMAT_STRING_CAPTURE =
     psiElement(PyStringLiteralExpression.class)
       .withParent(psiElement(PyReferenceExpression.class).with(FORMAT_CALL_PATTERN_CONDITION))
       .withSuperParent(2, PyCallExpression.class);
@@ -285,8 +285,7 @@ public class PyStringFormatCompletionContributor extends CompletionContributor {
       return substitutions.stream().anyMatch(s -> offset >= s.getStartIndex() && offset <= s.getEndIndex());
     }
 
-    @NotNull
-    private static PyExpression[] getFormatFunctionKeyWordArguments(@NotNull final PsiElement original) {
+    private static PyExpression @NotNull [] getFormatFunctionKeyWordArguments(@NotNull final PsiElement original) {
       final PsiElement pyReferenceExpression = PsiTreeUtil.getParentOfType(original, PyReferenceExpression.class);
       final PyArgumentList argumentList = PsiTreeUtil.getNextSiblingOfType(pyReferenceExpression, PyArgumentList.class);
       return argumentList != null ? argumentList.getArguments() : PyExpression.EMPTY_ARRAY;

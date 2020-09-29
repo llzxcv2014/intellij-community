@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.daemon.impl.quickfix;
 
 import com.intellij.codeInsight.CodeInsightUtilCore;
@@ -28,10 +28,7 @@ import java.util.List;
 
 import static com.intellij.codeInsight.daemon.impl.quickfix.CreateFromUsageBaseFix.*;
 
-/**
- * @author Mike
- */
-public class CreateMethodFromUsageFix {
+public final class CreateMethodFromUsageFix {
   private static final Logger LOG = Logger.getInstance(CreateMethodFromUsageFix.class);
 
   public static boolean isMethodSignatureExists(PsiMethodCallExpression call, PsiClass target) {
@@ -169,9 +166,9 @@ public class CreateMethodFromUsageFix {
   public static boolean checkTypeParam(final PsiMethod method, final PsiTypeParameter typeParameter) {
     final String typeParameterName = typeParameter.getName();
 
-    final PsiTypeVisitor<Boolean> visitor = new PsiTypeVisitor<Boolean>() {
+    final PsiTypeVisitor<Boolean> visitor = new PsiTypeVisitor<>() {
       @Override
-      public Boolean visitClassType(PsiClassType classType) {
+      public Boolean visitClassType(@NotNull PsiClassType classType) {
         final PsiClass psiClass = classType.resolve();
         if (psiClass instanceof PsiTypeParameter &&
             PsiTreeUtil.isAncestor(((PsiTypeParameter)psiClass).getOwner(), method, true)) {
@@ -187,17 +184,17 @@ public class CreateMethodFromUsageFix {
       }
 
       @Override
-      public Boolean visitPrimitiveType(PsiPrimitiveType primitiveType) {
+      public Boolean visitPrimitiveType(@NotNull PsiPrimitiveType primitiveType) {
         return false;
       }
 
       @Override
-      public Boolean visitArrayType(PsiArrayType arrayType) {
+      public Boolean visitArrayType(@NotNull PsiArrayType arrayType) {
         return arrayType.getComponentType().accept(this);
       }
 
       @Override
-      public Boolean visitWildcardType(PsiWildcardType wildcardType) {
+      public Boolean visitWildcardType(@NotNull PsiWildcardType wildcardType) {
         final PsiType bound = wildcardType.getBound();
         if (bound != null) {
           return bound.accept(this);

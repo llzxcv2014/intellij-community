@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.extractMethodObject;
 
 import com.intellij.codeInsight.CodeInsightUtil;
@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-public class ExtractLightMethodObjectHandler {
+public final class ExtractLightMethodObjectHandler {
   public static final Key<PsiMethod> REFERENCE_METHOD = Key.create("CompilingEvaluatorReferenceMethod");
   public static final Key<PsiType> REFERENCED_TYPE = Key.create("CompilingEvaluatorReferencedType");
 
@@ -179,7 +179,8 @@ public class ExtractLightMethodObjectHandler {
 
     final ControlFlow controlFlow;
     try {
-      controlFlow = ControlFlowFactory.getInstance(project).getControlFlow(container, LocalsOrMyInstanceFieldsControlFlowPolicy.getInstance(), false, false);
+      controlFlow = ControlFlowFactory.getControlFlow(container, LocalsOrMyInstanceFieldsControlFlowPolicy.getInstance(),
+                                                      ControlFlowOptions.NO_CONST_EVALUATE);
     }
     catch (AnalysisCanceledException e) {
       return null;
@@ -314,8 +315,7 @@ public class ExtractLightMethodObjectHandler {
     return result[0];
   }
 
-  @Nullable
-  private static PsiElement[] completeToStatementArray(PsiCodeFragment fragment, PsiElementFactory elementFactory) {
+  private static PsiElement @Nullable [] completeToStatementArray(PsiCodeFragment fragment, PsiElementFactory elementFactory) {
     PsiExpression expression = CodeInsightUtil.findExpressionInRange(fragment, 0, fragment.getTextLength());
     if (expression != null) {
       String completeExpressionText = null;

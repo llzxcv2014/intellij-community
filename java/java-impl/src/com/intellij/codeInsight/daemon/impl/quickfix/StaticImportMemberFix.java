@@ -24,9 +24,11 @@ import com.intellij.codeInsight.hint.QuestionAction;
 import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.codeInsight.intention.impl.BaseIntentionAction;
 import com.intellij.codeInspection.HintAction;
+import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -39,21 +41,26 @@ import java.util.List;
 
 // will import elements of type T which are referenced by elements of type R (e.g. will import PsiMethods referenced by PsiMethodCallExpression)
 public abstract class StaticImportMemberFix<T extends PsiMember, R extends PsiElement> implements IntentionAction, HintAction {
-  // we keep max 2 candidates
+  private final List<SmartPsiElementPointer<T>> myApplicableCandidates;
   private final List<T> candidates;
   protected final SmartPsiElementPointer<R> myRef;
 
   StaticImportMemberFix(@NotNull PsiFile file, @NotNull R reference) {
     myRef = SmartPointerManager.getInstance(file.getProject()).createSmartPsiElementPointer(reference);
     // search for suitable candidates here, in the background thread
+    //noinspection AbstractMethodCallInConstructor
     candidates = getMembersToImport(false, StaticMembersProcessor.SearchMode.MAX_2_MEMBERS);
+
+    //noinspection AbstractMethodCallInConstructor
+    myApplicableCandidates = ContainerUtil.map(getMembersToImport(true, StaticMembersProcessor.SearchMode.MAX_100_MEMBERS),
+                                               SmartPointerManager::createPointer);
   }
 
   @NotNull
-  protected abstract String getBaseText();
+  protected abstract @IntentionName String getBaseText();
 
   @NotNull
-  protected abstract String getMemberPresentableText(@NotNull T t);
+  protected abstract @NlsSafe String getMemberPresentableText(@NotNull T t);
 
   @Override
   @NotNull
@@ -76,10 +83,10 @@ public abstract class StaticImportMemberFix<T extends PsiMember, R extends PsiEl
            && getElement() != null
            && getElement().isValid()
            && getQualifierExpression() == null
-           && resolveRef() == null
            && BaseIntentionAction.canModify(file)
            && !candidates.isEmpty()
            && ContainerUtil.all(candidates, PsiElement::isValid)
+           && resolveRef() == null
       ;
   }
 
@@ -120,7 +127,7 @@ public abstract class StaticImportMemberFix<T extends PsiMember, R extends PsiEl
     if (!CodeInsightSettings.getInstance().ADD_MEMBER_IMPORTS_ON_THE_FLY) {
       return ImportClassFixBase.Result.POPUP_NOT_SHOWN;
     }
-    final List<T> candidates = getMembersToImport(true, StaticMembersProcessor.SearchMode.MAX_100_MEMBERS);
+    List<T> candidates = ContainerUtil.mapNotNull(myApplicableCandidates, SmartPsiElementPointer::getElement);
     if (candidates.isEmpty()) {
       return ImportClassFixBase.Result.POPUP_NOT_SHOWN;
     }

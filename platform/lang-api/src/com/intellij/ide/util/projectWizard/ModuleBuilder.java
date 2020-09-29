@@ -1,15 +1,16 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.util.projectWizard;
 
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.highlighter.ModuleFileType;
 import com.intellij.ide.util.frameworkSupport.FrameworkRole;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.ExtensionPointName;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.*;
 import com.intellij.openapi.options.ConfigurationException;
-import com.intellij.openapi.project.DumbAwareRunnable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectType;
 import com.intellij.openapi.project.ProjectTypeService;
@@ -21,11 +22,13 @@ import com.intellij.openapi.roots.ui.configuration.ModulesProvider;
 import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.InvalidDataException;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.ThrowableComputable;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.ui.GuiUtils;
 import com.intellij.util.EventDispatcher;
 import com.intellij.util.containers.ContainerUtil;
 import org.jdom.JDOMException;
@@ -58,7 +61,7 @@ public abstract class ModuleBuilder extends AbstractModuleBuilder {
 
   @NotNull
   public static List<ModuleBuilder> getAllBuilders() {
-    final ArrayList<ModuleBuilder> result = new ArrayList<>();
+    List<ModuleBuilder> result = new ArrayList<>();
     for (final ModuleType<?> moduleType : ModuleTypeManager.getInstance().getRegisteredTypes()) {
       result.add(moduleType.createModuleBuilder());
     }
@@ -79,7 +82,7 @@ public abstract class ModuleBuilder extends AbstractModuleBuilder {
     }
   }
 
-  protected boolean isAvailable() {
+  public boolean isAvailable() {
     return true;
   }
 
@@ -99,7 +102,7 @@ public abstract class ModuleBuilder extends AbstractModuleBuilder {
 
   @Override
   @Nullable
-  public String getBuilderId() {
+  public @NonNls String getBuilderId() {
     ModuleType<?> moduleType = getModuleType();
     return moduleType == null ? null : moduleType.getId();
   }
@@ -290,8 +293,11 @@ public abstract class ModuleBuilder extends AbstractModuleBuilder {
     if (model == null) moduleModel.commit();
 
     if (runFromProjectWizard) {
-      StartupManager.getInstance(module.getProject()).runWhenProjectIsInitialized(
-        (DumbAwareRunnable)() -> ApplicationManager.getApplication().runWriteAction(() -> onModuleInitialized(module)));
+      StartupManager.getInstance(module.getProject()).runAfterOpened(() -> {
+        GuiUtils.invokeLaterIfNeeded(() -> {
+          ApplicationManager.getApplication().runWriteAction(() -> onModuleInitialized(module));
+        }, ModalityState.NON_MODAL, module.getDisposed());
+      });
     }
     else {
       onModuleInitialized(module);
@@ -344,7 +350,7 @@ public abstract class ModuleBuilder extends AbstractModuleBuilder {
     return getModuleType().getNodeIcon(false);
   }
 
-  @Nls(capitalization = Nls.Capitalization.Sentence)
+  @NlsContexts.DetailedDescription
   public String getDescription() {
     return getModuleType().getDescription();
   }
@@ -357,7 +363,7 @@ public abstract class ModuleBuilder extends AbstractModuleBuilder {
   @Nls(capitalization = Nls.Capitalization.Title)
   protected String getModuleTypeName() {
     String name = getModuleType().getName();
-    return StringUtil.trimEnd(name, " Module");
+    return StringUtil.trimEnd(name, " Module");  // NON-NLS
   }
 
   public String getGroupName() {

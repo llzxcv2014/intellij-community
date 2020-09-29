@@ -1,3 +1,4 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.refactoring.classes.pullUp;
 
 import com.google.common.collect.Iterables;
@@ -134,14 +135,14 @@ public class PyPullUpInfoModelTest extends PyTestCase {
    * Marks members to be moved (sets checkbox on them)
    * @param memberNames names of members to check
    */
-  private void checkMembers(@NotNull final String... memberNames) {
+  private void checkMembers(final String @NotNull ... memberNames) {
     for (final String memberName : memberNames) {
       Iterables.find(myMemberInfos, new NamePredicate(memberName)).setChecked(true);
     }
     mySut.memberInfoChanged(myMemberInfos);
   }
 
-  private static class NamePredicate extends NotNullPredicate<PyMemberInfo<?>> {
+  private static final class NamePredicate extends NotNullPredicate<PyMemberInfo<?>> {
     @NotNull
     private final String myNameToSearch;
 

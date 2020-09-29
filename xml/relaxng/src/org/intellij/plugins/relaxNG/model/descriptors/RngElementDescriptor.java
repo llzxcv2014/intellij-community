@@ -74,7 +74,7 @@ public class RngElementDescriptor implements XmlElementDescriptor {
       }
 
       final PsiElement element = getDeclarationImpl(decl, myElementPattern.getLocation());
-      
+
       return CachedValueProvider.Result.create(element, element.getContainingFile());
     });
   }
@@ -350,9 +350,8 @@ public class RngElementDescriptor implements XmlElementDescriptor {
     return myElementPattern.hashCode();
   }
 
-  @NotNull
   @Override
-  public Object[] getDependencies() {
+  public Object @NotNull [] getDependencies() {
     return myNsDescriptor.getDependencies();
   }
 
@@ -399,7 +398,7 @@ public class RngElementDescriptor implements XmlElementDescriptor {
     return myElementPattern;
   }
 
-  private static class RncLocationPsiElement extends FakePsiElement implements NavigationItem {
+  private static final class RncLocationPsiElement extends FakePsiElement implements NavigationItem {
     private final PsiFile myFile;
     private final int myStartOffset;
     private final int myColumn;

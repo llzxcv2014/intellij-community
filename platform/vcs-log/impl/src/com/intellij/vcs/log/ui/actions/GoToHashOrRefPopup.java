@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.vcs.log.ui.actions;
 
 import com.intellij.codeInsight.completion.InsertHandler;
@@ -13,11 +13,13 @@ import com.intellij.openapi.ui.popup.JBPopupListener;
 import com.intellij.openapi.ui.popup.LightweightWindowEvent;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.Function;
 import com.intellij.util.textCompletion.DefaultTextCompletionValueDescriptor;
 import com.intellij.util.ui.ColorIcon;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import com.intellij.vcs.log.VcsLogBundle;
 import com.intellij.vcs.log.VcsLogRefs;
 import com.intellij.vcs.log.VcsRef;
 import com.intellij.vcs.log.ui.VcsLogColorManager;
@@ -86,7 +88,7 @@ public class GoToHashOrRefPopup {
     myTextField.setAlignmentX(Component.LEFT_ALIGNMENT);
     myTextField.setBorder(JBUI.Borders.empty(3));
 
-    JBLabel label = new JBLabel("Enter hash or branch/tag name:");
+    JBLabel label = new JBLabel(VcsLogBundle.message("vcs.log.go.to.hash.popup.label"));
     label.setFont(UIUtil.getLabelFont().deriveFont(Font.BOLD));
     label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -125,7 +127,7 @@ public class GoToHashOrRefPopup {
     myPopup.showInCenterOf(anchor);
   }
 
-  private class VcsRefDescriptor extends DefaultTextCompletionValueDescriptor<VcsRef> {
+  private final class VcsRefDescriptor extends DefaultTextCompletionValueDescriptor<VcsRef> {
     @NotNull private final Project myProject;
     @NotNull private final VcsLogColorManager myColorManager;
     @NotNull private final Comparator<? super VcsRef> myReferenceComparator;
@@ -150,7 +152,7 @@ public class GoToHashOrRefPopup {
     public LookupElementBuilder createLookupBuilder(@NotNull VcsRef item) {
       LookupElementBuilder lookupBuilder = super.createLookupBuilder(item);
       if (myColorManager.hasMultiplePaths()) {
-        ColorIcon icon = JBUI.scale(new ColorIcon(15, VcsLogGraphTable.getRootBackgroundColor(item.getRoot(), myColorManager)));
+        ColorIcon icon = JBUIScale.scaleIcon(new ColorIcon(15, VcsLogGraphTable.getRootBackgroundColor(item.getRoot(), myColorManager)));
         lookupBuilder = lookupBuilder.withTypeText(getTypeText(item), icon, true).withTypeIconRightAligned(true);
       }
       return lookupBuilder;

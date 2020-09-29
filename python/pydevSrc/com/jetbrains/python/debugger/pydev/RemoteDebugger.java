@@ -20,6 +20,9 @@ import com.intellij.xdebugger.breakpoints.SuspendPolicy;
 import com.intellij.xdebugger.frame.XValueChildrenList;
 import com.jetbrains.python.console.pydev.PydevCompletionVariant;
 import com.jetbrains.python.debugger.*;
+import com.jetbrains.python.debugger.pydev.dataviewer.DataViewerCommand;
+import com.jetbrains.python.debugger.pydev.dataviewer.DataViewerCommandBuilder;
+import com.jetbrains.python.debugger.pydev.dataviewer.DataViewerCommandResult;
 import com.jetbrains.python.debugger.pydev.transport.ClientModeDebuggerTransport;
 import com.jetbrains.python.debugger.pydev.transport.DebuggerTransport;
 import com.jetbrains.python.debugger.pydev.transport.ServerModeDebuggerTransport;
@@ -169,6 +172,14 @@ public class RemoteDebugger implements ProcessDebugger {
     return command.getVariables();
   }
 
+  @Override
+  public List<Pair<String, Boolean>> getSmartStepIntoVariants(String threadId, String frameId, int startContextLine, int endContextLine)
+    throws PyDebuggerException {
+    GetSmartStepIntoVariantsCommand command = new GetSmartStepIntoVariantsCommand(this, threadId, frameId, startContextLine, endContextLine);
+    command.execute();
+    return command.getVariants();
+  }
+
   // todo: don't generate temp variables for qualified expressions - just split 'em
   @Override
   public XValueChildrenList loadVariable(final String threadId, final String frameId, final PyDebugValue var) throws PyDebuggerException {
@@ -192,6 +203,14 @@ public class RemoteDebugger implements ProcessDebugger {
     return command.getArray();
   }
 
+  @Override
+  @NotNull
+  public DataViewerCommandResult executeDataViewerCommand(@NotNull DataViewerCommandBuilder builder) throws PyDebuggerException {
+    builder.setDebugger(this);
+    DataViewerCommand command = builder.build();
+    command.execute();
+    return command.getResult();
+  }
 
   @Override
   public void loadReferrers(final String threadId,
@@ -264,6 +283,10 @@ public class RemoteDebugger implements ProcessDebugger {
   // todo: change variable in lists doesn't work - either fix in pydevd or format var name appropriately
   private void setTempVariable(final String threadId, final String frameId, final PyDebugValue var) {
     final PyDebugValue topVar = var.getTopParent();
+    if (topVar == null) {
+      LOG.error("Top parent is null");
+      return;
+    }
     if (!myDebugProcess.canSaveToTemp(topVar.getName())) {
       return;
     }
@@ -386,6 +409,9 @@ public class RemoteDebugger implements ProcessDebugger {
       }
     });
     if (command.isResponseExpected()) {
+      LOG.assertTrue(!ApplicationManager.getApplication().isDispatchThread(),
+                     "This operation is time consuming and must not be called on EDT");
+
       // Note: do not wait for result from UI thread
       try {
         myLatch.await(command.getResponseTimeout(), TimeUnit.MILLISECONDS);
@@ -436,8 +462,9 @@ public class RemoteDebugger implements ProcessDebugger {
   }
 
   @Override
-  public void smartStepInto(String threadId, String functionName) {
-    final SmartStepIntoCommand command = new SmartStepIntoCommand(this, threadId, functionName);
+  public void smartStepInto(String threadId, String frameId, String functionName, int callOrder, int contextStartLine, int contextEndLine) {
+    final SmartStepIntoCommand command = new SmartStepIntoCommand(this, threadId, frameId, functionName, callOrder,
+                                                                  contextStartLine, contextEndLine);
     execute(command);
   }
 
@@ -518,6 +545,12 @@ public class RemoteDebugger implements ProcessDebugger {
   @Override
   public void setShowReturnValues(boolean isShowReturnValues) {
     final ShowReturnValuesCommand command = new ShowReturnValuesCommand(this, isShowReturnValues);
+    execute(command);
+  }
+
+  @Override
+  public void setUnitTestDebuggingMode() {
+    SetUnitTestDebuggingMode command = new SetUnitTestDebuggingMode(this);
     execute(command);
   }
 

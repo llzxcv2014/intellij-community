@@ -1,17 +1,16 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.siyeh.ig.style;
 
 import com.intellij.codeInsight.daemon.impl.HighlightVisitor;
 import com.intellij.codeInsight.daemon.impl.analysis.HighlightInfoHolder;
 import com.intellij.codeInsight.daemon.impl.analysis.HighlightVisitorImpl;
 import com.intellij.codeInspection.*;
+import com.intellij.codeInspection.ui.MultipleCheckboxOptionsPanel;
 import com.intellij.ide.util.SuperMethodWarningUtil;
-import com.intellij.openapi.application.TransactionGuard;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.*;
@@ -25,16 +24,14 @@ import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.search.searches.SuperMethodsSearch;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
-import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.changeSignature.JavaChangeSignatureDialog;
 import com.intellij.refactoring.changeSignature.ParameterInfoImpl;
-import com.intellij.ui.components.JBCheckBox;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
 import com.siyeh.InspectionGadgetsBundle;
-import org.jdom.Element;
 import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -50,16 +47,6 @@ public class BoundedWildcardInspection extends AbstractBaseJavaLocalInspectionTo
   @SuppressWarnings("WeakerAccess") public boolean REPORT_INVARIANT_CLASSES = true;
   @SuppressWarnings("WeakerAccess") public boolean REPORT_PRIVATE_METHODS = true;
   @SuppressWarnings("WeakerAccess") public boolean REPORT_INSTANCE_METHODS = true;
-  private JBCheckBox myReportInvariantClassesCB;
-  private JPanel myPanel;
-  private JBCheckBox myReportPrivateMethodsCB;
-  private JBCheckBox myReportInstanceMethodsCB;
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("bounded.wildcard.display.name");
-  }
 
   @NotNull
   @Override
@@ -91,13 +78,13 @@ public class BoundedWildcardInspection extends AbstractBaseJavaLocalInspectionTo
 
         boolean wildCardIsUseless = VarianceUtil.wildCardIsUseless(candidate, canBeExtends);
         ProblemHighlightType type = wildCardIsUseless ? ProblemHighlightType.WEAK_WARNING : ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
-        String msg = (canBeExtends
+        String msg = canBeExtends
                       ? InspectionGadgetsBundle.message("bounded.wildcard.covariant.descriptor")
-                      : InspectionGadgetsBundle.message("bounded.wildcard.contravariant.descriptor")) +
-                     (wildCardIsUseless ? " but decided against it" : "");
+                      : InspectionGadgetsBundle.message("bounded.wildcard.contravariant.descriptor");
         // show verbose message in debug mode only
         if (!wildCardIsUseless || LOG.isDebugEnabled()) {
-          holder.registerProblem(typeElement, msg, type, new ReplaceWithQuestionTFix(isOverriddenOrOverrides(candidate.method), canBeExtends));
+          @NonNls String verboseDebugMessage = " but decided against it";
+          holder.registerProblem(typeElement, msg + (wildCardIsUseless ? verboseDebugMessage : ""), type, new ReplaceWithQuestionTFix(isOverriddenOrOverrides(candidate.method), canBeExtends));
         }
       }
     };
@@ -117,7 +104,7 @@ public class BoundedWildcardInspection extends AbstractBaseJavaLocalInspectionTo
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Replace with '? " + (isExtends ? "extends" : "super") + "'";
+      return CommonQuickFixBundle.message("fix.replace.with.x", "? " + (isExtends ? PsiKeyword.EXTENDS : PsiKeyword.SUPER));
     }
 
     @Override
@@ -144,26 +131,29 @@ public class BoundedWildcardInspection extends AbstractBaseJavaLocalInspectionTo
       }
 
       int[] i = {0};
-      List<ParameterInfoImpl> parameterInfos = ContainerUtil.map(method.getParameterList().getParameters(), p -> new ParameterInfoImpl(i[0]++, p.getName(), p.getType()));
+      List<ParameterInfoImpl> parameterInfos = ContainerUtil.map(method.getParameterList().getParameters(),
+                                                                 p -> ParameterInfoImpl.create(i[0]++)
+                                                                   .withName(p.getName())
+                                                                   .withType(p.getType()));
       int index = method.getParameterList().getParameterIndex(candidate.methodParameter);
       if (index == -1) return;
 
-      PsiMethod superMethod = SuperMethodWarningUtil.checkSuperMethod(method, RefactoringBundle.message("to.refactor"));
+      PsiMethod superMethod = SuperMethodWarningUtil.checkSuperMethod(method);
       if (superMethod == null) return;
       if (superMethod != method) {
         method = superMethod;
         candidate = candidate.getSuperMethodVarianceCandidate(superMethod);
         clone = suggestMethodParameterType(candidate, isExtends);
         i[0] = 0;
-        parameterInfos = ContainerUtil.map(superMethod.getParameterList().getParameters(), p -> new ParameterInfoImpl(i[0]++, p.getName(), p.getType()));
+        parameterInfos = ContainerUtil.map(superMethod.getParameterList().getParameters(), 
+                                           p -> ParameterInfoImpl.create(i[0]++).withName(p.getName()).withType(p.getType()));
       }
-      parameterInfos.set(index, new ParameterInfoImpl(index, candidate.methodParameter.getName(), clone));
+      parameterInfos.set(index, ParameterInfoImpl.create(index).withName(candidate.methodParameter.getName()).withType(clone));
 
       JavaChangeSignatureDialog
         dialog = JavaChangeSignatureDialog.createAndPreselectNew(project, method, parameterInfos, false, null/*todo?*/);
       dialog.setParameterInfos(parameterInfos);
-      TransactionGuard.submitTransaction(project, () -> dialog.show());
-      if (dialog.getExitCode() == DialogWrapper.OK_EXIT_CODE) {
+      if (dialog.showAndGet()) {
         PsiField field = findFieldAssignedFromMethodParameter(candidate.methodParameter, method);
         if (field != null) {
           replaceType(project, field.getTypeElement(), suggestMethodParameterType(candidate, isExtends));
@@ -405,7 +395,7 @@ public class BoundedWildcardInspection extends AbstractBaseJavaLocalInspectionTo
     HighlightInfoHolder holder = new HighlightInfoHolder(method.getContainingFile());
     visitor.analyze(method.getContainingFile(), false, holder, () -> method.accept(new PsiRecursiveElementWalkingVisitor() {
       @Override
-      public void visitElement(PsiElement element) {
+      public void visitElement(@NotNull PsiElement element) {
         if (elementsToIgnore.contains(element)) return; // ignore sub-elements too
         visitor.visit(element);
         //System.out.println("element = " + element+"; holder: "+holder.hasErrorResults());
@@ -465,21 +455,13 @@ public class BoundedWildcardInspection extends AbstractBaseJavaLocalInspectionTo
     return Pair.createNonNull(field, type);
   }
 
-
   @Nullable
   @Override
   public JComponent createOptionsPanel() {
-    myReportInvariantClassesCB.setSelected(REPORT_INVARIANT_CLASSES);
-    myReportPrivateMethodsCB.setSelected(REPORT_PRIVATE_METHODS);
-    myReportInstanceMethodsCB.setSelected(REPORT_INSTANCE_METHODS);
-    return myPanel;
-  }
-
-  @Override
-  public void readSettings(@NotNull Element node) {
-    super.readSettings(node);
-    myReportInvariantClassesCB.addItemListener(__ -> REPORT_INVARIANT_CLASSES = myReportInvariantClassesCB.isSelected());
-    myReportPrivateMethodsCB.addItemListener(__ -> REPORT_PRIVATE_METHODS = myReportPrivateMethodsCB.isSelected());
-    myReportInstanceMethodsCB.addItemListener(__ -> REPORT_INSTANCE_METHODS = myReportInstanceMethodsCB.isSelected());
+    final MultipleCheckboxOptionsPanel panel = new MultipleCheckboxOptionsPanel(this);
+    panel.addCheckbox(InspectionGadgetsBundle.message("bounded.wildcard.report.invariant.option"), "REPORT_INVARIANT_CLASSES");
+    panel.addCheckbox(InspectionGadgetsBundle.message("bounded.wildcard.report.private.option"), "REPORT_PRIVATE_METHODS");
+    panel.addCheckbox(InspectionGadgetsBundle.message("bounded.wildcard.report.instance.option"), "REPORT_INSTANCE_METHODS");
+    return panel;
   }
 }

@@ -1,8 +1,9 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.newvfs;
 
 import com.intellij.openapi.fileEditor.impl.EditorTabPresentationUtil;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,7 +16,7 @@ import static com.intellij.openapi.util.text.StringUtil.firstLast;
 /**
  * @author gregsh
  */
-public class VfsPresentationUtil {
+public final class VfsPresentationUtil {
 
   @NotNull
   public static String getPresentableNameForAction(@NotNull Project project, @NotNull VirtualFile file) {
@@ -23,7 +24,7 @@ public class VfsPresentationUtil {
   }
 
   @NotNull
-  public static String getPresentableNameForUI(@NotNull Project project, @NotNull VirtualFile file) {
+  public static @NlsContexts.TabTitle String getPresentableNameForUI(@NotNull Project project, @NotNull VirtualFile file) {
     return EditorTabPresentationUtil.getEditorTabTitle(project, file, null);
   }
 

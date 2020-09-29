@@ -1,6 +1,10 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.webcore.packaging;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.ui.MessageType;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsContexts.NotificationContent;
 import com.intellij.ui.HyperlinkAdapter;
 import com.intellij.util.ui.SwingHelper;
 import com.intellij.util.ui.UIUtil;
@@ -19,7 +23,7 @@ import java.util.Map;
 public class PackagesNotificationPanel {
   private final JEditorPane myHtmlViewer;
   private final Map<String, Runnable> myLinkHandlers = new HashMap<>();
-  private String myErrorTitle;
+  private @NlsContexts.DialogTitle String myErrorTitle;
   private PackageManagementService.ErrorDescription myErrorDescription;
 
   public PackagesNotificationPanel() {
@@ -40,26 +44,27 @@ public class PackagesNotificationPanel {
     });
   }
 
-  public static void showError(@NotNull String title, @NotNull PackageManagementService.ErrorDescription description) {
+  public static void showError(@NotNull @NlsContexts.DialogTitle String title,
+                               @NotNull PackageManagementService.ErrorDescription description) {
     final PackagingErrorDialog dialog = new PackagingErrorDialog(title, description);
     dialog.show();
   }
 
   public void showResult(String packageName, @Nullable PackageManagementService.ErrorDescription errorDescription) {
     if (errorDescription == null) {
-      String message = "Package installed successfully";
+      String message = IdeBundle.message("package.installed.successfully");
       if (packageName != null) {
-        message = "Package '" + packageName + "' installed successfully";
+        message = IdeBundle.message("package.0.installed.successfully", packageName);
       }
       showSuccess(message);
     }
     else {
-      String title = "Failed to install packages";
+      String title = IdeBundle.message("failed.to.install.packages.dialog.title");
       if (packageName != null) {
-        title = "Failed to install package '" + packageName + "'";
+        title = IdeBundle.message("failed.to.install.package.dialog.title", packageName);
       }
-      String firstLine = "Error occurred when installing package '" + packageName + "'. ";
-      showError(firstLine + "<a href=\"xxx\">Details...</a>", title, errorDescription);
+      String text = IdeBundle.message("install.package.failure", packageName);
+      showError(text, title, errorDescription);
     }
   }
 
@@ -75,11 +80,11 @@ public class PackagesNotificationPanel {
     return myHtmlViewer;
   }
 
-  public void showSuccess(String text) {
+  public void showSuccess(@NotificationContent String text) {
     showContent(text, MessageType.INFO.getPopupBackground());
   }
 
-  private void showContent(@NotNull String text, @NotNull Color background) {
+  private void showContent(@NotNull @NotificationContent String text, @NotNull Color background) {
     String htmlText = text.startsWith("<html>") ? text : UIUtil.toHtml(text);
     myHtmlViewer.setText(htmlText);
     myHtmlViewer.setBackground(background);
@@ -88,13 +93,15 @@ public class PackagesNotificationPanel {
     myErrorDescription = null;
   }
 
-  public void showError(String text, final String detailsTitle, final PackageManagementService.ErrorDescription errorDescription) {
+  public void showError(@NotificationContent String text,
+                        @Nullable @NlsContexts.DialogTitle String detailsTitle,
+                        PackageManagementService.ErrorDescription errorDescription) {
     showContent(text, MessageType.ERROR.getPopupBackground());
     myErrorTitle = detailsTitle;
     myErrorDescription = errorDescription;
   }
 
-  public void showWarning(String text) {
+  public void showWarning(@NotificationContent String text) {
     showContent(text, MessageType.WARNING.getPopupBackground());
   }
 

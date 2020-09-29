@@ -8,13 +8,11 @@ import com.intellij.psi.PsiType;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 import com.intellij.psi.codeStyle.SuggestedNameInfo;
 import com.intellij.psi.codeStyle.VariableKind;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * A convenience helper class to generate unique name for new variable. To use it, call several by* methods in chain, then call
@@ -25,7 +23,7 @@ public final class VariableNameGenerator {
   private final @NotNull JavaCodeStyleManager myManager;
   private final @NotNull PsiElement myContext;
   private final @NotNull VariableKind myKind;
-  private final Set<String> candidates = new LinkedHashSet<>();
+  private final @NonNls Set<String> candidates = new LinkedHashSet<>();
 
   /**
    * Constructs a new generator
@@ -47,6 +45,10 @@ public final class VariableNameGenerator {
     if (type != null) {
       SuggestedNameInfo info = myManager.suggestVariableName(myKind, null, null, type, true);
       candidates.addAll(Arrays.asList(info.names));
+      if (type.equals(PsiType.INT)) {
+        candidates.add("j");
+        candidates.add("k");
+      }
     }
     return this;
   }
@@ -82,7 +84,7 @@ public final class VariableNameGenerator {
    * @param names base names which could be used to generate variable name
    * @return this generator
    */
-  public VariableNameGenerator byName(String... names) {
+  public VariableNameGenerator byName(@NonNls String... names) {
     for (String name : names) {
       if (name != null) {
         SuggestedNameInfo info = myManager.suggestVariableName(myKind, name, null, null, true);
@@ -100,7 +102,8 @@ public final class VariableNameGenerator {
   @NotNull
   public String generate(boolean lookForward) {
     String suffixed = null;
-    for (String candidate : candidates.isEmpty() ? Collections.singleton("v") : candidates) {
+    @NonNls final Set<String> candidates = this.candidates.isEmpty() ? Collections.singleton("v") : this.candidates;
+    for (String candidate : candidates) {
       String name = myManager.suggestUniqueVariableName(candidate, myContext, lookForward);
       if (name.equals(candidate)) return name;
       if (suffixed == null) {
@@ -108,5 +111,19 @@ public final class VariableNameGenerator {
       }
     }
     return suffixed;
+  }
+
+  @NotNull
+  public List<String> generateAll(boolean lookForward) {
+    List<String> suffixed = new ArrayList<>();
+    List<String> result = new ArrayList<>();
+    final @NonNls String defaultVariableName = "v";
+    for (String candidate : candidates.isEmpty() ? Collections.singleton(defaultVariableName) : candidates) {
+      String name = myManager.suggestUniqueVariableName(candidate, myContext, lookForward);
+      if (name.equals(candidate)) result.add(name);
+      else suffixed.add(name);
+    }
+    result.addAll(suffixed);
+    return result;
   }
 }

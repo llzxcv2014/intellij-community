@@ -1,15 +1,17 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.scale;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.AtomicNotNullLazyValue;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.util.SystemInfoRt;
 import com.intellij.ui.JreHiDpiUtil;
 import com.intellij.util.LazyInitializer.MutableNotNullValue;
 import com.intellij.util.LazyInitializer.NullableValue;
 import com.intellij.util.SystemProperties;
 import com.intellij.util.ui.DetectRetinaKit;
+import com.intellij.util.ui.JBScalableIcon;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,6 +30,7 @@ public final class JBUIScale {
   public static final boolean SCALE_VERBOSE = Boolean.getBoolean("ide.ui.scale.verbose");
   public static final String USER_SCALE_FACTOR_PROPERTY = "JBUIScale.userScaleFactor";
 
+  @SuppressWarnings("InstantiationOfUtilityClass")
   private static final PropertyChangeSupport PROPERTY_CHANGE_SUPPORT = new PropertyChangeSupport(new JBUIScale());
   private static final float DISCRETE_SCALE_RESOLUTION = 0.25f;
 
@@ -42,10 +45,12 @@ public final class JBUIScale {
     PROPERTY_CHANGE_SUPPORT.removePropertyChangeListener(listener);
   }
 
+  private JBUIScale() {}
+
   private static final AtomicNotNullLazyValue<Pair<String, Integer>> systemFontData = AtomicNotNullLazyValue.createValue(() -> {
     // with JB Linux JDK the label font comes properly scaled based on Xft.dpi settings.
     Font font = UIManager.getFont("Label.font");
-    if (SystemInfo.isMacOSElCapitan) {
+    if (SystemInfoRt.isMac) {
       // text family should be used for relatively small sizes (<20pt), don't change to Display
       // see more about SF https://medium.com/@mach/the-secret-of-san-francisco-fonts-4b5295d9a745#.2ndr50z2v
       font = new Font(".SF NS Text", font.getStyle(), font.getSize());
@@ -84,7 +89,6 @@ public final class JBUIScale {
       }
     }
     else if (SystemInfo.isWindows) {
-      //noinspection HardCodedStringLiteral
       @SuppressWarnings("SpellCheckingInspection")
       Font winFont = (Font)Toolkit.getDefaultToolkit().getDesktopProperty("win.messagebox.font");
       if (winFont != null) {
@@ -125,7 +129,7 @@ public final class JBUIScale {
   @NotNull
   // cannot be static because logging maybe not configured yet
   private static Logger getLogger() {
-    return Logger.getInstance("#com.intellij.util.ui.JBUIScale");
+    return Logger.getInstance(JBUIScale.class);
   }
 
   /**
@@ -271,7 +275,7 @@ public final class JBUIScale {
   public static float sysScale(@Nullable GraphicsConfiguration gc) {
     if (JreHiDpiUtil.isJreHiDPIEnabled() && gc != null) {
       if (gc.getDevice().getType() != GraphicsDevice.TYPE_PRINTER) {
-        if (SystemInfo.isMac && JreHiDpiUtil.isJreHiDPI_earlierVersion()) {
+        if (SystemInfoRt.isMac && JreHiDpiUtil.isJreHiDPI_earlierVersion()) {
           return DetectRetinaKit.isOracleMacRetinaDevice(gc.getDevice()) ? 2f : 1f;
         }
         return (float)gc.getDefaultTransform().getScaleX();
@@ -292,6 +296,17 @@ public final class JBUIScale {
    */
   public static int scale(int i) {
     return Math.round(userScaleFactor.get() * i);
+  }
+
+  /**
+   * Scales the passed {@code icon} according to the user scale factor.
+   *
+   * @see ScaleType#USR_SCALE
+   */
+  @NotNull
+  public static <T extends JBScalableIcon> T scaleIcon(@NotNull T icon) {
+    //noinspection unchecked
+    return (T)icon.withIconPreScaled(false);
   }
 
   public static int scaleFontSize(float fontSize) {

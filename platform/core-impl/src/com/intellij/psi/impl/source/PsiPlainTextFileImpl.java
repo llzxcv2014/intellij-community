@@ -23,7 +23,7 @@ import com.intellij.psi.*;
 import com.intellij.psi.impl.source.resolve.reference.ReferenceProvidersRegistry;
 import org.jetbrains.annotations.NotNull;
 
-public class PsiPlainTextFileImpl extends PsiFileImpl implements PsiPlainTextFile{
+public class PsiPlainTextFileImpl extends PsiFileImpl implements PsiPlainTextFile, HintedReferenceHost {
   private final FileType myFileType;
 
   public PsiPlainTextFileImpl(FileViewProvider viewProvider) {
@@ -48,8 +48,17 @@ public class PsiPlainTextFileImpl extends PsiFileImpl implements PsiPlainTextFil
   }
 
   @Override
-  @NotNull
-  public PsiReference[] getReferences() {
+  public PsiReference @NotNull [] getReferences() {
     return ReferenceProvidersRegistry.getReferencesFromProviders(this);
+  }
+
+  @Override
+  public PsiReference @NotNull [] getReferences(PsiReferenceService.@NotNull Hints hints) {
+    return ReferenceProvidersRegistry.getReferencesFromProviders(this, hints);
+  }
+
+  @Override
+  public boolean shouldAskParentForReferences(PsiReferenceService.@NotNull Hints hints) {
+    return false;
   }
 }

@@ -11,6 +11,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.ResourceFileUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiFile;
@@ -57,7 +58,7 @@ public final class ComponentItem implements Cloneable, PaletteItem {
   private Icon mySmallIcon;
   /**
    * @see #getIconPath()
-   * @see #setIconPath(java.lang.String)
+   * @see #setIconPath(String)
    */
   private String myIconPath;
   /**
@@ -221,7 +222,7 @@ public final class ComponentItem implements Cloneable, PaletteItem {
     return myClassName;
   }
 
-  public String getClassShortName() {
+  public @NlsSafe String getClassShortName() {
     final int lastDotIndex = myClassName.lastIndexOf('.');
     if (lastDotIndex != -1 && lastDotIndex != myClassName.length() - 1/*not the last char in class name*/) {
       return myClassName.substring(lastDotIndex + 1).replace('$', '.');
@@ -242,7 +243,7 @@ public final class ComponentItem implements Cloneable, PaletteItem {
     myClassName = className;
   }
 
-  public String getToolTipText() {
+  public @NlsSafe String getToolTipText() {
     return myToolTipText != null ? myToolTipText : calcToolTipText(myClassName);
   }
 

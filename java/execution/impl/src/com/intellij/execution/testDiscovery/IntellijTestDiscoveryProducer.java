@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.google.gson.annotations.SerializedName;
+import com.intellij.execution.ExecutionBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
@@ -118,7 +119,8 @@ public class IntellijTestDiscoveryProducer implements TestDiscoveryProducer {
     return executeQuery(() -> HttpRequests.post(url, "application/json").productNameAsUserAgent().gzip(true).connect(
       r -> {
         r.write("[\"" + testClassName +  "\"]");
-        Map<String, List<String>> map = new ObjectMapper().readValue(r.getInputStream(), new TypeReference<Map<String, List<String>>>() {});
+        Map<String, List<String>> map = new ObjectMapper().readValue(r.getInputStream(), new TypeReference<>() {
+        });
         return ObjectUtils.notNull(ContainerUtil.getFirstItem(map.values()), Collections.emptyList());
       }), project);
   }
@@ -131,7 +133,8 @@ public class IntellijTestDiscoveryProducer implements TestDiscoveryProducer {
     LOG.debug(url);
     return HttpRequests.post(url, "application/json").productNameAsUserAgent().gzip(true).connect(r -> {
       r.write(paths.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(",", "[", "]")));
-      return new ObjectMapper().readValue(r.getInputStream(), new TypeReference<List<String>>(){});
+      return new ObjectMapper().readValue(r.getInputStream(), new TypeReference<>() {
+      });
     });
   }
 
@@ -268,7 +271,7 @@ public class IntellijTestDiscoveryProducer implements TestDiscoveryProducer {
       if (ApplicationManager.getApplication().isReadAccessAllowed()) {
         List<String> result = ProgressManager.getInstance().run(
           new Task.WithResult<List<String>, IOException>(project,
-                                                         "Searching for Affected File Paths...",
+                                                         ExecutionBundle.message("searching.for.affected.file.paths"),
                                                          true) {
             @Override
             protected List<String> compute(@NotNull ProgressIndicator indicator) throws IOException {
@@ -280,7 +283,7 @@ public class IntellijTestDiscoveryProducer implements TestDiscoveryProducer {
       return query.compute();
     }
     catch (IOException e) {
-      LOG.error("Can't execute remote query", e);
+      LOG.warn("Can't execute remote query", e);
       return Collections.emptyList();
     }
   }

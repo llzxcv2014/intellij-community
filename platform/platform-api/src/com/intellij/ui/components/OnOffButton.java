@@ -1,6 +1,8 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.components;
 
+import com.intellij.ide.IdeBundle;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.Gray;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.scale.JBUIScale;
@@ -16,29 +18,29 @@ import java.util.Locale;
  * @author Konstantin Bulenkov
  */
 public class OnOffButton extends JToggleButton {
-  private String myOnText = "ON";
-  private String myOffText = "OFF";
+  private @NlsContexts.Button String myOnText = IdeBundle.message("onoff.button.on");
+  private @NlsContexts.Button String myOffText = IdeBundle.message("onoff.button.off");
 
   public OnOffButton() {
     setBorder(null);
     setOpaque(false);
   }
 
-  public String getOnText() {
+  public @NlsContexts.Button String getOnText() {
     return myOnText;
   }
 
   @SuppressWarnings("unused")
-  public void setOnText(String onText) {
+  public void setOnText(@NlsContexts.Button String onText) {
     myOnText = onText;
   }
 
-  public String getOffText() {
+  public @NlsContexts.Button String getOffText() {
     return myOffText;
   }
 
   @SuppressWarnings("unused")
-  public void setOffText(String offText) {
+  public void setOffText(@NlsContexts.Button String offText) {
     myOffText = offText;
   }
 
@@ -73,7 +75,7 @@ public class OnOffButton extends JToggleButton {
 
     @Override
     public Dimension getPreferredSize(JComponent c) {
-      int vGap = JBUIScale.scale(4);
+      int vGap = JBUIScale.scale(3);
 
       OnOffButton button = (OnOffButton)c;
       String text = button.getOffText().length() > button.getOnText().length() ? button.getOffText() : button.getOnText();
@@ -82,7 +84,7 @@ public class OnOffButton extends JToggleButton {
       int w = fm.stringWidth(text);
       int h = fm.getHeight();
       h += 2 * vGap;
-      w += 3 * h / 2;
+      w += 1.25 * h;
       return new Dimension(w, h);
     }
 
@@ -92,7 +94,7 @@ public class OnOffButton extends JToggleButton {
 
       int toggleArc = JBUIScale.scale(3);
       int buttonArc = JBUIScale.scale(5);
-      int vGap = JBUIScale.scale(4);
+      int vGap = JBUIScale.scale(3);
       int hGap = JBUIScale.scale(3);
 
       OnOffButton button = (OnOffButton)c;
@@ -114,11 +116,8 @@ public class OnOffButton extends JToggleButton {
         g2.setColor(selected ? ON_BACKGROUND : OFF_BACKGROUND);
         g2.fillRoundRect(0, 0, w, h, buttonArc, buttonArc);
 
-        g2.setColor(BORDER_COLOR);
-        g2.drawRoundRect(0, 0, w, h, buttonArc, buttonArc);
-
         int knobWidth = w - SwingUtilities.computeStringWidth(g2.getFontMetrics(), button.getOffText()) - JBUIScale.scale(2);
-        knobWidth = knobWidth > h ? h : knobWidth;
+        knobWidth = Math.min(knobWidth, h);
 
         int textAscent = g2.getFontMetrics().getAscent();
 
@@ -155,6 +154,9 @@ public class OnOffButton extends JToggleButton {
           g2.setColor(OFF_FOREGROUND);
           g2.drawString(button.getOffText(), textRect.x, textRect.y + textAscent);
         }
+
+        g2.setColor(BORDER_COLOR);
+        g2.drawRoundRect(0, 0, w, h, buttonArc, buttonArc);
       }
       finally {
         g2.dispose();

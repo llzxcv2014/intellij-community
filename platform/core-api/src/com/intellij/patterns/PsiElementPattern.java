@@ -1,23 +1,10 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.patterns;
 
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.Language;
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
@@ -36,9 +23,10 @@ import static com.intellij.patterns.StandardPatterns.collection;
 import static com.intellij.patterns.StandardPatterns.not;
 
 /**
+ * @see PlatformPatterns#psiElement()
  * @author peter
  */
-public abstract class PsiElementPattern<T extends PsiElement,Self extends PsiElementPattern<T,Self>> extends TreeElementPattern<PsiElement,T,Self> {
+public abstract class PsiElementPattern<T extends PsiElement, Self extends PsiElementPattern<T, Self>> extends TreeElementPattern<PsiElement, T, Self> {
   protected PsiElementPattern(final Class<T> aClass) {
     super(aClass);
   }
@@ -71,7 +59,7 @@ public abstract class PsiElementPattern<T extends PsiElement,Self extends PsiEle
   }
 
   @NotNull
-  public Self afterLeaf(@NotNull final String... withText) {
+  public Self afterLeaf(@NlsSafe final String @NotNull ... withText) {
     return afterLeaf(psiElement().withText(StandardPatterns.string().oneOf(withText)));
   }
 
@@ -81,7 +69,7 @@ public abstract class PsiElementPattern<T extends PsiElement,Self extends PsiEle
   }
 
   @NotNull
-  public Self beforeLeaf(@NotNull final String... withText) {
+  public Self beforeLeaf(@NlsSafe final String @NotNull ... withText) {
     return beforeLeaf(psiElement().withText(StandardPatterns.string().oneOf(withText)));
   }
 
@@ -185,7 +173,7 @@ public abstract class PsiElementPattern<T extends PsiElement,Self extends PsiEle
   }
 
   @NotNull
-  public Self withName(@NotNull @NonNls final String... names) {
+  public Self withName(@NonNls final String @NotNull ... names) {
     return withName(StandardPatterns.string().oneOf(names));
   }
 

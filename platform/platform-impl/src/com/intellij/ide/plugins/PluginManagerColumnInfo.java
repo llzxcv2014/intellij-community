@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.plugins;
 
 import com.intellij.ide.IdeBundle;
@@ -116,7 +116,7 @@ public class PluginManagerColumnInfo extends ColumnInfo<IdeaPluginDescriptor, St
     }
   }
 
-  private static class PluginTableCellRenderer extends DefaultTableCellRenderer {
+  private static final class PluginTableCellRenderer extends DefaultTableCellRenderer {
     private final JLabel myLabel = new JLabel();
     private final PluginNode myPluginNode;
 
@@ -137,12 +137,12 @@ public class PluginManagerColumnInfo extends ColumnInfo<IdeaPluginDescriptor, St
 
       if (column == COLUMN_DATE) {
         long date = myPluginNode.getDate();
-        myLabel.setText(date != 0 && date != Long.MAX_VALUE ? DateFormatUtil.formatDate(date) : "n/a");
+        myLabel.setText(date != 0 && date != Long.MAX_VALUE ? DateFormatUtil.formatDate(date) : IdeBundle.message("label.category.n.a"));
         myLabel.setHorizontalAlignment(SwingConstants.RIGHT);
       }
       else if (column == COLUMN_DOWNLOADS) {
         String downloads = myPluginNode.getDownloads();
-        myLabel.setText(!StringUtil.isEmpty(downloads) ? downloads : "n/a");
+        myLabel.setText(!StringUtil.isEmpty(downloads) ? downloads : IdeBundle.message("label.category.n.a"));
         myLabel.setHorizontalAlignment(SwingConstants.RIGHT);
       }
       else if (column == COLUMN_CATEGORY) {
@@ -150,7 +150,7 @@ public class PluginManagerColumnInfo extends ColumnInfo<IdeaPluginDescriptor, St
         if (StringUtil.isEmpty(category)) {
           category = myPluginNode.getRepositoryName();
         }
-        myLabel.setText(!StringUtil.isEmpty(category) ? category : "n/a");
+        myLabel.setText(!StringUtil.isEmpty(category) ? category : IdeBundle.message("label.category.n.a"));
       }
       if (myPluginNode.getStatus() == PluginNode.Status.INSTALLED) {
         PluginId pluginId = myPluginNode.getPluginId();

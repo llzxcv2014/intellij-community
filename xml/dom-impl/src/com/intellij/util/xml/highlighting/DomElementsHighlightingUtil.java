@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.util.xml.highlighting;
 
@@ -32,7 +18,7 @@ import com.intellij.util.Function;
 import com.intellij.xml.util.XmlStringUtil;
 import org.jetbrains.annotations.Nullable;
 
-public class DomElementsHighlightingUtil {
+public final class DomElementsHighlightingUtil {
   private DomElementsHighlightingUtil() {
   }
 
@@ -68,7 +54,8 @@ public class DomElementsHighlightingUtil {
       TextRange range = s.first;
       if (text == null) range = TextRange.from(range.getStartOffset(), 0);
       range = range.shiftRight(s.second.getTextRange().getStartOffset());
-      final Annotation annotation = createAnnotation(severity, range, text);
+      String tooltip = text == null ? null : XmlStringUtil.wrapInHtml(XmlStringUtil.escapeString(text));
+      final Annotation annotation = new Annotation(range.getStartOffset(), range.getEndOffset(), severity, text, tooltip);
 
       if (problemDescriptor instanceof DomElementResolveProblemDescriptor) {
         annotation.setTextAttributes(CodeInsightColors.WRONG_REFERENCES_ATTRIBUTES);
@@ -79,13 +66,6 @@ public class DomElementsHighlightingUtil {
       }
       return annotation;
     });
-  }
-
-  private static Annotation createAnnotation(final HighlightSeverity severity,
-                                             final TextRange range,
-                                             final String text) {
-    String tooltip = text == null ? null : XmlStringUtil.wrapInHtml(XmlStringUtil.escapeString(text));
-    return new Annotation(range.getStartOffset(), range.getEndOffset(), severity, text, tooltip);
   }
 
   @Nullable

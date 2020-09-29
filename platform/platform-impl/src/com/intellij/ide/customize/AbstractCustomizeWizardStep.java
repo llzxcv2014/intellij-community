@@ -6,6 +6,7 @@ import com.intellij.ui.ColorUtil;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.util.ui.StartupUiUtil;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -20,12 +21,25 @@ public abstract class AbstractCustomizeWizardStep extends JPanel {
   protected static final int SMALL_GAP = 10;
   protected static final int GAP = 20;
 
-  protected abstract String getTitle();
+  @Nls(capitalization = Nls.Capitalization.Title)
+  public abstract String getTitle();
 
-  protected abstract String getHTMLHeader();
+  /**
+   * Content for title under top navigation.
+   *
+   * @return either a HTML string prefixed with <html>, or a text string not prefixed with <html>, which will be processed with StringUtil.escapeXmlEntities
+   */
+  @Nls
+  public abstract String getHTMLHeader();
 
+  /**
+   * Content for footer above buttons.
+   *
+   * @return either a HTML string prefixed with <html>, or a text string not prefixed with <html>, which will be processed with StringUtil.escapeXmlEntities
+   */
   @Nullable
-  protected String getHTMLFooter() {
+  @Nls
+  public String getHTMLFooter() {
     return null;
   }
 
@@ -76,7 +90,7 @@ public abstract class AbstractCustomizeWizardStep extends JPanel {
     return panel;
   }
 
-  Component getDefaultFocusedComponent() {
+  public Component getDefaultFocusedComponent() {
     return null;
   }
 

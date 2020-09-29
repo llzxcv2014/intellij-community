@@ -1,9 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.plugins;
 
 import com.intellij.diagnostic.ImplementationConflictException;
 import com.intellij.diagnostic.LoadingState;
 import com.intellij.diagnostic.PluginException;
+import com.intellij.ide.BootstrapBundle;
 import com.intellij.idea.Main;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
@@ -30,12 +31,17 @@ public final class StartupAbortedException extends RuntimeException {
       return;
     }
 
+    logAndExit(t);
+  }
+
+  public static void logAndExit(@NotNull Throwable t) {
     PluginManagerCore.EssentialPluginMissingException essentialPluginMissingException = findCause(t, PluginManagerCore.EssentialPluginMissingException.class);
     if (essentialPluginMissingException != null && essentialPluginMissingException.pluginIds != null) {
-      Main.showMessage("Corrupted Installation",
-                       "Missing essential " + (essentialPluginMissingException.pluginIds.size() == 1 ? "plugin" : "plugins") + ":\n\n" +
-                       essentialPluginMissingException.pluginIds.stream().sorted().collect(Collectors.joining("\n  ", "  ", "\n\n")) +
-                       "Please reinstall " + getProductNameSafe() + " from scratch.", true);
+      Main.showMessage(BootstrapBundle.message("bootstrap.error.title.corrupted.installation"),
+                       BootstrapBundle.message("bootstrap.error.message.missing.essential.plugins.0.1.please.reinstall.2",
+                                               essentialPluginMissingException.pluginIds.size(),
+                                               essentialPluginMissingException.pluginIds.stream().sorted().collect(Collectors.joining("\n  ", "  ", "\n\n")),
+                                               getProductNameSafe()), true);
       System.exit(Main.INSTALLATION_CORRUPTED);
     }
 
@@ -46,7 +52,8 @@ public final class StartupAbortedException extends RuntimeException {
       try {
         PluginManagerCore.getLogger().error(t);
       }
-      catch (Throwable ignore) { }
+      catch (Throwable ignore) {
+      }
 
       // workaround for SOE on parsing PAC file (JRE-247)
       if (t instanceof StackOverflowError && "Nashorn AST Serializer".equals(Thread.currentThread().getName())) {
@@ -66,16 +73,17 @@ public final class StartupAbortedException extends RuntimeException {
       PluginManagerCore.disablePlugin(pluginId);
 
       StringWriter message = new StringWriter();
-      message.append("Plugin '").append(pluginId.getIdString()).append("' failed to initialize and will be disabled. ");
-      message.append(" Please restart ").append(getProductNameSafe()).append('.');
+      message.append(BootstrapBundle.message("bootstrap.error.message.plugin.0.failed.to.initialize.and.will.be.disabled.please.restart.1",
+                                             pluginId.getIdString(),
+                                             getProductNameSafe()));
       message.append("\n\n");
       pluginException.getCause().printStackTrace(new PrintWriter(message));
 
-      Main.showMessage("Plugin Error", message.toString(), false);
+      Main.showMessage(BootstrapBundle.message("bootstrap.error.title.plugin.error"), message.toString(), false); //NON-NLS
       System.exit(Main.PLUGIN_ERROR);
     }
     else {
-      Main.showMessage("Start Failed", t);
+      Main.showMessage(BootstrapBundle.message("bootstrap.error.title.start.failed"), t);
       System.exit(Main.STARTUP_EXCEPTION);
     }
   }

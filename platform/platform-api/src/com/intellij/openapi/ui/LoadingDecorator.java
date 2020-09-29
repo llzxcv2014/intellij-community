@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.ui;
 
+import com.intellij.CommonBundle;
 import com.intellij.ide.RemoteDesktopService;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.util.Disposer;
@@ -11,6 +12,7 @@ import com.intellij.util.ui.Animator;
 import com.intellij.util.ui.AsyncProcessIcon;
 import com.intellij.util.ui.ImageUtil;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -43,7 +45,7 @@ public class LoadingDecorator {
     myDelay = startDelayMs;
     myStartAlarm = new Alarm(Alarm.ThreadToUse.POOLED_THREAD, parent);
 
-    setLoadingText("Loading...");
+    setLoadingText(CommonBundle.getLoadingTreeNodeText());
 
 
     myFadeOutAnimator = new Animator("Loading", 10, RemoteDesktopService.isRemoteSession()? 2500 : 500, false) {
@@ -142,7 +144,7 @@ public class LoadingDecorator {
     return myLoadingLayer.myText.getText();
   }
 
-  public void setLoadingText(final String loadingText) {
+  public void setLoadingText(@Nls String loadingText) {
     myLoadingLayer.myText.setText(loadingText);
   }
 
@@ -150,7 +152,7 @@ public class LoadingDecorator {
     return myLoadingLayer.isLoading();
   }
 
-  private class LoadingLayer extends JPanel {
+  private final class LoadingLayer extends JPanel {
     private final JLabel myText = new JLabel("", SwingConstants.CENTER);
 
     private BufferedImage mySnapshot;
@@ -251,7 +253,7 @@ public class LoadingDecorator {
   public interface CursorAware {
   }
 
-  private static class MyLayeredPane extends JBLayeredPane implements CursorAware {
+  private static final class MyLayeredPane extends JBLayeredPane implements CursorAware {
     private final JComponent myContent;
 
     private MyLayeredPane(JComponent content) {

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.java.psi;
 
 import com.intellij.openapi.application.ApplicationManager;
@@ -9,17 +9,21 @@ import com.intellij.openapi.fileEditor.impl.LoadTextUtil;
 import com.intellij.openapi.roots.LanguageLevelProjectExtension;
 import com.intellij.openapi.roots.impl.PushedFilePropertiesUpdater;
 import com.intellij.openapi.util.Conditions;
+import com.intellij.openapi.util.Factory;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.PsiDocumentManagerImpl;
+import com.intellij.psi.impl.light.LightMethodBuilder;
+import com.intellij.psi.impl.light.LightTypeParameterBuilder;
 import com.intellij.psi.impl.source.PostprocessReformattingAspect;
 import com.intellij.psi.impl.source.tree.LazyParseableElement;
 import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.testFramework.SkipSlowTestLocally;
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase;
+import com.intellij.util.ThrowableRunnable;
 import com.intellij.util.ref.GCWatcher;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,8 +32,8 @@ import java.io.IOException;
 @SkipSlowTestLocally
 public class MiscPsiTest extends LightJavaCodeInsightFixtureTestCase {
   @Override
-  protected void invokeTestRunnable(@NotNull final Runnable runnable) {
-    WriteCommandAction.writeCommandAction(getProject()).run(() -> runnable.run());
+  protected void runTestRunnable(@NotNull ThrowableRunnable<Throwable> testRunnable) throws Throwable {
+    WriteCommandAction.writeCommandAction(getProject()).run(testRunnable);
   }
 
   public void testCopyTextFile() throws Exception{
@@ -270,7 +274,7 @@ public class MiscPsiTest extends LightJavaCodeInsightFixtureTestCase {
     final PsiJavaFile file = (PsiJavaFile)myFixture.addFileToProject("a.java", text);
     PsiElement leaf = file.findElementAt(5);
 
-    GCWatcher.tracking(file.getViewProvider().getDocument()).tryGc();
+    GCWatcher.tracking(file.getViewProvider().getDocument()).ensureCollected();
     assertNull(PsiDocumentManager.getInstance(getProject()).getCachedDocument(file));
 
     WriteCommandAction.writeCommandAction(getProject()).run(() -> VfsUtil.saveText(file.getVirtualFile(), text + "   "));
@@ -287,7 +291,7 @@ public class MiscPsiTest extends LightJavaCodeInsightFixtureTestCase {
     assertNotNull(aClass.getNode());
     assertNotNull(PsiDocumentManager.getInstance(getProject()).getCachedDocument(file));
 
-    GCWatcher.tracking(PsiDocumentManager.getInstance(getProject()).getCachedDocument(file)).tryGc();
+    GCWatcher.tracking(PsiDocumentManager.getInstance(getProject()).getCachedDocument(file)).ensureCollected();
     assertNull(PsiDocumentManager.getInstance(getProject()).getCachedDocument(file));
 
     aClass.add(JavaPsiFacade.getElementFactory(getProject()).createMethodFromText("void foo(){}", null));
@@ -303,7 +307,7 @@ public class MiscPsiTest extends LightJavaCodeInsightFixtureTestCase {
     PsiJavaFile file = (PsiJavaFile)myFixture.addFileToProject("a.java", "class A{public static void foo() { }}");
 
     PsiClass aClass = file.getClasses()[0];
-    GCWatcher.tracking(aClass.getNode()).tryGc();
+    GCWatcher.tracking(aClass.getNode()).ensureCollected();
 
     PsiKeyword kw = assertInstanceOf(aClass.getMethods()[0].getModifierList().getFirstChild(), PsiKeyword.class);
     kw.delete();
@@ -387,5 +391,23 @@ public class MiscPsiTest extends LightJavaCodeInsightFixtureTestCase {
     });
 
     assertEquals(" class Foo {}", file.getText());
+  }
+
+  public void testGenericLightMethodBuilderEquivalence() {
+    Factory<PsiMethod> createMethod = () -> {
+      LightMethodBuilder method = new LightMethodBuilder(getPsiManager(), "foo");
+      LightTypeParameterBuilder typeParam = new LightTypeParameterBuilder("T", method, 0);
+      method.addTypeParameter(typeParam);
+      PsiClassType tType = JavaPsiFacade.getElementFactory(getProject()).createType(typeParam);
+      method.setMethodReturnType(tType);
+      method.addParameter("p", tType);
+      return method;
+    };
+
+    assertTrue(getPsiManager().areElementsEquivalent(createMethod.create(), createMethod.create()));
+  }
+
+  public void testFoundPackageIsValid() {
+    assertTrue(myFixture.findPackage("org.apache").isValid());
   }
 }

@@ -4,10 +4,12 @@ package com.intellij.execution.util;
 
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.RunCanceledByUserException;
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogBuilder;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
@@ -19,7 +21,7 @@ public final class ExecutionErrorDialog {
   private ExecutionErrorDialog() {
   }
 
-  public static void show(final ExecutionException e, final String title, final Project project) {
+  public static void show(final ExecutionException e, final @NlsContexts.DialogTitle String title, final Project project) {
     if (e instanceof RunCanceledByUserException) {
       return;
     }
@@ -29,7 +31,7 @@ public final class ExecutionErrorDialog {
     }
     final String message = e.getMessage();
     if (message == null || message.length() < 100) {
-      Messages.showErrorDialog(project, message == null ? "exception was thrown" : message, title);
+      Messages.showErrorDialog(project, message == null ? IdeBundle.message("error.message.exception.was.thrown") : message, title);
       return;
     }
     final DialogBuilder builder = new DialogBuilder(project);

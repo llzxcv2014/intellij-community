@@ -1,8 +1,9 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.configurationStore
 
 import com.intellij.openapi.components.*
-import com.intellij.openapi.extensions.ExtensionPointName
+import com.intellij.openapi.extensions.ProjectExtensionPointName
+import org.jetbrains.annotations.ApiStatus
 
 /**
  * Project level extension point.
@@ -10,9 +11,10 @@ import com.intellij.openapi.extensions.ExtensionPointName
  * Allows to set custom storage class using providing custom storage specs.
  * Or set custom stream provider for default storage (XmlElementStorage).
  */
+@ApiStatus.Internal
 interface StreamProviderFactory {
   companion object {
-    val EP_NAME: ExtensionPointName<StreamProviderFactory> = ExtensionPointName.create<StreamProviderFactory>("com.intellij.streamProviderFactory")
+    val EP_NAME = ProjectExtensionPointName<StreamProviderFactory>("com.intellij.streamProviderFactory")
   }
 
   fun createProvider(componentManager: ComponentManager, storageManager: StateStorageManager): StreamProvider? = null
@@ -22,4 +24,6 @@ interface StreamProviderFactory {
    * @return null if not applicable
    */
   fun customizeStorageSpecs(component: PersistentStateComponent<*>, storageManager: StateStorageManager, stateSpec: State, storages: List<Storage>, operation: StateStorageOperation): List<Storage>? = null
+
+  fun getOrCreateStorageSpec(fileSpec: String, inProjectStateSpec: State? = null): Storage
 }

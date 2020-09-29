@@ -6,13 +6,13 @@ import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.options.ConfigurableUi;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import static com.intellij.util.containers.ContainerUtil.ar;
-import static java.lang.String.format;
 
 public class SubjectLimitInspection extends BaseCommitMessageInspection {
 
@@ -22,7 +22,7 @@ public class SubjectLimitInspection extends BaseCommitMessageInspection {
   @NotNull
   @Override
   public String getDisplayName() {
-    return "Limit subject line";
+    return VcsBundle.message("inspection.SubjectLimitInspection.display.name");
   }
 
   @NotNull
@@ -31,14 +31,14 @@ public class SubjectLimitInspection extends BaseCommitMessageInspection {
     return new SubjectLimitInspectionOptions(this);
   }
 
-  @Nullable
   @Override
-  protected ProblemDescriptor[] checkFile(@NotNull PsiFile file,
-                                          @NotNull Document document,
-                                          @NotNull InspectionManager manager,
-                                          boolean isOnTheFly) {
+  protected ProblemDescriptor @Nullable [] checkFile(@NotNull PsiFile file,
+                                                     @NotNull Document document,
+                                                     @NotNull InspectionManager manager,
+                                                     boolean isOnTheFly) {
+    String problemText = VcsBundle.message("commit.message.inspection.message.subject.should.not.exceed.characters", RIGHT_MARGIN);
     ProblemDescriptor descriptor = checkRightMargin(file, document, manager, isOnTheFly, 0, RIGHT_MARGIN,
-                                                    format("Subject should not exceed %d characters", RIGHT_MARGIN));
+                                                    problemText);
 
     return descriptor != null ? ar(descriptor) : null;
   }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 /*
  * Class Breakpoint
@@ -18,6 +18,7 @@ import com.intellij.debugger.impl.DebuggerUtilsEx;
 import com.intellij.debugger.jdi.StackFrameProxyImpl;
 import com.intellij.debugger.jdi.ThreadReferenceProxyImpl;
 import com.intellij.debugger.jdi.VirtualMachineProxyImpl;
+import com.intellij.debugger.memory.utils.StackFrameItem;
 import com.intellij.debugger.requests.ClassPrepareRequestor;
 import com.intellij.debugger.requests.Requestor;
 import com.intellij.debugger.settings.DebuggerSettings;
@@ -30,6 +31,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.JDOMExternalizerUtil;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiCodeFragment;
@@ -39,6 +41,7 @@ import com.intellij.ui.SimpleColoredComponent;
 import com.intellij.ui.classFilter.ClassFilter;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.ThreeState;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.xdebugger.XExpression;
 import com.intellij.xdebugger.breakpoints.SuspendPolicy;
 import com.intellij.xdebugger.breakpoints.XBreakpoint;
@@ -52,23 +55,26 @@ import com.intellij.xdebugger.impl.breakpoints.ui.XBreakpointActionsPanel;
 import com.sun.jdi.*;
 import com.sun.jdi.event.LocatableEvent;
 import com.sun.jdi.request.EventRequest;
+import one.util.streamex.StreamEx;
 import org.jdom.Element;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.java.debugger.breakpoints.properties.JavaBreakpointProperties;
 
 import javax.swing.*;
-import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 public abstract class Breakpoint<P extends JavaBreakpointProperties> implements FilteredRequestor, ClassPrepareRequestor, OverheadProducer {
-  public static final Key<Breakpoint> DATA_KEY = Key.create("JavaBreakpoint");
+  public static final Key<Breakpoint<?>> DATA_KEY = Key.create("JavaBreakpoint");
   private static final Key<Long> HIT_COUNTER = Key.create("HIT_COUNTER");
 
   final XBreakpoint<P> myXBreakpoint;
+  @NotNull
   protected final Project myProject;
 
   @NonNls private static final String LOG_MESSAGE_OPTION_NAME = "LOG_MESSAGE";
@@ -139,10 +145,10 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
 
   @Override
   public boolean isObsolete() {
-    return myXBreakpoint instanceof XBreakpointBase && ((XBreakpointBase)myXBreakpoint).isDisposed();
+    return myXBreakpoint instanceof XBreakpointBase && ((XBreakpointBase<?, ?, ?>)myXBreakpoint).isDisposed();
   }
 
-  public abstract String getDisplayName ();
+  public abstract @NlsContexts.Label String getDisplayName();
 
   public String getShortName() {
     return getDisplayName();
@@ -158,12 +164,12 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
   }
 
   public boolean isRemoveAfterHit() {
-    return myXBreakpoint instanceof XLineBreakpoint && ((XLineBreakpoint)myXBreakpoint).isTemporary();
+    return myXBreakpoint instanceof XLineBreakpoint && ((XLineBreakpoint<?>)myXBreakpoint).isTemporary();
   }
 
   public void setRemoveAfterHit(boolean value) {
     if (myXBreakpoint instanceof XLineBreakpoint) {
-      ((XLineBreakpoint)myXBreakpoint).setTemporary(value);
+      ((XLineBreakpoint<?>)myXBreakpoint).setTemporary(value);
     }
   }
 
@@ -190,15 +196,33 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
   /**
    * returns UI representation
    */
-  public abstract String getEventMessage(LocatableEvent event);
+  public abstract @Nls String getEventMessage(LocatableEvent event);
 
-  protected String getStackTrace(LocatableEvent event) {
-    StringBuilder builder = new StringBuilder(
-      DebuggerBundle.message("status.line.breakpoint.reached.full.trace"));
+  protected String getStackTrace(SuspendContextImpl suspendContext) {
+    StringBuilder builder = new StringBuilder(JavaDebuggerBundle.message("status.line.breakpoint.reached.full.trace"));
     try {
-      event.thread().frames().forEach(f -> builder.append("\n\t  ").append(ThreadDumpAction.renderLocation(f.location())));
+      List<StackFrameItem> asyncStack = null;
+      for (StackFrameProxyImpl frameProxy : suspendContext.getThread().forceFrames()) {
+        Location location = frameProxy.location();
+        builder.append("\n\t").append(ThreadDumpAction.renderLocation(location));
+        if (Registry.is("debugger.log.async.stacks")) {
+          if (asyncStack != null) {
+            StreamEx.of(asyncStack).prepend((StackFrameItem)null).forEach(s -> {
+              builder.append("\n\t");
+              if (s == null) {
+                builder.append(" - ").append(StackFrameItem.getAsyncStacktraceMessage());
+              }
+              else {
+                builder.append(ThreadDumpAction.renderLocation(s.location()));
+              }
+            });
+            break;
+          }
+          asyncStack = AsyncStacksUtils.getAgentRelatedStack(frameProxy, suspendContext);
+        }
+      }
     }
-    catch (IncompatibleThreadStateException e) {
+    catch (EvaluateException e) {
       builder.append("Stacktrace not available: ").append(e.getMessage());
     }
     return builder.toString();
@@ -251,7 +275,7 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
       return false;
     }
 
-    String title = DebuggerBundle.message("title.error.evaluating.breakpoint.condition");
+    String title = JavaDebuggerBundle.message("title.error.evaluating.breakpoint.condition");
 
     try {
       StackFrameProxyImpl frameProxy = context.getThread().frame(0);
@@ -266,7 +290,7 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
         return false;
       }
 
-      title = DebuggerBundle.message("title.error.evaluating.breakpoint.action");
+      title = JavaDebuggerBundle.message("title.error.evaluating.breakpoint.action");
       runAction(evaluationContext, event);
     }
     catch (final EvaluateException ex) {
@@ -296,7 +320,7 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
       }
 
       if (isLogStack()) {
-        buf.append(getStackTrace(event)).append("\n");
+        buf.append(getStackTrace(context.getSuspendContext())).append("\n");
       }
 
       if (isLogExpressionEnabled()) {
@@ -315,7 +339,7 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
           buf.append(eval instanceof VoidValue ? "void" : DebuggerUtils.getValueAsString(context, eval));
         }
         catch (EvaluateException e) {
-          buf.append(DebuggerBundle.message("error.unable.to.evaluate.expression"))
+          buf.append(JavaDebuggerBundle.message("error.unable.to.evaluate.expression"))
             .append(" \"").append(logMessage).append("\"")
             .append(" : ").append(e.getMessage());
         }
@@ -334,7 +358,7 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
    * @return true if the ID was added or false otherwise
    */
   private boolean hasObjectID(long id) {
-    return Arrays.stream(getInstanceFilters()).anyMatch(instanceFilter -> instanceFilter.getId() == id);
+    return ContainerUtil.exists(getInstanceFilters(), instanceFilter -> instanceFilter.getId() == id);
   }
 
   public boolean evaluateCondition(final EvaluationContextImpl context, LocatableEvent event) throws EvaluateException {
@@ -411,19 +435,19 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
           return false;
         }
         throw EvaluateExceptionUtil.createEvaluateException(
-          DebuggerBundle.message("error.failed.evaluating.breakpoint.condition", condition, ex.getMessage())
+          JavaDebuggerBundle.message("error.failed.evaluating.breakpoint.condition", condition, ex.getMessage())
         );
       }
     }
     if (isCountFilterEnabled() && isConditionEnabled()) {
-      Long hitCount = ObjectUtils.notNull((Long)event.request().getProperty(HIT_COUNTER), 0L) + 1;
+      long hitCount = ObjectUtils.notNull((Long)event.request().getProperty(HIT_COUNTER), 0L) + 1;
       event.request().putProperty(HIT_COUNTER, hitCount);
       return hitCount % getCountFilter() == 0;
     }
     return true;
   }
 
-  private static class EvaluatorCache {
+  private static final class EvaluatorCache {
     private final PsiElement myContext;
     private final TextWithImports myTextWithImports;
     private final ExpressionEvaluator myEvaluator;
@@ -495,7 +519,7 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
     return className;
   }
 
-  protected static boolean typeMatchesClassFilters(@Nullable String typeName, ClassFilter[] includeFilters, ClassFilter[] exludeFilters) {
+  protected static boolean typeMatchesClassFilters(@Nullable String typeName, ClassFilter[] includeFilters, ClassFilter[] excludeFilters) {
     if (typeName == null) {
       return true;
     }
@@ -512,7 +536,7 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
     if (hasEnabled && !matches) {
       return false;
     }
-    return Arrays.stream(exludeFilters).noneMatch(classFilter -> classFilter.isEnabled() && classFilter.matches(typeName));
+    return !ContainerUtil.exists(excludeFilters, classFilter -> classFilter.isEnabled() && classFilter.matches(typeName));
   }
 
   private void handleTemporaryBreakpointHit(final DebugProcessImpl debugProcess) {
@@ -687,7 +711,7 @@ public abstract class Breakpoint<P extends JavaBreakpointProperties> implements 
     }
   }
 
-  private static String getSuspendPolicy(XBreakpoint breakpoint) {
+  private static String getSuspendPolicy(XBreakpoint<?> breakpoint) {
     switch (breakpoint.getSuspendPolicy()) {
       case ALL:
         return DebuggerSettings.SUSPEND_ALL;

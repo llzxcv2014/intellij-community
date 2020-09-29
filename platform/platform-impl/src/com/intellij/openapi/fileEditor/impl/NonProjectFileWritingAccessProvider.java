@@ -1,6 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.fileEditor.impl;
 
+import com.intellij.ide.lightEdit.LightEdit;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
@@ -21,6 +22,7 @@ import com.intellij.openapi.vfs.ex.temp.TempFileSystem;
 import com.intellij.project.ProjectKt;
 import com.intellij.util.NullableFunction;
 import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.text.FilePathHashingStrategy;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
@@ -99,6 +101,7 @@ public class NonProjectFileWritingAccessProvider extends WritingAccessProvider {
   }
 
   public static boolean isWriteAccessAllowed(@NotNull VirtualFile file, @NotNull Project project) {
+    if (LightEdit.owns(project)) return true;
     if (isAllAccessAllowed()) return true;
     if (file.isDirectory()) return true;
 
@@ -145,7 +148,7 @@ public class NonProjectFileWritingAccessProvider extends WritingAccessProvider {
 
       String filePath = file.getPath();
       for (Module module : ModuleManager.getInstance(project).getModules()) {
-        if (FileUtil.namesEqual(filePath, module.getModuleFilePath())) {
+        if (FilePathHashingStrategy.create(file.isCaseSensitive()).equals(filePath, module.getModuleFilePath())) {
           return true;
         }
       }

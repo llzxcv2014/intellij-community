@@ -20,7 +20,7 @@ public final class ModulePackageIndexImpl extends ModulePackageIndex {
     myDirectoryIndex = DirectoryIndex.getInstance(module.getProject());
   }
 
-  private final Condition<VirtualFile> myDirCondition = new Condition<VirtualFile>() {
+  private final Condition<VirtualFile> myDirCondition = new Condition<>() {
     @Override
     public boolean value(final VirtualFile dir) {
       return dir.isValid() && myModuleFileIndex.getOrderEntryForFile(dir) != null;
@@ -33,9 +33,8 @@ public final class ModulePackageIndexImpl extends ModulePackageIndex {
     return new FilteredQuery<>(myDirectoryIndex.getDirectoriesByPackageName(packageName, includeLibrarySources), myDirCondition);
   }
 
-  @NotNull
   @Override
-  public VirtualFile[] getDirectoriesByPackageName(@NotNull String packageName, boolean includeLibrarySources) {
+  public VirtualFile @NotNull [] getDirectoriesByPackageName(@NotNull String packageName, boolean includeLibrarySources) {
     return getDirsByPackageName(packageName, includeLibrarySources).toArray(VirtualFile.EMPTY_ARRAY);
   }
 }

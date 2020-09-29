@@ -17,6 +17,7 @@
 package com.jetbrains.python.testing;
 
 import com.intellij.openapi.module.Module;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.ui.CollectionComboBoxModel;
 import com.jetbrains.python.PyBundle;
 
@@ -24,8 +25,13 @@ import java.util.List;
 
 
 public class PythonTestConfigurationsModel extends CollectionComboBoxModel {
-  public static final String PYTHONS_UNITTEST_NAME = PyBundle.message("runcfg.unittest.display_name");
+  /**
+   * @deprecated Use {@link #getPythonsUnittestName()} instead
+   */
+  @Deprecated
+  public static final String PYTHONS_UNITTEST_NAME = "Unittests";
 
+  @NlsSafe
   private String myTestRunner;
   private final Module myModule;
 
@@ -45,5 +51,9 @@ public class PythonTestConfigurationsModel extends CollectionComboBoxModel {
 
   public Object getTestRunner() {
     return myTestRunner;
+  }
+
+  public static String getPythonsUnittestName() {
+    return PyBundle.message("runcfg.unittest.display_name");
   }
 }

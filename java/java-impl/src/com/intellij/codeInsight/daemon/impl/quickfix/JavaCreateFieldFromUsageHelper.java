@@ -73,10 +73,9 @@ public class JavaCreateFieldFromUsageHelper extends CreateFieldFromUsageHelper {
 
   private static boolean disableShortenLongNames(Project project, ExpectedTypeInfo[] expectedTypes) {
     if (Registry.is("ide.create.field.enable.shortening")) return false;
-    return ExpectedTypesProvider.processExpectedTypes(expectedTypes, new PsiTypeVisitor<PsiType>() {
-      @Nullable
+    return ExpectedTypesProvider.processExpectedTypes(expectedTypes, new PsiTypeVisitor<>() {
       @Override
-      public PsiType visitType(PsiType type) {
+      public PsiType visitType(@NotNull PsiType type) {
         return type;
       }
     }, project).length > 1;

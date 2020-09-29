@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 @file:JvmName("ComponentModuleRegistrationChecker")
 
 package org.jetbrains.idea.devkit.inspections
@@ -13,7 +13,7 @@ import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.module.ModuleUtilCore
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootManager
-import com.intellij.openapi.util.AtomicClearableLazyValue
+import com.intellij.openapi.util.ClearableLazyValue
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.pom.Navigatable
 import com.intellij.psi.*
@@ -29,25 +29,21 @@ import com.intellij.util.xml.DomUtil
 import com.intellij.util.xml.highlighting.DomElementAnnotationHolder
 import com.siyeh.ig.psiutils.TypeUtils
 import org.jetbrains.annotations.Nls
+import org.jetbrains.idea.devkit.DevKitBundle
 import org.jetbrains.idea.devkit.dom.Extension
 import org.jetbrains.idea.devkit.dom.ExtensionPoint
 import org.jetbrains.idea.devkit.dom.impl.PluginPsiClassConverter
 import org.jetbrains.idea.devkit.util.PsiUtil
 import org.jetbrains.jps.model.serialization.PathMacroUtil
 
-class ComponentModuleRegistrationChecker(private val moduleToModuleSet: AtomicClearableLazyValue<MutableMap<String, PluginXmlDomInspection.PluginModuleSet>>,
+class ComponentModuleRegistrationChecker(private val moduleToModuleSet: ClearableLazyValue<MutableMap<String, PluginXmlDomInspection.PluginModuleSet>>,
                                          private val ignoredClasses: MutableList<String>,
                                          private val annotationHolder: DomElementAnnotationHolder) {
-
   fun checkProperModule(extensionPoint: ExtensionPoint) {
     val effectiveEpClass = extensionPoint.effectiveClass
     if (shouldCheckExtensionPointClassAttribute(effectiveEpClass) &&
         checkProperXmlFileForClass(extensionPoint, effectiveEpClass)) {
       return
-    }
-
-    for (withElement in extensionPoint.withElements) {
-      if (checkProperXmlFileForClass(extensionPoint, withElement.implements.value)) return
     }
 
     val shortName = extensionPoint.effectiveQualifiedName.substringAfterLast('.')
@@ -151,8 +147,8 @@ class ComponentModuleRegistrationChecker(private val moduleToModuleSet: AtomicCl
       }
     }
     val fix = if (modulePluginXmlFile != null) MoveRegistrationQuickFix(pluginXmlModule, modulePluginXmlFile.name) else null
-    annotationHolder.createProblem(element, ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                   "Element should be registered in '${definingModule.name}' module where its class '${psiClass.qualifiedName}' is defined", null,
+    annotationHolder.createProblem(element, ProblemHighlightType.WARNING,
+                                   DevKitBundle.message("inspections.plugin.xml.ComponentModuleRegistrationChecker.element.registered.wrong.module", definingModule.name, psiClass.qualifiedName), null,
                                    fix)
     return true
   }
@@ -204,10 +200,10 @@ class ComponentModuleRegistrationChecker(private val moduleToModuleSet: AtomicCl
                                        private val myTargetFileName: String) : LocalQuickFix {
 
     @Nls
-    override fun getName(): String = "Move registration to " + myTargetFileName
+    override fun getName(): String = DevKitBundle.message("inspections.plugin.xml.ComponentModuleRegistrationChecker.fix.move.registration.name", myTargetFileName)
 
     @Nls
-    override fun getFamilyName(): String = "Move registration to correct module"
+    override fun getFamilyName(): String = DevKitBundle.message("inspections.plugin.xml.ComponentModuleRegistrationChecker.fix.move.registration.family.name")
 
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
       val tag = PsiTreeUtil.getParentOfType(descriptor.psiElement, XmlTag::class.java, false) ?: return

@@ -5,7 +5,10 @@ package com.intellij.codeInsight.daemon.impl.quickfix;
 
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.codeInsight.intention.HighPriorityAction;
+import com.intellij.codeInspection.CommonQuickFixBundle;
 import com.intellij.codeInspection.LocalQuickFixAndIntentionActionOnPsiElement;
+import com.intellij.codeInspection.util.IntentionName;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
@@ -17,7 +20,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class ReplaceGetClassWithClassLiteralFix extends LocalQuickFixAndIntentionActionOnPsiElement implements HighPriorityAction {
-  private String myText;
+  private @IntentionName String myText;
 
   public ReplaceGetClassWithClassLiteralFix(PsiMethodCallExpression expression) {
     super(expression);
@@ -44,7 +47,7 @@ public class ReplaceGetClassWithClassLiteralFix extends LocalQuickFixAndIntentio
     if (aClass == null) return false;
     String className = aClass.getName();
     if (className == null) return false;
-    myText = "Replace with " + className + ".class";
+    myText = CommonQuickFixBundle.message("fix.replace.with.x", className + "." + PsiKeyword.CLASS);
     return super.isAvailable(project, file, startElement, endElement);
   }
 
@@ -58,7 +61,7 @@ public class ReplaceGetClassWithClassLiteralFix extends LocalQuickFixAndIntentio
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Replace getClass() with .class literal";
+    return JavaAnalysisBundle.message("replace.get.class.with.class.literal");
   }
 
   public static void registerFix(PsiMethodCallExpression callExpression, HighlightInfo errorResult) {

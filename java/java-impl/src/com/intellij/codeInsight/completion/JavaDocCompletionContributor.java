@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.completion;
 
 import com.intellij.application.options.CodeStyle;
@@ -17,6 +17,7 @@ import com.intellij.codeInspection.javaDoc.JavadocHighlightUtil;
 import com.intellij.lang.java.JavaLanguage;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.*;
+import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Conditions;
@@ -48,7 +49,7 @@ import java.util.*;
 import static com.intellij.patterns.PlatformPatterns.psiElement;
 import static com.intellij.patterns.StandardPatterns.string;
 
-public class JavaDocCompletionContributor extends CompletionContributor {
+public class JavaDocCompletionContributor extends CompletionContributor implements DumbAware {
   private static final Logger LOG = Logger.getInstance(JavaDocCompletionContributor.class);
   private static final @NonNls String VALUE_TAG = "value";
   private static final @NonNls String LINK_TAG = "link";
@@ -73,9 +74,11 @@ public class JavaDocCompletionContributor extends CompletionContributor {
   public JavaDocCompletionContributor() {
     extend(CompletionType.BASIC, PsiJavaPatterns.psiElement(JavaDocTokenType.DOC_TAG_NAME), new TagChooser());
 
-    extend(CompletionType.BASIC, PsiJavaPatterns.psiElement().inside(PsiDocComment.class), new CompletionProvider<CompletionParameters>() {
+    extend(CompletionType.BASIC, PsiJavaPatterns.psiElement().inside(PsiDocComment.class), new CompletionProvider<>() {
       @Override
-      protected void addCompletions(@NotNull final CompletionParameters parameters, @NotNull final ProcessingContext context, @NotNull CompletionResultSet result) {
+      protected void addCompletions(@NotNull final CompletionParameters parameters,
+                                    @NotNull final ProcessingContext context,
+                                    @NotNull CompletionResultSet result) {
         final PsiElement position = parameters.getPosition();
         boolean isArg = PsiJavaPatterns.psiElement().afterLeaf("(").accepts(position);
         PsiDocTag tag = PsiTreeUtil.getParentOfType(position, PsiDocTag.class);
@@ -87,7 +90,8 @@ public class JavaDocCompletionContributor extends CompletionContributor {
           result = result.withPrefixMatcher(
             refElement.getText().substring(0, parameters.getOffset() - refElement.getTextRange().getStartOffset()));
           for (PsiNamedElement param : getParametersToSuggest(PsiTreeUtil.getParentOfType(position, PsiDocComment.class))) {
-            result.addElement(PrioritizedLookupElement.withPriority(LookupElementBuilder.create(param, nameForParamTag(param)), param instanceof PsiTypeParameter ? 0 : 1));
+            result.addElement(PrioritizedLookupElement.withPriority(LookupElementBuilder.create(param, nameForParamTag(param)),
+                                                                    param instanceof PsiTypeParameter ? 0 : 1));
           }
         }
         else if (ref instanceof PsiJavaReference) {
@@ -98,9 +102,11 @@ public class JavaDocCompletionContributor extends CompletionContributor {
             if (onlyConstants) {
               Object o = item.getObject();
               if (!(o instanceof PsiField)) continue;
-              PsiField field = (PsiField) o;
+              PsiField field = (PsiField)o;
               if (!(field.hasModifierProperty(PsiModifier.STATIC) && field.getInitializer() != null &&
-                  JavaConstantExpressionEvaluator.computeConstantExpression(field.getInitializer(), false) != null)) continue;
+                    JavaConstantExpressionEvaluator.computeConstantExpression(field.getInitializer(), false) != null)) {
+                continue;
+              }
             }
 
             if (isArg) {
@@ -118,13 +124,15 @@ public class JavaDocCompletionContributor extends CompletionContributor {
       }
     });
 
-    extend(CompletionType.SMART, THROWS_TAG_EXCEPTION, new CompletionProvider<CompletionParameters>() {
+    extend(CompletionType.SMART, THROWS_TAG_EXCEPTION, new CompletionProvider<>() {
       @Override
-      public void addCompletions(@NotNull final CompletionParameters parameters, @NotNull final ProcessingContext context, @NotNull final CompletionResultSet result) {
+      public void addCompletions(@NotNull final CompletionParameters parameters,
+                                 @NotNull final ProcessingContext context,
+                                 @NotNull final CompletionResultSet result) {
         final PsiElement element = parameters.getPosition();
         final Set<PsiClass> throwsSet = new HashSet<>();
         final PsiMethod method = PsiTreeUtil.getContextOfType(element, PsiMethod.class, true);
-        if(method != null){
+        if (method != null) {
           for (PsiClassType ref : method.getThrowsList().getReferencedTypes()) {
             final PsiClass exception = ref.resolve();
             if (exception != null && throwsSet.add(exception)) {
@@ -285,10 +293,10 @@ public class JavaDocCompletionContributor extends CompletionContributor {
     final Set<String> descriptions = new HashSet<>();
     position.getContainingFile().accept(new PsiRecursiveElementWalkingVisitor() {
       @Override
-      public void visitElement(PsiElement element) {
+      public void visitElement(@NotNull PsiElement element) {
         PsiParameter param1 = getDocTagParam(element);
         if (param1 != null && param1 != param &&
-            Comparing.equal(param1.getName(), param.getName()) && Comparing.equal(param1.getType(), param.getType())) {
+            Objects.equals(param1.getName(), param.getName()) && Comparing.equal(param1.getType(), param.getType())) {
           String text = "";
           for (PsiElement psiElement : ((PsiDocTag)element).getDataElements()) {
             if (psiElement != ((PsiDocTag)element).getValueElement()) {

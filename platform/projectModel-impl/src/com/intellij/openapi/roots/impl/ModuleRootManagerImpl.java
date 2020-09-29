@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.impl;
 
 import com.intellij.openapi.Disposable;
@@ -6,11 +6,11 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.extensions.ExtensionPointListener;
+import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.module.ModifiableModuleModel;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
-import com.intellij.openapi.module.ModuleServiceManager;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.*;
 import com.intellij.openapi.roots.ex.ProjectRootManagerEx;
@@ -22,9 +22,9 @@ import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointerManager;
 import com.intellij.util.ThrowableRunnable;
-import gnu.trove.THashMap;
 import kotlin.NotImplementedError;
 import org.jdom.Element;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
@@ -32,6 +32,12 @@ import org.jetbrains.jps.model.module.JpsModuleSourceRootType;
 
 import java.util.*;
 
+/**
+ * This class isn't used in the new implementation of project model, which is based on {@link com.intellij.workspaceModel.ide Workspace Model}.
+ * It shouldn't be used directly, its base class {@link ModuleRootManagerEx} should be used instead. If absolutely needed, its instance must be
+ * taken from {@link ModuleRootManager#getInstance(Module)} under instanceof check.
+ */
+@ApiStatus.Internal
 public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Disposable {
   protected static final Logger LOG = Logger.getInstance(ModuleRootManagerImpl.class);
 
@@ -42,7 +48,7 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
   private boolean myIsDisposed;
   private boolean myLoaded;
   private final OrderRootsCache myOrderRootsCache;
-  private final Map<RootModelImpl, Throwable> myModelCreations = new THashMap<>();
+  private final Map<RootModelImpl, Throwable> myModelCreations = new HashMap<>();
 
   protected final SimpleModificationTracker myModificationTracker = new SimpleModificationTracker();
 
@@ -53,6 +59,17 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
 
     myRootModel = new RootModelImpl(this, myProjectRootManager, myFilePointerManager);
     myOrderRootsCache = new OrderRootsCache(module);
+    MODULE_EXTENSION_NAME.getPoint(module).addExtensionPointListener(new ExtensionPointListener<ModuleExtension>() {
+      @Override
+      public void extensionAdded(@NotNull ModuleExtension extension, @NotNull PluginDescriptor pluginDescriptor) {
+        myRootModel.addModuleExtension(extension);
+      }
+
+      @Override
+      public void extensionRemoved(@NotNull ModuleExtension extension, @NotNull PluginDescriptor pluginDescriptor) {
+        myRootModel.removeModuleExtension(extension);
+      }
+    }, false, null);
   }
 
   @Override
@@ -64,7 +81,7 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
   @Override
   @NotNull
   public ModuleFileIndex getFileIndex() {
-    return ModuleServiceManager.getService(myModule, ModuleFileIndex.class);
+    return myModule.getService(ModuleFileIndex.class);
   }
 
   @Override
@@ -91,7 +108,7 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
   @Override
   @NotNull
   public ModifiableRootModel getModifiableModel() {
-    return getModifiableModel(new RootConfigurationAccessor());
+    return getModifiableModel(RootConfigurationAccessor.DEFAULT_INSTANCE);
   }
 
   @Override
@@ -133,15 +150,13 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
     return myRootModel;
   }
 
-  @NotNull
   @Override
-  public ContentEntry[] getContentEntries() {
+  public ContentEntry @NotNull [] getContentEntries() {
     return myRootModel.getContentEntries();
   }
 
   @Override
-  @NotNull
-  public OrderEntry[] getOrderEntries() {
+  public OrderEntry @NotNull [] getOrderEntries() {
     return myRootModel.getOrderEntries();
   }
 
@@ -155,15 +170,14 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
     return myRootModel.isSdkInherited();
   }
 
-  void commitModel(RootModelImpl rootModel) {
+  void commitModel(@NotNull RootModelImpl rootModel) {
     ApplicationManager.getApplication().assertWriteAccessAllowed();
     LOG.assertTrue(rootModel.myModuleRootManager == this);
     LOG.assertTrue(!myIsDisposed);
 
     boolean changed = rootModel.isChanged();
 
-    final Project project = myModule.getProject();
-    final ModifiableModuleModel moduleModel = ModuleManager.getInstance(project).getModifiableModel();
+    ModifiableModuleModel moduleModel = ModuleManager.getInstance(myModule.getProject()).getModifiableModel();
     ModifiableModelCommitter.multiCommit(Collections.singletonList(rootModel), moduleModel);
 
     if (changed) {
@@ -171,10 +185,10 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
     }
   }
 
-  static void doCommit(RootModelImpl rootModel) {
+  static void doCommit(@NotNull RootModelImpl rootModel) {
     ModuleRootManagerImpl rootManager = (ModuleRootManagerImpl)getInstance(rootModel.getModule());
     LOG.assertTrue(!rootManager.myIsDisposed);
-    rootModel.docommit();
+    rootModel.doCommit();
     rootModel.dispose();
 
     try {
@@ -186,26 +200,22 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
   }
 
   @Override
-  @NotNull
-  public Module[] getDependencies() {
+  public Module @NotNull [] getDependencies() {
     return myRootModel.getModuleDependencies();
   }
 
-  @NotNull
   @Override
-  public Module[] getDependencies(boolean includeTests) {
+  public Module @NotNull [] getDependencies(boolean includeTests) {
     return myRootModel.getModuleDependencies(includeTests);
   }
 
-  @NotNull
   @Override
-  public Module[] getModuleDependencies() {
+  public Module @NotNull [] getModuleDependencies() {
     return myRootModel.getModuleDependencies();
   }
 
-  @NotNull
   @Override
-  public Module[] getModuleDependencies(boolean includeTests) {
+  public Module @NotNull [] getModuleDependencies(boolean includeTests) {
     return myRootModel.getModuleDependencies(includeTests);
   }
 
@@ -215,8 +225,7 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
   }
 
   @Override
-  @NotNull
-  public String[] getDependencyModuleNames() {
+  public String @NotNull [] getDependencyModuleNames() {
     return myRootModel.getDependencyModuleNames();
   }
 
@@ -254,55 +263,47 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
   }
 
   @Override
-  @NotNull
-  public VirtualFile[] getContentRoots() {
+  public VirtualFile @NotNull [] getContentRoots() {
     LOG.assertTrue(!myIsDisposed);
     return myRootModel.getContentRoots();
   }
 
   @Override
-  @NotNull
-  public String[] getContentRootUrls() {
+  public String @NotNull [] getContentRootUrls() {
     LOG.assertTrue(!myIsDisposed);
     return myRootModel.getContentRootUrls();
   }
 
   @Override
-  @NotNull
-  public String[] getExcludeRootUrls() {
+  public String @NotNull [] getExcludeRootUrls() {
     LOG.assertTrue(!myIsDisposed);
     return myRootModel.getExcludeRootUrls();
   }
 
   @Override
-  @NotNull
-  public VirtualFile[] getExcludeRoots() {
+  public VirtualFile @NotNull [] getExcludeRoots() {
     LOG.assertTrue(!myIsDisposed);
     return myRootModel.getExcludeRoots();
   }
 
   @Override
-  @NotNull
-  public String[] getSourceRootUrls() {
+  public String @NotNull [] getSourceRootUrls() {
     return getSourceRootUrls(true);
   }
 
-  @NotNull
   @Override
-  public String[] getSourceRootUrls(boolean includingTests) {
+  public String @NotNull [] getSourceRootUrls(boolean includingTests) {
     LOG.assertTrue(!myIsDisposed);
     return myRootModel.getSourceRootUrls(includingTests);
   }
 
   @Override
-  @NotNull
-  public VirtualFile[] getSourceRoots() {
+  public VirtualFile @NotNull [] getSourceRoots() {
     return getSourceRoots(true);
   }
 
   @Override
-  @NotNull
-  public VirtualFile[] getSourceRoots(final boolean includingTests) {
+  public VirtualFile @NotNull [] getSourceRoots(final boolean includingTests) {
     LOG.assertTrue(!myIsDisposed);
     return myRootModel.getSourceRoots(includingTests);
   }
@@ -336,10 +337,9 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
     myLoaded = true;
   }
 
-  protected void loadState(ModuleRootManagerState object, boolean throwEvent) {
+  protected void loadState(@NotNull ModuleRootManagerState object, boolean throwEvent) {
     ThrowableRunnable<RuntimeException> r = () -> {
-      final RootModelImpl newModel = new RootModelImpl(object.getRootModelElement(), this, myProjectRootManager, myFilePointerManager, throwEvent);
-
+      RootModelImpl newModel = new RootModelImpl(object.getRootModelElement(), this, myProjectRootManager, myFilePointerManager, throwEvent);
       if (throwEvent) {
         makeRootsChange(() -> doCommit(newModel));
       }
@@ -350,9 +350,14 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
 
       assert !myRootModel.isOrderEntryDisposed();
     };
+
     try {
-      if (throwEvent) WriteAction.run(r);
-      else ReadAction.run(r);
+      if (throwEvent) {
+        WriteAction.run(r);
+      }
+      else {
+        ReadAction.run(r);
+      }
     }
     catch (InvalidDataException e) {
       LOG.error(e);
@@ -372,7 +377,7 @@ public class ModuleRootManagerImpl extends ModuleRootManagerEx implements Dispos
     return ExternalProjectSystemRegistry.getInstance().getExternalSource(myModule);
   }
 
-  public static class ModuleRootManagerState implements JDOMExternalizable {
+  public static final class ModuleRootManagerState implements JDOMExternalizable {
     private RootModelImpl myRootModel;
     private Element myRootModelElement;
 

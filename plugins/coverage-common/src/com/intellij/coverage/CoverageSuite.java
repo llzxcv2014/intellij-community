@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.JDOMExternalizable;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.rt.coverage.data.ProjectData;
 import org.jetbrains.annotations.NotNull;
@@ -21,7 +22,7 @@ public interface CoverageSuite extends JDOMExternalizable {
   @NotNull
   String getCoverageDataFileName();
 
-  String getPresentableName();
+  @NlsSafe String getPresentableName();
 
   long getLastCoverageTimeStamp();
 
@@ -65,8 +66,8 @@ public interface CoverageSuite extends JDOMExternalizable {
   default void deleteCachedCoverageData() {
     final String fileName = getCoverageDataFileName();
     if (!FileUtil.isAncestor(PathManager.getSystemPath(), fileName, false)) {
-      String message = "Would you like to delete file \'" + fileName + "\' " + "on disk?";
-      if (Messages.showYesNoDialog(getProject(), message, "Delete File", Messages.getWarningIcon()) != Messages.YES) {
+      String message = CoverageBundle.message("dialog.message.would.you.like.to.delete.file.on.disk", fileName);
+      if (Messages.showYesNoDialog(getProject(), message, CoverageBundle.message("delete.file"), Messages.getWarningIcon()) != Messages.YES) {
         return;
       }
     }

@@ -1,18 +1,24 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution;
 
 import com.intellij.CommonBundle;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.CapturingProcessHandler;
 import com.intellij.execution.process.ProcessOutput;
+import com.intellij.ide.IdeBundle;
 import com.intellij.notification.*;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.registry.Registry;
+import com.intellij.openapi.util.text.HtmlBuilder;
+import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.vfs.CharsetToolkit;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,17 +46,17 @@ public abstract class ExecutableValidator {
                                                                               STICKY_BALLOON, true);
   @NotNull protected final Project myProject;
 
-  @NotNull private final String myNotificationErrorTitle;
-  @NotNull private final String myNotificationErrorDescription;
+  @NotNull private final @NlsContexts.DialogTitle String myNotificationErrorTitle;
+  @NotNull private final @NlsContexts.DialogMessage String myNotificationErrorDescription;
 
   /**
    * Configures notification and dialog by setting text messages and titles specific to the whoever uses the validator.
    * @param notificationErrorTitle       title of the notification about not valid executable.
    * @param notificationErrorDescription description of this notification with a link to fix it (link action is defined by
-   *                                     {@link #showSettingsAndExpireIfFixed(com.intellij.notification.Notification)}
+   *                                     {@link #showSettingsAndExpireIfFixed(Notification)}
    */
-  public ExecutableValidator(@NotNull Project project, @NotNull String notificationErrorTitle,
-                             @NotNull String notificationErrorDescription) {
+  public ExecutableValidator(@NotNull Project project, @NotNull @NlsContexts.DialogTitle String notificationErrorTitle,
+                             @NotNull @NlsContexts.DialogMessage String notificationErrorDescription) {
     myProject = project;
     myNotificationErrorTitle = notificationErrorTitle;
     myNotificationErrorDescription = notificationErrorDescription;
@@ -62,7 +68,7 @@ public abstract class ExecutableValidator {
    * @return the settings configurable display name, where the executable is shown and can be fixed.
    *         This configurable will be opened if user presses "Fix" on the notification about invalid executable.
    */
-  @NotNull
+  @NotNull @Nls
   protected abstract String getConfigurableDisplayName();
 
   @Nullable
@@ -132,22 +138,27 @@ public abstract class ExecutableValidator {
   }
 
   @NotNull
-  protected String prepareDescription(@NotNull String description, boolean appendFixIt) {
-    StringBuilder result = new StringBuilder();
-    String executable = getCurrentExecutable();
+  protected @NlsContexts.NotificationContent String prepareDescription(@NotNull @Nls String description, boolean appendFixIt) {
+    @NlsSafe String executable = getCurrentExecutable();
+
+    HtmlBuilder builder = new HtmlBuilder();
 
     if (executable.isEmpty()) {
-      result.append(String.format("<b>%s</b>%s", myNotificationErrorTitle, description));
+      builder.append(HtmlChunk.raw(myNotificationErrorTitle).bold()).append(HtmlChunk.raw(description));
     }
     else {
-      result.append(
-        String.format("<b>%s:</b> <b>%s</b><br/>%s", myNotificationErrorTitle, executable, description));
+      builder
+        .append(HtmlChunk.raw(myNotificationErrorTitle).bold())
+        .append(" ")
+        .append(HtmlChunk.text(executable).bold())
+        .append(HtmlChunk.br())
+        .append(HtmlChunk.raw(description));
     }
     if (appendFixIt) {
-      result.append(" <a href=''>Fix it.</a>");
+      builder.append(" ").appendLink("", IdeBundle.message("button.fix.it"));
     }
 
-    return result.toString();
+    return builder.toString();
   }
 
   protected void showSettingsAndExpireIfFixed(@NotNull Notification notification) {
@@ -205,7 +216,7 @@ public abstract class ExecutableValidator {
   }
 
   private int showMessage(@Nullable Component parentComponent) {
-    String okText = "Fix it";
+    String okText = IdeBundle.message("button.fix.it");
     String cancelText = CommonBundle.getCancelButtonText();
     Icon icon = Messages.getErrorIcon();
     String title = myNotificationErrorTitle;
@@ -229,7 +240,7 @@ public abstract class ExecutableValidator {
       this(prepareDescription(description, true), NotificationType.ERROR);
     }
 
-    public ExecutableNotValidNotification(@NotNull String preparedDescription, @NotNull NotificationType type) {
+    public ExecutableNotValidNotification(@NotNull @NlsContexts.NotificationContent String preparedDescription, @NotNull NotificationType type) {
       super(ourNotificationGroup.getDisplayId(), "", preparedDescription, type, new NotificationListener.Adapter() {
         @Override
         protected void hyperlinkActivated(@NotNull Notification notification, @NotNull HyperlinkEvent event) {

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.compiler.server.impl;
 
 import com.intellij.compiler.server.BuildProcessParametersProvider;
@@ -8,8 +8,6 @@ import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.PluginPathManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.extensions.ExtensionPointListener;
-import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pair;
@@ -23,32 +21,21 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarFile;
 
-/**
- * @author nik
- */
-public class BuildProcessClasspathManager {
+public final class BuildProcessClasspathManager {
   private static final Logger LOG = Logger.getInstance(BuildProcessClasspathManager.class);
 
   private volatile List<String> myCompileServerPluginsClasspath;
 
-  public BuildProcessClasspathManager(Disposable parentDisposable) {
-    CompileServerPlugin.EP_NAME.addExtensionPointListener(new ExtensionPointListener<CompileServerPlugin>() {
-      @Override
-      public void extensionAdded(@NotNull CompileServerPlugin extension, @NotNull PluginDescriptor pluginDescriptor) {
-        myCompileServerPluginsClasspath = null; // drop cached data
-      }
-
-      @Override
-      public void extensionRemoved(@NotNull CompileServerPlugin extension, @NotNull PluginDescriptor pluginDescriptor) {
-        myCompileServerPluginsClasspath = null; // drop cached data
-      }
-    }, parentDisposable);
+  public BuildProcessClasspathManager(@NotNull Disposable parentDisposable) {
+    CompileServerPlugin.EP_NAME.addChangeListener(() -> myCompileServerPluginsClasspath = null, parentDisposable);
   }
 
-  public List<String> getBuildProcessPluginsClasspath(Project project) {
+  public @NotNull List<String> getBuildProcessPluginsClasspath(Project project) {
     List<String> staticClasspath = getStaticClasspath();
     List<String> dynamicClasspath = getDynamicClasspath(project);
 
@@ -61,7 +48,7 @@ public class BuildProcessClasspathManager {
     }
   }
 
-  private List<String> getStaticClasspath() {
+  private @NotNull List<String> getStaticClasspath() {
     List<String> cp = myCompileServerPluginsClasspath;
     if (cp == null) {
       myCompileServerPluginsClasspath = cp = Collections.unmodifiableList(computeCompileServerPluginsClasspath());
@@ -69,7 +56,7 @@ public class BuildProcessClasspathManager {
     return cp;
   }
 
-  private static List<String> computeCompileServerPluginsClasspath() {
+  private static @NotNull List<String> computeCompileServerPluginsClasspath() {
     final List<String> classpath = new ArrayList<>();
 
     for (CompileServerPlugin serverPlugin : CompileServerPlugin.EP_NAME.getExtensions()) {
@@ -77,40 +64,45 @@ public class BuildProcessClasspathManager {
       final IdeaPluginDescriptor plugin = PluginManagerCore.getPlugin(pluginId);
       LOG.assertTrue(plugin != null, pluginId);
 
-      final File baseFile = plugin.getPath();
-      if (baseFile.isFile()) {
-        classpath.add(baseFile.getPath());
+      Path baseFile = plugin.getPluginPath();
+      if (Files.isRegularFile(baseFile)) {
+        classpath.add(baseFile.toString());
       }
-      else if (baseFile.isDirectory()) {
+      else if (Files.isDirectory(baseFile)) {
         outer:
         for (String relativePath : StringUtil.split(serverPlugin.getClasspath(), ";")) {
-          File jarFile = new File(baseFile, "lib/" + relativePath);
-          if (jarFile.exists()) {
-            classpath.add(jarFile.getPath());
+          Path jarFile = baseFile.resolve("lib/" + relativePath);
+          if (Files.exists(jarFile)) {
+            classpath.add(jarFile.toString());
             continue;
           }
 
           // ... 'plugin run configuration': all module output are copied to 'classes' folder
-          File classesDir = new File(baseFile, "classes");
-          if (classesDir.isDirectory()) {
-            classpath.add(classesDir.getPath());
+          Path classesDir = baseFile.resolve("classes");
+          if (Files.isDirectory(classesDir)) {
+            classpath.add(classesDir.toString());
             continue;
           }
 
           // development mode
           if (PluginManagerCore.isRunningFromSources()) {
-            // ... try "out/classes/production/<jar-name>", assuming that <jar-name> means module name
-            String moduleName = FileUtilRt.getNameWithoutExtension(PathUtil.getFileName(relativePath));
-            if (OLD_TO_NEW_MODULE_NAME.containsKey(moduleName)) {
-              moduleName = OLD_TO_NEW_MODULE_NAME.get(moduleName);
+            // ... try "out/classes/production/<module-name>", assuming that JAR name was automatically generated from module name
+            String fileName = FileUtilRt.getNameWithoutExtension(PathUtil.getFileName(relativePath));
+            String moduleName;
+            if (OLD_TO_NEW_MODULE_NAME.containsKey(fileName)) {
+              moduleName = OLD_TO_NEW_MODULE_NAME.get(fileName);
             }
-            File baseOutputDir = baseFile.getParentFile();
-            if (baseOutputDir.getName().equals("test")) {
-              baseOutputDir = new File(baseOutputDir.getParentFile(), "production");
+            else {
+              //try restoring module name from JAR name automatically generated by BaseLayout.convertModuleNameToFileName
+              moduleName = "intellij." + fileName.replace('-', '.');
             }
-            File moduleDir = new File(baseOutputDir, moduleName);
-            if (moduleDir.isDirectory()) {
-              classpath.add(moduleDir.getPath());
+            Path baseOutputDir = baseFile.getParent();
+            if (baseOutputDir.getFileName().toString().equals("test")) {
+              baseOutputDir = baseOutputDir.getParent().resolve("production");
+            }
+            Path moduleDir = baseOutputDir.resolve(moduleName);
+            if (Files.isDirectory(moduleDir)) {
+              classpath.add(moduleDir.toString());
               continue;
             }
             // ... try "<plugin-dir>/lib/<jar-name>", assuming that <jar-name> is a module library committed to VCS
@@ -144,8 +136,7 @@ public class BuildProcessClasspathManager {
     return classpath;
   }
 
-  @Nullable
-  private static File getPluginDir(IdeaPluginDescriptor plugin) {
+  private static @Nullable File getPluginDir(@NotNull IdeaPluginDescriptor plugin) {
     String pluginDirName = StringUtil.getShortName(plugin.getPluginId().getIdString());
     String extraDir = System.getProperty("idea.external.build.development.plugins.dir");
     if (extraDir != null) {
@@ -161,17 +152,17 @@ public class BuildProcessClasspathManager {
     return pluginHome.isDirectory() ? pluginHome : null;
   }
 
-  private static List<String> getDynamicClasspath(Project project) {
+  private static @NotNull List<String> getDynamicClasspath(Project project) {
     final List<String> classpath = new ArrayList<>();
-    for (BuildProcessParametersProvider provider : BuildProcessParametersProvider.EP_NAME.getExtensionList(project)) {
+    for (BuildProcessParametersProvider provider : BuildProcessParametersProvider.EP_NAME.getExtensions(project)) {
       classpath.addAll(provider.getClassPath());
     }
     return classpath;
   }
 
-  public static List<String> getLauncherClasspath(Project project) {
+  public static @NotNull List<String> getLauncherClasspath(Project project) {
     final List<String> classpath = new ArrayList<>();
-    for (BuildProcessParametersProvider provider : BuildProcessParametersProvider.EP_NAME.getExtensionList(project)) {
+    for (BuildProcessParametersProvider provider : BuildProcessParametersProvider.EP_NAME.getExtensions(project)) {
       classpath.addAll(provider.getLauncherClassPath());
     }
     return classpath;
@@ -182,29 +173,7 @@ public class BuildProcessClasspathManager {
   static {
     OLD_TO_NEW_MODULE_NAME = new LinkedHashMap<>();
     OLD_TO_NEW_MODULE_NAME.put("android-jps-plugin", "intellij.android.jps");
-    OLD_TO_NEW_MODULE_NAME.put("ant-jps-plugin", "intellij.ant.jps");
-    OLD_TO_NEW_MODULE_NAME.put("aspectj-jps-plugin", "intellij.aspectj.jps");
-    OLD_TO_NEW_MODULE_NAME.put("devkit-jps-plugin", "intellij.devkit.jps");
-    OLD_TO_NEW_MODULE_NAME.put("eclipse-jps-plugin", "intellij.eclipse.jps");
-    OLD_TO_NEW_MODULE_NAME.put("error-prone-jps-plugin", "intellij.errorProne.jps");
-    OLD_TO_NEW_MODULE_NAME.put("flex-jps-plugin", "intellij.flex.jps");
-    OLD_TO_NEW_MODULE_NAME.put("gradle-jps-plugin", "intellij.gradle.jps");
-    OLD_TO_NEW_MODULE_NAME.put("grails-jps-plugin", "intellij.groovy.grails.jps");
-    OLD_TO_NEW_MODULE_NAME.put("groovy-jps-plugin", "intellij.groovy.jps");
-    OLD_TO_NEW_MODULE_NAME.put("gwt-jps-plugin", "intellij.gwt.jps");
-    OLD_TO_NEW_MODULE_NAME.put("google-app-engine-jps-plugin", "intellij.java.googleAppEngine.jps");
-    OLD_TO_NEW_MODULE_NAME.put("ui-designer-jps-plugin", "intellij.java.guiForms.jps");
-    OLD_TO_NEW_MODULE_NAME.put("intellilang-jps-plugin", "intellij.java.langInjection.jps");
-    OLD_TO_NEW_MODULE_NAME.put("dmServer-jps-plugin", "intellij.javaee.appServers.dmServer.jps");
-    OLD_TO_NEW_MODULE_NAME.put("weblogic-jps-plugin", "intellij.javaee.appServers.weblogic.jps");
-    OLD_TO_NEW_MODULE_NAME.put("webSphere-jps-plugin", "intellij.javaee.appServers.websphere.jps");
-    OLD_TO_NEW_MODULE_NAME.put("jpa-jps-plugin", "intellij.javaee.jpa.jps");
-    OLD_TO_NEW_MODULE_NAME.put("javaee-jps-plugin", "intellij.javaee.jps");
-    OLD_TO_NEW_MODULE_NAME.put("javaFX-jps-plugin", "intellij.javaFX.jps");
-    OLD_TO_NEW_MODULE_NAME.put("maven-jps-plugin", "intellij.maven.jps");
-    OLD_TO_NEW_MODULE_NAME.put("osmorc-jps-plugin", "intellij.osgi.jps");
-    OLD_TO_NEW_MODULE_NAME.put("ruby-chef-jps-plugin", "intellij.ruby.chef.jps");
-    OLD_TO_NEW_MODULE_NAME.put("android-common", "intellij.android.common");
+    OLD_TO_NEW_MODULE_NAME.put("android-jps-model", "intellij.android.jps.model");
     OLD_TO_NEW_MODULE_NAME.put("build-common", "intellij.android.buildCommon");
     OLD_TO_NEW_MODULE_NAME.put("android-rt", "intellij.android.rt");
     OLD_TO_NEW_MODULE_NAME.put("sdk-common", "android.sdktools.sdk-common");
@@ -212,11 +181,5 @@ public class BuildProcessClasspathManager {
     OLD_TO_NEW_MODULE_NAME.put("layoutlib-api", "android.sdktools.layoutlib-api");
     OLD_TO_NEW_MODULE_NAME.put("repository", "android.sdktools.repository");
     OLD_TO_NEW_MODULE_NAME.put("manifest-merger", "android.sdktools.manifest-merger");
-    OLD_TO_NEW_MODULE_NAME.put("common-eclipse-util", "intellij.eclipse.common");
-    OLD_TO_NEW_MODULE_NAME.put("flex-shared", "intellij.flex.shared");
-    OLD_TO_NEW_MODULE_NAME.put("groovy-rt-constants", "intellij.groovy.constants.rt");
-    OLD_TO_NEW_MODULE_NAME.put("grails-compiler-patch", "intellij.groovy.grails.compilerPatch");
-    OLD_TO_NEW_MODULE_NAME.put("appEngine-runtime", "intellij.java.googleAppEngine.runtime");
-    OLD_TO_NEW_MODULE_NAME.put("common-javaFX-plugin", "intellij.javaFX.common");
   }
 }

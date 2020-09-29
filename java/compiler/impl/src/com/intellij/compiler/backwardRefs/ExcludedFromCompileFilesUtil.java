@@ -1,4 +1,4 @@
-// Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.compiler.backwardRefs;
 
 import com.intellij.openapi.application.ReadAction;
@@ -17,8 +17,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-class ExcludedFromCompileFilesUtil {
-  static GlobalSearchScope getExcludedFilesScope(@NotNull ExcludeEntryDescription[] descriptions,
+final class ExcludedFromCompileFilesUtil {
+  static GlobalSearchScope getExcludedFilesScope(ExcludeEntryDescription @NotNull [] descriptions,
                                                  @NotNull Set<FileType> fileTypes,
                                                  @NotNull Project project,
                                                  @NotNull ProjectFileIndex fileIndex) {

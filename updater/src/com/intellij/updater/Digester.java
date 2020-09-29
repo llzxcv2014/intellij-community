@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.updater;
 
 import java.io.*;
@@ -7,7 +7,10 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.List;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -45,6 +48,9 @@ public class Digester {
     try (InputStream in = new BufferedInputStream(Utils.newFileInputStream(file, normalize))) {
       return digestStream(in) | executable;
     }
+    catch (IOException e) {
+      throw new IOException(path.toString(), e);
+    }
   }
 
   public static long digestZipFile(File file) throws IOException {
@@ -67,7 +73,7 @@ public class Digester {
         }
       }
 
-      Collections.sort(sorted, Comparator.comparing(ZipEntry::getName));
+      sorted.sort(Comparator.comparing(ZipEntry::getName));
 
       CRC32 crc = new CRC32();
       for (ZipEntry each : sorted) {

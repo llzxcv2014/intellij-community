@@ -1,9 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.project;
 
 import com.intellij.openapi.components.ComponentManager;
 import com.intellij.openapi.extensions.AreaInstance;
-import com.intellij.openapi.util.Condition;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.*;
 
@@ -27,7 +27,7 @@ public interface Project extends ComponentManager, AreaInstance {
    * @return project name
    */
   @NotNull
-  String getName();
+  @NlsSafe String getName();
 
   /**
    * Returns a project base directory - a parent directory of a {@code .ipr} file or {@code .idea} directory.<br/>
@@ -48,7 +48,7 @@ public interface Project extends ComponentManager, AreaInstance {
    * @see com.intellij.openapi.project.ProjectUtil#guessProjectDir
    */
   @Nullable
-  @SystemIndependent
+  @SystemIndependent @NonNls
   String getBasePath();
 
   /**
@@ -68,19 +68,18 @@ public interface Project extends ComponentManager, AreaInstance {
    * @return a path to project file (see {@linkplain #getProjectFile()}) or {@code null} for default project.
    */
   @Nullable
-  @SystemIndependent
+  @SystemIndependent @NonNls
   String getProjectFilePath();
 
   /**
    * Returns presentable project path:
    * {@linkplain #getProjectFilePath()} for file-based projects, {@linkplain #getBasePath()} for directory-based ones.<br/>
-   * * Returns {@code null} for default project.
+   * Returns {@code null} for default project.
    * <b>Note:</b> the word "presentable" here implies file system presentation, not a UI one.
-   *
-   * @return presentable project path
    */
   @Nullable
-  default @SystemDependent String getPresentableUrl() {
+  @SystemDependent @NonNls
+  default String getPresentableUrl() {
     return null;
   }
 
@@ -97,7 +96,7 @@ public interface Project extends ComponentManager, AreaInstance {
   @Nullable
   VirtualFile getWorkspaceFile();
 
-  @NotNull
+  @NotNull @NonNls
   String getLocationHash();
 
   void save();
@@ -106,14 +105,7 @@ public interface Project extends ComponentManager, AreaInstance {
 
   boolean isInitialized();
 
-  boolean isDefault();
-
-  /**
-   * @deprecated Use {@link #getDisposed()} instead
-   */
-  @NotNull
-  @Deprecated
-  default Condition<?> getDisposedOrDisposeInProgress() {
-    return getDisposed();
+  default boolean isDefault() {
+    return false;
   }
 }

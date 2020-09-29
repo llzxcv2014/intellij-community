@@ -15,31 +15,26 @@
  */
 package com.intellij.openapi.compiler;
 
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
-import java.util.Collections;
 
 public class CompilationException extends Exception {
-
-  private final Collection<Message> myMessages;
+  private final Collection<? extends Message> myMessages;
 
   public static class Message {
     @NotNull
     private final CompilerMessageCategory myCategory;
     @NotNull
-    private final String myMessage;
+    private final @Nls String myMessage;
     @Nullable
     private final String myUrl;
     private final int myLine;
     private final int myColumn;
 
-    public Message(CompilerMessageCategory category, String message) {
-      this(category, message, null, -1, -1);
-    }
-
-    public Message(@NotNull CompilerMessageCategory category, @NotNull String message, @Nullable String url, int line, int column) {
+    public Message(@NotNull CompilerMessageCategory category, @NotNull @Nls String message, @Nullable String url, int line, int column) {
       myCategory = category;
       myMessage = message;
       myUrl = url;
@@ -52,7 +47,7 @@ public class CompilationException extends Exception {
       return myCategory;
     }
 
-    @NotNull
+    @NotNull @Nls
     public String getText() {
       return myMessage;
     }
@@ -71,17 +66,13 @@ public class CompilationException extends Exception {
     }
   }
 
-  public CompilationException(String message) {
-    this(message, Collections.emptyList());
-  }
-
-  public CompilationException(String message, Collection<Message> messages) {
+  public CompilationException(@NotNull String message, @NotNull Collection<? extends Message> messages) {
     super(message);
     myMessages = messages;
   }
 
   @NotNull
-  public Collection<Message> getMessages() {
+  public Collection<? extends Message> getMessages() {
     return myMessages;
   }
 }

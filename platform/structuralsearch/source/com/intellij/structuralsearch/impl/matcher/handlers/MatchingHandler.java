@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch.impl.matcher.handlers;
 
 import com.intellij.dupLocator.iterators.NodeIterator;
@@ -12,18 +12,25 @@ import com.intellij.structuralsearch.impl.matcher.MatchContext;
 import com.intellij.structuralsearch.impl.matcher.MatchResultImpl;
 import com.intellij.structuralsearch.impl.matcher.filters.DefaultFilter;
 import com.intellij.structuralsearch.impl.matcher.strategies.MatchingStrategy;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Root of handlers for pattern node matching. Handles simplest type of the match.
+ * Root of handlers for pattern node matching. Matching handlers know how to match a specific pattern node
+ * to a node in the source code.
  */
 public abstract class MatchingHandler {
   protected NodeFilter filter;
   private PsiElement pinnedElement;
 
-  public void setFilter(NodeFilter filter) {
+  /**
+   * Node filters determine which kind of PsiElements can match the pattern element.
+   * Filters are applied to MatchingHandlers in the CompilingVisitor.
+   */
+  public void setFilter(@Nullable NodeFilter filter) {
     this.filter = filter;
   }
 
@@ -33,15 +40,15 @@ public abstract class MatchingHandler {
    * @param context of the matching
    * @return true if matching was successful and false otherwise
    */
-  public boolean match(PsiElement patternNode, PsiElement matchedNode, MatchContext context) {
+  public boolean match(PsiElement patternNode, PsiElement matchedNode, @NotNull MatchContext context) {
     return (patternNode == null) ? matchedNode == null : canMatch(patternNode, matchedNode, context);
   }
 
-  public boolean canMatch(final PsiElement patternNode, final PsiElement matchedNode, MatchContext context) {
+  public boolean canMatch(@NotNull PsiElement patternNode, final PsiElement matchedNode, @NotNull MatchContext context) {
     return (filter != null) ? filter.accepts(matchedNode) : DefaultFilter.accepts(patternNode, matchedNode);
   }
 
-  public boolean matchSequentially(NodeIterator patternNodes, NodeIterator matchNodes, MatchContext context) {
+  public boolean matchSequentially(@NotNull NodeIterator patternNodes, @NotNull NodeIterator matchNodes, @NotNull MatchContext context) {
     final MatchingStrategy strategy = context.getPattern().getStrategy();
     final PsiElement currentPatternNode = patternNodes.current();
     final PsiElement currentMatchNode = matchNodes.current();
@@ -82,18 +89,18 @@ public abstract class MatchingHandler {
     return false;
   }
 
-  private static void skipComments(NodeIterator matchNodes, PsiElement patternNode) {
+  private static void skipComments(@NotNull NodeIterator matchNodes, PsiElement patternNode) {
     if (patternNode instanceof PsiComment) return;
     while (matchNodes.current() instanceof PsiComment) matchNodes.advance();
   }
 
-  private static void skipIfNecessary(NodeIterator nodes, PsiElement elementToMatchWith, MatchingStrategy strategy) {
+  private static void skipIfNecessary(@NotNull NodeIterator nodes, PsiElement elementToMatchWith, @NotNull MatchingStrategy strategy) {
     while (nodes.hasNext() && strategy.shouldSkip(nodes.current(), elementToMatchWith)) {
       nodes.advance();
     }
   }
 
-  protected boolean isMatchSequentiallySucceeded(final NodeIterator matchNodes) {
+  protected boolean isMatchSequentiallySucceeded(@NotNull NodeIterator matchNodes) {
     skipComments(matchNodes, null);
     return !matchNodes.hasNext();
   }
@@ -105,7 +112,8 @@ public abstract class MatchingHandler {
       super(true);
     }
 
-    @Override public void visitElement(PsiElement element) {
+    @Override
+    public void visitElement(@NotNull PsiElement element) {
       // We do not reset certain handlers because they are also bound to higher level nodes
       // e.g. Identifier handler in name is also bound to PsiMethod
       if (pattern.isToResetHandler(element)) {
@@ -117,7 +125,7 @@ public abstract class MatchingHandler {
       super.visitElement(element);
     }
 
-    synchronized void clearState(CompiledPattern _pattern, PsiElement el) {
+    synchronized void clearState(@NotNull CompiledPattern _pattern, @NotNull PsiElement el) {
       pattern = _pattern;
       el.acceptChildren(this);
       pattern = null;
@@ -126,7 +134,7 @@ public abstract class MatchingHandler {
 
   protected static ClearStateVisitor clearingVisitor = new ClearStateVisitor();
 
-  public boolean matchInAnyOrder(NodeIterator patternNodes, NodeIterator matchedNodes, final MatchContext context) {
+  public static boolean matchInAnyOrder(@NotNull NodeIterator patternNodes, @NotNull NodeIterator matchedNodes, @NotNull MatchContext context) {
     final MatchResultImpl saveResult = context.hasResult() ? context.getResult() : null;
     context.setResult(null);
 
@@ -200,7 +208,7 @@ public abstract class MatchingHandler {
     }
   }
 
-  protected static boolean validateSatisfactionOfHandlers(NodeIterator patternNodes, MatchContext context) {
+  protected static boolean validateSatisfactionOfHandlers(@NotNull NodeIterator patternNodes, @NotNull MatchContext context) {
     for (; patternNodes.hasNext(); patternNodes.advance()) {
       if (!context.getPattern().getHandler(patternNodes.current()).validate(context, 0)) {
         return false;
@@ -209,7 +217,7 @@ public abstract class MatchingHandler {
     return true;
   }
 
-  boolean validate(MatchContext context, int matchedOccurs) {
+  public boolean validate(@NotNull MatchContext context, int matchedOccurs) {
     return matchedOccurs == 1;
   }
 
@@ -217,7 +225,7 @@ public abstract class MatchingHandler {
     return filter;
   }
 
-  public boolean shouldAdvanceThePatternFor(PsiElement patternElement, PsiElement matchedElement) {
+  public boolean shouldAdvanceThePatternFor(@NotNull PsiElement patternElement, @NotNull PsiElement matchedElement) {
     return true;
   }
 
@@ -233,7 +241,7 @@ public abstract class MatchingHandler {
     return pinnedElement;
   }
 
-  public void setPinnedElement(final PsiElement pinnedElement) {
+  public void setPinnedElement(@NotNull PsiElement pinnedElement) {
     this.pinnedElement = pinnedElement;
   }
 }

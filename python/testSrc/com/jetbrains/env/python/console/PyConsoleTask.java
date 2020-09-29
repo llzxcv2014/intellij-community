@@ -1,7 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.env.python.console;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.intellij.execution.console.LanguageConsoleView;
 import com.intellij.execution.process.ProcessAdapter;
@@ -29,6 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.Assert;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -40,9 +41,6 @@ import java.util.concurrent.Semaphore;
 import static com.jetbrains.env.python.debug.PyBaseDebuggerTask.convertToList;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * @author traff
- */
 public class PyConsoleTask extends PyExecutionFixtureTestTask {
   private static final Logger LOG = Logger.getInstance(PyConsoleTask.class);
 
@@ -184,6 +182,8 @@ public class PyConsoleTask extends PyExecutionFixtureTestTask {
 
     PydevConsoleRunner consoleRunner = PythonConsoleRunnerFactory.getInstance().createConsoleRunner(getProject(), myFixture.getModule());
 
+    consoleRunner.setSdk(existingSdk);
+
     before();
 
     myConsoleInitSemaphore = new Semaphore(0);
@@ -279,7 +279,7 @@ public class PyConsoleTask extends PyExecutionFixtureTestTask {
   public void waitForOutput(String... string) throws InterruptedException {
     int count = 0;
     while (true) {
-      List<String> missing = Lists.newArrayList();
+      List<String> missing = new ArrayList<>();
       String out = output();
       boolean flag = true;
       for (String s : string) {
@@ -399,7 +399,7 @@ public class PyConsoleTask extends PyExecutionFixtureTestTask {
 
   protected List<String> getCompoundValueChildren(PyDebugValue value) throws PyDebuggerException {
     XValueChildrenList list = myCommunication.loadVariable(value);
-    List<String> result = Lists.newArrayList();
+    List<String> result = new ArrayList<>();
     for (int i = 0; i < list.size(); i++) {
       result.add(((PyDebugValue)list.getValue(i)).getValue());
     }
@@ -426,11 +426,16 @@ public class PyConsoleTask extends PyExecutionFixtureTestTask {
     myCommunication.interrupt();
   }
 
-
   public void addTextToEditor(final String text) {
     ApplicationManager.getApplication().invokeAndWait(() -> {
       getConsoleView().setInputText(text);
       PsiDocumentManager.getInstance(getProject()).commitAllDocuments();
     });
+  }
+
+  @NotNull
+  @Override
+  public Set<String> getTags() {
+    return ImmutableSet.of("-iron"); // PY-36349
   }
 }

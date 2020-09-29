@@ -20,9 +20,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.model.JpsElement;
 
-/**
- * @author nik
- */
 public abstract class JpsElementExtensionSerializerBase<E extends JpsElement> {
   private final String myConfigFileName;
   private final String myComponentName;
@@ -48,5 +45,10 @@ public abstract class JpsElementExtensionSerializerBase<E extends JpsElement> {
   public void loadExtensionWithDefaultSettings(@NotNull E e) {
   }
 
-  public abstract void saveExtension(@NotNull E e, @NotNull Element componentTag);
+  /**
+   * @deprecated the build process doesn't save project configuration so there is no need to implement this method, it isn't called by the platform
+   */
+  @Deprecated
+  public void saveExtension(@NotNull E e, @NotNull Element componentTag) {
+  }
 }

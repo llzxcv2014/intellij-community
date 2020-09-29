@@ -44,10 +44,13 @@ import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.util.net.NetUtils;
+import org.intellij.plugins.xpathView.XPathBundle;
 import org.intellij.plugins.xslt.run.rt.XSLTMain;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.intellij.lang.xpath.xslt.run.XsltRunConfiguration.isEmpty;
@@ -106,11 +109,11 @@ public class XsltCommandLineState extends CommandLineState {
     final ParametersList vmParameters = parameters.getVMParametersList();
     vmParameters.addParametersString(myXsltRunConfiguration.myVmArguments);
     if (isEmpty(myXsltRunConfiguration.getXsltFile())) {
-      throw new CantRunException("No XSLT file selected");
+      throw new CantRunException(XPathBundle.message("dialog.message.no.xslt.file.selected"));
     }
     vmParameters.defineProperty("xslt.file", myXsltRunConfiguration.getXsltFile());
     if (isEmpty(myXsltRunConfiguration.getXmlInputFile())) {
-      throw new CantRunException("No XML input file selected");
+      throw new CantRunException(XPathBundle.message("dialog.message.no.xml.input.file.selected"));
     }
     vmParameters.defineProperty("xslt.input", myXsltRunConfiguration.getXmlInputFile());
 
@@ -136,16 +139,16 @@ public class XsltCommandLineState extends CommandLineState {
     if (pluginId != null) {
       IdeaPluginDescriptor descriptor = PluginManagerCore.getPlugin(pluginId);
       assert descriptor != null;
-      File rtPath = new File(descriptor.getPath(), "lib/rt/xslt-rt.jar");
-      if (!rtPath.exists()) {
-        throw new CantRunException("Runtime classes not found at " + rtPath);
+      Path rtPath = descriptor.getPluginPath().resolve("lib/rt/xslt-rt.jar");
+      if (!Files.exists(rtPath)) {
+        throw new CantRunException(XPathBundle.message("dialog.message.runtime.classes.not.found.at", rtPath));
       }
-      parameters.getClassPath().addTail(rtPath.getAbsolutePath());
+      parameters.getClassPath().addTail(rtPath.toAbsolutePath().toString());
     }
     else {
       String rtPath = PathManager.getJarPathForClass(XSLTMain.class);
       if (rtPath == null) {
-        throw new CantRunException("Cannot find runtime classes on the classpath");
+        throw new CantRunException(XPathBundle.message("dialog.message.cannot.find.runtime.classes.on.classpath"));
       }
       parameters.getClassPath().addTail(rtPath);
       parameters.getVMParametersList().prepend("-ea");

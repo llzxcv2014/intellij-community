@@ -2,6 +2,7 @@
 package com.jetbrains.python.newProject.steps;
 
 import com.intellij.facet.ui.ValidationResult;
+import com.intellij.ide.impl.ProjectUtil;
 import com.intellij.ide.util.projectWizard.AbstractNewProjectStep;
 import com.intellij.ide.util.projectWizard.ProjectSettingsStepBase;
 import com.intellij.ide.util.projectWizard.WebProjectTemplate;
@@ -9,9 +10,12 @@ import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.ui.LabeledComponent;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
-import com.intellij.openapi.ui.ValidationInfo;
 import com.intellij.openapi.ui.VerticalFlowLayout;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.util.UserDataHolderBase;
+import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.platform.DirectoryProjectGenerator;
 import com.intellij.ui.DocumentAdapter;
@@ -20,15 +24,20 @@ import com.intellij.util.Consumer;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.PathUtil;
 import com.intellij.util.containers.ContainerUtil;
+import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.configuration.PyConfigurableInterpreterList;
 import com.jetbrains.python.newProject.PyFrameworkProjectGenerator;
 import com.jetbrains.python.newProject.PythonProjectGenerator;
 import com.jetbrains.python.packaging.PyPackage;
 import com.jetbrains.python.packaging.PyPackageUtil;
+import com.jetbrains.python.psi.PyUtil;
 import com.jetbrains.python.sdk.*;
+import com.jetbrains.python.sdk.add.PyAddExistingCondaEnvPanel;
 import com.jetbrains.python.sdk.add.PyAddSdkGroupPanel;
 import com.jetbrains.python.sdk.add.PyAddSdkPanel;
+import com.jetbrains.python.sdk.conda.PyCondaSdkCustomizer;
 import one.util.streamex.StreamEx;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,13 +45,14 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import java.awt.*;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> implements DumbAware {
   private boolean myInstallFramework;
   @Nullable private PyAddSdkGroupPanel myInterpreterPanel;
+  @Nullable private HideableDecorator myInterpretersDecorator;
 
   public ProjectSpecificSettingsStep(@NotNull final DirectoryProjectGenerator<T> projectGenerator,
                                      @NotNull final AbstractNewProjectStep.AbstractCallback<T> callback) {
@@ -70,7 +80,7 @@ public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> i
     }
     if (advancedSettings != null) {
       final JPanel jPanel = new JPanel(new VerticalFlowLayout());
-      final HideableDecorator deco = new HideableDecorator(jPanel, "Mor&e Settings", false);
+      final HideableDecorator deco = new HideableDecorator(jPanel, PyBundle.message("python.new.project.more.settings"), false);
       if (myProjectGenerator instanceof PythonProjectGenerator) {
         final ValidationResult result = ((PythonProjectGenerator)myProjectGenerator).warningValidation(getInterpreterPanelSdk());
         deco.setOn(!result.isOk());
@@ -93,6 +103,10 @@ public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> i
     }
     else if (panel instanceof PyAddExistingSdkPanel) {
       return panel.getSdk();
+    }
+    else if (panel instanceof PyAddExistingCondaEnvPanel) {
+      final PyAddExistingCondaEnvPanel condaEnv = (PyAddExistingCondaEnvPanel)panel;
+      return new PyLazySdk("Uninitialized environment", condaEnv::getOrCreateSdk);
     }
     else {
       return null;
@@ -143,19 +157,38 @@ public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> i
   }
 
   @Override
+  public void setErrorText(@Nullable String text) {
+    super.setErrorText(text);
+    if (myInterpretersDecorator != null && !StringUtil.isEmpty(text)) myInterpretersDecorator.setOn(true);
+  }
+
+  @Override
+  public void setWarningText(@Nullable String text) {
+    super.setWarningText(text);
+    if (myInterpretersDecorator != null && !StringUtil.isEmpty(text)) myInterpretersDecorator.setOn(true);
+  }
+
+  @Override
   public boolean checkValid() {
     myInstallFramework = false;
     if (!super.checkValid()) {
       return false;
     }
 
-    final PyAddSdkGroupPanel interpreterPanel = myInterpreterPanel;
-    if (interpreterPanel != null) {
-      final List<ValidationInfo> validationInfos = interpreterPanel.validateAll();
-      if (!validationInfos.isEmpty()) {
-        setErrorText(StringUtil.join(validationInfos, info -> info.message, "\n"));
-        return false;
-      }
+    final Map<Boolean, List<String>> errorsAndWarnings = StreamEx
+      .of(myInterpreterPanel == null ? Collections.emptyList() : myInterpreterPanel.validateAll())
+      .groupingBy(it -> it.warning, Collectors.mapping(it -> it.message, Collectors.toList()));
+    final List<String> validationErrors = errorsAndWarnings.getOrDefault(false, Collections.emptyList());
+    final List<String> validationWarnings = errorsAndWarnings.getOrDefault(true, Collections.emptyList());
+    if (!validationErrors.isEmpty()) {
+      setErrorText(StringUtil.join(validationErrors, "\n"));
+      return false;
+    }
+    else if (!validationWarnings.isEmpty()) {
+      setWarningText(StreamEx.of(validationWarnings)
+                       .map(HtmlChunk::raw)
+                       .collect(HtmlChunk.toFragment(HtmlChunk.br()))
+                       .toString());
     }
 
     final PythonProjectGenerator generator = ObjectUtils.tryCast(myProjectGenerator, PythonProjectGenerator.class);
@@ -174,7 +207,7 @@ public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> i
       return false;
     }
 
-    final List<String> warnings = new ArrayList<>();
+    final List<String> warnings = new ArrayList<>(validationWarnings);
 
     final PyFrameworkProjectGenerator frameworkGenerator = ObjectUtils.tryCast(myProjectGenerator, PyFrameworkProjectGenerator.class);
 
@@ -200,15 +233,19 @@ public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> i
     }
 
     if (!warnings.isEmpty()) {
-      setWarningText(StringUtil.join(warnings, "<br/>"));
+      setWarningText(StreamEx.of(warnings)
+                       .map(HtmlChunk::raw)
+                       .collect(HtmlChunk.toFragment(HtmlChunk.br()))
+                       .toString());
     }
     return true;
   }
 
-  private static String validateFrameworkSupportsPython3(@NotNull PyFrameworkProjectGenerator generator, @NotNull Sdk sdk) {
+  private static @Nls String validateFrameworkSupportsPython3(@NotNull PyFrameworkProjectGenerator generator, @NotNull Sdk sdk) {
     final String frameworkName = generator.getFrameworkTitle();
     final boolean isPy3k = PythonSdkType.getLanguageLevelForSdk(sdk).isPy3K();
-    return isPy3k && !generator.supportsPython3() ? frameworkName + " is not supported for the selected interpreter" : null;
+    return isPy3k && !generator.supportsPython3() ? PyBundle.message("framework.not.supported.for.the.selected.interpreter", frameworkName)
+                                                  : null;
   }
 
   @NotNull
@@ -217,19 +254,15 @@ public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> i
     boolean installFramework = false;
     if (!generator.isFrameworkInstalled(sdk)) {
       final String frameworkName = generator.getFrameworkTitle();
+      String message = PyBundle.message("python.package.installation.notification.message", frameworkName);
       if (PyPackageUtil.packageManagementEnabled(sdk)) {
         installFramework = true;
         final List<PyPackage> packages = PyPackageUtil.refreshAndGetPackagesModally(sdk);
         if (!PyPackageUtil.hasManagement(packages)) {
-          warnings.add("Python packaging tools and " + frameworkName + " will be installed on the selected interpreter");
-        }
-        else {
-          warnings.add(frameworkName + " will be installed on the selected interpreter");
+          message = PyBundle.message("python.package.and.packaging.tools.installation.notification.message", frameworkName);
         }
       }
-      else {
-        warnings.add(frameworkName + " is not installed on the selected interpreter");
-      }
+      warnings.add(message);
     }
     return Pair.create(installFramework, warnings);
   }
@@ -270,15 +303,28 @@ public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> i
     final PyAddNewEnvironmentPanel newEnvironmentPanel = new PyAddNewEnvironmentPanel(existingSdks, newProjectPath, preferredEnvironment);
     final PyAddExistingSdkPanel existingSdkPanel = new PyAddExistingSdkPanel(null, null, existingSdks, newProjectPath, preferredSdk);
 
-    final PyAddSdkPanel defaultPanel = PySdkSettings.getInstance().getUseNewEnvironmentForNewProject() ?
-                                       newEnvironmentPanel : existingSdkPanel;
-    final HideableDecorator decorator = new HideableDecorator(decoratorPanel, getProjectInterpreterTitle(defaultPanel), false);
-    decorator.setContentComponent(container);
+    PyAddSdkPanel defaultPanel = PySdkSettings.getInstance().getUseNewEnvironmentForNewProject() &&
+                                 !PyCondaSdkCustomizer.Companion.getInstance().getPreferExistingEnvironments() ?
+                                 newEnvironmentPanel : existingSdkPanel;
+    List<PyAddSdkPanel> panels;
+    if (PyCondaSdkCustomizer.Companion.getInstance().getPreferExistingEnvironments()) {
+      PyAddExistingCondaEnvPanel existingConda =
+        new PyAddExistingCondaEnvPanel(null, null, existingSdks, newProjectPath, new UserDataHolderBase(), this::checkValid);
+      panels = Arrays.asList(existingSdkPanel, existingConda, newEnvironmentPanel);
+      if (existingSdks.isEmpty()) {
+        defaultPanel = existingConda;
+      }
+    }
+    else {
+      panels = Arrays.asList(newEnvironmentPanel, existingSdkPanel);
+    }
+    myInterpretersDecorator = new HideableDecorator(decoratorPanel, getProjectInterpreterTitle(defaultPanel), false);
+    myInterpretersDecorator.setContentComponent(container);
 
-    final List<PyAddSdkPanel> panels = Arrays.asList(newEnvironmentPanel, existingSdkPanel);
-    myInterpreterPanel = new PyAddSdkGroupPanel("New project interpreter", getIcon(), panels, defaultPanel);
+    myInterpreterPanel = new PyAddSdkGroupPanel(PyBundle.messagePointer("python.add.sdk.panel.name.new.project.interpreter"),
+                                                getIcon(), panels, defaultPanel);
     myInterpreterPanel.addChangeListener(() -> {
-      decorator.setTitle(getProjectInterpreterTitle(myInterpreterPanel.getSelectedPanel()));
+      myInterpretersDecorator.setTitle(getProjectInterpreterTitle(myInterpreterPanel.getSelectedPanel()));
       final boolean useNewEnvironment = myInterpreterPanel.getSelectedPanel() instanceof PyAddNewEnvironmentPanel;
       PySdkSettings.getInstance().setUseNewEnvironmentForNewProject(useNewEnvironment);
       checkValid();
@@ -312,16 +358,16 @@ public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> i
   }
 
   @NotNull
-  private static String getProjectInterpreterTitle(@NotNull PyAddSdkPanel panel) {
+  private static @NlsContexts.Separator String getProjectInterpreterTitle(@NotNull PyAddSdkPanel panel) {
     final String name;
     if (panel instanceof PyAddNewEnvironmentPanel) {
-      name = "New " + ((PyAddNewEnvironmentPanel)panel).getSelectedPanel().getEnvName() + " environment";
+      name = PyBundle.message("python.sdk.new.environment.kind", ((PyAddNewEnvironmentPanel)panel).getSelectedPanel().getEnvName());
     }
     else {
       final Sdk sdk = panel.getSdk();
       name = sdk != null ? sdk.getName() : panel.getPanelName();
     }
-    return "Project Interpreter: " + name;
+    return PyBundle.message("python.sdk.python.interpreter.title.0", name);
   }
 
   @Nullable
@@ -344,5 +390,14 @@ public class ProjectSpecificSettingsStep<T> extends ProjectSettingsStepBase<T> i
       .filter(sdk -> sdk != null && sdk.getSdkType() instanceof PythonSdkType && !PythonSdkUtil.isInvalid(sdk))
       .sorted(new PreferredSdkComparator())
       .toList();
+  }
+
+  @Override
+  protected @NotNull File findSequentNonExistingUntitled() {
+    return Optional
+      .ofNullable(PyUtil.as(myProjectGenerator, PythonProjectGenerator.class))
+      .map(PythonProjectGenerator::getNewProjectPrefix)
+      .map(it -> FileUtil.findSequentNonexistentFile(new File(ProjectUtil.getBaseDir()), it, ""))
+      .orElseGet(() -> super.findSequentNonExistingUntitled());
   }
 }

@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.intellij.build.impl
 
 import com.intellij.openapi.util.Pair
@@ -20,7 +6,6 @@ import com.intellij.openapi.util.text.StringUtil
 import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import org.jetbrains.intellij.build.*
-import org.jetbrains.jps.gant.JpsGantProjectBuilder
 import org.jetbrains.jps.model.JpsGlobal
 import org.jetbrains.jps.model.JpsModel
 import org.jetbrains.jps.model.JpsProject
@@ -30,9 +15,6 @@ import org.jetbrains.jps.model.module.JpsModule
 
 import java.util.function.BiFunction
 
-/**
- * @author nik
- */
 @CompileStatic
 class BuildContextImpl extends BuildContext {
   private final JpsGlobal global
@@ -60,7 +42,7 @@ class BuildContextImpl extends BuildContext {
     this.compilationContext = compilationContext
     this.global = compilationContext.global
     this.productProperties = productProperties
-    this.proprietaryBuildTools = proprietaryBuildTools
+    this.proprietaryBuildTools = proprietaryBuildTools == null ? ProprietaryBuildTools.DUMMY : proprietaryBuildTools
     this.windowsDistributionCustomizer = windowsDistributionCustomizer
     this.linuxDistributionCustomizer = linuxDistributionCustomizer
     this.macDistributionCustomizer = macDistributionCustomizer
@@ -76,13 +58,15 @@ class BuildContextImpl extends BuildContext {
     else if (productProperties.productCode == null && applicationInfo.productCode != null) {
       productProperties.productCode = applicationInfo.productCode
     }
-    bundledJreManager = new BundledJreManager(this, paths.buildOutputRoot)
+
+    bundledJreManager = new BundledJreManager(this)
 
     buildNumber = options.buildNumber ?: readSnapshotBuildNumber()
     fullBuildNumber = "$applicationInfo.productCode-$buildNumber"
-    systemSelector = productProperties.getSystemSelector(applicationInfo)
+    systemSelector = productProperties.getSystemSelector(applicationInfo, buildNumber)
 
-    bootClassPathJarNames = ["bootstrap.jar", "extensions.jar", "util.jar", "jdom.jar", "log4j.jar", "trove4j.jar", "jna.jar"]
+    bootClassPathJarNames = ["bootstrap.jar", "extensions.jar", "util.jar", "jdom.jar", "log4j.jar", "jna.jar"]
+    dependenciesProperties = new DependenciesProperties(this)
   }
 
   private String readSnapshotBuildNumber() {
@@ -152,11 +136,6 @@ class BuildContextImpl extends BuildContext {
   }
 
   @Override
-  JpsGantProjectBuilder getProjectBuilder() {
-    compilationContext.projectBuilder
-  }
-
-  @Override
   JpsCompilationData getCompilationData() {
     compilationContext.compilationData
   }
@@ -218,7 +197,7 @@ class BuildContextImpl extends BuildContext {
     if (proprietaryBuildTools.signTool != null) {
       messages.progress("Signing $path")
       proprietaryBuildTools.signTool.signExeFile(path, this)
-      messages.info("Signing done")
+      messages.info("Signed $path")
     }
     else {
       messages.warning("Sign tool isn't defined, $path won't be signed")
@@ -249,14 +228,13 @@ class BuildContextImpl extends BuildContext {
   BuildContext forkForParallelTask(String taskName) {
     def ant = new AntBuilder(ant.project)
     def messages = messages.forkForParallelTask(taskName)
-    def compilationContextCopy = compilationContext.
-      createCopy(ant, messages, options, createBuildOutputRootEvaluator(compilationContext.paths.projectHome, productProperties))
-    def child = new BuildContextImpl(compilationContextCopy, productProperties,
-                                     windowsDistributionCustomizer, linuxDistributionCustomizer, macDistributionCustomizer,
-                                     proprietaryBuildTools)
-    child.paths.artifacts = paths.artifacts
-    child.bundledJreManager.baseDirectoryForJre = bundledJreManager.baseDirectoryForJre
-    return child
+    def compilationContextCopy =
+      compilationContext.createCopy(ant, messages, options, createBuildOutputRootEvaluator(compilationContext.paths.projectHome, productProperties))
+    def copy = new BuildContextImpl(compilationContextCopy, productProperties,
+                                    windowsDistributionCustomizer, linuxDistributionCustomizer, macDistributionCustomizer,
+                                    proprietaryBuildTools)
+    copy.paths.artifacts = paths.artifacts
+    return copy
   }
 
   @Override
@@ -273,7 +251,6 @@ class BuildContextImpl extends BuildContext {
                                     windowsDistributionCustomizer, linuxDistributionCustomizer, macDistributionCustomizer,
                                     proprietaryBuildTools)
     copy.paths.artifacts = paths.artifacts
-    copy.bundledJreManager.baseDirectoryForJre = bundledJreManager.baseDirectoryForJre
     copy.compilationContext.prepareForBuild()
     return copy
   }

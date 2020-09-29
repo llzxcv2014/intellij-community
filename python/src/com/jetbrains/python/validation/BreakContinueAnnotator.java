@@ -15,26 +15,27 @@
  */
 package com.jetbrains.python.validation;
 
+import com.intellij.lang.annotation.HighlightSeverity;
+import com.jetbrains.python.PyPsiBundle;
 import com.jetbrains.python.psi.PyBreakStatement;
 import com.jetbrains.python.psi.PyContinueStatement;
-
-import static com.jetbrains.python.PyPsiBundle.message;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Annotates misplaced 'break' and 'continue'.
  */
 public class BreakContinueAnnotator extends PyAnnotator {
   @Override
-  public void visitPyBreakStatement(final PyBreakStatement node) {
+  public void visitPyBreakStatement(final @NotNull PyBreakStatement node) {
     if (node.getLoopStatement() == null) {
-      getHolder().createErrorAnnotation(node, message("ANN.break.outside.loop"));
+      getHolder().newAnnotation(HighlightSeverity.ERROR, PyPsiBundle.message("ANN.break.outside.loop")).create();
     }
   }
 
   @Override
-  public void visitPyContinueStatement(final PyContinueStatement node) {
+  public void visitPyContinueStatement(final @NotNull PyContinueStatement node) {
     if (node.getLoopStatement() == null) {
-      getHolder().createErrorAnnotation(node, message("ANN.continue.outside.loop"));
+      getHolder().newAnnotation(HighlightSeverity.ERROR, PyPsiBundle.message("ANN.continue.outside.loop")).create();
     }
   }
 }

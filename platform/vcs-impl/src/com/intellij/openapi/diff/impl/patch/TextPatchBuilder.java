@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.diff.impl.patch;
 
 import com.intellij.diff.comparison.ByLine;
@@ -21,9 +7,10 @@ import com.intellij.diff.comparison.DiffTooBigException;
 import com.intellij.diff.comparison.iterables.FairDiffIterable;
 import com.intellij.diff.util.Range;
 import com.intellij.openapi.progress.DumbProgressIndicator;
-import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.LineTokenizer;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vcs.FileStatus;
+import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.util.BeforeAfter;
 import com.intellij.util.containers.ContainerUtil;
@@ -31,45 +18,45 @@ import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
 
-public class TextPatchBuilder {
+public final class TextPatchBuilder {
   private static final int CONTEXT_LINES = 3;
+  /**
+   * @see com.intellij.openapi.vcs.changes.patch.DefaultPatchBaseVersionProvider
+   */
   @NonNls private static final String REVISION_NAME_TEMPLATE = "(revision {0})";
   @NonNls private static final String DATE_NAME_TEMPLATE = "(date {0})";
 
-  @NotNull private final String myBasePath;
+  @NotNull private final Path myBasePath;
   private final boolean myIsReversePath;
-  private final boolean myIsCaseSensitive;
   @Nullable private final Runnable myCancelChecker;
 
-  private TextPatchBuilder(@NotNull String basePath,
+  private TextPatchBuilder(@NotNull Path basePath,
                            boolean isReversePath,
-                           boolean isCaseSensitive,
                            @Nullable Runnable cancelChecker) {
     myBasePath = basePath;
     myIsReversePath = isReversePath;
-    myIsCaseSensitive = isCaseSensitive;
     myCancelChecker = cancelChecker;
   }
 
-  @NotNull
-  public static List<FilePatch> buildPatch(@NotNull Collection<? extends BeforeAfter<AirContentRevision>> changes,
-                                           @NotNull String basePath,
-                                           boolean reversePatch,
-                                           boolean isCaseSensitive,
-                                           @Nullable Runnable cancelChecker) throws VcsException {
-    TextPatchBuilder builder = new TextPatchBuilder(basePath, reversePatch, isCaseSensitive, cancelChecker);
-    return builder.build(changes);
+  public static @NotNull List<FilePatch> buildPatch(@NotNull Collection<BeforeAfter<AirContentRevision>> changes,
+                                                    @NotNull Path basePath,
+                                                    boolean reversePatch,
+                                                    @Nullable Runnable cancelChecker) throws VcsException {
+    return new TextPatchBuilder(basePath, reversePatch, cancelChecker).build(changes);
   }
 
   @NotNull
-  private List<FilePatch> build(@NotNull Collection<? extends BeforeAfter<AirContentRevision>> changes) throws VcsException {
+  private List<FilePatch> build(@NotNull Collection<BeforeAfter<AirContentRevision>> changes) throws VcsException {
     List<FilePatch> result = new ArrayList<>();
     for (BeforeAfter<AirContentRevision> c : changes) {
       if (myCancelChecker != null) myCancelChecker.run();
@@ -115,22 +102,20 @@ public class TextPatchBuilder {
 
     TextFilePatch patch = buildPatchHeading(beforeRevision, afterRevision);
 
-    if (beforeContent.equals(afterContent)) {
-      if (beforeRevision.getPath().getPath().equals(afterRevision.getPath().getPath())) return null;
-      // movement
-      patch.addHunk(new PatchHunk(0, 0, 0, 0));
-      return patch;
-    }
-
     List<PatchHunk> hunks = buildPatchHunks(beforeContent, afterContent);
     for (PatchHunk hunk : hunks) {
       patch.addHunk(hunk);
     }
+
+    // skip empty patch
+    if (hunks.isEmpty() && beforeRevision.getPath().getPath().equals(afterRevision.getPath().getPath())) return null;
+
     return patch;
   }
 
   @NotNull
   public static List<PatchHunk> buildPatchHunks(@NotNull String beforeContent, @NotNull String afterContent) {
+    if (beforeContent.equals(afterContent)) return Collections.emptyList();
     if (beforeContent.isEmpty()) {
       return singletonList(createWholeFileHunk(afterContent, true, true));
     }
@@ -293,16 +278,22 @@ public class TextPatchBuilder {
   @NotNull
   private TextFilePatch buildAddedFile(@NotNull AirContentRevision afterRevision) throws VcsException {
     TextFilePatch result = buildPatchHeading(afterRevision, afterRevision);
+    result.setFileStatus(FileStatus.ADDED);
     String content = getContent(afterRevision);
-    result.addHunk(createWholeFileHunk(content, true, false));
+    if(!content.isEmpty()) {
+      result.addHunk(createWholeFileHunk(content, true, false));
+    }
     return result;
   }
 
   @NotNull
   private TextFilePatch buildDeletedFile(@NotNull AirContentRevision beforeRevision) throws VcsException {
     TextFilePatch result = buildPatchHeading(beforeRevision, beforeRevision);
+    result.setFileStatus(FileStatus.DELETED);
     String content = getContent(beforeRevision);
-    result.addHunk(createWholeFileHunk(content, false, false));
+    if (!content.isEmpty()) {
+      result.addHunk(createWholeFileHunk(content, false, false));
+    }
     return result;
   }
 
@@ -341,16 +332,6 @@ public class TextPatchBuilder {
   }
 
   @NotNull
-  private String getRelativePath(@NotNull String secondPath) {
-    String baseModified = FileUtil.toSystemIndependentName(myBasePath);
-    String secondModified = FileUtil.toSystemIndependentName(secondPath);
-
-    String relPath = FileUtil.getRelativePath(baseModified, secondModified, '/', myIsCaseSensitive);
-    if (relPath == null) return secondModified;
-    return relPath;
-  }
-
-  @NotNull
   private TextFilePatch buildPatchHeading(@NotNull AirContentRevision beforeRevision,
                                           @NotNull AirContentRevision afterRevision) {
     TextFilePatch result = new TextFilePatch(afterRevision.getCharset(), afterRevision.getLineSeparator());
@@ -361,10 +342,10 @@ public class TextPatchBuilder {
   private void setPatchHeading(@NotNull FilePatch result,
                                @NotNull AirContentRevision beforeRevision,
                                @NotNull AirContentRevision afterRevision) {
-    result.setBeforeName(getRelativePath(beforeRevision.getPath().getPath()));
+    result.setBeforeName(myBasePath.relativize(beforeRevision.getPath().getPath()).toString().replace(File.separatorChar, '/'));
     result.setBeforeVersionId(getRevisionName(beforeRevision));
 
-    result.setAfterName(getRelativePath(afterRevision.getPath().getPath()));
+    result.setAfterName(myBasePath.relativize(afterRevision.getPath().getPath()).toString().replace(File.separatorChar, '/'));
     result.setAfterVersionId(getRevisionName(afterRevision));
   }
 
@@ -381,7 +362,8 @@ public class TextPatchBuilder {
   private static String getContent(@NotNull AirContentRevision revision) throws VcsException {
     String beforeContent = revision.getContentAsString();
     if (beforeContent == null) {
-      throw new VcsException("Failed to fetch old content for file " + revision.getPath().getPath());
+      throw new VcsException(
+        VcsBundle.message("patch.failed.to.fetch.old.content.for.file.name.in.revision", revision.getPath().getPath(),revision.getRevisionNumber()));
     }
     return beforeContent;
   }

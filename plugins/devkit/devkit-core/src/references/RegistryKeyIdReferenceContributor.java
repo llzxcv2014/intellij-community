@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.references;
 
 import com.intellij.codeInsight.lookup.LookupElement;
@@ -7,6 +7,7 @@ import com.intellij.icons.AllIcons;
 import com.intellij.lang.properties.IProperty;
 import com.intellij.lang.properties.PropertiesReferenceManager;
 import com.intellij.lang.properties.psi.PropertiesFile;
+import com.intellij.lang.properties.references.PropertyReferenceBase;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.util.registry.Registry;
@@ -19,6 +20,7 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.xml.GenericAttributeValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.idea.devkit.DevKitBundle;
 import org.jetbrains.idea.devkit.dom.Extension;
 import org.jetbrains.idea.devkit.inspections.RegistryPropertiesAnnotator;
 import org.jetbrains.uast.UExpression;
@@ -30,8 +32,7 @@ import static com.intellij.patterns.PsiJavaPatterns.psiMethod;
 import static com.intellij.patterns.StandardPatterns.string;
 import static com.intellij.patterns.uast.UastPatterns.injectionHostUExpression;
 
-class RegistryKeyIdReferenceContributor extends PsiReferenceContributor {
-
+final class RegistryKeyIdReferenceContributor extends PsiReferenceContributor {
   @Override
   public void registerReferenceProviders(@NotNull PsiReferenceRegistrar registrar) {
     UastReferenceRegistrar
@@ -40,18 +41,22 @@ class RegistryKeyIdReferenceContributor extends PsiReferenceContributor {
                                        .withName(string().oneOf("get", "is", "intValue", "doubleValue", "stringValue", "getColor"))
                                        .definedInClass(Registry.class.getName())),
                                      new UastInjectionHostReferenceProvider() {
-                                       @NotNull
                                        @Override
-                                       public PsiReference[] getReferencesForInjectionHost(@NotNull UExpression uExpression,
-                                                                                           @NotNull PsiLanguageInjectionHost host,
-                                                                                           @NotNull ProcessingContext context) {
+                                       public boolean acceptsTarget(@NotNull PsiElement target) {
+                                         return PropertyReferenceBase.isPropertyPsi(target);
+                                       }
+
+                                       @Override
+                                       public PsiReference @NotNull [] getReferencesForInjectionHost(@NotNull UExpression uExpression,
+                                                                                                     @NotNull PsiLanguageInjectionHost host,
+                                                                                                     @NotNull ProcessingContext context) {
                                          return new PsiReference[]{new RegistryKeyIdReference(host)};
                                        }
                                      }, PsiReferenceRegistrar.DEFAULT_PRIORITY);
   }
 
 
-  private static class RegistryKeyIdReference extends ExtensionPointReferenceBase {
+  private static final class RegistryKeyIdReference extends ExtensionPointReferenceBase {
 
     private RegistryKeyIdReference(@NotNull PsiElement element) {
       super(element);
@@ -65,7 +70,7 @@ class RegistryKeyIdReferenceContributor extends PsiReferenceContributor {
     @NotNull
     @Override
     public String getUnresolvedMessagePattern() {
-      return "Cannot resolve registry key '" + getValue() + "'";
+      return DevKitBundle.message("code.convert.registry.key.cannot.resolve", getValue());
     }
 
     @Override
@@ -87,9 +92,8 @@ class RegistryKeyIdReferenceContributor extends PsiReferenceContributor {
       return super.resolve();
     }
 
-    @NotNull
     @Override
-    public Object[] getVariants() {
+    public Object @NotNull [] getVariants() {
       final PropertiesFile registryProperties = getRegistryPropertiesFile();
       if (registryProperties == null) {
         return EMPTY_ARRAY;
@@ -101,8 +105,10 @@ class RegistryKeyIdReferenceContributor extends PsiReferenceContributor {
         if (key == null || extension.getXmlElement() == null) return true;
 
         final boolean requireRestart = "true".equals(getAttributeValue(extension, "restartRequired"));
-        final String description = " " + StringUtil.notNullize(getAttributeValue(extension, "description"), "No Description");
-        final String defaultValue = StringUtil.notNullize(getAttributeValue(extension, "defaultValue"), "No Default");
+        final String description = " " + StringUtil.notNullize(getAttributeValue(extension, "description"),
+                                                               DevKitBundle.message("code.convert.registry.key.no.description"));
+        final String defaultValue = StringUtil.notNullize(getAttributeValue(extension, "defaultValue"),
+                                                          DevKitBundle.message("code.convert.registry.key.no.default.value"));
 
         variants.add(LookupElementBuilder.create(extension.getXmlElement(), key)
                        .withIcon(requireRestart ? AllIcons.Nodes.PluginRestart : AllIcons.Nodes.Plugin)

@@ -27,6 +27,7 @@ from IPython.core.usage import default_banner_parts
 from IPython.utils.strdispatch import StrDispatch
 import IPython.core.release as IPythonRelease
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
+from IPython.terminal.ipapp import load_default_config
 try:
     from traitlets import CBool, Unicode
 except ImportError:
@@ -185,8 +186,7 @@ class PyDevTerminalInteractiveShell(TerminalInteractiveShell):
 
         if tb is not None:
             traceback.print_exception(etype, value, tb)
-
-
+            sys.last_type, sys.last_value, sys.last_traceback = etype, value, tb
 
     #-------------------------------------------------------------------------
     # Things related to text completion
@@ -345,7 +345,7 @@ class _PyDevFrontEnd:
         if hasattr(PyDevTerminalInteractiveShell, '_instance') and PyDevTerminalInteractiveShell._instance is not None:
             self.ipython = PyDevTerminalInteractiveShell._instance
         else:
-            self.ipython = PyDevTerminalInteractiveShell.instance()
+            self.ipython = PyDevTerminalInteractiveShell.instance(config=load_default_config())
 
         self._curr_exec_line = 0
         self._curr_exec_lines = []

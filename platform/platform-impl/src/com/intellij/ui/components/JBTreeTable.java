@@ -1,10 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.components;
 
 import com.intellij.openapi.ui.Divider;
 import com.intellij.openapi.ui.OnePixelDivider;
 import com.intellij.openapi.util.SystemInfo;
-import com.intellij.ui.JBDefaultTreeCellRenderer;
 import com.intellij.ui.OnePixelSplitter;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.SideBorder;
@@ -30,6 +29,7 @@ import javax.swing.table.DefaultTableColumnModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumn;
+import javax.swing.tree.TreeCellRenderer;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import java.awt.*;
@@ -38,7 +38,7 @@ import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
-import static com.intellij.util.ui.tree.WideSelectionTreeUI.TREE_TABLE_TREE_KEY;
+import static com.intellij.ui.render.RenderingUtil.FOCUSABLE_SIBLING;
 
 /**
  * The tree-table view supports horizontal scrolling on a tree column only.
@@ -162,7 +162,7 @@ public class JBTreeTable extends JComponent implements TreePathBackgroundSupplie
       myTable.setRowHeight(treeRowHeight);
     });
 
-    myTree.setCellRenderer(new JBDefaultTreeCellRenderer(true) {
+    myTree.setCellRenderer(new TreeCellRenderer() {
       @Override
       public Component getTreeCellRendererComponent(JTree tree,
                                                     Object value,
@@ -176,7 +176,8 @@ public class JBTreeTable extends JComponent implements TreePathBackgroundSupplie
         return renderer.getTableCellRendererComponent(myTable, value, selected, hasFocus, row, cm.treeColumnIndex);
       }
     });
-    myTree.putClientProperty(TREE_TABLE_TREE_KEY, myTable);
+    myTree.putClientProperty(FOCUSABLE_SIBLING, myTable);
+    myTable.putClientProperty(FOCUSABLE_SIBLING, myTree);
 
     setModel(model);
   }
@@ -353,7 +354,7 @@ public class JBTreeTable extends JComponent implements TreePathBackgroundSupplie
     }
   }
 
-  private class TreeColumnModel extends DefaultTableColumnModel {
+  private final class TreeColumnModel extends DefaultTableColumnModel {
 
     private int treeColumnIndex = -1;
 

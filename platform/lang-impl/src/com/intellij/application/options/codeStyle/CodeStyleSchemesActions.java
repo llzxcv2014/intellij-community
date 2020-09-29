@@ -1,28 +1,16 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.application.options.codeStyle;
 
 import com.intellij.CommonBundle;
 import com.intellij.application.options.SchemesToImportPopup;
 import com.intellij.application.options.schemes.AbstractSchemeActions;
 import com.intellij.application.options.schemes.AbstractSchemesPanel;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.application.ApplicationBundle;
 import com.intellij.openapi.options.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.ui.MessageDialogBuilder;
 import com.intellij.openapi.ui.MessageType;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.text.StringUtil;
@@ -32,9 +20,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 abstract class CodeStyleSchemesActions extends AbstractSchemeActions<CodeStyleScheme> {
-
-  private static final String SHARED_IMPORT_SOURCE = ApplicationBundle.message("import.scheme.shared");
-
   CodeStyleSchemesActions(@NotNull AbstractSchemesPanel<CodeStyleScheme, ?> schemesPanel) {
     super(schemesPanel);
   }
@@ -43,7 +28,8 @@ abstract class CodeStyleSchemesActions extends AbstractSchemeActions<CodeStyleSc
   protected void resetScheme(@NotNull CodeStyleScheme scheme) {
     if (Messages
           .showOkCancelDialog(ApplicationBundle.message("settings.code.style.reset.to.defaults.message"),
-                              ApplicationBundle.message("settings.code.style.reset.to.defaults.title"), "Restore", CommonBundle.getCancelButtonText(), Messages.getQuestionIcon()) ==
+                              ApplicationBundle.message("settings.code.style.reset.to.defaults.title"),
+                              LangBundle.message("button.restore"), CommonBundle.getCancelButtonText(), Messages.getQuestionIcon()) ==
         Messages.OK) {
       getModel().restoreDefaults(scheme);
     }
@@ -82,9 +68,9 @@ abstract class CodeStyleSchemesActions extends AbstractSchemeActions<CodeStyleSc
     Project project = ProjectUtil.guessCurrentProject(getSchemesPanel());
     return project.getName();
   }
-  
+
   private void chooseAndImport(@NotNull CodeStyleScheme currentScheme, @NotNull String importerName) {
-    if (importerName.equals(SHARED_IMPORT_SOURCE)) {
+    if (importerName.equals(getSharedImportSource())) {
       new SchemesToImportPopup<CodeStyleScheme>(getSchemesPanel()) {
         @Override
         protected void onSchemeSelected(CodeStyleScheme scheme) {
@@ -167,10 +153,10 @@ abstract class CodeStyleSchemesActions extends AbstractSchemeActions<CodeStyleSc
 
   @Override
   public void copyToProject(@NotNull CodeStyleScheme scheme) {
-    int copyToProjectConfirmation = Messages
-      .showYesNoDialog(ApplicationBundle.message("settings.editor.scheme.copy.to.project.message", scheme.getName()),
-                       ApplicationBundle.message("settings.editor.scheme.copy.to.project.title"), 
-                       Messages.getQuestionIcon());
+    int copyToProjectConfirmation = MessageDialogBuilder.yesNo(ApplicationBundle.message("settings.editor.scheme.copy.to.project.title"),
+                                                               ApplicationBundle.message("settings.editor.scheme.copy.to.project.message",
+                                                                                         scheme.getName()))
+      .show();
     if (copyToProjectConfirmation == Messages.YES) {
       getModel().copyToProject(scheme);
     }
@@ -182,4 +168,7 @@ abstract class CodeStyleSchemesActions extends AbstractSchemeActions<CodeStyleSc
     return (CodeStyleSchemesModel)super.getModel();
   }
 
+  private static String getSharedImportSource() {
+    return ApplicationBundle.message("import.scheme.shared");
+  }
 }

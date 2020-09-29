@@ -34,7 +34,7 @@ import java.util.Set;
 /**
  * Contains some extended utility functions for dealing with annotations.
  */
-public class AnnotationUtilEx {
+public final class AnnotationUtilEx {
   private static final PsiConstantEvaluationHelperImpl CONSTANT_EVALUATION_HELPER = new PsiConstantEvaluationHelperImpl();
 
   private AnnotationUtilEx() {
@@ -196,17 +196,16 @@ public class AnnotationUtilEx {
    * String and as a Set. This is done for performance reasons because the Set is required by the
    * {@link AnnotationUtil} utility class and allows to avoid unnecessary object constructions.
    */
-  @NotNull
-  public static PsiAnnotation[] getAnnotationFrom(PsiModifierListOwner owner,
-                                                  Pair<String, ? extends Set<String>> annotationName,
-                                                  boolean allowIndirect,
-                                                  boolean inHierarchy) {
+  public static PsiAnnotation @NotNull [] getAnnotationFrom(PsiModifierListOwner owner,
+                                                            Pair<String, ? extends Set<String>> annotationName,
+                                                            boolean allowIndirect,
+                                                            boolean inHierarchy) {
     if (owner instanceof PsiField || owner instanceof PsiLocalVariable) {
       PsiAnnotation[] annotations = getAnnotationsFromImpl(owner, annotationName, allowIndirect, false);
       if (annotations.length == 0 || !PsiUtilEx.isLanguageAnnotationTarget(owner)) return PsiAnnotation.EMPTY_ARRAY;
       return annotations;
     }
-    
+
     if (!PsiUtilEx.isLanguageAnnotationTarget(owner)) return PsiAnnotation.EMPTY_ARRAY;
 
     return getAnnotationsFromImpl(owner, annotationName, allowIndirect, inHierarchy);

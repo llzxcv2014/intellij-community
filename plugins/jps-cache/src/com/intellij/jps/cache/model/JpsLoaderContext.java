@@ -6,17 +6,17 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
-public class JpsLoaderContext {
+public final class JpsLoaderContext {
   private final String commitId;
-  private final SegmentedProgressIndicatorManager indicatorManager;
+  private final SegmentedProgressIndicatorManager downloadIndicatorManager;
   private final Map<String, Map<String, BuildTargetState>> commitSourcesState;
   private final Map<String, Map<String, BuildTargetState>> currentSourcesState;
 
-  private JpsLoaderContext(@NotNull String commitId, @NotNull SegmentedProgressIndicatorManager indicatorManager,
+  private JpsLoaderContext(@NotNull String commitId, @NotNull SegmentedProgressIndicatorManager downloadIndicatorManager,
                            @NotNull Map<String, Map<String, BuildTargetState>> commitSourcesState,
                            @Nullable Map<String, Map<String, BuildTargetState>> currentSourcesState) {
     this.commitId = commitId;
-    this.indicatorManager = indicatorManager;
+    this.downloadIndicatorManager = downloadIndicatorManager;
     this.commitSourcesState = commitSourcesState;
     this.currentSourcesState = currentSourcesState;
   }
@@ -27,8 +27,8 @@ public class JpsLoaderContext {
   }
 
   @NotNull
-  public SegmentedProgressIndicatorManager getIndicatorManager() {
-    return indicatorManager;
+  public SegmentedProgressIndicatorManager getDownloadIndicatorManager() {
+    return downloadIndicatorManager;
   }
 
   @NotNull
@@ -41,9 +41,9 @@ public class JpsLoaderContext {
     return currentSourcesState;
   }
 
-  public static JpsLoaderContext createNewContext(@NotNull String commitId, @NotNull SegmentedProgressIndicatorManager indicatorManager,
+  public static JpsLoaderContext createNewContext(@NotNull String commitId, @NotNull SegmentedProgressIndicatorManager downloadIndicatorManager,
                                            @NotNull Map<String, Map<String, BuildTargetState>> commitSourcesState,
                                            @Nullable Map<String, Map<String, BuildTargetState>> currentSourcesState) {
-    return new JpsLoaderContext(commitId, indicatorManager, commitSourcesState, currentSourcesState);
+    return new JpsLoaderContext(commitId, downloadIndicatorManager, commitSourcesState, currentSourcesState);
   }
 }

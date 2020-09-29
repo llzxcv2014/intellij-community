@@ -1,6 +1,7 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch;
 
+import com.intellij.find.impl.FindInProjectExtension;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.module.impl.scopes.ModuleWithDependenciesScope;
@@ -9,7 +10,6 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.packageDependencies.ChangeListsScopesProvider;
 import com.intellij.psi.search.*;
 import com.intellij.psi.search.scope.packageSet.NamedScope;
 import com.intellij.psi.search.scope.packageSet.NamedScopesHolder;
@@ -96,15 +96,17 @@ public final class Scopes {
       }
     }
 
-    for (NamedScope scope: ChangeListsScopesProvider.getInstance(project).getFilteredScopes()) {
-      if (scope.getName().equals(scopeName)) {
-        return GlobalSearchScopesCore.filterScope(project, scope);
+    for (FindInProjectExtension extension : FindInProjectExtension.EP_NAME.getExtensionList()) {
+      for (NamedScope scope : extension.getFilteredNamedScopes(project)) {
+        if (scope.getScopeId().equals(scopeName)) {
+          return GlobalSearchScopesCore.filterScope(project, scope);
+        }
       }
     }
 
     for (NamedScopesHolder holder: NamedScopesHolder.getAllNamedScopeHolders(project)) {
       for (NamedScope scope: holder.getEditableScopes()) {
-        if (scope.getName().equals(scopeName)) {
+        if (scope.getScopeId().equals(scopeName)) {
           return GlobalSearchScopesCore.filterScope(project, scope);
         }
       }

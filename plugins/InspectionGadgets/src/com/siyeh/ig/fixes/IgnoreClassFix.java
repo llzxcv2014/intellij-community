@@ -3,14 +3,15 @@ package com.siyeh.ig.fixes;
 
 import com.intellij.codeInsight.intention.LowPriorityAction;
 import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.openapi.command.undo.BasicUndoableAction;
 import com.intellij.openapi.command.undo.UndoManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.profile.codeInspection.ProjectInspectionProfileManager;
 import com.intellij.psi.util.PsiUtilCore;
+import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.InspectionGadgetsFix;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
@@ -22,26 +23,24 @@ public class IgnoreClassFix extends InspectionGadgetsFix implements LowPriorityA
 
   final Collection<? super String> myIgnoredClasses;
   final String myQualifiedName;
-  private final String myFixName;
+  private final @IntentionName String myFixName;
 
-  public IgnoreClassFix(String qualifiedName, Collection<? super String> ignoredClasses, String fixName) {
+  public IgnoreClassFix(String qualifiedName, Collection<? super String> ignoredClasses, @IntentionName String fixName) {
     myIgnoredClasses = ignoredClasses;
     myQualifiedName = qualifiedName;
     myFixName = fixName;
   }
 
-  @Nls
   @NotNull
   @Override
   public String getName() {
     return myFixName;
   }
 
-  @Nls
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Ignore for these types";
+    return InspectionGadgetsBundle.message("ignore.class.fix.family.name");
   }
 
   @Override

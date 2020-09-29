@@ -1,15 +1,14 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.application.options.editor
 
 import com.intellij.openapi.application.ApplicationBundle
 import com.intellij.openapi.application.ApplicationNamesInfo
 import com.intellij.openapi.editor.actions.CaretStopBoundary
-import com.intellij.openapi.editor.actions.CaretStopOptions
-import com.intellij.openapi.editor.actions.CaretStopOptionsTransposed
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SeparatorWithText
 import com.intellij.ui.SimpleTextAttributes
+import org.jetbrains.annotations.Nls
 import java.awt.Component
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JList
@@ -67,7 +66,7 @@ internal interface EditorCaretStopPolicyItem {
     }
   }
 
-  enum class OsDefault(open val hint: String = "") {
+  enum class OsDefault(@Nls open val hint: String = "") {
     UNIX(hint = when {
            SystemInfo.isLinux -> ApplicationBundle.message("combobox.item.hint.os.default.linux")
            SystemInfo.isMac -> ApplicationBundle.message("combobox.item.hint.os.default.mac")
@@ -98,8 +97,7 @@ internal interface EditorCaretStopPolicyItem {
     override fun toString(): String = title.appendHint(osDefault.hint)
     companion object {
       @JvmStatic
-      fun itemForPolicy(caretStopOptions: CaretStopOptions): WordBoundary =
-        findMatchingItem(CaretStopOptionsTransposed.fromCaretStopOptions(caretStopOptions).wordBoundary)
+      fun itemForBoundary(caretStopBoundary: CaretStopBoundary): WordBoundary = findMatchingItem(caretStopBoundary)
     }
   }
 
@@ -119,8 +117,7 @@ internal interface EditorCaretStopPolicyItem {
     override fun toString(): String = title.appendHint(osDefault.hint)
     companion object {
       @JvmStatic
-      fun itemForPolicy(caretStopOptions: CaretStopOptions): LineBoundary =
-        findMatchingItem(CaretStopOptionsTransposed.fromCaretStopOptions(caretStopOptions).lineBoundary)
+      fun itemForBoundary(caretStopBoundary: CaretStopBoundary): LineBoundary = findMatchingItem(caretStopBoundary)
     }
   }
 }

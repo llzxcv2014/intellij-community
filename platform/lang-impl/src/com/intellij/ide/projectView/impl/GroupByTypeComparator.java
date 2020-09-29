@@ -1,5 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.projectView.impl;
 
 import com.intellij.ide.projectView.ProjectView;
@@ -7,40 +6,40 @@ import com.intellij.ide.projectView.ProjectViewNode;
 import com.intellij.ide.util.treeView.AbstractTreeNode;
 import com.intellij.ide.util.treeView.AlphaComparator;
 import com.intellij.ide.util.treeView.NodeDescriptor;
+import com.intellij.openapi.project.Project;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.Comparator;
 
 import static com.intellij.openapi.util.text.StringUtil.naturalCompare;
 
-/**
- * @author cdr
- */
-public class GroupByTypeComparator implements Comparator<NodeDescriptor> {
-  private ProjectView myProjectView;
+public class GroupByTypeComparator implements Comparator<NodeDescriptor<?>> {
+  private final Project project;
   private String myPaneId;
   private boolean myForceSortByType;
 
-  public GroupByTypeComparator(final ProjectView projectView, final String paneId) {
-    myProjectView = projectView;
+  public GroupByTypeComparator(@Nullable Project project, String paneId) {
+    this.project = project;
     myPaneId = paneId;
   }
 
-  public GroupByTypeComparator(final boolean forceSortByType) {
+  public GroupByTypeComparator(boolean forceSortByType) {
     myForceSortByType = forceSortByType;
+    this.project = null;
   }
 
   @Override
   public int compare(NodeDescriptor descriptor1, NodeDescriptor descriptor2) {
-    if (!isSortByType() && descriptor1 instanceof ProjectViewNode && ((ProjectViewNode) descriptor1).isSortByFirstChild()) {
-      final Collection<AbstractTreeNode> children = ((ProjectViewNode)descriptor1).getChildren();
+    if (!isSortByType() && descriptor1 instanceof ProjectViewNode && ((ProjectViewNode)descriptor1).isSortByFirstChild()) {
+      Collection<? extends AbstractTreeNode<?>> children = ((ProjectViewNode<?>)descriptor1).getChildren();
       if (!children.isEmpty()) {
         descriptor1 = children.iterator().next();
         descriptor1.update();
       }
     }
-    if (!isSortByType() && descriptor2 instanceof ProjectViewNode && ((ProjectViewNode) descriptor2).isSortByFirstChild()) {
-      final Collection<AbstractTreeNode> children = ((ProjectViewNode)descriptor2).getChildren();
+    if (!isSortByType() && descriptor2 instanceof ProjectViewNode && ((ProjectViewNode)descriptor2).isSortByFirstChild()) {
+      Collection<? extends AbstractTreeNode<?>> children = ((ProjectViewNode<?>)descriptor2).getChildren();
       if (!children.isEmpty()) {
         descriptor2 = children.iterator().next();
         descriptor2.update();
@@ -48,12 +47,12 @@ public class GroupByTypeComparator implements Comparator<NodeDescriptor> {
     }
 
     if (descriptor1 instanceof ProjectViewNode && descriptor2 instanceof ProjectViewNode) {
-      ProjectViewNode node1 = (ProjectViewNode)descriptor1;
-      ProjectViewNode node2 = (ProjectViewNode)descriptor2;
-      
+      ProjectViewNode<?> node1 = (ProjectViewNode<?>)descriptor1;
+      ProjectViewNode<?> node2 = (ProjectViewNode<?>)descriptor2;
+
       if (isManualOrder()) {
-        final Comparable key1 = node1.getManualOrderKey();
-        final Comparable key2 = node2.getManualOrderKey();
+        Comparable key1 = node1.getManualOrderKey();
+        Comparable key2 = node2.getManualOrderKey();
         int result = compare(key1, key2);
         if (result != 0) return result;
       }
@@ -71,7 +70,7 @@ public class GroupByTypeComparator implements Comparator<NodeDescriptor> {
           return typeWeight1 - typeWeight2;
         }
       }
-      
+
       if (isSortByType()) {
         final Comparable typeSortKey1 = node1.getTypeSortKey();
         final Comparable typeSortKey2 = node2.getTypeSortKey();
@@ -95,43 +94,44 @@ public class GroupByTypeComparator implements Comparator<NodeDescriptor> {
         }
       }
     }
-    if (descriptor1 == null) return -1; 
+    if (descriptor1 == null) return -1;
     if (descriptor2 == null) return 1;
     return AlphaComparator.INSTANCE.compare(descriptor1, descriptor2);
   }
 
   protected boolean isManualOrder() {
-    if (myProjectView != null) {
-      return myProjectView.isManualOrder(myPaneId);
+    if (project == null) {
+      return true;
     }
-    return true;
+    return ProjectView.getInstance(project).isManualOrder(myPaneId);
   }
-  
+
   protected boolean isSortByType() {
-    if (myProjectView != null) {
-      return myProjectView.isSortByType(myPaneId);
+    if (project == null) {
+      return myForceSortByType;
     }
-    return myForceSortByType;
+    return ProjectView.getInstance(project).isSortByType(myPaneId);
   }
 
-  private boolean isAbbreviateQualifiedNames() {
-    return myProjectView != null && myProjectView.isAbbreviatePackageNames(myPaneId);
+  protected boolean isAbbreviateQualifiedNames() {
+    return project != null && ProjectView.getInstance(project).isAbbreviatePackageNames(myPaneId);
   }
 
-  private boolean isFoldersAlwaysOnTop() {
-    return myProjectView == null || myProjectView.isFoldersAlwaysOnTop(myPaneId);
+  protected boolean isFoldersAlwaysOnTop() {
+    return project == null || ProjectView.getInstance(project).isFoldersAlwaysOnTop(myPaneId);
   }
 
-  private static int compare(Comparable key1, Comparable key2) {
+  private static int compare(Comparable<?> key1, Comparable<?> key2) {
     if (key1 == null && key2 == null) return 0;
     if (key1 == null) return 1;
     if (key2 == null) return -1;
     if (key1 instanceof String && key2 instanceof String) {
       return naturalCompare((String)key1, (String)key2);
     }
+
     try {
-      //noinspection unchecked
-      return key1.compareTo(key2);
+      //noinspection unchecked,rawtypes
+      return ((Comparable)key1).compareTo(key2);
     }
     catch (ClassCastException ignored) {
       // if custom nodes provide comparable keys of different types,

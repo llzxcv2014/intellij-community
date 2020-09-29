@@ -1,6 +1,7 @@
 // Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection;
 
+import com.intellij.java.JavaBundle;
 import com.intellij.psi.*;
 import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -58,7 +59,7 @@ public class CapturingCleanerInspection extends AbstractBaseJavaLocalInspectionT
           Optional<PsiElement> referenceExpression = StreamEx.ofTree(((PsiElement)runnableExpression), el -> StreamEx.of(el.getChildren()))
             .findAny(el -> el instanceof PsiReferenceExpression &&
                            ((PsiReferenceExpression)el).isReferenceTo(variable));
-          if (!referenceExpression.isPresent()) return;
+          if (referenceExpression.isEmpty()) return;
           String variableName = variable.getName();
           if (variableName == null) return;
           highlightingElement = referenceExpression.get();
@@ -67,7 +68,7 @@ public class CapturingCleanerInspection extends AbstractBaseJavaLocalInspectionT
         else {
           return;
         }
-        holder.registerProblem(highlightingElement, InspectionsBundle.message("inspection.capturing.cleaner", referenceName));
+        holder.registerProblem(highlightingElement, JavaBundle.message("inspection.capturing.cleaner", referenceName));
       }
 
 

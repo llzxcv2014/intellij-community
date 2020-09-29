@@ -19,8 +19,10 @@ import com.intellij.lang.refactoring.NamesValidator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.InputValidator;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.TextFieldWithHistory;
+import com.intellij.openapi.util.NlsContexts;
 import org.intellij.lang.xpath.psi.XPathExpression;
 import org.intellij.lang.xpath.xslt.util.NameValidator;
 import org.jetbrains.annotations.NotNull;
@@ -47,15 +49,17 @@ public abstract class BaseIntroduceDialog extends DialogWrapper implements Refac
         if (myInputValidator.canClose(getName())) super.doOKAction();
     }
 
-    protected void init(XPathExpression expression, int numberOfExpressions, String title) {
+    protected void init(XPathExpression expression, int numberOfExpressions, @NlsContexts.DialogTitle String title) {
         setModal(true);
         setTitle(title);
 
         final JLabel jLabel = getTypeLabel();
-        jLabel.setText(expression.getType().getName());
+        final String name = expression.getType().getName();
+        jLabel.setText(name);
 
         final JCheckBox jCheckBox = getReplaceAll();
         if (numberOfExpressions > 1) {
+            //noinspection HardCodedStringLiteral
             jCheckBox.setText(MessageFormat.format(jCheckBox.getText(), String.valueOf(numberOfExpressions)));
         } else {
             jCheckBox.setVisible(false);
@@ -91,6 +95,7 @@ public abstract class BaseIntroduceDialog extends DialogWrapper implements Refac
     }
 
     @Override
+    @NlsSafe
     public String getName() {
         return getNameField().getText();
     }

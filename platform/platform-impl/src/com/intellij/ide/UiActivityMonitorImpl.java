@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide;
 
 import com.intellij.openapi.Disposable;
@@ -18,7 +18,7 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.util.*;
 
-public class UiActivityMonitorImpl extends UiActivityMonitor implements ModalityStateListener, Disposable {
+public final class UiActivityMonitorImpl extends UiActivityMonitor implements ModalityStateListener, Disposable {
   private final Map<Project, BusyContainer> myObjects = FactoryMap.create(this::create);
 
   @NotNull
@@ -66,7 +66,7 @@ public class UiActivityMonitorImpl extends UiActivityMonitor implements Modality
   }
 
   @Override
-  public void beforeModalityStateChanged(boolean entering) {
+  public void beforeModalityStateChanged(boolean entering, @NotNull Object modalEntity) {
     SwingUtilities.invokeLater(() -> maybeReady());
   }
 
@@ -78,7 +78,7 @@ public class UiActivityMonitorImpl extends UiActivityMonitor implements Modality
 
   @NotNull
   @Override
-  public BusyObject getBusy(@NotNull Project project, @NotNull UiActivity... toWatch) {
+  public BusyObject getBusy(@NotNull Project project, UiActivity @NotNull ... toWatch) {
     if (!isActive()) return myEmptyBusy;
 
     return _getBusy(project, toWatch);
@@ -86,7 +86,7 @@ public class UiActivityMonitorImpl extends UiActivityMonitor implements Modality
 
   @NotNull
   @Override
-  public BusyObject getBusy(@NotNull UiActivity... toWatch) {
+  public BusyObject getBusy(UiActivity @NotNull ... toWatch) {
     if (!isActive()) return myEmptyBusy;
 
     return _getBusy(null, toWatch);
@@ -138,7 +138,7 @@ public class UiActivityMonitorImpl extends UiActivityMonitor implements Modality
   }
 
   @NotNull
-  private BusyImpl _getBusy(@Nullable Project key, @NotNull UiActivity... toWatch) {
+  private BusyImpl _getBusy(@Nullable Project key, UiActivity @NotNull ... toWatch) {
     return getBusyContainer(key).getOrCreateBusy(toWatch);
   }
 
@@ -183,7 +183,7 @@ public class UiActivityMonitorImpl extends UiActivityMonitor implements Modality
     return myActive;
   }
 
-  private static class ActivityInfo {
+  private static final class ActivityInfo {
     private final ModalityState myEffectiveState;
 
     private ActivityInfo(@NotNull ModalityState effectiveState) {
@@ -197,7 +197,7 @@ public class UiActivityMonitorImpl extends UiActivityMonitor implements Modality
   }
 
   @NotNull
-  protected ModalityState getCurrentState() {
+  private static ModalityState getCurrentState() {
     return ModalityState.current();
   }
 
@@ -298,7 +298,7 @@ public class UiActivityMonitorImpl extends UiActivityMonitor implements Modality
     }
 
     @NotNull
-    public BusyImpl getOrCreateBusy(@NotNull UiActivity... activities) {
+    public BusyImpl getOrCreateBusy(UiActivity @NotNull ... activities) {
       Set<UiActivity> key = ContainerUtil.set(activities);
 
       if (myActivities2Object.containsKey(key)) {

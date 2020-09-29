@@ -20,6 +20,7 @@ import com.intellij.lang.surroundWith.Surrounder;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiDocumentManager;
@@ -36,10 +37,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 class GroupSurrounder implements Surrounder {
-    private final String myTitle;
+    private final @NlsActions.ActionText String myTitle;
     private final String myGroupStart;
 
-    GroupSurrounder(String title, String groupStart) {
+    GroupSurrounder(@NlsActions.ActionText String title, String groupStart) {
         myTitle = title;
         myGroupStart = groupStart;
     }
@@ -50,13 +51,13 @@ class GroupSurrounder implements Surrounder {
     }
 
     @Override
-    public boolean isApplicable(@NotNull PsiElement[] elements) {
+    public boolean isApplicable(PsiElement @NotNull [] elements) {
         return elements.length == 1 || PsiTreeUtil.findCommonParent(elements) == elements[0].getParent();
     }
 
     @Override
     @Nullable
-    public TextRange surroundElements(@NotNull Project project, @NotNull Editor editor, @NotNull PsiElement[] elements) throws IncorrectOperationException {
+    public TextRange surroundElements(@NotNull Project project, @NotNull Editor editor, PsiElement @NotNull [] elements) throws IncorrectOperationException {
         assert elements.length == 1 || PsiTreeUtil.findCommonParent(elements) == elements[0].getParent();
         final PsiElement e = elements[0];
         final ASTNode node = e.getNode();

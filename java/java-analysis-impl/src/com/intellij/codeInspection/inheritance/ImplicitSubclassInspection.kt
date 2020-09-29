@@ -19,6 +19,7 @@ import com.intellij.CommonBundle
 import com.intellij.codeInsight.daemon.QuickFixBundle
 import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.codeInspection.*
+import com.intellij.java.analysis.JavaAnalysisBundle
 import com.intellij.lang.jvm.JvmClass
 import com.intellij.lang.jvm.JvmModifier
 import com.intellij.lang.jvm.JvmModifiersOwner
@@ -34,6 +35,7 @@ import com.intellij.uast.UastSmartPointer
 import com.intellij.uast.createUastSmartPointer
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.SmartList
+import org.jetbrains.annotations.Nls
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UDeclaration
 import org.jetbrains.uast.toUElementOfType
@@ -83,7 +85,7 @@ class ImplicitSubclassInspection : LocalInspectionTool() {
       if ((methodsToOverride.isNotEmpty() || classReasonToBeSubclassed != null)) {
         problemTargets(aClass, classHighlightableModifiersSet).forEach {
           problems.add(manager.createProblemDescriptor(
-            it, classReasonToBeSubclassed ?: InspectionsBundle.message("inspection.implicit.subclass.display.forClass", psiClass.name),
+            it, classReasonToBeSubclassed ?: JavaAnalysisBundle.message("inspection.implicit.subclass.display.forClass", psiClass.name),
             isOnTheFly,
             createFixesIfApplicable(aClass, psiClass.name ?: "class", methodsToAttachToClassFix ?: emptyList()),
             ProblemHighlightType.GENERIC_ERROR_OR_WARNING)
@@ -188,11 +190,12 @@ class ImplicitSubclassInspection : LocalInspectionTool() {
 
     private val MAX_MESSAGES_TO_COMBINE = 3
 
+    @Nls
     private val text = when (uDeclaration) {
       is UClass ->
         if (actionsToPerform.size <= MAX_MESSAGES_TO_COMBINE)
           actionsToPerform.joinToString { it.text }
-        else InspectionsBundle.message("inspection.implicit.subclass.make.class.extendable",
+        else JavaAnalysisBundle.message("inspection.implicit.subclass.make.class.extendable",
                                        hintTargetName,
                                        siblings.size,
                                        siblingsDescription())
@@ -200,7 +203,7 @@ class ImplicitSubclassInspection : LocalInspectionTool() {
         if (actionsToPerform.size <= MAX_MESSAGES_TO_COMBINE)
           actionsToPerform.joinToString { it.text }
         else
-          InspectionsBundle.message("inspection.implicit.subclass.extendable", hintTargetName)
+          JavaAnalysisBundle.message("inspection.implicit.subclass.extendable", hintTargetName)
     }
 
     private fun siblingsDescription() =

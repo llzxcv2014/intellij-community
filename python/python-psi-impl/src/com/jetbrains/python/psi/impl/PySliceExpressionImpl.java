@@ -17,7 +17,6 @@ package com.jetbrains.python.psi.impl;
 
 import com.intellij.lang.ASTNode;
 import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.util.containers.ContainerUtil;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.PythonDialectsTokenSetProvider;
 import com.jetbrains.python.psi.PyExpression;
@@ -46,7 +45,7 @@ public class PySliceExpressionImpl extends PyElementImpl implements PySliceExpre
   @NotNull
   @Override
   public PyExpression getOperand() {
-    return childToPsiNotNull(PythonDialectsTokenSetProvider.INSTANCE.getExpressionTokens(), 0);
+    return childToPsiNotNull(PythonDialectsTokenSetProvider.getInstance().getExpressionTokens(), 0);
   }
 
   @Nullable
@@ -71,7 +70,7 @@ public class PySliceExpressionImpl extends PyElementImpl implements PySliceExpre
     }
 
     if (operandType instanceof PyUnionType) {
-      return PyUnionType.union(ContainerUtil.map(((PyUnionType)operandType).getMembers(), member -> getSliceType(member, context)));
+      return ((PyUnionType)operandType).map(member -> getSliceType(member, context));
     }
 
     return null;

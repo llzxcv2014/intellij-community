@@ -17,13 +17,14 @@ package org.zmlx.hg4idea.execution;
 
 import com.intellij.execution.process.ProcessOutputTypes;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vcs.VcsException;
 import org.jetbrains.annotations.NotNull;
 
 public abstract class HgLineProcessListener {
   @NotNull private final StringBuilder myErrorOutput = new StringBuilder();
   private int myExitCode;
-  @NotNull private byte[] myBinaryOutput = new byte[0];
+  private byte @NotNull [] myBinaryOutput = new byte[0];
 
   public void onLineAvailable(String line, Key outputType) {
     if (ProcessOutputTypes.STDOUT == outputType) {
@@ -47,7 +48,8 @@ public abstract class HgLineProcessListener {
 
   public void finish() throws VcsException {
     if (myExitCode != 0 && myErrorOutput.length() != 0) {
-      throw new VcsException(myErrorOutput.toString());
+      @NlsSafe String message = myErrorOutput.toString();
+      throw new VcsException(message);
     }
   }
 
@@ -55,12 +57,11 @@ public abstract class HgLineProcessListener {
     myExitCode = exitCode;
   }
 
-  public void setBinaryOutput(@NotNull byte[] output) {
+  public void setBinaryOutput(byte @NotNull [] output) {
     myBinaryOutput = output;
   }
 
-  @NotNull
-  public byte[] getBinaryOutput() {
+  public byte @NotNull [] getBinaryOutput() {
     return myBinaryOutput;
   }
 }

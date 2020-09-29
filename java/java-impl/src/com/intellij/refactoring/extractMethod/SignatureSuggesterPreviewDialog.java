@@ -21,6 +21,7 @@ import com.intellij.diff.DiffRequestPanel;
 import com.intellij.diff.contents.DocumentContent;
 import com.intellij.diff.requests.SimpleDiffRequest;
 import com.intellij.diff.util.DiffUserDataKeys;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -29,12 +30,16 @@ import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.util.ui.JBUI;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
 
 class SignatureSuggesterPreviewDialog extends DialogWrapper {
+  private static final @NonNls String DIFF_PLACE = "ExtractSignature";
+
   private final PsiMethod myOldMethod;
   private final PsiMethod myNewMethod;
   private final PsiMethodCallExpression myOldCall;
@@ -52,17 +57,16 @@ class SignatureSuggesterPreviewDialog extends DialogWrapper {
     myOldCall = oldMethodCall;
     myNewCall = newMethodCall;
     myDuplicatesNumber = duplicatesNumber;
-    setTitle("Extract Parameters to Replace Duplicates");
-    setOKButtonText("Accept Signature Change");
-    setCancelButtonText("Keep Original Signature");
+    setTitle(JavaRefactoringBundle.message("extract.parameters.to.replace.duplicates"));
+    setOKButtonText(JavaRefactoringBundle.message("accept.signature.change"));
+    setCancelButtonText(JavaRefactoringBundle.message("keep.original.signature"));
     init();
   }
 
   @Nullable
   @Override
   protected JComponent createNorthPanel() {
-    return new JLabel("<html><b>No exact method duplicates were found</b>, though changed method as shown below has " +
-                      myDuplicatesNumber + " duplicate" + (myDuplicatesNumber > 1 ? "s" : "") + " </html>");
+    return new JLabel(JavaRefactoringBundle.message("no.exact.method.duplicates.were.found", myDuplicatesNumber));
   }
 
   @Nullable
@@ -72,12 +76,15 @@ class SignatureSuggesterPreviewDialog extends DialogWrapper {
     final VirtualFile file = PsiUtilCore.getVirtualFile(myOldMethod);
 
     DiffContentFactory contentFactory = DiffContentFactory.getInstance();
-    DocumentContent oldContent = contentFactory.create(myOldMethod.getText() + "\n\n\nmethod call:\n " + myOldCall.getText(), file);
-    DocumentContent newContent = contentFactory.create(myNewMethod.getText() + "\n\n\nmethod call:\n " + myNewCall.getText(), file);
-    SimpleDiffRequest request = new SimpleDiffRequest(null, oldContent, newContent, "Before", "After");
+    @Nls String methodCallPrefix = JavaRefactoringBundle.message("suggest.signature.preview.method.call.prefix");
+    DocumentContent oldContent = contentFactory.create(myOldMethod.getText() + "\n\n\n" + methodCallPrefix + "\n " + myOldCall.getText(), file);
+    DocumentContent newContent = contentFactory.create(myNewMethod.getText() + "\n\n\n" + methodCallPrefix + "\n " + myNewCall.getText(), file);
+    SimpleDiffRequest request = new SimpleDiffRequest(null, oldContent, newContent,
+                                                      JavaRefactoringBundle.message("suggest.signature.preview.title.before"),
+                                                      JavaRefactoringBundle.message("suggest.signature.preview.after.title"));
 
     DiffRequestPanel diffPanel = DiffManager.getInstance().createRequestPanel(project, getDisposable(), null);
-    diffPanel.putContextHints(DiffUserDataKeys.PLACE, "ExtractSignature");
+    diffPanel.putContextHints(DiffUserDataKeys.PLACE, DIFF_PLACE);
     diffPanel.setRequest(request);
 
     final JPanel panel = new JPanel(new BorderLayout());

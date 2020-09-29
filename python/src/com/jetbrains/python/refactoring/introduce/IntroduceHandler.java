@@ -27,6 +27,7 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts.DialogTitle;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Pass;
 import com.intellij.openapi.util.TextRange;
@@ -148,9 +149,9 @@ abstract public class IntroduceHandler implements RefactoringActionHandler {
   }
 
   private final IntroduceValidator myValidator;
-  protected final String myDialogTitle;
+  protected final @DialogTitle String myDialogTitle;
 
-  protected IntroduceHandler(@NotNull final IntroduceValidator validator, @NotNull final String dialogTitle) {
+  protected IntroduceHandler(@NotNull final IntroduceValidator validator, @NotNull final @DialogTitle String dialogTitle) {
     myValidator = validator;
     myDialogTitle = dialogTitle;
   }
@@ -161,7 +162,7 @@ abstract public class IntroduceHandler implements RefactoringActionHandler {
   }
 
   @Override
-  public void invoke(@NotNull Project project, @NotNull PsiElement[] elements, DataContext dataContext) {
+  public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext dataContext) {
   }
 
   public Collection<String> getSuggestedNames(@NotNull final PyExpression expression) {
@@ -232,7 +233,7 @@ abstract public class IntroduceHandler implements RefactoringActionHandler {
       .map(PyArgumentList::getCallExpression)
       .ifPresent(
         call -> StreamEx
-          .of(call.multiMapArguments(PyResolveContext.noImplicits().withTypeEvalContext(context)))
+          .of(call.multiMapArguments(PyResolveContext.defaultContext().withTypeEvalContext(context)))
           .map(mapping -> mapping.getMappedParameters().get(expression))
           .nonNull()
           .map(PyCallableParameter::getName)
@@ -540,13 +541,13 @@ abstract public class IntroduceHandler implements RefactoringActionHandler {
     }
 
     @Override
-    public void visitWhiteSpace(PsiWhiteSpace space) {
+    public void visitWhiteSpace(@NotNull PsiWhiteSpace space) {
       final String text = space.getText();
       myResult.append(myPreserveFormatting ? text : text.replace('\n', ' ').replace("\\", ""));
     }
 
     @Override
-    public void visitPyStringLiteralExpression(PyStringLiteralExpression node) {
+    public void visitPyStringLiteralExpression(@NotNull PyStringLiteralExpression node) {
       final Pair<PsiElement, TextRange> data = node.getUserData(PyReplaceExpressionUtil.SELECTION_BREAKS_AST_NODE);
       if (data != null) {
         final PsiElement parent = data.getFirst();
@@ -578,7 +579,7 @@ abstract public class IntroduceHandler implements RefactoringActionHandler {
     }
 
     @Override
-    public void visitElement(PsiElement element) {
+    public void visitElement(@NotNull PsiElement element) {
       if (element.getChildren().length == 0) {
         myResult.append(element.getText());
       }
@@ -702,7 +703,7 @@ abstract public class IntroduceHandler implements RefactoringActionHandler {
     PyInplaceVariableIntroducer(PyTargetExpression target,
                                        IntroduceOperation operation,
                                        List<PsiElement> occurrences) {
-      super(target, operation.getEditor(), operation.getProject(), "Introduce Variable",
+      super(target, operation.getEditor(), operation.getProject(), PyBundle.message("python.introduce.variable.refactoring.name"),
             occurrences.toArray(PsiElement.EMPTY_ARRAY), null);
       myTarget = target;
     }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util;
 
 import com.intellij.execution.configurations.PathEnvironmentVariableUtil;
@@ -13,7 +13,6 @@ import com.intellij.openapi.util.AtomicNotNullLazyValue;
 import com.intellij.openapi.util.NotNullLazyValue;
 import com.intellij.openapi.util.NullableLazyValue;
 import com.intellij.openapi.util.SystemInfo;
-import com.intellij.openapi.util.text.StringUtil;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.WString;
@@ -33,17 +32,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class Restarter {
+public final class Restarter {
+  private static final String DO_NOT_LOCK_INSTALL_FOLDER_PROPERTY = "restarter.do.not.lock.install.folder";
+
   private Restarter() { }
 
   public static boolean isSupported() {
     return ourRestartSupported.getValue();
   }
 
-  private static final NotNullLazyValue<Boolean> ourRestartSupported = new AtomicNotNullLazyValue<Boolean>() {
-    @NotNull
+  private static final NotNullLazyValue<Boolean> ourRestartSupported = new AtomicNotNullLazyValue<>() {
     @Override
-    protected Boolean compute() {
+    protected @NotNull Boolean compute() {
       String problem;
 
       if (SystemInfo.isWindows) {
@@ -94,11 +94,11 @@ public class Restarter {
   };
 
   private static String checkRestarter(String restarterName) {
-    File restarter = PathManager.findBinFile(restarterName);
-    return restarter != null && restarter.isFile() && restarter.canExecute() ? null : "not an executable file: " + restarter;
+    Path restarter = PathManager.findBinFile(restarterName);
+    return restarter != null && Files.isExecutable(restarter) ? null : "not an executable file: " + restarter;
   }
 
-  public static void scheduleRestart(boolean elevate, @NotNull String... beforeRestart) throws IOException {
+  public static void scheduleRestart(boolean elevate, String @NotNull ... beforeRestart) throws IOException {
     if (SystemInfo.isWindows) {
       restartOnWindows(elevate, beforeRestart);
     }
@@ -117,7 +117,7 @@ public class Restarter {
     return ourStarter.getValue();
   }
 
-  private static final NullableLazyValue<File> ourStarter = new NullableLazyValue<File>() {
+  private static final NullableLazyValue<File> ourStarter = new NullableLazyValue<>() {
     @Override
     protected File compute() {
       if (SystemInfo.isWindows && JnaLoader.isLoaded()) {
@@ -131,13 +131,7 @@ public class Restarter {
         if (appDir != null && appDir.getName().endsWith(".app") && appDir.isDirectory()) return appDir;
       }
       else if (SystemInfo.isUnix) {
-        String binPath = PathManager.getBinPath();
-        ApplicationNamesInfo names = ApplicationNamesInfo.getInstance();
-        File starter = new File(binPath, names.getProductName() + ".sh");
-        if (starter.canExecute()) return starter;
-        starter = new File(binPath, StringUtil.toLowerCase(names.getProductName()) + ".sh");
-        if (starter.canExecute()) return starter;
-        starter = new File(binPath, names.getScriptName() + ".sh");
+        File starter = new File(PathManager.getBinPath(), ApplicationNamesInfo.getInstance().getScriptName() + ".sh");
         if (starter.canExecute()) return starter;
       }
 
@@ -169,21 +163,23 @@ public class Restarter {
       Collections.addAll(args, beforeRestart);
     }
 
-    File launcher;
+    Path launcher;
     if (elevate && (launcher = PathManager.findBinFile("launcher.exe")) != null) {
       args.add(String.valueOf(argv.length + 1));
-      args.add(launcher.getPath());
+      args.add(launcher.toString());
     }
     else {
       args.add(String.valueOf(argv.length));
     }
     Collections.addAll(args, argv);
 
-    File restarter = PathManager.findBinFile("restarter.exe");
-    if (restarter == null) throw new IOException("Can't find restarter.exe; please reinstall the IDE");
-    runRestarter(restarter, args);
+    Path restarter = PathManager.findBinFile("restarter.exe");
+    if (restarter == null) {
+      throw new IOException("Can't find restarter.exe; please reinstall the IDE");
+    }
+    runRestarter(restarter.toFile(), args);
 
-    // Since the process ID is passed through the command line, we want to make sure that we don't exit before the "restarter"
+    // Since the process ID is passed through the command line, we want to make sure we don't exit before the "restarter"
     // process has a chance to open the handle to our process, and that it doesn't wait for the termination of an unrelated
     // process that happened to have the same process ID.
     TimeoutUtil.sleep(500);
@@ -246,10 +242,16 @@ public class Restarter {
     }
   }
 
+  public static void doNotLockInstallFolderOnRestart() {
+    System.setProperty(DO_NOT_LOCK_INSTALL_FOLDER_PROPERTY, "true");
+  }
+
   private static void runRestarter(File restarterFile, List<String> restarterArgs) throws IOException {
     String restarter = restarterFile.getPath();
-    if (restarterArgs.contains(UpdateInstaller.UPDATER_MAIN_CLASS)) {
-      Path tempDir = Paths.get(PathManager.getSystemPath(), "restart");
+    boolean doNotLock = SystemProperties.getBooleanProperty(DO_NOT_LOCK_INSTALL_FOLDER_PROPERTY, false);
+    Path tempDir = null;
+    if (doNotLock || restarterArgs.contains(UpdateInstaller.UPDATER_MAIN_CLASS)) {
+      tempDir = Paths.get(PathManager.getSystemPath(), "restart");
       Files.createDirectories(tempDir);
       Path copy = tempDir.resolve(restarterFile.getName());
       Files.copy(restarterFile.toPath(), copy, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
@@ -257,7 +259,31 @@ public class Restarter {
     }
     restarterArgs.add(0, restarter);
     Logger.getInstance(Restarter.class).info("run restarter: " + restarterArgs);
-    Runtime.getRuntime().exec(ArrayUtil.toStringArray(restarterArgs));
+
+    ProcessBuilder processBuilder = new ProcessBuilder(restarterArgs);
+    if (doNotLock) processBuilder.directory(tempDir.toFile());
+    if (SystemInfo.isXWindow) setDesktopStartupId(processBuilder);
+    processBuilder.start();
+  }
+
+  // this is required to support X server's focus stealing prevention mechanism, see JBR-2503
+  private static void setDesktopStartupId(ProcessBuilder processBuilder) {
+    if (!SystemInfo.isJetBrainsJvm) return;
+    try {
+      Long lastUserActionTime = ReflectionUtil.getStaticFieldValue(Class.forName("sun.awt.X11.XBaseWindow"), long.class, "globalUserTime");
+      if (lastUserActionTime == null) {
+        Logger.getInstance(Restarter.class).warn("Couldn't obtain last user action's timestamp");
+      }
+      else {
+        // this doesn't start 'proper' startup sequence (by sending 'new:' message to the root window),
+        // but passing the event timestamp to the started process should be enough to prevent focus stealing
+        processBuilder.environment().put("DESKTOP_STARTUP_ID",
+                                         ApplicationNamesInfo.getInstance().getProductName() + "-restart_TIME" + lastUserActionTime);
+      }
+    }
+    catch (Exception e) {
+      Logger.getInstance(Restarter.class).warn("Couldn't set DESKTOP_STARTUP_ID", e);
+    }
   }
 
   @SuppressWarnings({"SameParameterValue", "UnusedReturnValue"})

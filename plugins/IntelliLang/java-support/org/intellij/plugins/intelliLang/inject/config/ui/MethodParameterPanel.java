@@ -15,6 +15,7 @@
  */
 package org.intellij.plugins.intelliLang.inject.config.ui;
 
+import com.intellij.CommonBundle;
 import com.intellij.ide.util.TreeClassChooser;
 import com.intellij.ide.util.TreeClassChooserFactory;
 import com.intellij.openapi.actionSystem.*;
@@ -38,6 +39,7 @@ import com.intellij.util.ui.ColumnInfo;
 import com.intellij.util.ui.tree.TreeUtil;
 import gnu.trove.THashMap;
 import gnu.trove.THashSet;
+import org.intellij.plugins.intelliLang.IntelliLangBundle;
 import org.intellij.plugins.intelliLang.inject.config.MethodParameterInjection;
 import org.intellij.plugins.intelliLang.util.PsiUtilEx;
 import org.jetbrains.annotations.NotNull;
@@ -53,7 +55,6 @@ import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Enumeration;
 
 public class MethodParameterPanel extends AbstractInjectionPanel<MethodParameterInjection> {
@@ -121,7 +122,7 @@ public class MethodParameterPanel extends AbstractInjectionPanel<MethodParameter
       final Object userObject = ((DefaultMutableTreeNode)o.getLastPathComponent()).getUserObject();
       return userObject instanceof PsiNamedElement? ((PsiNamedElement)userObject).getName() : null;
     });
-    new AnAction("Toggle") {
+    new AnAction(CommonBundle.message("action.text.toggle")) {
       @Override
       public void actionPerformed(@NotNull final AnActionEvent e) {
         performToggleAction();
@@ -201,7 +202,7 @@ public class MethodParameterPanel extends AbstractInjectionPanel<MethodParameter
   private void refreshTreeStructure() {
     myRootNode.removeAllChildren();
     final ArrayList<PsiMethod> methods = new ArrayList<>(myData.keySet());
-    Collections.sort(methods, (o1, o2) -> {
+    methods.sort((o1, o2) -> {
       final int names = o1.getName().compareTo(o2.getName());
       if (names != 0) return names;
       return o1.getParameterList().getParametersCount() - o2.getParameterList().getParametersCount();
@@ -370,7 +371,7 @@ public class MethodParameterPanel extends AbstractInjectionPanel<MethodParameter
     @Override
     public void actionPerformed(ActionEvent e) {
       final TreeClassChooserFactory factory = TreeClassChooserFactory.getInstance(myProject);
-      final TreeClassChooser chooser = factory.createAllProjectScopeChooser("Select Class");
+      final TreeClassChooser chooser = factory.createAllProjectScopeChooser(IntelliLangBundle.message("dialog.title.select.class"));
       chooser.showDialog();
       final PsiClass psiClass = chooser.getSelected();
       if (psiClass != null) {

@@ -16,6 +16,7 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.EditorBundle;
 import com.intellij.openapi.editor.colors.EditorColorsUtil;
 import com.intellij.openapi.editor.ex.DocumentEx;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
@@ -25,6 +26,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.util.ObjectUtils;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.print.PageFormat;
@@ -83,7 +85,7 @@ public class TextPrintHandler extends PrintActionHandler {
     String text = null;
     if (editor != null) {
       if (editor.getSelectionModel().hasSelection()) {
-        text = CodeEditorBundle.message("print.selected.text.radio");
+        text = EditorBundle.message("print.selected.text.radio");
       }
       else {
         text = psiFile == null ? "Console text" : null;
@@ -148,7 +150,7 @@ public class TextPrintHandler extends PrintActionHandler {
     PsiDocumentManager.getInstance(project).commitAllDocuments();
 
     ProgressManager.getInstance()
-      .run(new Task.Backgroundable(project, CodeEditorBundle.message("print.progress"), true, PerformInBackgroundOption.ALWAYS_BACKGROUND) {
+      .run(new Task.Backgroundable(project, EditorBundle.message("print.progress"), true, PerformInBackgroundOption.ALWAYS_BACKGROUND) {
         @Override
         public void run(@NotNull ProgressIndicator indicator) {
           try {
@@ -161,7 +163,7 @@ public class TextPrintHandler extends PrintActionHandler {
           }
           catch (PrinterException e) {
             LOG.warn(e);
-            String message = ObjectUtils.notNull(e.getMessage(), e.getClass().getName());
+            @NonNls String message = ObjectUtils.notNull(e.getMessage(), e.getClass().getName());
             Notifications.Bus.notify(new Notification("Print", CommonBundle.getErrorTitle(), message, NotificationType.ERROR));
           }
           catch (Exception e) {

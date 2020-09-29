@@ -7,8 +7,8 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.VcsNotifier;
-import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import git4idea.GitUtil;
 import git4idea.commands.Git;
 import git4idea.commands.GitCommandResult;
 import git4idea.i18n.GitBundle;
@@ -28,7 +28,7 @@ public class GitResetHead extends GitRepositoryAction {
   @Override
   @NotNull
   protected String getActionName() {
-    return GitBundle.getString("reset.action.name");
+    return GitBundle.message("reset.action.name");
   }
 
   /**
@@ -43,17 +43,19 @@ public class GitResetHead extends GitRepositoryAction {
       return;
     }
 
-    new Task.Backgroundable(project, GitBundle.getString("resetting.title"), true) {
+    new Task.Backgroundable(project, GitBundle.message("resetting.title"), true) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         try (AccessToken ignored = DvcsUtil.workingTreeChangeStarted(project, getActionName())) {
           GitCommandResult result = Git.getInstance().runCommand(d.handler());
           if (!result.success()) {
-            VcsNotifier.getInstance(project).notifyError(GitBundle.getString("resetting.title"),
-                                                         result.getErrorOutputAsHtmlString());
+            VcsNotifier.getInstance(project).notifyError("git.reset.failed",
+                                                         GitBundle.message("resetting.title"),
+                                                         result.getErrorOutputAsHtmlString(),
+                                                         true);
           }
           GitRepositoryManager.getInstance(project).updateRepository(d.getGitRoot());
-          VfsUtil.markDirtyAndRefresh(false, true, false, d.getGitRoot());
+          GitUtil.refreshVfsInRoot(d.getGitRoot());
         }
       }
     }.queue();

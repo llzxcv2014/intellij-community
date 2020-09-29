@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util;
 
 import com.intellij.execution.ExecutionException;
@@ -18,7 +18,7 @@ import org.jetbrains.jps.model.java.JdkVersionDetector.JdkVersionInfo;
 
 import java.io.File;
 
-public class JdkBundle {
+public final class JdkBundle {
   private static final String BUNDLED_JDK_DIR_NAME = "jbr";
 
   private final File myLocation;
@@ -87,13 +87,16 @@ public class JdkBundle {
     if (myBoot) return true;
 
     File javaPath = getVMExecutable();
+    if (SystemInfo.isUnix && !javaPath.canExecute()) {
+      return false;
+    }
 
     try {
       ProcessOutput output = ExecUtil.execAndGetOutput(new GeneralCommandLine(javaPath.getPath(), "-version"));
       return output.getExitCode() == 0;
     }
     catch (ExecutionException e) {
-      Logger.getInstance(JdkBundle.class).error(e);
+      Logger.getInstance(JdkBundle.class).debug(e);
       return false;
     }
   }

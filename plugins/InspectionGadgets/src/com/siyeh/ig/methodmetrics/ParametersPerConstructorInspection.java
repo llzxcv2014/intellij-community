@@ -16,6 +16,7 @@
 package com.siyeh.ig.methodmetrics;
 
 import com.intellij.openapi.ui.ComboBox;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifier;
 import com.intellij.psi.PsiParameterList;
@@ -62,12 +63,6 @@ public class ParametersPerConstructorInspection extends MethodMetricInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("parameters.per.constructor.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     final Integer parameterCount = (Integer)infos[0];
     return InspectionGadgetsBundle.message("parameters.per.constructor.problem.descriptor", parameterCount);
@@ -79,7 +74,7 @@ public class ParametersPerConstructorInspection extends MethodMetricInspection {
   }
 
   @Override
-  protected String getConfigurationLabel() {
+  protected @NlsContexts.Label String getConfigurationLabel() {
     return InspectionGadgetsBundle.message("parameter.limit.option");
   }
 

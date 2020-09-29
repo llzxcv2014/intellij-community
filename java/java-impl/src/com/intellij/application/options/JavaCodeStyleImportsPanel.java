@@ -15,7 +15,8 @@
  */
 package com.intellij.application.options;
 
-import com.intellij.openapi.application.ApplicationBundle;
+import com.intellij.java.JavaBundle;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.codeStyle.CodeStyleSettings;
 import com.intellij.psi.codeStyle.JavaCodeStyleSettings;
 import com.intellij.ui.*;
@@ -36,8 +37,8 @@ class JavaCodeStyleImportsPanel extends CodeStyleImportsPanelBase {
   private FullyQualifiedNamesInJavadocOptionProvider myFqnInJavadocOption;
   private ListTableModel<InnerClassItem> doNotInsertInnerListModel;
 
-  private static final ColumnInfo[] INNER_CLASS_COLUMNS = new ColumnInfo[]{
-    new MyColumnInfo(ApplicationBundle.message("do.not.import.inner.classes.for")) {
+  private static final ColumnInfo<?, ?>[] INNER_CLASS_COLUMNS = {
+    new MyColumnInfo(JavaBundle.message("do.not.import.inner.classes.for")) {
       @Override
       public String valueOf(final InnerClassItem innerClass) {
         return innerClass.getName();
@@ -98,7 +99,8 @@ class JavaCodeStyleImportsPanel extends CodeStyleImportsPanelBase {
     panel.setPreferredSize(new Dimension(100, 150));
     doNotInsertInnerListModel = new ListTableModel<>(INNER_CLASS_COLUMNS);
     mydoNotInsertInnerTable = new TableView<>(doNotInsertInnerListModel);
-    mydoNotInsertInnerTable.getEmptyText().setText(ApplicationBundle.message("do.not.import.inner.classes.no.classes"));
+    mydoNotInsertInnerTable.setShowGrid(false);
+    mydoNotInsertInnerTable.getEmptyText().setText(JavaBundle.message("do.not.import.inner.classes.no.classes"));
     myCbInsertInnerClassImports.addChangeListener(new ChangeListener() {
       @Override
       public void stateChanged(ChangeEvent e) {
@@ -151,7 +153,7 @@ class JavaCodeStyleImportsPanel extends CodeStyleImportsPanelBase {
   }
 
   private static abstract class MyColumnInfo extends ColumnInfo<InnerClassItem, String> {
-    MyColumnInfo(final String name) {
+    MyColumnInfo(final @NlsContexts.ColumnName String name) {
       super(name);
     }
 

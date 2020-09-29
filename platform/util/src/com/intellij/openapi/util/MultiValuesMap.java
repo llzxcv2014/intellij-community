@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.util;
 
 import com.intellij.util.containers.MultiMap;
@@ -39,18 +39,6 @@ public class MultiValuesMap<K, V>{
       myDelegate = new MultiMap<K, V>() {
         @NotNull
         @Override
-        protected Map<K, Collection<V>> createMap() {
-          return new HashMap<>();
-        }
-
-        @NotNull
-        @Override
-        protected Map<K, Collection<V>> createMap(int initialCapacity, float loadFactor) {
-          return new HashMap<>(initialCapacity, loadFactor);
-        }
-
-        @NotNull
-        @Override
         protected Collection<V> createCollection() {
           return new HashSet<>();
         }
@@ -70,7 +58,7 @@ public class MultiValuesMap<K, V>{
     }
   }
 
-  public void putAll(K key, @NotNull V... values) {
+  public void putAll(K key, V @NotNull ... values) {
     for (V value : values) {
       put(key, value);
     }

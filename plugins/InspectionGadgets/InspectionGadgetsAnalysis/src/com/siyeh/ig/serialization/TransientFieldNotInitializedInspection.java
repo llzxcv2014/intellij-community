@@ -27,13 +27,6 @@ public class TransientFieldNotInitializedInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "transient.field.not.initialized.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message(
       "transient.field.not.initialized.problem.descriptor");
@@ -50,7 +43,7 @@ public class TransientFieldNotInitializedInspection extends BaseInspection {
     @Override
     public void visitField(PsiField field) {
       super.visitField(field);
-      if (!field.hasModifierProperty(PsiModifier.TRANSIENT)) {
+      if (field.hasModifierProperty(PsiModifier.STATIC) || !field.hasModifierProperty(PsiModifier.TRANSIENT)) {
         return;
       }
       final PsiClass containingClass = field.getContainingClass();

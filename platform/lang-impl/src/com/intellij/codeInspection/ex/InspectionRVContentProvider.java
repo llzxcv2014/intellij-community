@@ -20,7 +20,6 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.containers.TreeTraversal;
 import com.intellij.util.ui.tree.TreeUtil;
-import gnu.trove.THashMap;
 import one.util.streamex.StreamEx;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -133,15 +132,13 @@ public abstract class InspectionRVContentProvider {
     return false;
   }
 
-  @NotNull
-  public abstract QuickFixAction[] getCommonQuickFixes(@NotNull InspectionToolWrapper toolWrapper, @NotNull InspectionTree tree);
+  public abstract QuickFixAction @NotNull [] getCommonQuickFixes(@NotNull InspectionToolWrapper toolWrapper, @NotNull InspectionTree tree);
 
-  @NotNull
-  public QuickFixAction[] getPartialQuickFixes(@NotNull InspectionToolWrapper toolWrapper, @NotNull InspectionTree tree) {
+  public QuickFixAction @NotNull [] getPartialQuickFixes(@NotNull InspectionToolWrapper toolWrapper, @NotNull InspectionTree tree) {
     GlobalInspectionContextImpl context = tree.getContext();
     InspectionToolPresentation presentation = context.getPresentation(toolWrapper);
     CommonProblemDescriptor[] descriptors = tree.getSelectedDescriptors();
-    Map<String, FixAndOccurrences> result = new THashMap<>();
+    Map<String, FixAndOccurrences> result = new LinkedHashMap<>();
     for (CommonProblemDescriptor d : descriptors) {
       QuickFix<?>[] fixes = d.getFixes();
       if (fixes == null || fixes.length == 0) continue;
@@ -281,16 +278,15 @@ public abstract class InspectionRVContentProvider {
                                                    model,
                                                    currentParent,
                                                    showStructure
-                                                   || HighlightInfoType.UNUSED_SYMBOL_DISPLAY_NAME.equals(toolWrapper.getDisplayName())
+                                                   || HighlightInfoType.getUnusedSymbolDisplayName().equals(toolWrapper.getDisplayName())
                                                    || presentation.isDummy());
         appendDescriptor(context, toolWrapper, container, node);
       }
     }
   }
 
-  @NotNull
-  protected static QuickFixAction[] getCommonFixes(@NotNull InspectionToolPresentation presentation,
-                                                   @NotNull CommonProblemDescriptor[] descriptors) {
+  protected static QuickFixAction @NotNull [] getCommonFixes(@NotNull InspectionToolPresentation presentation,
+                                                             CommonProblemDescriptor @NotNull [] descriptors) {
     Map<String, LocalQuickFixWrapper> result = null;
     for (CommonProblemDescriptor d : descriptors) {
       QuickFix<?>[] fixes = d.getFixes();

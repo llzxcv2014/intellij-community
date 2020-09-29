@@ -39,13 +39,17 @@ public class ToArrayCallWithZeroLengthArrayArgumentInspection extends BaseInspec
   private static final PreferEmptyArray DEFAULT_MODE = PreferEmptyArray.ALWAYS;
 
   public enum PreferEmptyArray {
-    ALWAYS("Always"), BY_LEVEL("According to language level"), NEVER("Never (prefer pre-sized array)");
+    ALWAYS {
+      @Override @Nls String getMessage() { return InspectionGadgetsBundle.message("prefer.empty.array.options.mode.always"); }
+    },
+    BY_LEVEL {
+      @Override @Nls String getMessage() { return InspectionGadgetsBundle.message("prefer.empty.array.options.mode.by.level"); }
+    },
+    NEVER {
+      @Override @Nls String getMessage() { return InspectionGadgetsBundle.message("prefer.empty.array.options.mode.always.never"); }
+    };
 
-    private final String myMessage;
-
-    PreferEmptyArray(String message) { myMessage = message; }
-
-    String getMessage() { return myMessage; }
+    abstract @Nls String getMessage();
 
     boolean isEmptyPreferred(PsiExpression expression) {
       switch (this) {
@@ -67,7 +71,7 @@ public class ToArrayCallWithZeroLengthArrayArgumentInspection extends BaseInspec
   @Override
   public JComponent createOptionsPanel() {
     final JPanel panel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 5, true, false));
-    panel.add(new JLabel("Prefer empty array:"));
+    panel.add(new JLabel(InspectionGadgetsBundle.message("prefer.empty.array.options.title")));
 
     ButtonGroup group = new ButtonGroup();
     for (PreferEmptyArray mode : PreferEmptyArray.values()) {
@@ -85,13 +89,6 @@ public class ToArrayCallWithZeroLengthArrayArgumentInspection extends BaseInspec
   protected InspectionGadgetsFix buildFix(Object... infos) {
     final PsiExpression argument = (PsiExpression)infos[1];
     return new ToArrayCallWithZeroLengthArrayArgumentFix(myMode.isEmptyPreferred(argument));
-  }
-
-  @Override
-  @Nls
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("to.array.call.style.display.name");
   }
 
   @Override

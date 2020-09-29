@@ -64,7 +64,7 @@ import static org.jetbrains.plugins.gradle.util.GradleConstants.RUN_TASK_AS_TEST
  * @author Vladislav.Soroka
  */
 public class GradleTestsExecutionConsoleManager
-  implements ExternalSystemExecutionConsoleManager<ExternalSystemRunConfiguration, GradleTestsExecutionConsole, ProcessHandler> {
+  implements ExternalSystemExecutionConsoleManager<GradleTestsExecutionConsole, ProcessHandler> {
 
   @NotNull
   @Override
@@ -125,7 +125,9 @@ public class GradleTestsExecutionConsoleManager
       }
     }
     SMTestProxy.SMRootTestProxy testsRootNode = resultsViewer.getTestsRootNode();
+    testsRootNode.setExecutionId(env.getExecutionId());
     testsRootNode.setSuiteStarted();
+    consoleView.getEventPublisher().onTestingStarted(testsRootNode);
     if (processHandler != null) {
       processHandler.addProcessListener(new ProcessAdapter() {
         @Override

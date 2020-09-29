@@ -16,11 +16,25 @@ class One {
 }
 class Two extends One {
   Two() {
-    <warning descr="Call to overridable method 'a()' during object construction">a</warning>();
+    <warning descr="Call to overridable method 'a()' during object construction"><caret>a</warning>();
   }
 }
 class A implements Cloneable {
   protected A clone() throws CloneNotSupportedException {
     return (A) super.clone();
+  }
+}
+class InnerCall {
+
+  protected long currentTimeMillis() {
+    return System.currentTimeMillis();
+  }
+
+  public class Item {
+    final long now;
+
+    public Item() {
+      now = currentTimeMillis();
+    }
   }
 }

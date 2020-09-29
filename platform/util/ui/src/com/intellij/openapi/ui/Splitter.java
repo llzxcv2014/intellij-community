@@ -4,6 +4,7 @@ package com.intellij.openapi.ui;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.FocusWatcher;
+import com.intellij.util.MathUtil;
 import com.intellij.util.ui.EmptyIcon;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.ApiStatus;
@@ -41,6 +42,7 @@ public class Splitter extends JPanel implements Splittable {
    */
   private boolean myVerticalSplit;
   private boolean myHonorMinimumSize;
+  private boolean myHonorPreferredSize;
   private final float myMinProp;
   private final float myMaxProp;
 
@@ -109,6 +111,7 @@ public class Splitter extends JPanel implements Splittable {
     myShowDividerControls = false;
     myShowDividerIcon = true;
     myHonorMinimumSize = true;
+    myHonorPreferredSize = false;
     myDivider = createDivider();
     setProportion(proportion);
     myDividerWidth = 7;
@@ -150,6 +153,14 @@ public class Splitter extends JPanel implements Splittable {
 
   public void setHonorComponentsMinimumSize(boolean honorMinimumSize) {
     myHonorMinimumSize = honorMinimumSize;
+  }
+
+  public boolean isHonorPreferredSize() {
+    return myHonorPreferredSize;
+  }
+
+  public void setHonorComponentsPreferredSize(boolean honorPreferredSize) {
+    myHonorPreferredSize = honorPreferredSize;
   }
 
   public void setLackOfSpaceStrategy(@NotNull LackOfSpaceStrategy strategy) {
@@ -328,6 +339,12 @@ public class Splitter extends JPanel implements Splittable {
 
           double mSize1 = isVertical() ? myFirstComponent.getMinimumSize().getHeight() : myFirstComponent.getMinimumSize().getWidth();
           double mSize2 = isVertical() ? mySecondComponent.getMinimumSize().getHeight() : mySecondComponent.getMinimumSize().getWidth();
+          double pSize1 = isVertical() ? myFirstComponent.getPreferredSize().getHeight() : myFirstComponent.getPreferredSize().getWidth();
+          double pSize2 = isVertical() ? mySecondComponent.getPreferredSize().getHeight() : mySecondComponent.getPreferredSize().getWidth();
+          if (myHonorPreferredSize && size1 + size2 > pSize1 + pSize2) {
+            mSize1 = pSize1;
+            mSize2 = pSize2;
+          }
 
           if (size1 + size2 < mSize1 + mSize2) {
             switch (myLackOfSpaceStrategy) {
@@ -355,8 +372,8 @@ public class Splitter extends JPanel implements Splittable {
         }
       }
 
-      int iSize1 = (int)Math.round(size1);
-      int iSize2 = total - iSize1 - d;
+      int iSize1 = Math.max(0, (int)Math.round(size1));
+      int iSize2 = Math.max(0, total - iSize1 - d);
 
       if (isVertical()) {
         firstRect.setBounds(0, 0, width, iSize1);
@@ -622,17 +639,17 @@ public class Splitter extends JPanel implements Splittable {
         float proportion;
         if (isVertical()) {
           if (getHeight() > 0) {
-            proportion = Math.min(1.0f, Math.max(.0f, Math
-              .min(Math.max(getMinProportion(true), (float)myPoint.y / (float)Splitter.this.getHeight()),
-                   1 - getMinProportion(false))));
+            float min = getMinProportion(true);
+            float max = 1 - getMinProportion(false);
+            proportion = MathUtil.clamp(Math.min(max, Math.max((float)myPoint.y / (float)Splitter.this.getHeight(), min)), .0f, 1.0f);
             setProportion(proportion);
           }
         }
         else {
           if (getWidth() > 0) {
-            proportion = Math.min(1.0f, Math.max(.0f, Math
-              .min(Math.max(getMinProportion(true), (float)myPoint.x / (float)Splitter.this.getWidth()),
-                   1 - getMinProportion(false))));
+            float min = getMinProportion(true);
+            float max = 1 - getMinProportion(false);
+            proportion = MathUtil.clamp(Math.min(max, Math.max((float)myPoint.x / (float)Splitter.this.getWidth(), min)), .0f, 1.0f);
             setProportion(proportion);
           }
         }

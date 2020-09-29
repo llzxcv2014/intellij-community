@@ -1,21 +1,7 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.stubs;
 
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.AppUIExecutor;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
@@ -26,64 +12,71 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.util.RecursionManager;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileWithId;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.impl.PsiManagerEx;
 import com.intellij.psi.impl.source.PsiFileImpl;
-import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.indexing.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
 /**
  * @author yole
  */
-public class StubTreeLoaderImpl extends StubTreeLoader {
+final class StubTreeLoaderImpl extends StubTreeLoader {
   private static final Logger LOG = Logger.getInstance(StubTreeLoaderImpl.class);
   private static volatile boolean ourStubReloadingProhibited;
 
   @Override
   @Nullable
-  public ObjectStubTree readOrBuild(Project project, final VirtualFile vFile, @Nullable PsiFile psiFile) {
-    final ObjectStubTree fromIndices = readFromVFile(project, vFile);
+  public ObjectStubTree<?> readOrBuild(Project project, final VirtualFile vFile, @Nullable PsiFile psiFile) {
+    ObjectStubTree<?> fromIndices = readFromVFile(project, vFile);
     if (fromIndices != null) {
       return fromIndices;
     }
 
     try {
       byte[] content = vFile.contentsToByteArray();
-      vFile.setPreloadedContentHint(content);
-      try {
-        final FileContent fc = new FileContentImpl(vFile, content);
-        fc.putUserData(IndexingDataKeys.PROJECT, project);
+      return vFile.computeWithPreloadedContentHint(content, () -> {
+        FileContentImpl content1 = new FileContentImpl(vFile, content);
+        if (project != null) {
+          content1.setProject(project);
+        }
+        final FileContent fc = content1;
         if (psiFile != null && !vFile.getFileType().isBinary()) {
           fc.putUserData(IndexingDataKeys.FILE_TEXT_CONTENT_KEY, psiFile.getViewProvider().getContents());
           // but don't reuse psiFile itself to avoid loading its contents. If we load AST, the stub will be thrown out anyway.
         }
 
         Stub element = RecursionManager.doPreventingRecursion(vFile, false, () -> StubTreeBuilder.buildStubTree(fc));
-        ObjectStubTree tree = element instanceof PsiFileStub ? new StubTree((PsiFileStub)element) :
-                              element instanceof ObjectStubBase ? new ObjectStubTree((ObjectStubBase)element, true) :
-                              null;
+        ObjectStubTree<?> tree;
+        if (element instanceof PsiFileStub) {
+          tree = new StubTree((PsiFileStub<?>)element);
+        }
+        else {
+          tree = element instanceof ObjectStubBase ? new ObjectStubTree<>((ObjectStubBase<?>)element, true) : null;
+        }
         if (tree != null) {
           tree.setDebugInfo("created from file content");
           return tree;
         }
-      }
-      finally {
-        vFile.setPreloadedContentHint(null);
-      }
+        return null;
+      });
     }
     catch (IOException e) {
       if (LOG.isDebugEnabled()) {
         LOG.debug(e);
-      } else {
+      }
+      else {
         // content can be not cached yet, and the file can be deleted on disk already, without refresh
         LOG.info("Can't load file content for stub building: " + e.getMessage());
       }
@@ -94,13 +87,8 @@ public class StubTreeLoaderImpl extends StubTreeLoader {
 
   @Override
   @Nullable
-  public ObjectStubTree readFromVFile(Project project, final VirtualFile vFile) {
+  public ObjectStubTree<?> readFromVFile(Project project, final VirtualFile vFile) {
     if (DumbService.getInstance(project).isDumb() || NoAccessDuringPsiEvents.isInsideEventProcessing()) {
-      return null;
-    }
-
-    final int id = SingleEntryFileBasedIndexExtension.getFileKey(vFile);
-    if (id <= 0) {
       return null;
     }
 
@@ -115,24 +103,29 @@ public class StubTreeLoaderImpl extends StubTreeLoader {
     if (size == 1) {
       SerializedStubTree stubTree = datas.values().iterator().next();
 
-      if (!checkLengthMatch(project, vFile, wasIndexedAlready, document, saved)) {
+      if (vFile instanceof VirtualFileWithId && !checkLengthMatch(project, vFile, wasIndexedAlready, document, saved)) {
         return null;
       }
 
       Stub stub;
       try {
-        stub = stubTree.getStub(false);
+        stub = stubTree.getStub();
       }
       catch (SerializerNotFoundException e) {
         return processError(vFile, "No stub serializer: " + vFile.getPresentableUrl() + ": " + e.getMessage(), e);
       }
-      ObjectStubTree<?> tree = stub instanceof PsiFileStub ? new StubTree((PsiFileStub)stub) : new ObjectStubTree((ObjectStubBase)stub, true);
+      if (stub == SerializedStubTree.NO_STUB) {
+        return null;
+      }
+      ObjectStubTree<?> tree =
+        stub instanceof PsiFileStub ? new StubTree((PsiFileStub<?>)stub) : new ObjectStubTree<>((ObjectStubBase<?>)stub, true);
       tree.setDebugInfo("created from index");
       checkDeserializationCreatesNoPsi(tree);
       return tree;
     }
     if (size != 0) {
-      return processError(vFile, "Twin stubs: " + vFile.getPresentableUrl() + " has " + size + " stub versions. Should only have one. id=" + id,
+      return processError(vFile,
+                          "Twin stubs: " + vFile.getPresentableUrl() + " has " + size + " stub versions. Should only have one.",
                           null);
     }
 
@@ -146,14 +139,15 @@ public class StubTreeLoaderImpl extends StubTreeLoader {
                                    boolean saved) {
     PsiFile cachedPsi = PsiManagerEx.getInstanceEx(project).getFileManager().getCachedPsiFile(vFile);
     IndexingStampInfo indexingStampInfo = getIndexingStampInfo(vFile);
-    if (indexingStampInfo != null && !indexingStampInfo.contentLengthMatches(vFile.getLength(), getCurrentTextContentLength(project, vFile, document, cachedPsi))) {
+    if (indexingStampInfo != null &&
+        !indexingStampInfo.contentLengthMatches(vFile.getLength(), getCurrentTextContentLength(project, vFile, document, cachedPsi))) {
       diagnoseLengthMismatch(vFile, wasIndexedAlready, document, saved, cachedPsi);
       return false;
     }
     return true;
   }
 
-  private void diagnoseLengthMismatch(VirtualFile vFile,
+  private void diagnoseLengthMismatch(@NotNull VirtualFile vFile,
                                       boolean wasIndexedAlready,
                                       @Nullable Document document,
                                       boolean saved,
@@ -171,22 +165,39 @@ public class StubTreeLoaderImpl extends StubTreeLoader {
         message += "\nPSI length=" + cachedPsi.getTextLength();
       }
       List<Project> projects = ContainerUtil.findAll(ProjectManager.getInstance().getOpenProjects(),
-                                                p -> PsiManagerEx.getInstanceEx(p).getFileManager().findCachedViewProvider(vFile) != null);
+                                                     p -> PsiManagerEx.getInstanceEx(p).getFileManager().findCachedViewProvider(vFile) !=
+                                                          null);
       message += "\nprojects with file: " + (LOG.isDebugEnabled() ? projects.toString() : projects.size());
+    }
+
+    Path nioPath = vFile.getFileSystem().getNioPath(vFile);
+    if (nioPath != null) {
+      message += getPhysicalFileReport(nioPath);
     }
 
     processError(vFile, message, new Exception());
   }
 
+  private static String getPhysicalFileReport(@NotNull Path file) {
+    String message = "\nphysical file " + (Files.exists(file) ? "exists" : "doesn't exist") + "; length = ";
+    try {
+      message += Files.size(file);
+    }
+    catch (IOException e) {
+      message += e.getMessage();
+    }
+    return message;
+  }
+
   private static void checkDeserializationCreatesNoPsi(ObjectStubTree<?> tree) {
     if (ourStubReloadingProhibited || !(tree instanceof StubTree)) return;
 
-    for (PsiFileStub root : ((PsiFileStubImpl<?>)tree.getRoot()).getStubRoots()) {
+    for (PsiFileStub<?> root : ((PsiFileStubImpl<?>)tree.getRoot()).getStubRoots()) {
       if (root instanceof StubBase) {
-        StubList stubList = ((StubBase)root).myStubList;
+        StubList stubList = ((StubBase<?>)root).myStubList;
         for (int i = 0; i < stubList.size(); i++) {
           StubBase<?> each = stubList.getCachedStub(i);
-          PsiElement cachedPsi = each == null ? null : ((StubBase)each).getCachedPsi();
+          PsiElement cachedPsi = each == null ? null : each.getCachedPsi();
           if (cachedPsi != null) {
             ourStubReloadingProhibited = true;
             throw new AssertionError("Stub deserialization shouldn't create PSI: " + cachedPsi + "; " + each);
@@ -203,26 +214,26 @@ public class StubTreeLoaderImpl extends StubTreeLoader {
     if (psiFile instanceof PsiFileImpl && ((PsiFileImpl)psiFile).isContentsLoaded()) {
       return psiFile.getTextLength();
     }
-    
+
     if (document != null) {
       return PsiDocumentManager.getInstance(project).getLastCommittedText(document).length();
     }
     return -1;
   }
 
-  private static ObjectStubTree processError(final VirtualFile vFile, String message, @Nullable Exception e) {
+  private static ObjectStubTree<?> processError(final VirtualFile vFile, String message, @Nullable Exception e) {
     LOG.error(message, e);
 
-    ApplicationManager.getApplication().invokeLater(() -> {
+    AppUIExecutor.onWriteThread(ModalityState.NON_MODAL).later().submit(() -> {
       final Document doc = FileDocumentManager.getInstance().getCachedDocument(vFile);
       if (doc != null) {
         FileDocumentManager.getInstance().saveDocument(doc);
       }
-      
-      // avoid deadlock by requesting reindex later. 
+
+      // avoid deadlock by requesting reindex later.
       // processError may be invoked under stub index's read action and requestReindex in EDT starts dumb mode in writeAction (IDEA-197296)
       FileBasedIndex.getInstance().requestReindex(vFile);
-    }, ModalityState.NON_MODAL);
+    });
 
     return null;
   }
@@ -250,24 +261,18 @@ public class StubTreeLoaderImpl extends StubTreeLoader {
 
   @Override
   protected IndexingStampInfo getIndexingStampInfo(@NotNull VirtualFile file) {
-    return StubUpdatingIndex.getIndexingStampInfo(file);
+    return StubUpdatingIndex.readSavedIndexingStampInfo(file);
   }
 
   @Override
   protected boolean isPrebuilt(@NotNull VirtualFile virtualFile) {
-      boolean canBePrebuilt = false;
-      try {
-        final PrebuiltStubsProvider prebuiltStubsProvider =
-          PrebuiltStubsProviders.INSTANCE.forFileType(virtualFile.getFileType());
-        if (prebuiltStubsProvider != null) {
-          canBePrebuilt = null !=
-                          prebuiltStubsProvider
-                            .findStub(new FileContentImpl(virtualFile, virtualFile.contentsToByteArray()));
-        }
-      }
-      catch (Exception e) {
-        // pass
-      }
-      return canBePrebuilt;
+    try {
+      FileContent fileContent = FileContentImpl.createByFile(virtualFile);
+      SerializedStubTree prebuiltStub = StubUpdatingIndex.findPrebuiltSerializedStubTree(fileContent);
+      return prebuiltStub != null;
     }
+    catch (Exception ignored) {
+    }
+    return false;
+  }
 }

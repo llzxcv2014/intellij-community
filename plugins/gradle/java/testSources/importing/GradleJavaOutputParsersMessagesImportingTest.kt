@@ -1,8 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.importing
 
 import org.gradle.util.GradleVersion
-import org.jetbrains.plugins.gradle.settings.GradleSystemSettings
+import org.jetbrains.plugins.gradle.settings.GradleSettings
 import org.junit.Test
 
 @Suppress("GrUnresolvedAccess")
@@ -49,7 +49,7 @@ class GradleJavaOutputParsersMessagesImportingTest : GradleOutputParsersMessages
         "  :api:classes\n" +
         "  :api:jar\n" +
         "  -:impl:compileJava\n" +
-        "   -impl/src/main/java/my/pack/App.java\n" +
+        "   -App.java\n" +
         "    uses or overrides a deprecated API.\n" +
         "  :impl:processResources\n" +
         "  :impl:classes"
@@ -62,7 +62,7 @@ class GradleJavaOutputParsersMessagesImportingTest : GradleOutputParsersMessages
         "  :api:jar\n" +
         "  :impl:compileJava\n" +
         "  :impl:processResources\n" +
-        "  -impl/src/main/java/my/pack/App.java\n" +
+        "  -App.java\n" +
         "   uses or overrides a deprecated API.\n" +
         "  :impl:classes"
     }
@@ -74,14 +74,14 @@ class GradleJavaOutputParsersMessagesImportingTest : GradleOutputParsersMessages
         "-\n" +
         " -failed\n" +
         "  -:brokenProject:compileJava\n" +
-        "   -brokenProject/src/main/java/my/pack/App2.java\n" +
+        "   -App2.java\n" +
         "    ';' expected\n" +
         "    invalid method declaration; return type required"
       else -> expectedExecutionTree =
         "-\n" +
         " -failed\n" +
         "  :brokenProject:compileJava\n" +
-        "  -brokenProject/src/main/java/my/pack/App2.java\n" +
+        "  -App2.java\n" +
         "   ';' expected\n" +
         "   invalid method declaration; return type required"
     }
@@ -161,8 +161,8 @@ class GradleJavaOutputParsersMessagesImportingTest : GradleOutputParsersMessages
                                   "\n")
 
     // check unresolved dependency for offline mode
-    GradleSystemSettings.getInstance().isOfflineWork = true
-    buildScript.withMavenCentral(isGradleNewerOrSameThen("6.0"))
+    GradleSettings.getInstance(myProject).isOfflineWork = true
+    buildScript.withMavenCentral(isGradleNewerOrSameAs("6.0"))
     buildScript.addDependency("testCompile 'junit:junit:99.99'")
     createProjectConfig(buildScript.generate())
     compileModules("project.test")
@@ -206,7 +206,7 @@ class GradleJavaOutputParsersMessagesImportingTest : GradleOutputParsersMessages
                                   "\n")
 
     // check unresolved dependency for disabled offline mode
-    GradleSystemSettings.getInstance().isOfflineWork = false
+    GradleSettings.getInstance(myProject).isOfflineWork = false
     compileModules("project.test")
     assertBuildViewTreeEquals(commonTreePart +
                               if (usePerTaskError)
@@ -221,14 +221,14 @@ class GradleJavaOutputParsersMessagesImportingTest : GradleOutputParsersMessages
                                   "> Could not resolve all files for configuration ':testCompileClasspath'.\n" +
                                   "   > Could not find junit:junit:99.99.\n" +
                                   "     Searched in the following locations:\n" +
-                                  "       - http://maven.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.pom\n" +
-                                  "       - http://maven.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.jar\n" +
+                                  "       - https://repo.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.pom\n" +
+                                  "       - https://repo.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.jar\n" +
                                   "     Required by:\n" +
                                   "         project :\n" +
                                   "   > Could not find junit:junit:99.99.\n" +
                                   "     Searched in the following locations:\n" +
-                                  "       - http://maven.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.pom\n" +
-                                  "       - http://maven.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.jar\n" +
+                                  "       - https://repo.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.pom\n" +
+                                  "       - https://repo.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.jar\n" +
                                   "     Required by:\n" +
                                   "         project :\n" +
                                   "\n" +
@@ -239,14 +239,14 @@ class GradleJavaOutputParsersMessagesImportingTest : GradleOutputParsersMessages
                                   "Could not resolve all $files for configuration ':$testCompileConfiguration'.\n" +
                                   "> Could not find junit:junit:99.99.\n" +
                                   "  Searched in the following locations:\n" +
-                                  "    $itemLinePrefix http://maven.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.pom\n" +
-                                  "    $itemLinePrefix http://maven.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.jar\n" +
+                                  "    $itemLinePrefix https://repo.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.pom\n" +
+                                  "    $itemLinePrefix https://repo.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.jar\n" +
                                   "  Required by:\n" +
                                   "      $requiredByProject\n" +
                                   "> Could not find junit:junit:99.99.\n" +
                                   "  Searched in the following locations:\n" +
-                                  "    $itemLinePrefix http://maven.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.pom\n" +
-                                  "    $itemLinePrefix http://maven.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.jar\n" +
+                                  "    $itemLinePrefix https://repo.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.pom\n" +
+                                  "    $itemLinePrefix https://repo.labs.intellij.net/repo1/junit/junit/99.99/junit-99.99.jar\n" +
                                   "  Required by:\n" +
                                   "      $requiredByProject\n" +
                                   "\n" +

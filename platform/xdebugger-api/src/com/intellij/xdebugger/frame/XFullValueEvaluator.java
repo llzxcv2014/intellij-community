@@ -15,6 +15,7 @@
  */
 package com.intellij.xdebugger.frame;
 
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.xdebugger.Obsolescent;
 import com.intellij.xdebugger.XDebuggerBundle;
 import org.jetbrains.annotations.NotNull;
@@ -26,8 +27,6 @@ import java.awt.*;
  * Supports asynchronous fetching full text of a value. If full text is already computed use {@link ImmediateFullValueEvaluator}
  * @see XValueNode#setFullValueEvaluator
  * @see ImmediateFullValueEvaluator
- *
- * @author nik
  */
 public abstract class XFullValueEvaluator {
   private final String myLinkText;
@@ -64,6 +63,7 @@ public abstract class XFullValueEvaluator {
    */
   public abstract void startEvaluation(@NotNull XFullValueEvaluationCallback callback);
 
+  @NlsSafe
   public String getLinkText() {
     return myLinkText;
   }

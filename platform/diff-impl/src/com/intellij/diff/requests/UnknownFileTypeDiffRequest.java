@@ -19,10 +19,13 @@ import com.intellij.diff.DiffContext;
 import com.intellij.diff.DiffContextEx;
 import com.intellij.diff.tools.ErrorDiffTool;
 import com.intellij.diff.util.DiffUtil;
+import com.intellij.openapi.diff.DiffBundle;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.fileTypes.UnknownFileType;
 import com.intellij.openapi.fileTypes.ex.FileTypeChooser;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,13 +33,13 @@ import javax.swing.*;
 
 public class UnknownFileTypeDiffRequest extends ComponentDiffRequest {
   @Nullable private final String myFileName;
-  @Nullable private final String myTitle;
+  @Nullable private final @Nls String myTitle;
 
-  public UnknownFileTypeDiffRequest(@NotNull VirtualFile file, @Nullable String title) {
+  public UnknownFileTypeDiffRequest(@NotNull VirtualFile file, @Nullable @NlsContexts.DialogTitle String title) {
     this(file.getName(), title);
   }
 
-  public UnknownFileTypeDiffRequest(@NotNull String fileName, @Nullable String title) {
+  public UnknownFileTypeDiffRequest(@NotNull String fileName, @Nullable @NlsContexts.DialogTitle String title) {
     boolean knownFileType = FileTypeManager.getInstance().getFileTypeByFileName(fileName) != UnknownFileType.INSTANCE;
     myFileName = knownFileType ? null : fileName;
     myTitle = title;
@@ -50,9 +53,9 @@ public class UnknownFileTypeDiffRequest extends ComponentDiffRequest {
 
   @NotNull
   public static JComponent createComponent(@Nullable String fileName, @Nullable DiffContext context) {
-    String message = "Can't show diff for unknown file type.";
+    String message = DiffBundle.message("error.cant.show.diff.for.unknown.file");
     if (fileName == null) return DiffUtil.createMessagePanel(message);
-    return ErrorDiffTool.createReloadMessagePanel(context, message, "Associate",
+    return ErrorDiffTool.createReloadMessagePanel(context, message, DiffBundle.message("button.associate.file.type"),
                                                   () -> FileTypeChooser.associateFileType(fileName));
   }
 

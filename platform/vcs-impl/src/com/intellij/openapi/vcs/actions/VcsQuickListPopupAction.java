@@ -30,6 +30,7 @@ public class VcsQuickListPopupAction extends QuickSwitchSchemeAction implements 
 
   public VcsQuickListPopupAction() {
     myActionPlace = ActionPlaces.ACTION_PLACE_VCS_QUICK_LIST_POPUP_ACTION;
+    getTemplatePresentation().setText(VcsBundle.messagePointer("vcs.quicklist.popup.title"));
   }
 
   @Override
@@ -62,9 +63,8 @@ public class VcsQuickListPopupAction extends QuickSwitchSchemeAction implements 
   }
 
   public static class Providers extends ActionGroup implements DumbAware {
-    @NotNull
     @Override
-    public AnAction[] getChildren(@Nullable AnActionEvent e) {
+    public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e) {
       if (e == null) return EMPTY_ARRAY;
       Project project = e.getProject();
       DataContext dataContext = e.getDataContext();
@@ -88,9 +88,8 @@ public class VcsQuickListPopupAction extends QuickSwitchSchemeAction implements 
   }
 
   public final static class VcsNameSeparator extends ActionGroup implements DumbAware {
-    @NotNull
     @Override
-    public AnAction[] getChildren(@Nullable AnActionEvent e) {
+    public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e) {
       if (e == null) return EMPTY_ARRAY;
       Project project = e.getProject();
       Pair<SupportedVCS, AbstractVcs> pair = project == null ? Pair.empty() : getActiveVCS(project, e.getDataContext());

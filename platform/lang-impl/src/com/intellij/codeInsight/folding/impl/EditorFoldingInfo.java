@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInsight.folding.impl;
 
@@ -75,11 +75,18 @@ public class EditorFoldingInfo {
     myFoldRegionToSmartPointerMap.remove(region);
   }
 
-  public void dispose() {
+  void dispose() {
     myFoldRegionToSmartPointerMap.clear();
   }
 
-  private static class EditorFoldingInfoWindow extends EditorFoldingInfo {
+  static void disposeForEditor(@NotNull Editor editor) {
+    EditorFoldingInfo info = editor.getUserData(KEY);
+    if (info != null) {
+      info.dispose();
+    }
+  }
+
+  private static final class EditorFoldingInfoWindow extends EditorFoldingInfo {
     private final EditorFoldingInfo myDelegate;
 
     private EditorFoldingInfoWindow(EditorFoldingInfo delegate) {
@@ -103,7 +110,7 @@ public class EditorFoldingInfo {
     }
 
     @Override
-    public void dispose() {
+    void dispose() {
       myDelegate.dispose();
     }
 

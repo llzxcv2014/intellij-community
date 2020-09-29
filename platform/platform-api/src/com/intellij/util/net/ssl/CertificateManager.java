@@ -1,6 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.net.ssl;
 
+import com.intellij.credentialStore.CredentialAttributes;
+import com.intellij.ide.passwordSafe.PasswordSafe;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
@@ -11,11 +13,11 @@ import com.intellij.openapi.components.Storage;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.AtomicNotNullLazyValue;
+import com.intellij.openapi.util.SystemInfoRt;
 import com.intellij.openapi.util.ThrowableComputable;
-import com.intellij.openapi.util.io.FileUtil;
-import com.intellij.openapi.util.io.StreamUtil;
+import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import com.intellij.util.xmlb.XmlSerializerUtil;
+import com.intellij.util.io.DigestUtil;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,13 +27,12 @@ import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
+import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.security.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -61,10 +62,10 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @author Mikhail Golubev
  */
-@State(name = "CertificateManager", storages = @Storage("certificates.xml"))
+@State(name = "CertificateManager", storages = @Storage("certificates.xml"), reportStatistic = false)
 public final class CertificateManager implements PersistentStateComponent<CertificateManager.Config> {
   @NonNls public static final String COMPONENT_NAME = "Certificate Manager";
-  @NonNls public static final String DEFAULT_PATH = FileUtil.join(PathManager.getSystemPath(), "tasks", "cacerts");
+  @NonNls public static final String DEFAULT_PATH = String.join(File.separator, PathManager.getConfigPath(), "ssl", "cacerts");
   @NonNls public static final String DEFAULT_PASSWORD = "changeit";
 
   private static final Logger LOG = Logger.getInstance(CertificateManager.class);
@@ -76,13 +77,35 @@ public final class CertificateManager implements PersistentStateComponent<Certif
   static final long DIALOG_VISIBILITY_TIMEOUT = 5000; // ms
 
   public static CertificateManager getInstance() {
-    return ApplicationManager.getApplication().getComponent(CertificateManager.class);
+    return ApplicationManager.getApplication().getService(CertificateManager.class);
   }
 
-  private final Config myConfig = new Config();
+  private Config myConfig = new Config();
 
   private final AtomicNotNullLazyValue<ConfirmingTrustManager> myTrustManager =
-    AtomicNotNullLazyValue.createValue(() -> ConfirmingTrustManager.createForStorage(DEFAULT_PATH, DEFAULT_PASSWORD));
+    AtomicNotNullLazyValue.createValue(() -> ConfirmingTrustManager.createForStorage(tryMigratingDefaultTruststore(), DEFAULT_PASSWORD));
+
+  private static @NotNull String tryMigratingDefaultTruststore() {
+    final Path legacySystemPath = Paths.get(PathManager.getSystemPath(), "tasks", "cacerts");
+    final Path configPath = Paths.get(DEFAULT_PATH);
+    if (!Files.exists(configPath) && Files.exists(legacySystemPath)) {
+      LOG.info("Migrating the default truststore from " + legacySystemPath + " to " + configPath);
+      try {
+        Files.createDirectories(configPath.getParent());
+        try {
+          Files.move(legacySystemPath, configPath);
+        }
+        catch (FileAlreadyExistsException | NoSuchFileException ignored) {
+          // The legacy truststore is either already copied or missing for some reason - use the new location.
+        }
+      }
+      catch (IOException e) {
+        LOG.error("Cannot move the default truststore from " + legacySystemPath + " to " + configPath, e);
+        return legacySystemPath.toString();
+      }
+    }
+    return DEFAULT_PATH;
+  }
 
   private final AtomicNotNullLazyValue<SSLContext> mySslContext = AtomicNotNullLazyValue.createValue(() -> calcSslContext());
 
@@ -118,13 +141,11 @@ public final class CertificateManager implements PersistentStateComponent<Certif
    *
    * @return instance of SSLContext with described behavior or default SSL context in case of error
    */
-  @NotNull
-  public synchronized SSLContext getSslContext() {
+  public synchronized @NotNull SSLContext getSslContext() {
     return mySslContext.getValue();
   }
 
-  @NotNull
-  private SSLContext calcSslContext() {
+  private @NotNull SSLContext calcSslContext() {
     SSLContext context = getSystemSslContext();
     try {
       // SSLContext context = SSLContext.getDefault();
@@ -138,8 +159,7 @@ public final class CertificateManager implements PersistentStateComponent<Certif
     return context;
   }
 
-  @NotNull
-  public static SSLContext getSystemSslContext() {
+  public static @NotNull SSLContext getSystemSslContext() {
     // NOTE: SSLContext.getDefault() should not be called because it automatically creates
     // default context which can't be initialized twice
     try {
@@ -163,72 +183,78 @@ public final class CertificateManager implements PersistentStateComponent<Certif
    *
    * @return key managers or {@code null} in case of any error
    */
-  @Nullable
-  public static KeyManager[] getDefaultKeyManagers() {
+  public static KeyManager @Nullable [] getDefaultKeyManagers() {
     String keyStorePath = System.getProperty("javax.net.ssl.keyStore");
-    if (keyStorePath != null) {
-      LOG.info("Loading custom key store specified with VM options: " + keyStorePath);
+    if (keyStorePath == null) {
+      return null;
+    }
+
+    LOG.info("Loading custom key store specified with VM options: " + keyStorePath);
+    try {
+      KeyManagerFactory factory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+      KeyStore keyStore;
+      String keyStoreType = System.getProperty("javax.net.ssl.keyStoreType", KeyStore.getDefaultType());
       try {
-        KeyManagerFactory factory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        KeyStore keyStore;
-        String keyStoreType = System.getProperty("javax.net.ssl.keyStoreType", KeyStore.getDefaultType());
-        try {
-          keyStore = KeyStore.getInstance(keyStoreType);
-        }
-        catch (KeyStoreException e) {
-          if (e.getCause() instanceof NoSuchAlgorithmException) {
-            LOG.error("Wrong key store type: " + keyStoreType, e);
-            return null;
-          }
-          throw e;
-        }
-        String password = System.getProperty("javax.net.ssl.keyStorePassword", "");
-        InputStream inputStream = null;
-        try {
-          inputStream = new FileInputStream(keyStorePath);
-          keyStore.load(inputStream, password.toCharArray());
-          factory.init(keyStore, password.toCharArray());
-        }
-        catch (FileNotFoundException e) {
-          LOG.error("Key store file not found: " + keyStorePath);
+        keyStore = KeyStore.getInstance(keyStoreType);
+      }
+      catch (KeyStoreException e) {
+        if (e.getCause() instanceof NoSuchAlgorithmException) {
+          LOG.error("Wrong key store type: " + keyStoreType, e);
           return null;
         }
-        catch (Exception e) {
-          if (e.getCause() instanceof BadPaddingException) {
-            LOG.error("Wrong key store password: " + password, e);
-            return null;
+        throw e;
+      }
+
+      Path keyStoreFile = Paths.get(keyStorePath);
+      String password = System.getProperty("javax.net.ssl.keyStorePassword", "");
+      if (password.isEmpty() && SystemInfoRt.isMac) {
+        try {
+          String itemName = FileUtilRt.getNameWithoutExtension(keyStoreFile.getFileName().toString());
+          password = PasswordSafe.getInstance().getPassword(new CredentialAttributes(itemName, itemName));
+          if (password == null) {
+            password = "";
           }
-          throw e;
         }
-        finally {
-          StreamUtil.closeStream(inputStream);
+        catch (Throwable e) {
+          LOG.error("Cannot get password for " + keyStorePath, e);
         }
-        return factory.getKeyManagers();
+      }
+      try (InputStream inputStream = Files.newInputStream(keyStoreFile)) {
+        keyStore.load(inputStream, password.toCharArray());
+        factory.init(keyStore, password.toCharArray());
+      }
+      catch (NoSuchFileException e) {
+        LOG.error("Key store file not found: " + keyStorePath);
+        return null;
       }
       catch (Exception e) {
-        LOG.error(e);
+        if (e.getCause() instanceof BadPaddingException || e.getCause() instanceof UnrecoverableKeyException) {
+          LOG.error("Wrong key store password (sha-256): " + DigestUtil.sha256Hex(password.getBytes(StandardCharsets.UTF_8)), e);
+          return null;
+        }
+        throw e;
       }
+      return factory.getKeyManagers();
+    }
+    catch (Exception e) {
+      LOG.error(e);
     }
     return null;
   }
 
-  @NotNull
-  public String getCacertsPath() {
+  public @NotNull String getCacertsPath() {
     return DEFAULT_PATH;
   }
 
-  @NotNull
-  public String getPassword() {
+  public @NotNull String getPassword() {
     return DEFAULT_PASSWORD;
   }
 
-  @NotNull
-  public ConfirmingTrustManager getTrustManager() {
+  public @NotNull ConfirmingTrustManager getTrustManager() {
     return myTrustManager.getValue();
   }
 
-  @NotNull
-  public ConfirmingTrustManager.MutableTrustManager getCustomTrustManager() {
+  public @NotNull ConfirmingTrustManager.MutableTrustManager getCustomTrustManager() {
     return getTrustManager().getCustomManager();
   }
 
@@ -283,8 +309,8 @@ public final class CertificateManager implements PersistentStateComponent<Certif
     return accepted.get();
   }
 
-  public <T, E extends Throwable> T runWithUntrustedCertificateStrategy(@NotNull final ThrowableComputable<T, E> computable,
-                                                                        @NotNull final UntrustedCertificateStrategy strategy) throws E {
+  public <T, E extends Throwable> T runWithUntrustedCertificateStrategy(@NotNull ThrowableComputable<T, E> computable,
+                                                                        @NotNull UntrustedCertificateStrategy strategy) throws E {
     ConfirmingTrustManager trustManager = getTrustManager();
     trustManager.myUntrustedCertificateStrategy.set(strategy);
     try {
@@ -295,21 +321,37 @@ public final class CertificateManager implements PersistentStateComponent<Certif
     }
   }
 
-  @NotNull
   @Override
-  public Config getState() {
+  public @NotNull Config getState() {
     return myConfig;
   }
 
   @Override
   public void loadState(@NotNull Config state) {
-    XmlSerializerUtil.copyBean(state, myConfig);
+    myConfig = state;
   }
 
-  public static class Config {
+  public static final class Config {
     /**
      * Do not show the dialog and accept untrusted certificates automatically.
      */
     public boolean ACCEPT_AUTOMATICALLY = false;
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+
+      Config config = (Config)o;
+
+      if (ACCEPT_AUTOMATICALLY != config.ACCEPT_AUTOMATICALLY) return false;
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return (ACCEPT_AUTOMATICALLY ? 1 : 0);
+    }
   }
 }

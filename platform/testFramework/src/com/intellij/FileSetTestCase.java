@@ -7,6 +7,7 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.testFramework.LightPlatformTestCase;
 import com.intellij.util.ArrayUtilRt;
+import com.intellij.util.ThrowableRunnable;
 import junit.framework.TestSuite;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,7 +39,7 @@ public abstract class FileSetTestCase extends TestSuite {
     addAllTests();
   }
 
-  protected FileSetTestCase(@NotNull File[] files) {
+  protected FileSetTestCase(File @NotNull [] files) {
     myFiles = files;
     addAllTests();
   }
@@ -115,7 +116,7 @@ public abstract class FileSetTestCase extends TestSuite {
     }
 
     @Override
-    protected void runTest() throws Throwable {
+    protected void runTestRunnable(@NotNull ThrowableRunnable<Throwable> testRunnable) throws Throwable {
       String content = loadFile(myTestFile);
       assertNotNull(content);
 

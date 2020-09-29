@@ -4,6 +4,8 @@ package com.intellij.codeInspection.streamMigration;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.streamMigration.CollectMigration.CollectTerminal;
 import com.intellij.codeInspection.ui.SingleCheckboxOptionsPanel;
+import com.intellij.ide.nls.NlsMessages;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -20,7 +22,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.Objects;
-import java.util.function.Function;
 
 import static com.intellij.util.ObjectUtils.tryCast;
 
@@ -115,7 +116,7 @@ public class FuseStreamOperationsInspection extends AbstractBaseJavaLocalInspect
   @Nullable
   @Override
   public JComponent createOptionsPanel() {
-    return new SingleCheckboxOptionsPanel(InspectionsBundle.message("inspection.fuse.stream.operations.option.strict.mode"), this,
+    return new SingleCheckboxOptionsPanel(JavaBundle.message("inspection.fuse.stream.operations.option.strict.mode"), this,
                                           "myStrictMode");
   }
 
@@ -136,11 +137,9 @@ public class FuseStreamOperationsInspection extends AbstractBaseJavaLocalInspect
             if (newTerminal == null) return;
             PsiElement nameElement = call.getMethodExpression().getReferenceNameElement();
             if (nameElement == null) return;
-            String fusedSteps = newTerminal.fusedElements()
-              .mapLastOrElse(s -> StreamEx.of(", ", s), s -> StreamEx.of(" and ", s))
-              .flatMap(Function.identity()).skip(1).joining();
+            String fusedSteps = newTerminal.fusedElements().collect(NlsMessages.joiningAnd());
             holder.registerProblem(nameElement,
-                                   InspectionsBundle.message("inspection.fuse.stream.operations.message", fusedSteps),
+                                   JavaBundle.message("inspection.fuse.stream.operations.message", fusedSteps),
                                    new FuseStreamOperationsFix(fusedSteps, myStrictMode));
           }
         }
@@ -185,14 +184,14 @@ public class FuseStreamOperationsInspection extends AbstractBaseJavaLocalInspect
     @NotNull
     @Override
     public String getName() {
-      return InspectionsBundle.message("inspection.fuse.stream.operations.fix.name", myFusedSteps);
+      return JavaBundle.message("inspection.fuse.stream.operations.fix.name", myFusedSteps);
     }
 
     @Nls
     @NotNull
     @Override
     public String getFamilyName() {
-      return InspectionsBundle.message("inspection.fuse.stream.operations.fix.family.name");
+      return JavaBundle.message("inspection.fuse.stream.operations.fix.family.name");
     }
 
     @Override

@@ -1,24 +1,25 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.codeInspection.unusedDef;
 
 import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.ProblemsHolder;
+import com.intellij.codeInspection.util.InspectionMessage;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiRecursiveElementWalkingVisitor;
 import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.tree.IElementType;
 import gnu.trove.TIntHashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.plugins.groovy.codeInspection.GroovyInspectionBundle;
+import org.jetbrains.plugins.groovy.GroovyBundle;
 import org.jetbrains.plugins.groovy.codeInspection.GroovyLocalInspectionBase;
 import org.jetbrains.plugins.groovy.codeInspection.utils.ControlFlowUtils;
 import org.jetbrains.plugins.groovy.lang.lexer.GroovyTokenTypes;
 import org.jetbrains.plugins.groovy.lang.psi.GrControlFlowOwner;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElement;
-import org.jetbrains.plugins.groovy.lang.psi.GroovyRecursiveElementVisitor;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrField;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrVariable;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrAssignmentExpression;
@@ -97,23 +98,34 @@ public class UnusedDefInspection extends GroovyLocalInspectionBase {
     unusedDefs.forEach(num -> {
       final ReadWriteVariableInstruction instruction = (ReadWriteVariableInstruction)flow[num];
       final PsiElement element = instruction.getElement();
-      process(element, checked, problemsHolder, GroovyInspectionBundle.message("unused.assignment.tooltip"));
+      process(element, checked, problemsHolder, GroovyBundle.message("unused.assignment.tooltip"));
       return true;
     });
 
-    owner.accept(new GroovyRecursiveElementVisitor() {
+    owner.acceptChildren(new PsiRecursiveElementWalkingVisitor() {
       @Override
-      public void visitVariable(@NotNull GrVariable variable) {
-        if (checked.contains(variable) || variable.getInitializerGroovy() != null) return;
-
-        if (ReferencesSearch.search(variable, variable.getUseScope()).findFirst() == null) {
-          process(variable, checked, problemsHolder, GroovyInspectionBundle.message("unused.variable"));
+      public void visitElement(@NotNull PsiElement element) {
+        if (element instanceof GrControlFlowOwner) {
+          // don't go deeper
+        }
+        else if (element instanceof GrVariable && !(element instanceof GrField)) {
+          GrVariable variable = (GrVariable)element;
+          if (checked.contains(variable) || variable.getInitializerGroovy() != null) return;
+          if (ReferencesSearch.search(variable, variable.getUseScope()).findFirst() == null) {
+            process(variable, checked, problemsHolder, GroovyBundle.message("unused.variable"));
+          }
+        }
+        else {
+          super.visitElement(element);
         }
       }
     });
   }
 
-  private static void process(@Nullable PsiElement element, Set<PsiElement> checked, ProblemsHolder problemsHolder, final String message) {
+  private static void process(@Nullable PsiElement element,
+                              Set<PsiElement> checked,
+                              ProblemsHolder problemsHolder,
+                              final @InspectionMessage String message) {
     if (element == null) return;
     if (!checked.add(element)) return;
     if (isLocalAssignment(element) && isUsedInTopLevelFlowOnly(element) && !isIncOrDec(element)) {

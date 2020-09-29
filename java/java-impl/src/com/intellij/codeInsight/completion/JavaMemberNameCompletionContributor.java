@@ -8,6 +8,7 @@ import com.intellij.codeInsight.lookup.*;
 import com.intellij.codeInsight.template.impl.TemplateManagerImpl;
 import com.intellij.featureStatistics.FeatureUsageTracker;
 import com.intellij.lang.ASTNode;
+import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.patterns.ElementPattern;
@@ -21,10 +22,7 @@ import com.intellij.psi.impl.source.javadoc.PsiDocParamRef;
 import com.intellij.psi.javadoc.PsiDocComment;
 import com.intellij.psi.javadoc.PsiDocTag;
 import com.intellij.psi.javadoc.PsiDocTagValue;
-import com.intellij.psi.util.PropertyUtilBase;
-import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.psi.util.PsiUtil;
-import com.intellij.psi.util.PsiUtilCore;
+import com.intellij.psi.util.*;
 import com.intellij.refactoring.introduceField.InplaceIntroduceFieldPopup;
 import com.intellij.refactoring.introduceVariable.IntroduceVariableBase;
 import com.intellij.util.ArrayUtil;
@@ -48,7 +46,7 @@ import static com.intellij.patterns.StandardPatterns.or;
 /**
  * @author peter
  */
-public class JavaMemberNameCompletionContributor extends CompletionContributor {
+public class JavaMemberNameCompletionContributor extends CompletionContributor implements DumbAware {
   public static final ElementPattern<PsiElement> INSIDE_TYPE_PARAMS_PATTERN = psiElement().
     afterLeaf(psiElement().withText("?").andOr(
       psiElement().afterLeaf("<", ","),
@@ -422,7 +420,8 @@ public class JavaMemberNameCompletionContributor extends CompletionContributor {
       if (staticContext && (modifierList != null && !modifierList.hasModifierProperty(PsiModifier.STATIC))) continue;
 
       if (fieldType.equals(varType)) {
-        final String getterName = PropertyUtilBase.suggestGetterName(field);
+        final String getterName = JavaPsiRecordUtil.getComponentForField(field) != null ? 
+                                  field.getName() : PropertyUtilBase.suggestGetterName(field);
         if ((psiClass.findMethodsByName(getterName, true).length == 0 ||
              psiClass.findMethodBySignature(GenerateMembersUtil.generateGetterPrototype(field), true) == null)) {
           propertyHandlers.add(getterName);
@@ -464,7 +463,7 @@ public class JavaMemberNameCompletionContributor extends CompletionContributor {
   }
 
   private static LookupElementDecorator<LookupElement> withInsertHandler(final SuggestedNameInfo callback, LookupElement element) {
-    return LookupElementDecorator.withInsertHandler(element, new InsertHandler<LookupElementDecorator<LookupElement>>() {
+    return LookupElementDecorator.withInsertHandler(element, new InsertHandler<>() {
       @Override
       public void handleInsert(@NotNull InsertionContext context, @NotNull LookupElementDecorator<LookupElement> item) {
         TailType tailType = LookupItem.getDefaultTailType(context.getCompletionChar());

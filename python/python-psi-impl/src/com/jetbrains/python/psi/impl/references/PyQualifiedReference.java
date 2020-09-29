@@ -21,16 +21,11 @@ import com.intellij.codeInsight.lookup.AutoCompletionPolicy;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Comparing;
-import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
-import com.intellij.psi.search.GlobalSearchScope;
-import com.intellij.psi.search.ProjectScope;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.QualifiedName;
 import com.intellij.util.ArrayUtil;
+import com.intellij.util.ObjectUtils;
 import com.intellij.util.PlatformIcons;
 import com.intellij.util.ProcessingContext;
 import com.jetbrains.python.PyNames;
@@ -39,20 +34,19 @@ import com.jetbrains.python.codeInsight.controlflow.ScopeOwner;
 import com.jetbrains.python.codeInsight.dataflow.scope.Scope;
 import com.jetbrains.python.codeInsight.dataflow.scope.ScopeUtil;
 import com.jetbrains.python.psi.*;
-import com.jetbrains.python.psi.impl.PyBuiltinCache;
+import com.jetbrains.python.psi.impl.PyCallExpressionHelper;
 import com.jetbrains.python.psi.impl.PyImportedModule;
 import com.jetbrains.python.psi.impl.PyPsiUtils;
 import com.jetbrains.python.psi.impl.ResolveResultList;
+import com.jetbrains.python.psi.impl.references.hasattr.PyHasAttrHelper;
 import com.jetbrains.python.psi.resolve.ImplicitResolveResult;
 import com.jetbrains.python.psi.resolve.PyResolveContext;
-import com.jetbrains.python.psi.resolve.QualifiedNameFinder;
+import com.jetbrains.python.psi.resolve.PyResolveUtil;
 import com.jetbrains.python.psi.resolve.RatedResolveResult;
-import com.jetbrains.python.psi.search.PySearchUtilBase;
-import com.jetbrains.python.psi.stubs.PyClassAttributesIndex;
 import com.jetbrains.python.psi.stubs.PyClassNameIndexInsensitive;
-import com.jetbrains.python.psi.stubs.PyFunctionNameIndex;
 import com.jetbrains.python.psi.types.*;
 import com.jetbrains.python.pyi.PyiUtil;
+import one.util.streamex.StreamEx;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -110,14 +104,15 @@ public class PyQualifiedReference extends PyReferenceImpl {
 
     if ((PyTypeChecker.isUnknown(qualifierType, myContext.getTypeEvalContext()) ||
          (qualifierType instanceof PyStructuralType && ((PyStructuralType)qualifierType).isInferredFromUsages())) &&
-        myContext.allowImplicits() && canQualifyAnImplicitName(qualifier)) {
-      addImplicitResolveResults(referencedName, ret);
+        myContext.allowImplicits() && PyCallExpressionHelper.canQualifyAnImplicitName(qualifier)) {
+      PyResolveUtil.addImplicitResolveResults(referencedName, ret, myElement);
     }
 
     // special case of __doc__
     if ("__doc__".equals(referencedName)) {
       addDocReference(ret, qualifier, qualifierType);
     }
+
     return ret;
   }
 
@@ -132,90 +127,6 @@ public class PyQualifiedReference extends PyReferenceImpl {
       if (ourClass != theirClass) return true;
     }
     return false;
-  }
-
-  private void addImplicitResolveResults(String referencedName, ResolveResultList ret) {
-    final Project project = myElement.getProject();
-    final GlobalSearchScope scope = PySearchUtilBase.excludeSdkTestsScope(project);
-    final Collection functions = PyFunctionNameIndex.find(referencedName, project, scope);
-    final PsiFile containingFile = myElement.getContainingFile();
-    final List<QualifiedName> imports;
-    if (containingFile instanceof PyFile) {
-      imports = collectImports((PyFile)containingFile);
-    }
-    else {
-      imports = Collections.emptyList();
-    }
-    for (Object function : functions) {
-      //TODO: most likely the following code is obsolete
-      //if (!(function instanceof PyFunction)) {
-      //  FileBasedIndex.getInstance().scheduleRebuild(StubUpdatingIndex.INDEX_ID,
-      //                                               new Throwable("found non-function object " + function + " in function list"));
-      //  break;
-      //}
-      PyFunction pyFunction = (PyFunction)function;
-      if (pyFunction.getContainingClass() != null) {
-        ret.add(new ImplicitResolveResult(pyFunction, getImplicitResultRate(pyFunction, imports)));
-      }
-    }
-
-    PyClassAttributesIndex
-      .findClassAndInstanceAttributes(referencedName, project, scope)
-      .forEach(attribute -> ret.add(new ImplicitResolveResult(attribute, getImplicitResultRate(attribute, imports))));
-  }
-
-  private static List<QualifiedName> collectImports(PyFile containingFile) {
-    List<QualifiedName> imports = new ArrayList<>();
-    for (PyFromImportStatement anImport : containingFile.getFromImports()) {
-      final QualifiedName source = anImport.getImportSourceQName();
-      if (source != null) {
-        imports.add(source);
-      }
-    }
-    for (PyImportElement importElement : containingFile.getImportTargets()) {
-      final QualifiedName qName = importElement.getImportedQName();
-      if (qName != null) {
-        imports.add(qName.removeLastComponent());
-      }
-    }
-    return imports;
-  }
-
-  private int getImplicitResultRate(PyElement target, List<QualifiedName> imports) {
-    int rate = RatedResolveResult.RATE_LOW;
-    if (target.getContainingFile() == myElement.getContainingFile()) {
-      rate += 200;
-    }
-    else {
-      final VirtualFile vFile = target.getContainingFile().getVirtualFile();
-      if (vFile != null) {
-        if (ProjectScope.getProjectScope(myElement.getProject()).contains(vFile)) {
-          rate += 80;
-        }
-        final QualifiedName qName = QualifiedNameFinder.findShortestImportableQName(myElement, vFile);
-        if (qName != null && imports.contains(qName)) {
-          rate += 70;
-        }
-      }
-    }
-    if (myElement.getParent() instanceof PyCallExpression) {
-      if (target instanceof PyFunction) rate += 50;
-    }
-    else {
-      if (!(target instanceof PyFunction)) rate += 50;
-    }
-    return rate;
-  }
-
-  private static boolean canQualifyAnImplicitName(@NotNull PyExpression qualifier) {
-    if (qualifier instanceof PyCallExpression) {
-      final PyExpression callee = ((PyCallExpression)qualifier).getCallee();
-      if (callee instanceof PyReferenceExpression && PyNames.SUPER.equals(callee.getName())) {
-        final PsiElement target = ((PyReferenceExpression)callee).getReference().resolve();
-        if (target != null && PyBuiltinCache.getInstance(qualifier).isBuiltin(target)) return false; // super() of unresolved type
-      }
-    }
-    return true;
   }
 
   private static boolean addAssignedAttributes(ResolveResultList ret,
@@ -253,9 +164,8 @@ public class PyQualifiedReference extends PyReferenceImpl {
     ret.poke(docstring, RatedResolveResult.RATE_HIGH);
   }
 
-  @NotNull
   @Override
-  public Object[] getVariants() {
+  public Object @NotNull [] getVariants() {
     PyExpression qualifier = myElement.getQualifier();
     if (qualifier != null) {
       qualifier = CompletionUtilCoreImpl.getOriginalOrSelf(qualifier);
@@ -271,11 +181,10 @@ public class PyQualifiedReference extends PyReferenceImpl {
     ctx.put(PyType.CTX_NAMES, namesAlready);
     final Collection<Object> variants = new ArrayList<>();
     if (qualifierType != null) {
-      Collections.addAll(variants, getVariantFromHasAttr(qualifier));
       if (qualifierType instanceof PyStructuralType && ((PyStructuralType)qualifierType).isInferredFromUsages()) {
         final PyClassType guessedType = guessClassTypeByName();
         if (guessedType != null) {
-          Collections.addAll(variants, getTypeCompletionVariants(myElement, guessedType));
+          Collections.addAll(variants, guessedType.getCompletionVariants(myElement.getName(), myElement, ctx));
         }
       }
       if (qualifier instanceof PyQualifiedExpression) {
@@ -297,7 +206,6 @@ public class PyQualifiedReference extends PyReferenceImpl {
           }
         }
         Collections.addAll(variants, qualifierType.getCompletionVariants(element.getName(), element, ctx));
-        return variants.toArray();
       }
       else {
         return qualifierType.getCompletionVariants(element.getName(), element, ctx);
@@ -306,29 +214,17 @@ public class PyQualifiedReference extends PyReferenceImpl {
     else {
       final PyClassType guessedType = guessClassTypeByName();
       if (guessedType != null) {
-        Collections.addAll(variants, getTypeCompletionVariants(myElement, guessedType));
+        Collections.addAll(variants, guessedType.getCompletionVariants(myElement.getName(), myElement, ctx));
       }
       if (qualifier instanceof PyReferenceExpression) {
-        Collections.addAll(variants, collectSeenMembers(qualifier.getText()));
+        Collections.addAll(variants, collectSeenMembers(qualifier.getText(), ctx));
       }
-      return variants.toArray();
     }
-  }
 
-  private Object[] getVariantFromHasAttr(PyExpression qualifier) {
-    Collection<Object> variants = new ArrayList<>();
-    PyIfStatement ifStatement = PsiTreeUtil.getParentOfType(myElement, PyIfStatement.class);
-    while (ifStatement != null) {
-      PyExpression condition = ifStatement.getIfPart().getCondition();
-      if (condition instanceof PyCallExpression && ((PyCallExpression)condition).isCalleeText(PyNames.HAS_ATTR)) {
-        PyCallExpression call = (PyCallExpression)condition;
-        if (call.getArguments().length > 1 && call.getArguments()[0].getText().equals(qualifier.getText())) {
-          PyStringLiteralExpression string = call.getArgument(1, PyStringLiteralExpression.class);
-          if (string != null && StringUtil.isJavaIdentifier(string.getStringValue())) variants.add(string.getStringValue());
-        }
-      }
-      ifStatement = PsiTreeUtil.getParentOfType(ifStatement, PyIfStatement.class);
-    }
+    StreamEx.of(PyHasAttrHelper.INSTANCE.getNamesFromHasAttrs(element, qualifier))
+      .filter(it -> namesAlready.add(it))
+      .into(variants);
+
     return variants.toArray();
   }
 
@@ -368,17 +264,17 @@ public class PyQualifiedReference extends PyReferenceImpl {
     return result;
   }
 
-  private Object[] collectSeenMembers(final String text) {
+  private Object[] collectSeenMembers(final String text, ProcessingContext context) {
     final Set<String> members = new HashSet<>();
     myElement.getContainingFile().accept(new PyRecursiveElementVisitor() {
       @Override
-      public void visitPyReferenceExpression(PyReferenceExpression node) {
+      public void visitPyReferenceExpression(@NotNull PyReferenceExpression node) {
         super.visitPyReferenceExpression(node);
         visitPyQualifiedExpression(node);
       }
 
       @Override
-      public void visitPyTargetExpression(PyTargetExpression node) {
+      public void visitPyTargetExpression(@NotNull PyTargetExpression node) {
         super.visitPyTargetExpression(node);
         visitPyQualifiedExpression(node);
       }
@@ -396,10 +292,21 @@ public class PyQualifiedReference extends PyReferenceImpl {
       }
     });
     List<LookupElement> results = new ArrayList<>(members.size());
+    final Set<String> namesAlready = visitedNames(context);
     for (String member : members) {
       results.add(AutoCompletionPolicy.NEVER_AUTOCOMPLETE.applyPolicy(LookupElementBuilder.create(member)));
+      namesAlready.add(member);
     }
     return ArrayUtil.toObjectArray(results);
+  }
+
+  private static @NotNull Set<String> visitedNames(@NotNull ProcessingContext context) {
+    Set<String> names = context.get(PyType.CTX_NAMES);
+    if (names == null) {
+      names = new HashSet<>();
+      context.put(PyType.CTX_NAMES, names);
+    }
+    return names;
   }
 
   /**
@@ -408,7 +315,7 @@ public class PyQualifiedReference extends PyReferenceImpl {
    */
   @NotNull
   public static Collection<PyTargetExpression> collectAssignedAttributes(@NotNull final QualifiedName qualifierQName,
-                                                                   @NotNull final PsiElement anchor) {
+                                                                         @NotNull final PsiElement anchor) {
     final Set<String> names = new HashSet<>();
     final List<PyTargetExpression> results = new ArrayList<>();
     for (ScopeOwner owner = ScopeUtil.getScopeOwner(anchor); owner != null; owner = ScopeUtil.getScopeOwner(owner)) {
@@ -441,13 +348,16 @@ public class PyQualifiedReference extends PyReferenceImpl {
     if (resolveContext.getTypeEvalContext().getOrigin() == null) {
       final PsiFile containingFile = myElement.getContainingFile();
       if (containingFile instanceof StubBasedPsiElement) {
-        assert ((StubBasedPsiElement)containingFile).getStub() == null : "Stub origin for type eval context in isReferenceTo()";
+        assert ((StubBasedPsiElement<?>)containingFile).getStub() == null : "Stub origin for type eval context in isReferenceTo()";
       }
       final TypeEvalContext context = TypeEvalContext.codeAnalysis(containingFile.getProject(), containingFile);
       resolveContext = resolveContext.withTypeEvalContext(context);
     }
-    if (element instanceof PyFunction && Comparing.equal(referencedName, ((PyFunction)element).getName()) &&
-        !PyUtil.isInitOrNewMethod(element)) {
+    PyElement pyElement = ObjectUtils.tryCast(element, PyElement.class);
+    if (pyElement == null) {
+      return false;
+    }
+    if (Objects.equals(referencedName, pyElement.getName()) && !PyUtil.isInitOrNewMethod(element)) {
       final PyExpression qualifier = myElement.getQualifier();
       if (qualifier != null) {
         final PyType qualifierType = resolveContext.getTypeEvalContext().getType(qualifier);
@@ -485,9 +395,8 @@ public class PyQualifiedReference extends PyReferenceImpl {
       return true;
     }
     if (resolveResult instanceof PyTargetExpression && PyUtil.isAttribute((PyTargetExpression)resolveResult) &&
-        element instanceof PyTargetExpression && PyUtil.isAttribute((PyTargetExpression)element) && Comparing.equal(
-      ((PyTargetExpression)resolveResult).getReferencedName(),
-      ((PyTargetExpression)element).getReferencedName())) {
+        element instanceof PyTargetExpression && PyUtil.isAttribute((PyTargetExpression)element) &&
+        Objects.equals(((PyTargetExpression)resolveResult).getReferencedName(), ((PyTargetExpression)element).getReferencedName())) {
       PyClass aClass = PsiTreeUtil.getParentOfType(resolveResult, PyClass.class);
       PyClass bClass = PsiTreeUtil.getParentOfType(element, PyClass.class);
 

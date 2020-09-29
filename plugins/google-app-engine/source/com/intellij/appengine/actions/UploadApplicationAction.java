@@ -15,6 +15,7 @@
  */
 package com.intellij.appengine.actions;
 
+import com.intellij.appengine.JavaGoogleAppEngineBundle;
 import com.intellij.appengine.cloud.AppEngineCloudType;
 import com.intellij.appengine.cloud.AppEngineServerConfiguration;
 import com.intellij.appengine.facet.AppEngineFacet;
@@ -36,9 +37,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-/**
- * @author nik
- */
 public class UploadApplicationAction extends AnAction {
   public static final String LAST_RUN_CONFIGURATION_PROPERTY = "JAVA_APP_ENGINE_LAST_RUN_CONFIGURATION";
 
@@ -55,7 +53,7 @@ public class UploadApplicationAction extends AnAction {
         text = getTemplatePresentation().getText();
       }
       else {
-        text = "Upload App Engine Application '" + configurationToRun.getName() + "'";
+        text = JavaGoogleAppEngineBundle.message("action.upload.app.engine.application.text", configurationToRun.getName());
       }
       e.getPresentation().setText(text);
     }

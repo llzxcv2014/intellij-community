@@ -6,12 +6,17 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.util.NlsActions
+import com.intellij.openapi.util.text.StringUtil
+import com.intellij.util.text.DateFormatUtil
 import com.intellij.vcs.log.VcsCommitMetadata
+import com.intellij.vcs.log.VcsLogBundle
 import com.intellij.vcs.log.data.LoadingDetails
 import com.intellij.vcs.log.statistics.VcsLogUsageTriggerCollector
 import com.intellij.vcs.log.ui.VcsLogInternalDataKeys
 import com.intellij.vcs.log.ui.VcsLogUiEx
 import com.intellij.vcs.log.ui.frame.CommitPresentationUtil
+import com.intellij.vcs.log.util.VcsLogUtil.jumpToRow
 import java.awt.event.KeyEvent
 
 open class GoToParentOrChildAction(val parent: Boolean) : DumbAwareAction() {
@@ -44,12 +49,14 @@ open class GoToParentOrChildAction(val parent: Boolean) : DumbAwareAction() {
     }
 
     if (rows.size == 1) {
-      ui.jumpToRow(rows.single(), false)
+      jumpToRow(ui, rows.single(), false)
     }
     else {
-      val popup = JBPopupFactory.getInstance().createActionGroupPopup("Select ${if (parent) "Parent" else "Child"} to Navigate",
-                                                                      createGroup(ui, rows), e.dataContext,
-                                                                      JBPopupFactory.ActionSelectionAid.NUMBERING, false)
+      val popup = JBPopupFactory.getInstance().createActionGroupPopup(
+        if (parent) VcsLogBundle.message("action.go.to.select.parent.to.navigate")
+        else VcsLogBundle.message("action.go.to.select.child.to.navigate"),
+        createGroup(ui, rows), e.dataContext,
+        JBPopupFactory.ActionSelectionAid.NUMBERING, false)
       popup.showInBestPositionFor(e.dataContext)
     }
   }
@@ -57,10 +64,10 @@ open class GoToParentOrChildAction(val parent: Boolean) : DumbAwareAction() {
   private fun createGroup(ui: VcsLogUiEx, rows: List<Int>): ActionGroup {
     val actions = rows.mapTo(mutableListOf()) { row ->
       val text = getActionText(ui.table.model.getCommitMetadata(row))
-      object : DumbAwareAction(text, "Navigate to $text", null) {
+      object : DumbAwareAction(text, VcsLogBundle.message("action.go.to.navigate.to", text), null) {
         override fun actionPerformed(e: AnActionEvent) {
           triggerUsage(e)
-          ui.jumpToRow(row, false)
+          jumpToRow(ui, row, false)
         }
       }
     }
@@ -71,12 +78,21 @@ open class GoToParentOrChildAction(val parent: Boolean) : DumbAwareAction() {
     VcsLogUsageTriggerCollector.triggerUsage(e, this) { data -> data.addData("parent_commit", parent) }
   }
 
+  @NlsActions.ActionText
   private fun getActionText(commitMetadata: VcsCommitMetadata): String {
-    var text = commitMetadata.id.toShortString()
     if (commitMetadata !is LoadingDetails) {
-      text += " " + CommitPresentationUtil.getShortSummary(commitMetadata, false, 40)
+      val time: Long = commitMetadata.authorTime
+      val commitMessage = "\"" + StringUtil.shortenTextWithEllipsis(commitMetadata.subject,
+                                                                    40, 0,
+                                                                    "...") + "\""
+      return VcsLogBundle.message("action.go.to.select.hash.subject.author.date.time",
+                                  commitMetadata.id.toShortString(),
+                                  commitMessage,
+                                  CommitPresentationUtil.getAuthorPresentation(commitMetadata),
+                                  DateFormatUtil.formatDate(time),
+                                  DateFormatUtil.formatTime(time))
     }
-    return text
+    return commitMetadata.id.toShortString()
   }
 
   private fun getRowsToJump(ui: VcsLogUiEx): List<Int> {

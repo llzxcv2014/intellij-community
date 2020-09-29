@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.mock;
 
 import com.intellij.openapi.Disposable;
@@ -12,19 +12,20 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.ThrowableComputable;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
-import org.jetbrains.ide.PooledThreadExecutor;
 
 import javax.swing.*;
 import java.awt.*;
 import java.lang.reflect.Modifier;
+import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
 public class MockApplication extends MockComponentManager implements ApplicationEx {
-  public static int INSTANCES_CREATED = 0;
+  public static int INSTANCES_CREATED;
 
   public MockApplication(@NotNull Disposable parentDisposable) {
     super(null, parentDisposable);
@@ -86,6 +87,11 @@ public class MockApplication extends MockComponentManager implements Application
   }
 
   @Override
+  public boolean isWriteThread() {
+    return true;
+  }
+
+  @Override
   public boolean isActive() {
     return true;
   }
@@ -100,6 +106,14 @@ public class MockApplication extends MockComponentManager implements Application
 
   @Override
   public void assertIsDispatchThread() {
+  }
+
+  @Override
+  public void assertIsNonDispatchThread() {
+  }
+
+  @Override
+  public void assertIsWriteThread() {
   }
 
   @Override
@@ -130,18 +144,13 @@ public class MockApplication extends MockComponentManager implements Application
   @NotNull
   @Override
   public Future<?> executeOnPooledThread(@NotNull Runnable action) {
-    return PooledThreadExecutor.INSTANCE.submit(action);
+    return AppExecutorUtil.getAppExecutorService().submit(action);
   }
 
   @NotNull
   @Override
   public <T> Future<T> executeOnPooledThread(@NotNull Callable<T> action) {
-    return PooledThreadExecutor.INSTANCE.submit(action);
-  }
-
-  @Override
-  public boolean isDisposeInProgress() {
-    return false;
+    return AppExecutorUtil.getAppExecutorService().submit(action);
   }
 
   @Override
@@ -150,7 +159,18 @@ public class MockApplication extends MockComponentManager implements Application
   }
 
   @Override
-  public void restart() {
+  public void invokeLaterOnWriteThread(@NotNull Runnable action) {
+    action.run();
+  }
+
+  @Override
+  public void invokeLaterOnWriteThread(Runnable action, ModalityState modal) {
+    action.run();
+  }
+
+  @Override
+  public void invokeLaterOnWriteThread(Runnable action, ModalityState modal, @NotNull Condition<?> expired) {
+    action.run();
   }
 
   @Override
@@ -191,7 +211,7 @@ public class MockApplication extends MockComponentManager implements Application
 
   @NotNull
   @Override
-  public AccessToken acquireWriteActionLock(@Nullable Class marker) {
+  public AccessToken acquireWriteActionLock(@Nullable Class<?> marker) {
     return AccessToken.EMPTY_ACCESS_TOKEN;
   }
 
@@ -229,11 +249,11 @@ public class MockApplication extends MockComponentManager implements Application
   }
 
   @Override
-  public void invokeLater(@NotNull final Runnable runnable, @NotNull final Condition expired) {
+  public void invokeLater(@NotNull final Runnable runnable, @NotNull final Condition<?> expired) {
   }
 
   @Override
-  public void invokeLater(@NotNull final Runnable runnable, @NotNull final ModalityState state, @NotNull final Condition expired) {
+  public void invokeLater(@NotNull final Runnable runnable, @NotNull final ModalityState state, @NotNull final Condition<?> expired) {
   }
 
   @Override
@@ -252,11 +272,16 @@ public class MockApplication extends MockComponentManager implements Application
 
   @Override
   public void invokeAndWait(@NotNull Runnable runnable, @NotNull ModalityState modalityState) {
-    try {
-      SwingUtilities.invokeAndWait(runnable);
+    if (isDispatchThread()) {
+      runnable.run();
     }
-    catch (Exception e) {
-      throw new RuntimeException(e);
+    else {
+      try {
+        SwingUtilities.invokeAndWait(runnable);
+      }
+      catch (Exception e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 
@@ -290,10 +315,6 @@ public class MockApplication extends MockComponentManager implements Application
   }
 
   @Override
-  public void exit() {
-  }
-
-  @Override
   public void saveAll() {
   }
 
@@ -307,11 +328,7 @@ public class MockApplication extends MockComponentManager implements Application
   }
 
   @Override
-  public void load(@Nullable String path) {
-  }
-
-  @Override
-  public void exit(boolean force, boolean exitConfirmed) {
+  public void load() {
   }
 
   @Override
@@ -323,29 +340,13 @@ public class MockApplication extends MockComponentManager implements Application
   }
 
   @Override
-  public boolean runProcessWithProgressSynchronously(@NotNull final Runnable process,
-                                                     @NotNull final String progressTitle,
-                                                     final boolean canBeCanceled,
-                                                     @Nullable final Project project,
-                                                     final JComponent parentComponent) {
-    return false;
-  }
-
-  @Override
   public boolean runProcessWithProgressSynchronously(@NotNull Runnable process,
                                                      @NotNull String progressTitle,
                                                      boolean canBeCanceled,
+                                                     boolean modal,
                                                      @Nullable Project project,
                                                      JComponent parentComponent,
                                                      String cancelText) {
-    return false;
-  }
-
-  @Override
-  public boolean runProcessWithProgressSynchronously(@NotNull Runnable process,
-                                                     @NotNull String progressTitle,
-                                                     boolean canBeCanceled,
-                                                     Project project) {
     return false;
   }
 

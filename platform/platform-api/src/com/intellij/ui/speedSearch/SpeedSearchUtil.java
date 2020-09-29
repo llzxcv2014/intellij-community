@@ -15,6 +15,7 @@
  */
 package com.intellij.ui.speedSearch;
 
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.registry.Registry;
@@ -23,6 +24,7 @@ import com.intellij.ui.SimpleColoredComponent;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.text.Matcher;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -81,7 +83,7 @@ public final class SpeedSearchUtil {
   }
 
   public static void appendFragmentsForSpeedSearch(@NotNull JComponent speedSearchEnabledComponent,
-                                                   @NotNull String text,
+                                                   @NotNull @NlsContexts.Label String text,
                                                    @NotNull SimpleTextAttributes attributes,
                                                    boolean selected,
                                                    @NotNull SimpleColoredComponent simpleColoredComponent) {
@@ -89,19 +91,14 @@ public final class SpeedSearchUtil {
     if (speedSearch != null) {
       final Iterable<TextRange> fragments = speedSearch.matchingFragments(text);
       if (fragments != null) {
-        final Color fg = attributes.getFgColor();
-        Color bg = UIUtil.getTreeBackground(selected, true);
-        final int style = attributes.getStyle();
-        final SimpleTextAttributes plain = new SimpleTextAttributes(style, fg);
-        final SimpleTextAttributes highlighted = new SimpleTextAttributes(bg, fg, null, style | SimpleTextAttributes.STYLE_SEARCH_MATCH);
-        appendColoredFragments(simpleColoredComponent, text, fragments, plain, highlighted);
+        appendSpeedSearchColoredFragments(simpleColoredComponent, text, fragments, attributes, selected);
         return;
       }
     }
     simpleColoredComponent.append(text, attributes);
   }
 
-  public static void appendColoredFragmentForMatcher(@NotNull String text,
+  public static void appendColoredFragmentForMatcher(@NotNull @NlsContexts.Label String text,
                                                      SimpleColoredComponent component,
                                                      @NotNull final SimpleTextAttributes attributes,
                                                      @Nullable Matcher matcher,
@@ -113,6 +110,7 @@ public final class SpeedSearchUtil {
     }
 
     final Iterable<TextRange> iterable = ((MinusculeMatcher)matcher).matchingFragments(text);
+    component.setDynamicSearchMatchHighlighting(iterable != null);
     if (iterable != null) {
       final Color fg = attributes.getFgColor();
       final int style = attributes.getStyle();
@@ -125,8 +123,21 @@ public final class SpeedSearchUtil {
     }
   }
 
+  public static void appendSpeedSearchColoredFragments(@NotNull SimpleColoredComponent simpleColoredComponent,
+                                                       @NotNull @NlsContexts.Label String text,
+                                                       @NotNull Iterable<? extends TextRange> colored,
+                                                       @NotNull SimpleTextAttributes attributes,
+                                                       boolean selected) {
+    final Color fg = attributes.getFgColor();
+    final Color bg = UIUtil.getTreeBackground(selected, true);
+    final int style = attributes.getStyle();
+    final SimpleTextAttributes plain = new SimpleTextAttributes(style, fg);
+    final SimpleTextAttributes highlighted = new SimpleTextAttributes(bg, fg, null, style | SimpleTextAttributes.STYLE_SEARCH_MATCH);
+    appendColoredFragments(simpleColoredComponent, text, colored, plain, highlighted);
+  }
+
   public static void appendColoredFragments(final SimpleColoredComponent simpleColoredComponent,
-                                            final String text,
+                                            final @Nls String text,
                                             Iterable<? extends TextRange> colored,
                                             final SimpleTextAttributes plain, final SimpleTextAttributes highlighted) {
     final List<Pair<String, Integer>> searchTerms = new ArrayList<>();

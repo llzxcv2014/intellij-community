@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.completion;
 
 import com.intellij.codeInsight.lookup.Classifier;
@@ -10,10 +10,11 @@ import com.intellij.openapi.util.Pair;
 import com.intellij.psi.statistics.StatisticsInfo;
 import com.intellij.psi.statistics.StatisticsManager;
 import com.intellij.util.ProcessingContext;
+import com.intellij.util.containers.CollectionFactory;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.JBIterable;
 import com.intellij.util.containers.MultiMap;
-import gnu.trove.THashSet;
+import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,7 +23,7 @@ import java.util.*;
 /**
  * @author peter
 */
-public class StatisticsWeigher extends CompletionWeigher {
+public final class StatisticsWeigher extends CompletionWeigher {
   private static final Logger LOG = Logger.getInstance(LookupStatisticsWeigher.class);
   private static final Key<StatisticsInfo> BASE_STATISTICS_INFO = Key.create("Base statistics info");
 
@@ -33,9 +34,9 @@ public class StatisticsWeigher extends CompletionWeigher {
 
   public static class LookupStatisticsWeigher extends Classifier<LookupElement> {
     private final CompletionLocation myLocation;
-    private final Map<LookupElement, StatisticsComparable> myWeights = ContainerUtil.newIdentityHashMap();
-    private final Set<String> myStringsWithWeights = new THashSet<>();
-    private final Set<LookupElement> myNoStats = ContainerUtil.newIdentityTroveSet();
+    private final Map<LookupElement, StatisticsComparable> myWeights = new IdentityHashMap<>();
+    private final Set<String> myStringsWithWeights = CollectionFactory.createSmallMemoryFootprintSet();
+    private final Set<LookupElement> myNoStats = new ReferenceOpenHashSet<>();
 
     public LookupStatisticsWeigher(CompletionLocation location, Classifier<LookupElement> next) {
       super(next, "stats");
@@ -58,7 +59,7 @@ public class StatisticsWeigher extends CompletionWeigher {
 
     @NotNull
     @Override
-    public Iterable<LookupElement> classify(@NotNull Iterable<LookupElement> source, @NotNull final ProcessingContext context) {
+    public Iterable<LookupElement> classify(@NotNull Iterable<? extends LookupElement> source, @NotNull final ProcessingContext context) {
       List<LookupElement> initialList = getInitialNoStatElements(source, context);
       Iterable<LookupElement> rest = withoutInitial(source, initialList);
       Collection<List<LookupElement>> byWeight = buildMapByWeight(rest).descendingMap().values();
@@ -66,12 +67,12 @@ public class StatisticsWeigher extends CompletionWeigher {
       return JBIterable.from(initialList).append(JBIterable.from(byWeight).flatten(group -> myNext.classify(group, context)));
     }
 
-    private static Iterable<LookupElement> withoutInitial(Iterable<LookupElement> allItems, List<? extends LookupElement> initial) {
-      Set<LookupElement> initialSet = ContainerUtil.newIdentityTroveSet(initial);
-      return JBIterable.from(allItems).filter(element -> !initialSet.contains(element));
+    private static Iterable<LookupElement> withoutInitial(Iterable<? extends LookupElement> allItems, List<? extends LookupElement> initial) {
+      Set<LookupElement> initialSet = new ReferenceOpenHashSet<>(initial);
+      return JBIterable.<LookupElement>from(allItems).filter(element -> !initialSet.contains(element));
     }
 
-    private List<LookupElement> getInitialNoStatElements(Iterable<LookupElement> source, ProcessingContext context) {
+    private List<LookupElement> getInitialNoStatElements(Iterable<? extends LookupElement> source, ProcessingContext context) {
       List<LookupElement> initialList = new ArrayList<>();
       for (LookupElement next : myNext.classify(source, context)) {
         if (myNoStats.contains(next)) {
@@ -100,7 +101,7 @@ public class StatisticsWeigher extends CompletionWeigher {
       map.put(0, noStats);
       for (String s : byName.keySet()) {
         List<LookupElement> group = (List<LookupElement>)byName.get(s);
-        Collections.sort(group, Comparator.comparing(this::getScalarWeight).reversed());
+        group.sort(Comparator.comparing(this::getScalarWeight).reversed());
         map.computeIfAbsent(getMaxWeight(group), __ -> new ArrayList<>()).addAll(group);
       }
       return map;
@@ -139,7 +140,7 @@ public class StatisticsWeigher extends CompletionWeigher {
 
     @NotNull
     @Override
-    public List<Pair<LookupElement, Object>> getSortingWeights(@NotNull Iterable<LookupElement> items, @NotNull final ProcessingContext context) {
+    public List<Pair<LookupElement, Object>> getSortingWeights(@NotNull Iterable<? extends LookupElement> items, @NotNull final ProcessingContext context) {
       return ContainerUtil.map(items, lookupElement -> new Pair<>(lookupElement, getWeight(lookupElement)));
     }
 

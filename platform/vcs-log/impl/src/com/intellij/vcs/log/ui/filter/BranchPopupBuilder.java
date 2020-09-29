@@ -4,9 +4,12 @@ package com.intellij.vcs.log.ui.filter;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
+import com.intellij.openapi.util.NlsActions;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.vcs.log.RefGroup;
+import com.intellij.vcs.log.VcsLogBundle;
 import com.intellij.vcs.log.VcsLogDataPack;
 import com.intellij.vcs.log.VcsRef;
 import com.intellij.vcs.log.impl.SingletonRefGroup;
@@ -30,7 +33,7 @@ public abstract class BranchPopupBuilder {
   }
 
   @NotNull
-  protected abstract AnAction createAction(@NotNull String name, @NotNull Collection<? extends VcsRef> refs);
+  protected abstract AnAction createAction(@NotNull @NlsActions.ActionText String name, @NotNull Collection<? extends VcsRef> refs);
 
   protected void createRecentAction(@NotNull DefaultActionGroup actionGroup, @NotNull List<String> recentItem) {
     assert myRecentItems == null;
@@ -40,7 +43,7 @@ public abstract class BranchPopupBuilder {
   }
 
   @NotNull
-  protected AnAction createCollapsedAction(@NotNull String actionName, @NotNull Collection<? extends VcsRef> refs) {
+  protected AnAction createCollapsedAction(@NotNull @NlsActions.ActionText String actionName, @NotNull Collection<? extends VcsRef> refs) {
     return createAction(actionName, refs);
   }
 
@@ -71,11 +74,11 @@ public abstract class BranchPopupBuilder {
   @NotNull
   private DefaultActionGroup createActions(@NotNull Groups groups) {
     DefaultActionGroup actionGroup = new DefaultActionGroup();
-    for (Map.Entry<String, Collection<VcsRef>> entry : groups.singletonGroups.entrySet()) {
+    for (Map.Entry<@NlsActions.ActionText String, Collection<VcsRef>> entry : groups.singletonGroups.entrySet()) {
       actionGroup.add(createAction(entry.getKey(), entry.getValue()));
     }
     if (!groups.recentGroups.isEmpty()) {
-      DefaultActionGroup recentGroup = new DefaultActionGroup("Recent", true);
+      DefaultActionGroup recentGroup = new DefaultActionGroup(VcsLogBundle.message("vcs.log.filter.recent"), true);
       for (List<String> recentItem : groups.recentGroups) {
         createRecentAction(recentGroup, recentItem);
       }
@@ -85,19 +88,19 @@ public abstract class BranchPopupBuilder {
       createFavoritesAction(actionGroup, new ArrayList<>(ContainerUtil.map2LinkedSet(ContainerUtil.flatten(groups.favoriteGroups.values()),
                                                                                      ref -> ref.getName())));
     }
-    for (Map.Entry<String, Collection<VcsRef>> entry : groups.favoriteGroups.entrySet()) {
+    for (Map.Entry<@NlsActions.ActionText String, Collection<VcsRef>> entry : groups.favoriteGroups.entrySet()) {
       actionGroup.add(createAction(entry.getKey(), entry.getValue()));
     }
-    for (Map.Entry<String, TreeMap<String, Collection<VcsRef>>> group : groups.expandedGroups.entrySet()) {
+    for (Map.Entry<@NlsContexts.Separator String, TreeMap<@NlsActions.ActionText String, Collection<VcsRef>>> group : groups.expandedGroups.entrySet()) {
       actionGroup.addSeparator(group.getKey());
-      for (Map.Entry<String, Collection<VcsRef>> entry : group.getValue().entrySet()) {
+      for (Map.Entry<@NlsActions.ActionText String, Collection<VcsRef>> entry : group.getValue().entrySet()) {
         actionGroup.add(createAction(entry.getKey(), entry.getValue()));
       }
     }
     actionGroup.addSeparator();
-    for (Map.Entry<String, TreeMap<String, Collection<VcsRef>>> group : groups.collapsedGroups.entrySet()) {
-      DefaultActionGroup popupGroup = new DefaultActionGroup(group.getKey(), true);
-      for (Map.Entry<String, Collection<VcsRef>> entry : group.getValue().entrySet()) {
+    for (Map.Entry<@NlsActions.ActionText String, TreeMap<@NlsActions.ActionText String, Collection<VcsRef>>> group : groups.collapsedGroups.entrySet()) {
+      DefaultActionGroup popupGroup = DefaultActionGroup.createPopupGroup(() -> group.getKey());
+      for (Map.Entry<@NlsActions.ActionText String, Collection<VcsRef>> entry : group.getValue().entrySet()) {
         popupGroup.add(createCollapsedAction(entry.getKey(), entry.getValue()));
       }
       actionGroup.add(popupGroup);

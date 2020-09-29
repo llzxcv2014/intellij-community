@@ -18,6 +18,7 @@ package com.siyeh.ig.style;
 import com.intellij.codeInspection.CleanupLocalInspectionTool;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ProblemHighlightType;
+import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -29,12 +30,6 @@ import com.siyeh.ig.psiutils.ClassUtils;
 import org.jetbrains.annotations.NotNull;
 
 public class UnnecessaryEnumModifierInspection extends BaseInspection implements CleanupLocalInspectionTool{
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("unnecessary.enum.modifier.display.name");
-  }
 
   @Override
   @NotNull
@@ -65,7 +60,7 @@ public class UnnecessaryEnumModifierInspection extends BaseInspection implements
 
   private static class UnnecessaryEnumModifierFix extends InspectionGadgetsFix {
 
-    private final String m_name;
+    private final @IntentionName String m_name;
 
     UnnecessaryEnumModifierFix(PsiElement modifier) {
       m_name = InspectionGadgetsBundle.message("smth.unnecessary.remove.quickfix", modifier.getText());
@@ -80,7 +75,7 @@ public class UnnecessaryEnumModifierInspection extends BaseInspection implements
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Remove unnecessary modifiers";
+      return InspectionGadgetsBundle.message("unnecessary.interface.modifiers.fix.family.name");
     }
 
     @Override

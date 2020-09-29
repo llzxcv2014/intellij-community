@@ -4,6 +4,7 @@ package com.intellij.codeInspection.ex;
 import com.intellij.codeInsight.AnnotationTargetUtil;
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
 import com.intellij.codeInspection.util.SpecialAnnotationsUtil;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.project.Project;
@@ -11,7 +12,6 @@ import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.VerticalFlowLayout;
-import com.intellij.openapi.util.Condition;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiClass;
 import org.jdom.Element;
@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 @State(name = "EntryPointsManager")
 public class EntryPointsManagerImpl extends EntryPointsManagerBase implements PersistentStateComponent<Element> {
@@ -35,16 +36,18 @@ public class EntryPointsManagerImpl extends EntryPointsManagerBase implements Pe
     final List<String> list = new ArrayList<>(ADDITIONAL_ANNOTATIONS);
     final List<String> writeList = new ArrayList<>(myWriteAnnotations);
 
-    final JPanel listPanel = SpecialAnnotationsUtil.createSpecialAnnotationsListControl(list, "Mark as entry point if annotated by", true);
-    Condition<PsiClass> applicableToField = psiClass -> {
+    final JPanel listPanel = SpecialAnnotationsUtil.createSpecialAnnotationsListControl(
+      list, JavaBundle.message("separator.mark.as.entry.point.if.annotated.by"), true);
+    Predicate<PsiClass> applicableToField = psiClass -> {
       Set<PsiAnnotation.TargetType> annotationTargets = AnnotationTargetUtil.getAnnotationTargets(psiClass);
       return annotationTargets != null && annotationTargets.contains(PsiAnnotation.TargetType.FIELD);
     };
-    final JPanel writtenAnnotationsPanel = SpecialAnnotationsUtil.createSpecialAnnotationsListControl(writeList, "Mark field as implicitly written if annotated by", false, applicableToField);
+    final JPanel writtenAnnotationsPanel = SpecialAnnotationsUtil.createSpecialAnnotationsListControl(
+      writeList, JavaBundle.message("separator.mark.field.as.implicitly.written.if.annotated.by"), false, applicableToField);
     new DialogWrapper(myProject) {
       {
         init();
-        setTitle("Configure Annotations");
+        setTitle(JavaBundle.message("dialog.title.configure.annotations"));
       }
 
       @Override
@@ -70,7 +73,7 @@ public class EntryPointsManagerImpl extends EntryPointsManagerBase implements Pe
   }
 
   public static JButton createConfigureAnnotationsButton() {
-    final JButton configureAnnotations = new JButton("Annotations...");
+    final JButton configureAnnotations = new JButton(JavaBundle.message("button.annotations"));
     configureAnnotations.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {
@@ -81,7 +84,7 @@ public class EntryPointsManagerImpl extends EntryPointsManagerBase implements Pe
   }
 
   public static JButton createConfigureClassPatternsButton() {
-    final JButton configureClassPatterns = new JButton("Code patterns...");
+    final JButton configureClassPatterns = new JButton(JavaBundle.message("button.code.patterns"));
     configureClassPatterns.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {
@@ -96,7 +99,7 @@ public class EntryPointsManagerImpl extends EntryPointsManagerBase implements Pe
 
           {
             init();
-            setTitle("Configure Code Patterns");
+            setTitle(JavaBundle.message("dialog.title.configure.code.patterns"));
           }
 
           @Override

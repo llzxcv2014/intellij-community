@@ -1,18 +1,19 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.dom.impl;
 
 import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileWithId;
 import com.intellij.psi.impl.include.FileIncludeManager;
-import com.intellij.util.containers.SmartHashSet;
 import com.intellij.util.xml.DomElement;
 import com.intellij.util.xml.DomUtil;
 import com.intellij.util.xml.XmlName;
+import com.intellij.util.xml.reflect.CustomDomChildrenDescription;
 import com.intellij.util.xml.reflect.DomExtender;
 import com.intellij.util.xml.reflect.DomExtensionsRegistrar;
 import org.jetbrains.annotations.NotNull;
@@ -27,9 +28,9 @@ import org.jetbrains.idea.devkit.dom.index.PluginIdModuleIndex;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
 import java.util.*;
+import java.util.function.Supplier;
 
-public class ExtensionsDomExtender extends DomExtender<Extensions> {
-
+public final class ExtensionsDomExtender extends DomExtender<Extensions> {
   private static final DomExtender<Extension> EXTENSION_EXTENDER = new ExtensionDomExtender();
 
   @Override
@@ -41,18 +42,21 @@ public class ExtensionsDomExtender extends DomExtender<Extensions> {
   public void registerExtensions(@NotNull final Extensions extensions, @NotNull final DomExtensionsRegistrar registrar) {
     Project project = extensions.getManager().getProject();
     VirtualFile currentFile = getVirtualFile(extensions);
-    if (currentFile == null) return;
+    if (currentFile == null || DumbService.isDumb(project)) return;
 
     Set<VirtualFile> files = getVisibleFiles(project, currentFile);
 
     String epPrefix = extensions.getEpPrefix();
-    Map<String, ExtensionPoint> points = ExtensionPointIndex.getExtensionPoints(project, files, epPrefix);
+    Map<String, Supplier<ExtensionPoint>> points = ExtensionPointIndex.getExtensionPoints(project, files, epPrefix);
 
-    for (Map.Entry<String, ExtensionPoint> entry : points.entrySet()) {
+    for (Map.Entry<String, Supplier<ExtensionPoint>> entry : points.entrySet()) {
       registrar.registerCollectionChildrenExtension(new XmlName(entry.getKey().substring(epPrefix.length())), Extension.class)
-        .setDeclaringElement(entry.getValue())
+        .setDeclaringDomElement(entry.getValue())
         .addExtender(EXTENSION_EXTENDER);
     }
+
+    // "fallback" extension
+    registrar.registerCustomChildrenExtension(Extensions.UnresolvedExtension.class, new CustomDomChildrenDescription.TagNameDescriptor());
   }
 
   @Nullable
@@ -106,7 +110,7 @@ public class ExtensionsDomExtender extends DomExtender<Extensions> {
     final VirtualFile[] includingFiles = FileIncludeManager.getManager(project).getIncludingFiles(currentFile, false);
 
     final ProjectFileIndex fileIndex = ProjectRootManager.getInstance(project).getFileIndex();
-    Set<VirtualFile> includingAndDependsFiles = new SmartHashSet<>();
+    Set<VirtualFile> includingAndDependsFiles = new HashSet<>();
     for (VirtualFile virtualFile : includingFiles) {
       if (!fileIndex.isUnderSourceRootOfType(virtualFile, JavaModuleSourceRootTypes.PRODUCTION)) {
         continue;
@@ -125,4 +129,5 @@ public class ExtensionsDomExtender extends DomExtender<Extensions> {
     result.addAll(ids);
     return result;
   }
+
 }

@@ -1,14 +1,16 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.refactoring.introduce.constant;
 
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.refactoring.HelpID;
-import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.introduce.inplace.OccurrencesChooser;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.groovy.GroovyBundle;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyRecursiveElementVisitor;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrField;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrVariable;
@@ -21,16 +23,16 @@ import org.jetbrains.plugins.groovy.refactoring.introduce.*;
 
 import java.util.*;
 
+import static org.jetbrains.annotations.Nls.Capitalization.Title;
+
 /**
  * @author Maxim.Medvedev
  */
 public class GrIntroduceConstantHandler extends GrIntroduceFieldHandlerBase<GrIntroduceConstantSettings> {
-  public static final String REFACTORING_NAME = "Introduce Constant";
 
-  @NotNull
   @Override
-  protected String getRefactoringName() {
-    return REFACTORING_NAME;
+  protected @Nls(capitalization = Title) @NotNull String getRefactoringName() {
+    return GroovyBundle.message("introduce.constant.title");
   }
 
   @NotNull
@@ -54,7 +56,7 @@ public class GrIntroduceConstantHandler extends GrIntroduceFieldHandlerBase<GrIn
   protected void checkVariable(@NotNull GrVariable variable) throws GrRefactoringError {
     final GrExpression initializer = variable.getInitializerGroovy();
     if (initializer == null) {
-      throw new GrRefactoringError(RefactoringBundle.message("variable.does.not.have.an.initializer", variable.getName()));
+      throw new GrRefactoringError(JavaRefactoringBundle.message("variable.does.not.have.an.initializer", variable.getName()));
     }
     checkExpression(initializer);
   }
@@ -65,7 +67,7 @@ public class GrIntroduceConstantHandler extends GrIntroduceFieldHandlerBase<GrIn
   }
 
   @Override
-  protected void checkOccurrences(@NotNull PsiElement[] occurrences) {
+  protected void checkOccurrences(PsiElement @NotNull [] occurrences) {
     if (hasLhs(occurrences)) {
       throw new GrRefactoringError(GroovyRefactoringBundle.message("selected.variable.is.used.for.write"));
     }
@@ -123,7 +125,7 @@ public class GrIntroduceConstantHandler extends GrIntroduceFieldHandlerBase<GrIn
     return map;
   }
 
-  private static class ConstantChecker extends GroovyRecursiveElementVisitor {
+  private static final class ConstantChecker extends GroovyRecursiveElementVisitor {
     private final PsiElement scope;
     private final GrExpression expr;
 
@@ -138,7 +140,7 @@ public class GrIntroduceConstantHandler extends GrIntroduceFieldHandlerBase<GrIn
             }
           }
           else {
-            throw new GrRefactoringError(RefactoringBundle.message("selected.expression.cannot.be.a.constant.initializer"));
+            throw new GrRefactoringError(JavaRefactoringBundle.message("selected.expression.cannot.be.a.constant.initializer"));
           }
         }
       }
@@ -147,7 +149,7 @@ public class GrIntroduceConstantHandler extends GrIntroduceFieldHandlerBase<GrIn
         if (qualifier == null ||
             (qualifier instanceof GrReferenceExpression && ((GrReferenceExpression)qualifier).resolve() instanceof PsiClass)) {
           if (!((PsiMethod)resolved).hasModifierProperty(PsiModifier.STATIC)) {
-            throw new GrRefactoringError(RefactoringBundle.message("selected.expression.cannot.be.a.constant.initializer"));
+            throw new GrRefactoringError(JavaRefactoringBundle.message("selected.expression.cannot.be.a.constant.initializer"));
           }
         }
       }

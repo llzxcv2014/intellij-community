@@ -1,9 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.openapi.projectRoots.impl;
 
 import com.intellij.openapi.Disposable;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.PersistentOrderRootType;
@@ -14,19 +13,16 @@ import com.intellij.openapi.vfs.pointers.VirtualFilePointerContainer;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointerListener;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointerManager;
 import com.intellij.util.ArrayUtilRt;
-import gnu.trove.THashMap;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * @author mike
- */
 public class RootsAsVirtualFilePointers implements RootProvider {
   private static final Logger LOG = Logger.getInstance(RootsAsVirtualFilePointers.class);
-  private final Map<OrderRootType, VirtualFilePointerContainer> myRoots = new THashMap<>();
+  private final Map<OrderRootType, VirtualFilePointerContainer> myRoots = new ConcurrentHashMap<>();
 
   private final boolean myNoCopyJars;
   private final VirtualFilePointerListener myListener;
@@ -39,15 +35,13 @@ public class RootsAsVirtualFilePointers implements RootProvider {
   }
 
   @Override
-  @NotNull
-  public VirtualFile[] getFiles(@NotNull OrderRootType type) {
+  public VirtualFile @NotNull [] getFiles(@NotNull OrderRootType type) {
     VirtualFilePointerContainer container = myRoots.get(type);
     return container == null ? VirtualFile.EMPTY_ARRAY : container.getFiles();
   }
 
   @Override
-  @NotNull
-  public String[] getUrls(@NotNull OrderRootType type) {
+  public String @NotNull [] getUrls(@NotNull OrderRootType type) {
     VirtualFilePointerContainer container = myRoots.get(type);
     return container == null ? ArrayUtilRt.EMPTY_STRING_ARRAY : container.getUrls();
   }
@@ -90,13 +84,13 @@ public class RootsAsVirtualFilePointers implements RootProvider {
       read(element, type);
     }
 
-    ApplicationManager.getApplication().runReadAction(() -> myRoots.values().forEach(container -> {
-      if (myNoCopyJars) {
+    if (myNoCopyJars) {
+      myRoots.values().forEach(container -> {
         for (String root : container.getUrls()) {
           setNoCopyJars(root);
         }
-      }
-    }));
+      });
+    }
   }
 
   public void writeExternal(@NotNull Element element) {

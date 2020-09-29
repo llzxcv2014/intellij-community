@@ -17,6 +17,7 @@ package com.siyeh.ig.bugs;
 
 import com.intellij.codeInspection.dataFlow.*;
 import com.intellij.codeInspection.dataFlow.rangeSet.LongRangeSet;
+import com.intellij.codeInspection.dataFlow.types.DfIntType;
 import com.intellij.codeInspection.dataFlow.value.DfaValue;
 import com.intellij.codeInspection.dataFlow.value.DfaVariableValue;
 import com.intellij.psi.*;
@@ -29,7 +30,6 @@ import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.psiutils.ControlFlowUtils;
 import com.siyeh.ig.psiutils.ExpressionUtils;
 import com.siyeh.ig.psiutils.MethodUtils;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
@@ -38,13 +38,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class SuspiciousComparatorCompareInspection extends BaseInspection {
-
-  @Override
-  @Nls
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("suspicious.comparator.compare.display.name");
-  }
 
   @NotNull
   @Override
@@ -120,7 +113,7 @@ public class SuspiciousComparatorCompareInspection extends BaseInspection {
     }
 
     private void checkReflexivity(PsiParameterListOwner owner, PsiParameter[] parameters, PsiElement body) {
-      DataFlowRunner runner = new DataFlowRunner(body) {
+      DataFlowRunner runner = new DataFlowRunner(owner.getProject(), body) {
         @NotNull
         @Override
         protected DfaMemoryState createMemoryState() {
@@ -156,7 +149,7 @@ public class SuspiciousComparatorCompareInspection extends BaseInspection {
                     InspectionGadgetsBundle.message("suspicious.comparator.compare.descriptor.non.reflexive"));
     }
 
-    private static class ComparatorVisitor extends StandardInstructionVisitor {
+    private static final class ComparatorVisitor extends StandardInstructionVisitor {
       private final PsiParameterListOwner myOwner;
       private final Set<PsiElement> myContexts = new HashSet<>();
       LongRangeSet myRange = LongRangeSet.empty();
@@ -172,16 +165,15 @@ public class SuspiciousComparatorCompareInspection extends BaseInspection {
                                       @NotNull DfaMemoryState state) {
         if (owner != myOwner) return;
         myContexts.add(expression);
-        LongRangeSet range = state.getValueFact(value, DfaFactType.RANGE);
-        myRange = range == null ? LongRangeSet.all() : myRange.unite(range);
+        myRange = myRange.unite(DfIntType.extractRange(state.getDfType(value)));
       }
     }
 
-    private static class ParameterAccessVisitor extends JavaRecursiveElementWalkingVisitor {
+    private static final class ParameterAccessVisitor extends JavaRecursiveElementWalkingVisitor {
 
       private final Set<PsiParameter> parameters;
 
-      private ParameterAccessVisitor(@NotNull PsiParameter[] parameters) {
+      private ParameterAccessVisitor(PsiParameter @NotNull [] parameters) {
         this.parameters = ContainerUtil.set(parameters);
       }
 

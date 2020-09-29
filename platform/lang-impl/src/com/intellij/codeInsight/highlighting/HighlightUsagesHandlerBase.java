@@ -21,8 +21,7 @@ import com.intellij.codeInsight.hint.HintManager;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.colors.EditorColors;
-import com.intellij.openapi.editor.colors.EditorColorsManager;
-import com.intellij.openapi.editor.markup.TextAttributes;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.psi.PsiElement;
@@ -43,8 +42,8 @@ public abstract class HighlightUsagesHandlerBase<T extends PsiElement> {
 
   protected List<TextRange> myReadUsages = new ArrayList<>();
   protected List<TextRange> myWriteUsages = new ArrayList<>();
-  protected String myStatusText;
-  protected String myHintText;
+  protected @NlsContexts.StatusBarText String myStatusText;
+  protected @NlsContexts.HintText String myHintText;
 
   protected HighlightUsagesHandlerBase(@NotNull Editor editor, @NotNull PsiFile file) {
     myEditor = editor;
@@ -53,9 +52,6 @@ public abstract class HighlightUsagesHandlerBase<T extends PsiElement> {
 
   public void highlightUsages() {
     List<T> targets = getTargets();
-    if (targets == null) {
-      return;
-    }
     selectTargets(targets, targets1 -> {
       computeUsages(targets1);
       performHighlighting();
@@ -64,13 +60,10 @@ public abstract class HighlightUsagesHandlerBase<T extends PsiElement> {
 
   private void performHighlighting() {
     boolean clearHighlights = HighlightUsagesHandler.isClearHighlights(myEditor);
-    EditorColorsManager manager = EditorColorsManager.getInstance();
-    TextAttributes attributes = manager.getGlobalScheme().getAttributes(EditorColors.SEARCH_RESULT_ATTRIBUTES);
-    TextAttributes writeAttributes = manager.getGlobalScheme().getAttributes(EditorColors.WRITE_SEARCH_RESULT_ATTRIBUTES);
     HighlightUsagesHandler.highlightRanges(HighlightManager.getInstance(myEditor.getProject()),
-                                           myEditor, attributes, clearHighlights, myReadUsages);
+                                           myEditor, EditorColors.SEARCH_RESULT_ATTRIBUTES, clearHighlights, myReadUsages);
     HighlightUsagesHandler.highlightRanges(HighlightManager.getInstance(myEditor.getProject()),
-                                           myEditor, writeAttributes, clearHighlights, myWriteUsages);
+                                           myEditor, EditorColors.WRITE_SEARCH_RESULT_ATTRIBUTES, clearHighlights, myWriteUsages);
     if (!clearHighlights) {
       WindowManager.getInstance().getStatusBar(myFile.getProject()).setInfo(myStatusText);
 
@@ -95,6 +88,7 @@ public abstract class HighlightUsagesHandlerBase<T extends PsiElement> {
     }
   }
 
+  @NotNull
   public abstract List<T> getTargets();
 
   @Nullable
@@ -102,9 +96,9 @@ public abstract class HighlightUsagesHandlerBase<T extends PsiElement> {
     return null;
   }
 
-  protected abstract void selectTargets(List<T> targets, Consumer<List<T>> selectionConsumer);
+  protected abstract void selectTargets(@NotNull List<? extends T> targets, @NotNull Consumer<? super List<? extends T>> selectionConsumer);
 
-  public abstract void computeUsages(List<T> targets);
+  public abstract void computeUsages(@NotNull List<? extends T> targets);
 
   protected void addOccurrence(@NotNull PsiElement element) {
     TextRange range = element.getTextRange();

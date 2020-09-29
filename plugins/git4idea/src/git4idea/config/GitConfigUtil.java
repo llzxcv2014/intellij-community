@@ -1,21 +1,8 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.config;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vfs.CharsetToolkit;
@@ -25,6 +12,7 @@ import git4idea.commands.Git;
 import git4idea.commands.GitCommand;
 import git4idea.commands.GitCommandResult;
 import git4idea.commands.GitLineHandler;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,18 +23,21 @@ import java.util.Map;
 /**
  * Git utilities for working with configuration
  */
-public class GitConfigUtil {
+public final class GitConfigUtil {
 
-  public static final String USER_NAME = "user.name";
-  public static final String USER_EMAIL = "user.email";
-  public static final String CORE_AUTOCRLF = "core.autocrlf";
+  public static final @NlsSafe String USER_NAME = "user.name";
+  public static final @NlsSafe String USER_EMAIL = "user.email";
+  public static final @NlsSafe String CORE_AUTOCRLF = "core.autocrlf";
+  public static final @NlsSafe String CREDENTIAL_HELPER = "credential.helper";
+  public static final @NlsSafe String LOG_OUTPUT_ENCODING = "i18n.logoutputencoding";
+  public static final @NlsSafe String COMMIT_ENCODING = "i18n.commitencoding";
 
   private GitConfigUtil() {
   }
 
   public static void getValues(@NotNull Project project,
                                @NotNull VirtualFile root,
-                               @Nullable String keyMask,
+                               @Nullable @NonNls String keyMask,
                                @NotNull Map<String, String> result) throws VcsException {
     GitLineHandler h = new GitLineHandler(project, root, GitCommand.CONFIG);
     h.setSilent(true);
@@ -73,13 +64,13 @@ public class GitConfigUtil {
 
 
   @Nullable
-  public static String getValue(@NotNull Project project, @NotNull VirtualFile root, @NotNull String key) throws VcsException {
+  public static String getValue(@NotNull Project project, @NotNull VirtualFile root, @NotNull @NonNls String key) throws VcsException {
     GitLineHandler h = new GitLineHandler(project, root, GitCommand.CONFIG);
     return getValue(h, key);
   }
 
   @Nullable
-  private static String getValue(@NotNull GitLineHandler h, @NotNull String key) throws VcsException {
+  private static String getValue(@NotNull GitLineHandler h, @NotNull @NonNls String key) throws VcsException {
     h.setSilent(true);
     h.addParameters("--null", "--get", key);
     GitCommandResult result = Git.getInstance().runCommand(h);
@@ -96,7 +87,7 @@ public class GitConfigUtil {
    * @return true if the value represents "true", false if the value represents "false", null if the value doesn't look like a boolean value.
    */
   @Nullable
-  public static Boolean getBooleanValue(@NotNull String value) {
+  public static Boolean getBooleanValue(@NotNull @NonNls String value) {
     value = StringUtil.toLowerCase(value);
     if (ContainerUtil.newHashSet("true", "yes", "on", "1").contains(value)) return true;
     if (ContainerUtil.newHashSet("false", "no", "off", "0", "").contains(value)) return false;
@@ -110,7 +101,7 @@ public class GitConfigUtil {
   public static String getCommitEncoding(@NotNull Project project, @NotNull VirtualFile root) {
     String encoding = null;
     try {
-      encoding = getValue(project, root, "i18n.commitencoding");
+      encoding = getValue(project, root, COMMIT_ENCODING);
     }
     catch (VcsException e) {
       // ignore exception
@@ -124,7 +115,7 @@ public class GitConfigUtil {
   public static String getLogEncoding(@NotNull Project project, @NotNull VirtualFile root) {
     String encoding = null;
     try {
-      encoding = getValue(project, root, "i18n.logoutputencoding");
+      encoding = getValue(project, root, LOG_OUTPUT_ENCODING);
     }
     catch (VcsException e) {
       // ignore exception
@@ -143,9 +134,9 @@ public class GitConfigUtil {
 
   public static void setValue(@NotNull Project project,
                               @NotNull VirtualFile root,
-                              @NotNull String key,
-                              @NotNull String value,
-                              String... additionalParameters) throws VcsException {
+                              @NotNull @NonNls String key,
+                              @NotNull @NonNls String value,
+                              @NonNls String... additionalParameters) throws VcsException {
     GitLineHandler h = new GitLineHandler(project, root, GitCommand.CONFIG);
     h.setSilent(true);
     h.addParameters(additionalParameters);
@@ -159,7 +150,7 @@ public class GitConfigUtil {
   public static boolean isCredentialHelperUsed(@NotNull Project project, @NotNull File workingDirectory) {
     try {
       GitLineHandler handler = new GitLineHandler(project, workingDirectory, GitCommand.CONFIG);
-      String value = getValue(handler, "credential.helper");
+      String value = getValue(handler, CREDENTIAL_HELPER);
       return StringUtil.isNotEmpty(value);
     }
     catch (VcsException ignored) {

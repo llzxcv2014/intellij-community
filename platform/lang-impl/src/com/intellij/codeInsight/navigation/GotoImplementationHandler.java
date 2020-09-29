@@ -84,7 +84,12 @@ public class GotoImplementationHandler extends GotoTargetHandler {
         return false;
       }
     }.searchImplementations(editor, source, offset);
-    if (targets == null) return null;
+    if (targets == null) {
+      //canceled search
+      GotoData data = new GotoData(source, PsiElement.EMPTY_ARRAY, Collections.emptyList());
+      data.isCanceled = true;
+      return data;
+    }
     GotoData gotoData = new GotoData(source, targets, Collections.emptyList());
     gotoData.listUpdaterTask = new ImplementationsUpdaterTask(gotoData, editor, offset, reference) {
       @Override
@@ -182,7 +187,7 @@ public class GotoImplementationHandler extends GotoTargetHandler {
     // due to javac bug: java.lang.ClassFormatError: Illegal field name "com.intellij.codeInsight.navigation.GotoImplementationHandler$this" in class com/intellij/codeInsight/navigation/GotoImplementationHandler$ImplementationsUpdaterTask
     @SuppressWarnings("Convert2Lambda")
     ImplementationsUpdaterTask(@NotNull GotoData gotoData, @NotNull Editor editor, int offset, final PsiReference reference) {
-      super(gotoData.source.getProject(), ImplementationSearcher.SEARCHING_FOR_IMPLEMENTATIONS,
+      super(gotoData.source.getProject(), ImplementationSearcher.getSearchingForImplementations(),
             createComparatorWrapper(Comparator.comparing(new Function<PsiElement, Comparable>() {
                 @Override
                 public Comparable apply(PsiElement e1) {

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.newvfs.impl;
 
 import com.intellij.openapi.util.SystemInfo;
@@ -13,20 +13,20 @@ import java.util.List;
 /**
  * Memory-efficient CharSequence interner which stores file paths as an array of FileNameCache-enumerated ints
  */
-public class FilePathInterner extends WeakInterner<CharSequence> {
+public final class FilePathInterner extends WeakInterner<CharSequence> {
   @NotNull
   @Override
   public CharSequence intern(@NotNull CharSequence path) {
     List<String> names = StringUtil.split(path.toString(), "/");
     int[] nameIds = names.stream().mapToInt(name -> FileNameCache.storeName(name)).toArray();
-    return super.intern(new FileSeparatedCharSequence(nameIds));
+    return nameIds.length == 0 ? "" : super.intern(new FileSeparatedCharSequence(nameIds));
   }
 
-  private static class FileSeparatedCharSequence implements CharSequenceWithStringHash {
+  private static final class FileSeparatedCharSequence implements CharSequenceWithStringHash {
     private final int[] nameIds;
     private transient int hash;
 
-    private FileSeparatedCharSequence(@NotNull int[] nameIds) {
+    private FileSeparatedCharSequence(int @NotNull [] nameIds) {
       this.nameIds = nameIds;
     }
 

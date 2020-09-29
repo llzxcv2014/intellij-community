@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
@@ -11,31 +12,24 @@ import com.intellij.openapi.ui.JBPopupMenu;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.util.Condition;
-import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.scale.JBUIScale;
-import com.intellij.util.Consumer;
-import com.intellij.util.ReflectionUtil;
-import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import javax.swing.border.Border;
 import javax.swing.event.DocumentListener;
 import javax.swing.plaf.TextUI;
 import java.awt.*;
 import java.awt.event.*;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * @author max
- */
 public class SearchTextField extends JPanel {
   public static final DataKey<SearchTextField> KEY = DataKey.create("search.text.field");
   public static final KeyStroke SHOW_HISTORY_KEYSTROKE = KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK);
@@ -61,7 +55,7 @@ public class SearchTextField extends JPanel {
     this(historyPopupEnabled, null);
   }
 
-  public SearchTextField(String historyPropertyName) {
+  public SearchTextField(@NonNls String historyPropertyName) {
     this(true, historyPropertyName);
   }
 
@@ -84,13 +78,6 @@ public class SearchTextField extends JPanel {
         if (ui instanceof Condition && ((Condition)ui).value(e)) return;
 
         super.processMouseEvent(e);
-      }
-
-      @Override
-      public void setUI(TextUI ui) {
-        if (customSetupUIAndTextField(this, textUI -> super.setUI(textUI))) return;
-
-        super.setUI(ui);
       }
 
       @Override
@@ -163,15 +150,20 @@ public class SearchTextField extends JPanel {
 
     if (historyPopupEnabled) {
       myNativeSearchPopup = new JBPopupMenu();
-      myNoItems = new JBMenuItem("No recent searches");
+      myNoItems = new JBMenuItem(IdeBundle.message("no.recent.searches"));
       myNoItems.setEnabled(false);
 
       updateMenu();
       myTextField.putClientProperty("JTextField.Search.FindPopup", myNativeSearchPopup);
     }
+  }
+
+  @Override
+  public void addNotify() {
+    super.addNotify();
 
     if (toClearTextOnEscape()) {
-      final ActionManager actionManager = ActionManager.getInstance();
+      ActionManager actionManager = ActionManager.getInstance();
       if (actionManager != null) {
         EmptyAction.registerWithShortcutSet(IdeActions.ACTION_CLEAR_TEXT, CommonShortcuts.ESCAPE, this);
       }
@@ -226,27 +218,6 @@ public class SearchTextField extends JPanel {
     return false;
   }
 
-  protected boolean customSetupUIAndTextField(@NotNull TextFieldWithProcessing textField, @NotNull Consumer<? super TextUI> uiConsumer) {
-    if (SystemInfo.isMac) {
-      try {
-        Class<?> uiClass = UIUtil.isUnderIntelliJLaF() ? Class.forName("com.intellij.ide.ui.laf.intellij.MacIntelliJTextFieldUI")
-                                                       : Class.forName("com.intellij.ide.ui.laf.darcula.ui.DarculaTextFieldUI");
-        Method method = ReflectionUtil.getMethod(uiClass, "createUI", JComponent.class);
-        if (method != null) {
-          uiConsumer.consume((TextUI)method.invoke(uiClass, textField));
-          Class<?> borderClass = UIUtil.isUnderIntelliJLaF() ? Class.forName("com.intellij.ide.ui.laf.intellij.MacIntelliJTextBorder")
-                                                             : Class.forName("com.intellij.ide.ui.laf.darcula.ui.DarculaTextBorder");
-          textField.setBorder((Border)ReflectionUtil.newInstance(borderClass));
-          textField.setOpaque(false);
-        }
-        return true;
-      }
-      catch (Exception ignored) {
-      }
-    }
-    return false;
-  }
-
   public void addDocumentListener(DocumentListener listener) {
     getTextEditor().getDocument().addDocumentListener(listener);
   }
@@ -297,7 +268,10 @@ public class SearchTextField extends JPanel {
     }
   }
 
-  private void addMenuItem(final String item) {
+  protected void historyItemChosen(String item) {
+  }
+
+  private void addMenuItem(@NlsSafe String item) {
     if (myNativeSearchPopup != null) {
       myNativeSearchPopup.remove(myNoItems);
       final JMenuItem menuItem = new JBMenuItem(item);
@@ -305,6 +279,7 @@ public class SearchTextField extends JPanel {
       menuItem.addActionListener(e -> {
         myTextField.setText(item);
         addCurrentTextToHistory();
+        historyItemChosen(item);
       });
     }
   }
@@ -357,7 +332,7 @@ public class SearchTextField extends JPanel {
   protected void setEmptyHistory() {
   }
 
-  public class MyModel extends AbstractListModel {
+  public class MyModel extends AbstractListModel<String> {
     private List<String> myFullList = new ArrayList<>();
 
     private String mySelectedItem;
@@ -448,7 +423,7 @@ public class SearchTextField extends JPanel {
   protected void showPopup() {
     addCurrentTextToHistory();
     if (myPopup == null || !myPopup.isVisible()) {
-      final JList list = new JBList(myModel);
+      final JList<String> list = new JBList<>(myModel);
       final Runnable chooseRunnable = createItemChosenCallback(list);
       myPopup = JBPopupFactory.getInstance().createListPopupBuilder(list)
         .setMovable(false)

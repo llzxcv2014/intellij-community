@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.command;
 
 import com.intellij.codeInsight.FileModificationService;
+import com.intellij.core.CoreBundle;
 import com.intellij.openapi.application.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProcessCanceledException;
@@ -20,16 +21,17 @@ import org.jetbrains.annotations.TestOnly;
 
 import java.util.Arrays;
 
+import static com.intellij.openapi.util.NlsContexts.Command;
+
 public abstract class WriteCommandAction<T> extends BaseActionRunnable<T> {
   private static final Logger LOG = Logger.getInstance(WriteCommandAction.class);
 
-  private static final String DEFAULT_COMMAND_NAME = "Undefined";
   private static final String DEFAULT_GROUP_ID = null;
 
   public interface Builder {
     @Contract(pure = true)
     @NotNull
-    Builder withName(@Nullable String name);
+    Builder withName(@Nullable @Command String name);
 
     @Contract(pure = true)
     @NotNull
@@ -52,23 +54,23 @@ public abstract class WriteCommandAction<T> extends BaseActionRunnable<T> {
     <R, E extends Throwable> R compute(@NotNull ThrowableComputable<R, E> action) throws E;
   }
 
-  private static class BuilderImpl implements Builder {
+  private static final class BuilderImpl implements Builder {
     private final Project myProject;
     private final PsiFile[] myFiles;
-    private String myCommandName = DEFAULT_COMMAND_NAME;
+    private @Command String myCommandName = getDefaultCommandName();
     private String myGroupId = DEFAULT_GROUP_ID;
     private UndoConfirmationPolicy myPolicy;
     private boolean myGlobalUndoAction;
     private boolean myShouldRecordActionForActiveDocument = true;
 
-    private BuilderImpl(Project project, @NotNull PsiFile... files) {
+    private BuilderImpl(Project project, PsiFile @NotNull ... files) {
       myProject = project;
       myFiles = files;
     }
 
     @NotNull
     @Override
-    public Builder withName(String name) {
+    public Builder withName(@Command String name) {
       myCommandName = name;
       return this;
     }
@@ -153,17 +155,17 @@ public abstract class WriteCommandAction<T> extends BaseActionRunnable<T> {
 
   @NotNull
   @Contract(pure = true)
-  public static Builder writeCommandAction(@NotNull PsiFile first, @NotNull PsiFile... others) {
+  public static Builder writeCommandAction(@NotNull PsiFile first, PsiFile @NotNull ... others) {
     return new BuilderImpl(first.getProject(), ArrayUtil.prepend(first, others));
   }
 
   @NotNull
   @Contract(pure = true)
-  public static Builder writeCommandAction(Project project, @NotNull PsiFile... files) {
+  public static Builder writeCommandAction(Project project, PsiFile @NotNull ... files) {
     return new BuilderImpl(project, files);
   }
 
-  private final String myCommandName;
+  private final @Command String myCommandName;
   private final String myGroupID;
   private final Project myProject;
   private final PsiFile[] myPsiFiles;
@@ -172,15 +174,15 @@ public abstract class WriteCommandAction<T> extends BaseActionRunnable<T> {
    * @deprecated Use {@link #writeCommandAction(Project, PsiFile...)}{@code .run()} instead
    */
   @Deprecated
-  protected WriteCommandAction(@Nullable Project project, @NotNull PsiFile... files) {
-    this(project, DEFAULT_COMMAND_NAME, files);
+  protected WriteCommandAction(@Nullable Project project, PsiFile @NotNull ... files) {
+    this(project, getDefaultCommandName(), files);
   }
 
   /**
    * @deprecated Use {@link #writeCommandAction(Project, PsiFile...)}{@code .withName(commandName).run()} instead
    */
   @Deprecated
-  protected WriteCommandAction(@Nullable Project project, @Nullable String commandName, @NotNull PsiFile... files) {
+  protected WriteCommandAction(@Nullable Project project, @Nullable @Command String commandName, PsiFile @NotNull ... files) {
     this(project, commandName, DEFAULT_GROUP_ID, files);
   }
 
@@ -189,9 +191,9 @@ public abstract class WriteCommandAction<T> extends BaseActionRunnable<T> {
    */
   @Deprecated
   protected WriteCommandAction(@Nullable Project project,
-                               @Nullable String commandName,
+                               @Nullable @Command String commandName,
                                @Nullable String groupID,
-                               @NotNull PsiFile... files) {
+                               PsiFile @NotNull ... files) {
     myCommandName = commandName;
     myGroupID = groupID;
     myProject = project;
@@ -202,7 +204,7 @@ public abstract class WriteCommandAction<T> extends BaseActionRunnable<T> {
     return myProject;
   }
 
-  public final String getCommandName() {
+  public final @Command String getCommandName() {
     return myCommandName;
   }
 
@@ -322,11 +324,11 @@ public abstract class WriteCommandAction<T> extends BaseActionRunnable<T> {
       super(project, files);
     }
 
-    protected Simple(Project project, String commandName, /*@NotNull*/ PsiFile... files) {
+    protected Simple(Project project, @Command String commandName, /*@NotNull*/ PsiFile... files) {
       super(project, commandName, files);
     }
 
-    protected Simple(Project project, String name, String groupID, /*@NotNull*/ PsiFile... files) {
+    protected Simple(Project project, @Command String name, String groupID, /*@NotNull*/ PsiFile... files) {
       super(project, name, groupID, files);
     }
 
@@ -339,20 +341,24 @@ public abstract class WriteCommandAction<T> extends BaseActionRunnable<T> {
   }
 
   /**
-   * If run a write command using this method then "Undo" action always shows "Undefined" text - {@link #DEFAULT_COMMAND_NAME}.
+   * If run a write command using this method then "Undo" action always shows "Undefined" text.
    *
    * Please use {@link #runWriteCommandAction(Project, String, String, Runnable, PsiFile...)} instead.
    */
   @TestOnly
   public static void runWriteCommandAction(Project project, @NotNull Runnable runnable) {
-    runWriteCommandAction(project, DEFAULT_COMMAND_NAME, DEFAULT_GROUP_ID, runnable);
+    runWriteCommandAction(project, getDefaultCommandName(), DEFAULT_GROUP_ID, runnable);
+  }
+
+  private static @Command String getDefaultCommandName() {
+    return CoreBundle.message("command.name.undefined");
   }
 
   public static void runWriteCommandAction(Project project,
-                                           @Nullable final String commandName,
+                                           @Nullable @Command final String commandName,
                                            @Nullable final String groupID,
                                            @NotNull final Runnable runnable,
-                                           @NotNull PsiFile... files) {
+                                           PsiFile @NotNull ... files) {
     writeCommandAction(project, files).withName(commandName).withGroupId(groupID).run(() -> runnable.run());
   }
 

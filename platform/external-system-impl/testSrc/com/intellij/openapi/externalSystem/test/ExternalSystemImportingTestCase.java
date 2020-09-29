@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.externalSystem.test;
 
 import com.intellij.find.FindManager;
@@ -36,8 +36,8 @@ import com.intellij.openapi.projectRoots.impl.JavaAwareProjectJdkTableImpl;
 import com.intellij.openapi.roots.*;
 import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar;
-import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.TestDialog;
+import com.intellij.openapi.ui.TestDialogManager;
 import com.intellij.openapi.util.Couple;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
@@ -52,7 +52,6 @@ import com.intellij.usageView.UsageInfo;
 import com.intellij.util.BooleanFunction;
 import com.intellij.util.CommonProcessors;
 import com.intellij.util.Function;
-import com.intellij.util.PathUtil;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -65,6 +64,7 @@ import org.jetbrains.jps.model.module.JpsModuleSourceRootType;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 import static com.intellij.testFramework.EdtTestUtil.runInEdtAndGet;
@@ -243,7 +243,7 @@ public abstract class ExternalSystemImportingTestCase extends ExternalSystemTest
 
   protected static String getAbsolutePath(String path) {
     path = VfsUtilCore.urlToPath(path);
-    path = PathUtil.getCanonicalPath(path);
+    path = FileUtil.toCanonicalPath(path);
     return FileUtil.toSystemIndependentName(path);
   }
 
@@ -308,6 +308,10 @@ public abstract class ExternalSystemImportingTestCase extends ExternalSystemTest
     assertModuleDeps(moduleName, LibraryOrderEntry.class, expectedDeps);
   }
 
+  protected void assertModuleLibDeps(BiPredicate<? super String, ? super String> predicate, String moduleName, String... expectedDeps) {
+    assertModuleDeps(predicate, moduleName, LibraryOrderEntry.class, expectedDeps);
+  }
+
   protected void assertExportedDeps(String moduleName, String... expectedDeps) {
     final List<String> actual = new ArrayList<>();
 
@@ -333,7 +337,11 @@ public abstract class ExternalSystemImportingTestCase extends ExternalSystemTest
   }
 
   private void assertModuleDeps(String moduleName, Class clazz, String... expectedDeps) {
-    assertOrderedElementsAreEqual(collectModuleDepsNames(moduleName, clazz), expectedDeps);
+    assertModuleDeps(equalsPredicate(), moduleName, clazz, expectedDeps);
+  }
+
+  private void assertModuleDeps(BiPredicate<? super String, ? super String> predicate, String moduleName, Class clazz, String... expectedDeps) {
+    assertOrderedElementsAreEqual(predicate, collectModuleDepsNames(moduleName, clazz), expectedDeps);
   }
 
   protected void assertProductionOnTestDependencies(String moduleName, String... expectedDeps) {
@@ -352,7 +360,7 @@ public abstract class ExternalSystemImportingTestCase extends ExternalSystemTest
     return getModuleDep(moduleName, depName, ModuleOrderEntry.class);
   }
 
-  private List<String> collectModuleDepsNames(String moduleName, Predicate<OrderEntry> predicate) {
+  private List<String> collectModuleDepsNames(String moduleName, Predicate<? super OrderEntry> predicate) {
     List<String> actual = new ArrayList<>();
 
     for (OrderEntry e : getRootManager(moduleName).getOrderEntries()) {
@@ -554,7 +562,7 @@ public abstract class ExternalSystemImportingTestCase extends ExternalSystemTest
 
   protected static AtomicInteger configConfirmationForYesAnswer() {
     final AtomicInteger counter = new AtomicInteger();
-    Messages.setTestDialog(new TestDialog() {
+    TestDialogManager.setTestDialog(new TestDialog() {
       @Override
       public int show(@NotNull String message) {
         counter.set(counter.get() + 1);
@@ -566,7 +574,7 @@ public abstract class ExternalSystemImportingTestCase extends ExternalSystemTest
 
   protected static AtomicInteger configConfirmationForNoAnswer() {
     final AtomicInteger counter = new AtomicInteger();
-    Messages.setTestDialog(new TestDialog() {
+    TestDialogManager.setTestDialog(new TestDialog() {
       @Override
       public int show(@NotNull String message) {
         counter.set(counter.get() + 1);

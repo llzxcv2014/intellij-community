@@ -1,6 +1,8 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.profile.codeInspection.ui.header;
 
+import com.intellij.CommonBundle;
+import com.intellij.analysis.AnalysisBundle;
 import com.intellij.application.options.schemes.AbstractDescriptionAwareSchemesPanel;
 import com.intellij.application.options.schemes.AbstractSchemeActions;
 import com.intellij.application.options.schemes.DescriptionAwareSchemeActions;
@@ -9,6 +11,7 @@ import com.intellij.codeInsight.daemon.impl.SeverityRegistrar;
 import com.intellij.codeInspection.ex.InspectionProfileImpl;
 import com.intellij.codeInspection.ex.InspectionProfileModifiableModel;
 import com.intellij.codeInspection.ex.InspectionToolRegistrar;
+import com.intellij.lang.LangBundle;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -24,6 +27,7 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.JDOMUtil;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.profile.codeInspection.BaseInspectionProfileManager;
@@ -114,7 +118,7 @@ public class InspectionProfileSchemesPanel extends AbstractDescriptionAwareSchem
       }
 
       @Override
-      protected void setDescription(@NotNull InspectionProfileModifiableModel scheme, @NotNull String newDescription) {
+      protected void setDescription(@NotNull InspectionProfileModifiableModel scheme, @NlsContexts.DetailedDescription @NotNull String newDescription) {
         InspectionProfileModifiableModel inspectionProfile = InspectionProfileSchemesPanel.this.getModel().getProfilePanel(scheme).getProfile();
         if (!Comparing.strEqual(newDescription, inspectionProfile.getDescription())) {
           inspectionProfile.setDescription(newDescription);
@@ -130,21 +134,21 @@ public class InspectionProfileSchemesPanel extends AbstractDescriptionAwareSchem
             return FileTypeRegistry.getInstance().isFileOfType(file, StdFileTypes.XML);
           }
         };
-        descriptor.setDescription("Choose profile file");
+        descriptor.setDescription(AnalysisBundle.message("inspections.settings.profile.file.chooser.description"));
         FileChooser.chooseFile(descriptor, myProject, null, file -> {
           if (file != null) {
             try {
               InspectionProfileImpl profile = importInspectionProfile(JDOMUtil.load(file.getInputStream()), myAppProfileManager, myProject);
               if (profile == null) {
-                Messages.showErrorDialog(myProject, "File '" + file.getName() + "' has invalid format.", "Inspection Settings");
+                Messages.showErrorDialog(myProject, AnalysisBundle.message("inspections.settings.invalid.format.warning", file.getName()), CommonBundle.getErrorTitle());
                 return;
               }
               final SingleInspectionProfilePanel existed = InspectionProfileSchemesPanel.this.getModel().getProfilePanel(profile);
               if (existed != null) {
-                if (Messages.showOkCancelDialog(myProject, "Profile with name \'" + profile.getName() +
-                                                           "\' already exists. Do you want to overwrite it?",
-                                                "Overwrite Warning",
-                                                "Overwrite", "Cancel",
+                if (Messages.showOkCancelDialog(myProject, AnalysisBundle
+                                                  .message("inspections.settings.profile.already.exists.dialog.message", profile.getName()),
+                                                AnalysisBundle.message("inspections.settings.overwrite.warning.title"),
+                                                AnalysisBundle.message("inspections.settings.overwrite.action.text"), CommonBundle.getCancelButtonText(),
                                                 Messages.getInformationIcon()) != Messages.OK) {
                   return;
                 }
@@ -221,7 +225,7 @@ public class InspectionProfileSchemesPanel extends AbstractDescriptionAwareSchem
   @NotNull
   @Override
   protected String getSchemeTypeName() {
-    return "Profile";
+    return LangBundle.message("inspection.profile.scheme.type.name.panel");
   }
 
   void apply() {
@@ -287,7 +291,7 @@ public class InspectionProfileSchemesPanel extends AbstractDescriptionAwareSchem
   public static InspectionProfileImpl importInspectionProfile(@NotNull Element rootElement,
                                                               @NotNull BaseInspectionProfileManager profileManager,
                                                               @NotNull Project project) {
-    if (Comparing.strEqual(rootElement.getName(), "component")) {
+    if (Comparing.strEqual(rootElement.getName(), "component")) { //NON-NLS
       //import right from .idea/inspectProfiles/xxx.xml
       rootElement = rootElement.getChildren().get(0);
     }
@@ -306,9 +310,9 @@ public class InspectionProfileSchemesPanel extends AbstractDescriptionAwareSchem
     levels.removeIf(level -> profileManager.getSeverityRegistrar().getSeverity(level) != null);
     if (!levels.isEmpty()) {
       if (!ApplicationManager.getApplication().isUnitTestMode()) {
-        if (Messages.showYesNoDialog(project, "Undefined severities detected: " +
-                                              StringUtil.join(levels, ", ") +
-                                              ". Do you want to create them?", "Warning", Messages.getWarningIcon()) ==
+        if (Messages.showYesNoDialog(project, AnalysisBundle
+                                       .message("inspections.settings.undefined.severities.detected.dialog.message", StringUtil.join(levels, ", ")),
+                                     CommonBundle.message("title.warning"), Messages.getWarningIcon()) ==
             Messages.YES) {
           for (String level : levels) {
             final TextAttributes textAttributes = CodeInsightColors.WARNINGS_ATTRIBUTES.getDefaultAttributes();

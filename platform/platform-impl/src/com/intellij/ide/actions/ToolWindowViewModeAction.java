@@ -1,17 +1,25 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actions;
 
 import com.intellij.idea.ActionsBundle;
+import com.intellij.internal.statistic.eventLog.events.EventPair;
 import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.actionSystem.impl.FusAwareAction;
 import com.intellij.openapi.project.DumbAwareToggleAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.wm.ToolWindowType;
+import com.intellij.openapi.wm.WindowInfo;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class ToolWindowViewModeAction extends DumbAwareToggleAction {
+import java.util.Collections;
+import java.util.List;
+
+@SuppressWarnings("ComponentNotRegistered")
+public class ToolWindowViewModeAction extends DumbAwareToggleAction implements FusAwareAction {
   public enum ViewMode {
     DockPinned("DockPinnedMode"),
     DockUnpinned("DockUnpinnedMode"),
@@ -21,7 +29,7 @@ public class ToolWindowViewModeAction extends DumbAwareToggleAction {
 
     private final String myActionID;
 
-    ViewMode(String actionID) {
+    ViewMode(@NonNls String actionID) {
       myActionID = actionID;
     }
 
@@ -46,6 +54,21 @@ public class ToolWindowViewModeAction extends DumbAwareToggleAction {
       return false;
     }
 
+    public static ViewMode fromWindowInfo(@NotNull WindowInfo info) {
+      switch (info.getType()) {
+        case DOCKED:
+          return info.isAutoHide() ? DockUnpinned : DockPinned;
+        case FLOATING:
+          return Float;
+        case SLIDING:
+          return Undock;
+        case WINDOWED:
+          return Window;
+      }
+
+      return DockPinned;
+    }
+
     void applyTo(@NotNull ToolWindow window) {
       switch (this) {
         case DockPinned: {
@@ -67,23 +90,14 @@ public class ToolWindowViewModeAction extends DumbAwareToggleAction {
           window.setType(ToolWindowType.WINDOWED, null);
       }
     }
-
-    @Override
-    public String toString() {
-      switch (this) {
-        case DockPinned: return "Dock Pinned";
-        case DockUnpinned: return "Dock Unpinned";
-        default: return name();
-      }
-    }
   }
 
   @NotNull protected final ViewMode myMode;
 
-
   protected ToolWindowViewModeAction(@NotNull ViewMode mode) {
     myMode = mode;
-    getTemplatePresentation().setText(myMode.toString());
+    getTemplatePresentation().setText(ActionsBundle.actionText(myMode.myActionID));
+    getTemplatePresentation().setDescription(ActionsBundle.actionDescription(myMode.myActionID));
   }
 
   @Nullable
@@ -141,11 +155,17 @@ public class ToolWindowViewModeAction extends DumbAwareToggleAction {
     e.getPresentation().setEnabled(getToolWindow(e) != null);
   }
 
+  @Override
+  public @NotNull List<EventPair> getAdditionalUsageData(@NotNull AnActionEvent event) {
+    ToolWindow toolWindow = getToolWindow(event);
+    if (toolWindow != null) {
+      return Collections.singletonList(ToolwindowFusEventFields.TOOLWINDOW.with(toolWindow.getId()));
+    }
+    return Collections.emptyList();
+  }
+
   public static class Group extends DefaultActionGroup {
     private boolean isInitialized = false;
-    public Group() {
-      super(ActionsBundle.groupText("ViewMode"), true);
-    }
 
     @Override
     public boolean isDumbAware() {

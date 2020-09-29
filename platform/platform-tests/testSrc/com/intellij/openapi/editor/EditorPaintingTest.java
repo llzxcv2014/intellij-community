@@ -1,20 +1,7 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.editor;
 
+import com.intellij.codeInsight.daemon.impl.IndentsPass;
 import com.intellij.openapi.actionSystem.IdeActions;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.colors.EditorColors;
@@ -23,10 +10,14 @@ import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.editor.ex.DocumentEx;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.markup.*;
+import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.testFramework.TestDataPath;
+import com.intellij.util.ui.ColorIcon;
 import org.jetbrains.annotations.NotNull;
 
+import javax.swing.*;
 import java.awt.*;
+import java.util.Collections;
 
 @TestDataPath("$CONTENT_ROOT/testData/editor/painting")
 public class EditorPaintingTest extends EditorPaintingTestCase {
@@ -49,32 +40,32 @@ public class EditorPaintingTest extends EditorPaintingTestCase {
     addRangeHighlighter(2, 3, HighlighterLayer.ERROR, Color.black, null);
     checkResult();
   }
-  
+
   public void testCaretRowWinsOverSyntaxEvenInPresenceOfHighlighter() throws Exception {
     initText("foo");
     setUniformEditorHighlighter(new TextAttributes(null, Color.red, null, null, Font.PLAIN));
     addRangeHighlighter(0, 3, 0, null, Color.blue);
     checkResult();
   }
-  
+
   public void testEmptyBorderInEmptyDocument() throws Exception {
     initText("");
     addBorderHighlighter(0, 0, HighlighterLayer.WARNING, Color.red);
     checkResult();
   }
-  
+
   public void testPrefixWithEmptyText() throws Exception {
     initText("");
     ((EditorEx)getEditor()).setPrefixTextAndAttributes(">", new TextAttributes(Color.blue, Color.gray, null, null, Font.PLAIN));
     checkResult();
   }
-  
+
   public void testBorderAtLastLine() throws Exception {
     initText("a\nbc");
     addBorderHighlighter(3, 4, HighlighterLayer.WARNING, Color.red);
     checkResult();
   }
-  
+
   public void testFoldedRegionShownOnlyWithBorder() throws Exception {
     initText("abc");
     addCollapsedFoldRegion(0, 3, "...");
@@ -140,13 +131,8 @@ public class EditorPaintingTest extends EditorPaintingTestCase {
     configureSoftWraps(2);
     verifySoftWrapPositions(4, 5);
 
-    RangeHighlighter topHighlighter = addRangeHighlighter(4, 4, 0, null);
-    topHighlighter.setLineSeparatorColor(Color.red);
-    topHighlighter.setLineSeparatorPlacement(SeparatorPlacement.TOP);
-
-    RangeHighlighter bottomHighlighter = addRangeHighlighter(4, 4, 0, null);
-    bottomHighlighter.setLineSeparatorColor(Color.blue);
-    bottomHighlighter.setLineSeparatorPlacement(SeparatorPlacement.BOTTOM);
+    addLineSeparator(4, SeparatorPlacement.TOP, Color.red);
+    addLineSeparator(4, SeparatorPlacement.BOTTOM, Color.blue);
 
     checkResult();
   }
@@ -174,5 +160,148 @@ public class EditorPaintingTest extends EditorPaintingTestCase {
     executeAction(IdeActions.ACTION_SELECT_ALL);
     getEditor().getSettings().setRightMargin(1);
     checkResult();
+  }
+
+  public void testIndentGuideOverBlockInlayWithSoftWraps() throws Exception {
+    initText("  a\n    b c");
+    configureSoftWraps(5);
+    runIndentsPass();
+    addBlockInlay(0);
+    checkResult();
+  }
+
+  public void testLineSeparatorRepaint() throws Exception {
+    initText("a\nb");
+    addLineSeparator(3, SeparatorPlacement.TOP, Color.red);
+    checkPartialRepaint(0);
+  }
+
+  public void testLineSeparatorNearBlockInlay() throws Exception {
+    initText("a\nb");
+    addBlockInlay(2, true);
+    addLineSeparator(2, SeparatorPlacement.TOP, Color.red);
+    checkResult();
+  }
+
+  public void testLineSeparatorNearBlockInlay2() throws Exception {
+    initText("a\nb");
+    addBlockInlay(2, true);
+    addLineSeparator(1, SeparatorPlacement.BOTTOM, Color.red);
+    checkResult();
+  }
+
+  public void testLineSeparatorNearBlockInlay3() throws Exception {
+    initText("a\nb");
+    addBlockInlay(1, false);
+    addLineSeparator(2, SeparatorPlacement.TOP, Color.red);
+    checkResult();
+  }
+
+  public void testLineSeparatorNearBlockInlay4() throws Exception {
+    initText("a\nb");
+    addBlockInlay(1, false);
+    addLineSeparator(1, SeparatorPlacement.BOTTOM, Color.red);
+    checkResult();
+  }
+
+  public void testBlockInlayWithLineHighlighterEndingAtEmptyLine() throws Exception {
+    initText("\n");
+    addBlockInlay(0);
+    addLineHighlighter(0, 1, HighlighterLayer.SELECTION + 1, null, Color.green);
+    checkResult();
+  }
+
+  public void testEmptyEditorWithGutterIcon() throws Exception {
+    initText("");
+    addRangeHighlighter(0, 0, 0, null).setGutterIconRenderer(new ColorGutterIconRenderer(Color.green));
+    checkResultWithGutter();
+  }
+
+  public void testBlockInlaysInAnEmptyEditor() throws Exception {
+    initText("");
+    addRangeHighlighter(0, 0, 0, null).setGutterIconRenderer(new ColorGutterIconRenderer(Color.green));
+    getEditor().getInlayModel().addBlockElement(0, false, true, 0, new ColorBlockElementRenderer(Color.red));
+    getEditor().getInlayModel().addBlockElement(0, false, false, 0, new ColorBlockElementRenderer(Color.blue));
+    checkResultWithGutter();
+  }
+
+  public void testAfterLineEndInlayWithLineExtension() throws Exception {
+    initText("");
+    getEditor().getInlayModel().addAfterLineEndElement(0, false, new EditorCustomElementRenderer() {
+      @Override
+      public int calcWidthInPixels(@NotNull Inlay inlay) {
+        return 10;
+      }
+
+      @Override
+      public void paint(@NotNull Inlay inlay,
+                        @NotNull Graphics g,
+                        @NotNull Rectangle targetRegion,
+                        @NotNull TextAttributes textAttributes) {
+        g.setColor(Color.red);
+        g.fillRect(targetRegion.x, targetRegion.y, targetRegion.width, targetRegion.height);
+      }
+    });
+    ((EditorEx)getEditor()).registerLineExtensionPainter(
+      line -> Collections.singleton(new LineExtensionInfo("ABC", new TextAttributes(Color.black, null, null, null, Font.PLAIN)))
+    );
+    paintEditor(false, null, null); // first paint triggers size update due to line extensions
+    checkResult();
+  }
+
+  private void runIndentsPass() {
+    IndentsPass indentsPass = new IndentsPass(getProject(), getEditor(), getFile());
+    indentsPass.doCollectInformation(new EmptyProgressIndicator());
+    indentsPass.doApplyInformationToEditor();
+  }
+
+  private void addLineSeparator(int offset, SeparatorPlacement placement, Color color) {
+    RangeHighlighter highlighter = addRangeHighlighter(offset, offset, 0, null);
+    highlighter.setLineSeparatorColor(color);
+    highlighter.setLineSeparatorPlacement(placement);
+  }
+
+  private static final class ColorGutterIconRenderer extends GutterIconRenderer {
+    private final Icon myIcon;
+
+    private ColorGutterIconRenderer(@NotNull Color color) {
+      myIcon = new ColorIcon(TEST_LINE_HEIGHT, color);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      return false;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    @Override
+    public @NotNull Icon getIcon() {
+      return myIcon;
+    }
+  }
+
+  private static final class ColorBlockElementRenderer implements EditorCustomElementRenderer {
+    private final GutterIconRenderer myGutterIconRenderer;
+
+    private ColorBlockElementRenderer(@NotNull Color color) {
+      myGutterIconRenderer = new ColorGutterIconRenderer(color);
+    }
+
+    @Override
+    public int calcWidthInPixels(@NotNull Inlay inlay) {
+      return 0;
+    }
+
+    @Override
+    public void paint(@NotNull Inlay inlay, @NotNull Graphics g, @NotNull Rectangle targetRegion, @NotNull TextAttributes textAttributes) {}
+
+    @Override
+    public GutterIconRenderer calcGutterIconRenderer(@NotNull Inlay inlay) {
+      return myGutterIconRenderer;
+    }
   }
 }

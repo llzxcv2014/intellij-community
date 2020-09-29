@@ -1,28 +1,18 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.impl;
 
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.*;
 import com.intellij.openapi.progress.EmptyProgressIndicator;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.FileIndex;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.testFramework.HeavyPlatformTestCase;
+import com.intellij.testFramework.PsiTestUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.indexing.FileBasedIndex;
 import gnu.trove.THashSet;
@@ -33,9 +23,6 @@ import org.jetbrains.jps.model.java.JavaSourceRootType;
 import java.util.List;
 import java.util.Set;
 
-/**
- * @author nik
- */
 public abstract class DirectoryIndexTestCase extends HeavyPlatformTestCase {
   protected DirectoryIndexImpl myIndex;
   protected ProjectFileIndex myFileIndex;
@@ -61,10 +48,10 @@ public abstract class DirectoryIndexTestCase extends HeavyPlatformTestCase {
     assertNull(info.toString(), info.getUnloadedModuleName());
   }
 
-  protected void assertExcluded(VirtualFile file, Module module) {
+  protected void assertExcluded(@NotNull VirtualFile file, Module module) {
     DirectoryInfo info = myIndex.getInfoForFile(file);
-    assertTrue(info.toString(), info.isExcluded(file));
-    assertNull(info.toString(), info.getUnloadedModuleName());
+    assertTrue(file + " " + info, info.isExcluded(file));
+    assertNull(file + " " + info, info.getUnloadedModuleName());
     assertEquals(module, info.getModule());
     assertFalse(myFileIndex.isInSource(file));
     assertFalse(myFileIndex.isInSourceContent(file));
@@ -143,5 +130,18 @@ public abstract class DirectoryIndexTestCase extends HeavyPlatformTestCase {
     });
     if (mustContain != null) assertContainsElements(collected, mustContain);
     if (mustNotContain != null) assertDoesntContain(collected, mustNotContain);
+  }
+
+  @NotNull
+  protected static Module createJavaModuleWithContent(@NotNull Project project, @NotNull String name, @NotNull VirtualFile contentRoot) {
+    ModuleType<?> type = ModuleTypeManager.getInstance().findByID(ModuleTypeId.JAVA_MODULE);
+    return WriteCommandAction.writeCommandAction(project).compute(() -> {
+      ModifiableModuleModel moduleModel = ModuleManager.getInstance(project).getModifiableModel();
+      Module module = moduleModel.newModule(contentRoot.toNioPath().resolve(name + ".iml"), type.getId());
+      moduleModel.commit();
+      assertNotNull(module);
+      PsiTestUtil.addContentRoot(module, contentRoot);
+      return module;
+    });
   }
 }

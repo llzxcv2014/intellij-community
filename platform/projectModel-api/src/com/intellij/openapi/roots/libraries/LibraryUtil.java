@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.openapi.roots.libraries;
 
@@ -24,9 +10,11 @@ import com.intellij.openapi.roots.impl.libraries.LibraryEx;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.projectModel.ProjectModelBundle;
 import com.intellij.util.PathUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.text.StringTokenizer;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -36,7 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class LibraryUtil {
+public final class LibraryUtil {
   private LibraryUtil() {
   }
 
@@ -44,7 +32,7 @@ public class LibraryUtil {
     return isClassAvailableInLibrary(library.getFiles(OrderRootType.CLASSES), fqn);
   }
 
-  public static boolean isClassAvailableInLibrary(@NotNull VirtualFile[] files, @NotNull String fqn) {
+  public static boolean isClassAvailableInLibrary(VirtualFile @NotNull [] files, @NotNull String fqn) {
     return isClassAvailableInLibrary(Arrays.asList(files), fqn);
   }
 
@@ -99,18 +87,15 @@ public class LibraryUtil {
     return libraryTable.createLibrary(name);
   }
 
-  @NotNull
-  public static VirtualFile[] getLibraryRoots(@NotNull Project project) {
+  public static VirtualFile @NotNull [] getLibraryRoots(@NotNull Project project) {
     return getLibraryRoots(project, true, true);
   }
 
-  @NotNull
-  public static VirtualFile[] getLibraryRoots(@NotNull Project project, final boolean includeSourceFiles, final boolean includeJdk) {
+  public static VirtualFile @NotNull [] getLibraryRoots(@NotNull Project project, final boolean includeSourceFiles, final boolean includeJdk) {
     return getLibraryRoots(ModuleManager.getInstance(project).getModules(), includeSourceFiles, includeJdk);
   }
 
-  @NotNull
-  public static VirtualFile[] getLibraryRoots(@NotNull Module[] modules, final boolean includeSourceFiles, final boolean includeJdk) {
+  public static VirtualFile @NotNull [] getLibraryRoots(Module @NotNull [] modules, final boolean includeSourceFiles, final boolean includeJdk) {
     Set<VirtualFile> roots = new HashSet<>();
     for (Module module : modules) {
       final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(module);
@@ -163,18 +148,18 @@ public class LibraryUtil {
   }
 
   @NotNull
-  public static String getPresentableName(@NotNull Library library) {
+  public static @Nls(capitalization = Nls.Capitalization.Title) String getPresentableName(@NotNull Library library) {
     final String name = library.getName();
     if (name != null) {
       return name;
     }
     if (library instanceof LibraryEx && ((LibraryEx)library).isDisposed()) {
-      return "Disposed Library";
+      return ProjectModelBundle.message("disposed.library.title");
     }
     String[] urls = library.getUrls(OrderRootType.CLASSES);
     if (urls.length > 0) {
       return PathUtil.getFileName(VfsUtilCore.urlToPath(urls[0]));
     }
-    return "Empty Library";
+    return ProjectModelBundle.message("empty.library.title");
   }
 }

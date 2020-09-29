@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.maven.project;
 
 import com.intellij.openapi.application.ApplicationManager;
@@ -38,7 +24,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class MavenArtifactDownloader {
+public final class MavenArtifactDownloader {
   private static final ThreadPoolExecutor EXECUTOR =
     new ThreadPoolExecutor(0, Integer.MAX_VALUE, 1, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), new ThreadFactory() {
       private final AtomicInteger num = new AtomicInteger();
@@ -90,10 +76,10 @@ public class MavenArtifactDownloader {
       if (downloadDocs) types.add(MavenExtraArtifactType.DOCS);
 
       String caption = downloadSources && downloadDocs
-                       ? ProjectBundle.message("maven.downloading")
+                       ? MavenProjectBundle.message("maven.downloading")
                        : (downloadSources
-                          ? ProjectBundle.message("maven.downloading.sources")
-                          : ProjectBundle.message("maven.downloading.docs"));
+                          ? MavenProjectBundle.message("maven.downloading.sources")
+                          : MavenProjectBundle.message("maven.downloading.docs"));
       myProgress.setText(caption);
 
       Map<MavenId, DownloadData> artifacts = collectArtifactsToDownload(types);

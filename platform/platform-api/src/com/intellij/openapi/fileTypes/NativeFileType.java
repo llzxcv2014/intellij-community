@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.fileTypes;
 
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -15,7 +16,7 @@ import java.util.List;
 /**
  * @author yole
  */
-public class NativeFileType implements INativeFileType {
+public final class NativeFileType implements INativeFileType {
   public static final NativeFileType INSTANCE = new NativeFileType();
 
   private NativeFileType() { }
@@ -29,7 +30,7 @@ public class NativeFileType implements INativeFileType {
   @Override
   @NotNull
   public String getDescription() {
-    return "Files opened in associated applications";
+    return IdeBundle.message("native.filetype.description");
   }
 
   @Override
@@ -54,7 +55,7 @@ public class NativeFileType implements INativeFileType {
   }
 
   @Override
-  public String getCharset(@NotNull VirtualFile file, @NotNull byte[] content) {
+  public String getCharset(@NotNull VirtualFile file, byte @NotNull [] content) {
     return null;
   }
 

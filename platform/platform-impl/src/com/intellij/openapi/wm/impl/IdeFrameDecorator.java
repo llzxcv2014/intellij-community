@@ -1,15 +1,15 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.wm.impl;
 
+import com.intellij.ide.ui.UISettings;
 import com.intellij.jdkEx.JdkEx;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.SystemInfo;
-import com.intellij.openapi.util.registry.Registry;
+import com.intellij.ui.ComponentUtil;
 import com.intellij.ui.ScreenUtil;
 import com.intellij.ui.mac.MacMainFrameDecorator;
-import com.intellij.util.PlatformUtils;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -22,6 +22,8 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class IdeFrameDecorator implements IdeFrameImpl.FrameDecorator {
   static final String FULL_SCREEN = "ide.frame.full.screen";
@@ -47,7 +49,7 @@ public abstract class IdeFrameDecorator implements IdeFrameImpl.FrameDecorator {
   public static IdeFrameDecorator decorate(@NotNull JFrame frame, @NotNull Disposable parentDisposable) {
     try {
       if (SystemInfo.isMac) {
-        return new MacMainFrameDecorator(frame, PlatformUtils.isAppCode(), parentDisposable);
+        return new MacMainFrameDecorator(frame, parentDisposable);
       }
       else if (SystemInfo.isWindows) {
         return new WinMainFrameDecorator(frame);
@@ -74,7 +76,7 @@ public abstract class IdeFrameDecorator implements IdeFrameImpl.FrameDecorator {
   }
 
   // AWT-based decorator
-  private static class WinMainFrameDecorator extends IdeFrameDecorator {
+  private static final class WinMainFrameDecorator extends IdeFrameDecorator {
     private WinMainFrameDecorator(@NotNull JFrame frame) {
       super(frame);
     }
@@ -122,18 +124,15 @@ public abstract class IdeFrameDecorator implements IdeFrameImpl.FrameDecorator {
         }
         notifyFrameComponents(state);
       }
-      SwingUtilities.invokeLater(new Runnable() {
-        @Override
-        public void run() {
-          myFrame.getRootPane().putClientProperty(IdeFrameImpl.TOGGLING_FULL_SCREEN_IN_PROGRESS, null);
-        }
+      EventQueue.invokeLater(() -> {
+        myFrame.getRootPane().putClientProperty(IdeFrameImpl.TOGGLING_FULL_SCREEN_IN_PROGRESS, null);
       });
       return Promises.resolvedPromise(state);
     }
   }
 
   // Extended WM Hints-based decorator
-  private static class EWMHFrameDecorator extends IdeFrameDecorator {
+  private static final class EWMHFrameDecorator extends IdeFrameDecorator {
     private Boolean myRequestedState = null;
 
     private EWMHFrameDecorator(@NotNull JFrame frame, @NotNull Disposable parentDisposable) {
@@ -149,7 +148,7 @@ public abstract class IdeFrameDecorator implements IdeFrameImpl.FrameDecorator {
         }
       });
 
-      if (SystemInfo.isKDE && UIUtil.DISABLE_AUTO_REQUEST_FOCUS) {
+      if (SystemInfo.isKDE && ComponentUtil.isDisableAutoRequestFocus()) {
         // KDE sends an unexpected MapNotify event if a window is deiconified.
         // suppress.focus.stealing fix handles the MapNotify event differently
         // if the application is not active
@@ -190,7 +189,28 @@ public abstract class IdeFrameDecorator implements IdeFrameImpl.FrameDecorator {
     }
   }
 
+  public static boolean isCustomDecorationAvailable() {
+    return SystemInfo.isWindows && JdkEx.isCustomDecorationSupported();
+  }
+
+  private static final AtomicReference<Boolean> isCustomDecorationActiveCache = new AtomicReference<>();
   public static boolean isCustomDecorationActive() {
-    return SystemInfo.isWindows && Registry.is("ide.win.frame.decoration") && JdkEx.isCustomDecorationSupported();
+    UISettings settings = UISettings.getInstanceOrNull();
+    if (settings == null) {
+      // true by default if no settings is available (e.g. during the initial IDE setup wizard) and not overridden
+      return isCustomDecorationAvailable()
+             && !Objects.equals(UISettings.getMergeMainMenuWithWindowTitleOverrideValue(), false);
+    }
+
+    // Cache the initial value received from settings, because this value doesn't support change in runtime (we can't redraw frame headers
+    // of frames already created, and changing this setting during any frame lifetime will cause weird effects).
+    return isCustomDecorationActiveCache.updateAndGet(
+      cached -> {
+        if (cached != null) return cached;
+        if (!isCustomDecorationAvailable()) return false;
+        Boolean override = UISettings.getMergeMainMenuWithWindowTitleOverrideValue();
+        if (override != null) return override;
+        return settings.getMergeMainMenuWithWindowTitle();
+      });
   }
 }

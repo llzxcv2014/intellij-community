@@ -2,6 +2,7 @@
 package org.jetbrains.plugins.javaFX.packaging;
 
 import com.intellij.execution.util.ListTableWithButtons;
+import com.intellij.lang.properties.PropertiesFileType;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.fileTypes.StdFileTypes;
@@ -18,6 +19,7 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.ColumnInfo;
 import com.intellij.util.ui.ListTableModel;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.javaFX.JavaFXBundle;
 
 import javax.swing.*;
 import javax.swing.text.JTextComponent;
@@ -60,10 +62,10 @@ public class JavaFxArtifactPropertiesEditor extends ArtifactPropertiesEditor {
     super();
     myProperties = properties;
     JavaFxApplicationClassBrowser.appClassBrowser(project, artifact).setField(myAppClass);
-    final FileChooserDescriptor descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor(StdFileTypes.PROPERTIES);
-    myHtmlParams.addBrowseFolderListener("Choose Properties File", "Parameters for the resulting application to run standalone.", project, descriptor);
-    myParams.addBrowseFolderListener("Choose Properties File", "Parameters for the resulting application to run in the browser.", project, descriptor);
-    myHtmlTemplate.addBrowseFolderListener("Choose HTML File", "HTML template for application entry point to run in browser", project,
+    final FileChooserDescriptor descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor(PropertiesFileType.INSTANCE);
+    myHtmlParams.addBrowseFolderListener(JavaFXBundle.message("javafx.artifact.properties.editor.choose.file.standalone.title" ), JavaFXBundle.message("javafx.artifact.properties.editor.choose.file.standalone.description"), project, descriptor);
+    myParams.addBrowseFolderListener(JavaFXBundle.message("javafx.artifact.properties.editor.choose.file.run.in.browser.title"), JavaFXBundle.message("javafx.artifact.properties.editor.choose.file.run.in.browser.description"), project, descriptor);
+    myHtmlTemplate.addBrowseFolderListener(JavaFXBundle.message("javafx.artifact.properties.editor.choose.html.file.title"), JavaFXBundle.message("javafx.artifact.properties.editor.choose.html.file.description"), project,
                                            FileChooserDescriptorFactory.createSingleFileDescriptor(StdFileTypes.HTML));
     myEditSignCertificateButton.addActionListener(new ActionListener() {
       @Override
@@ -105,7 +107,7 @@ public class JavaFxArtifactPropertiesEditor extends ArtifactPropertiesEditor {
 
   @Override
   public String getTabName() {
-    return "Java FX";
+    return JavaFXBundle.message("java.fx.artifacts.tab.name");
   }
 
   @Nullable
@@ -260,7 +262,7 @@ public class JavaFxArtifactPropertiesEditor extends ArtifactPropertiesEditor {
       myTable = new AttributesTable();
       myTable.setValues(attrs);
       myWholePanel.add(myTable.getComponent(), BorderLayout.CENTER);
-      setTitle("Edit Custom Manifest Attributes");
+      setTitle(JavaFXBundle.message("javafx.artifact.properties.editor.edit.custom.manifest.attributes"));
       init();
     }
 
@@ -283,7 +285,8 @@ public class JavaFxArtifactPropertiesEditor extends ArtifactPropertiesEditor {
     private static class AttributesTable extends ListTableWithButtons<JavaFxManifestAttribute> {
       @Override
       protected ListTableModel createListModel() {
-        final ColumnInfo name = new ElementsColumnInfoBase<JavaFxManifestAttribute>("Name") {
+        final ColumnInfo name = new ElementsColumnInfoBase<JavaFxManifestAttribute>(JavaFXBundle.message(
+          "column.name.artifact.manifest.property.name")) {
           @Nullable
           @Override
           public String valueOf(JavaFxManifestAttribute attribute) {
@@ -307,7 +310,7 @@ public class JavaFxArtifactPropertiesEditor extends ArtifactPropertiesEditor {
           }
         };
 
-        final ColumnInfo value = new ElementsColumnInfoBase<JavaFxManifestAttribute>("Value") {
+        final ColumnInfo value = new ElementsColumnInfoBase<JavaFxManifestAttribute>(JavaFXBundle.message("column.name.artifact.manifest.property.value")) {
           @Override
           public String valueOf(JavaFxManifestAttribute attr) {
             return attr.getValue();

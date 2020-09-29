@@ -1,22 +1,8 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.intention.impl;
 
-import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.intention.PsiElementBaseIntentionAction;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
@@ -41,13 +27,14 @@ import java.util.Set;
 
 public class InlineStreamMapAction extends PsiElementBaseIntentionAction {
   private static final Logger LOG = Logger.getInstance(InlineStreamMapAction.class.getName());
+  public static final class Holder {
+    private static final Set<String> MAP_METHODS =
+      StreamEx.of("map", "mapToInt", "mapToLong", "mapToDouble", "mapToObj", "boxed", "asLongStream", "asDoubleStream").toSet();
 
-  private static final Set<String> MAP_METHODS =
-    StreamEx.of("map", "mapToInt", "mapToLong", "mapToDouble", "mapToObj", "boxed", "asLongStream", "asDoubleStream").toSet();
-
-  public static final Set<String> NEXT_METHODS = StreamEx
-    .of("flatMap", "flatMapToInt", "flatMapToLong", "flatMapToDouble", "forEach", "forEachOrdered", "anyMatch", "noneMatch", "allMatch")
-    .append(MAP_METHODS).toSet();
+    public static final Set<String> NEXT_METHODS = StreamEx
+      .of("flatMap", "flatMapToInt", "flatMapToLong", "flatMapToDouble", "forEach", "forEachOrdered", "anyMatch", "noneMatch", "allMatch")
+      .append(MAP_METHODS).toSet();
+  }
 
   @Override
   public boolean isAvailable(@NotNull Project project, Editor editor, @NotNull final PsiElement element) {
@@ -62,13 +49,13 @@ public class InlineStreamMapAction extends PsiElementBaseIntentionAction {
     if(nextCall == null) return false;
     String key = curCall.getArgumentList().isEmpty() || nextCall.getArgumentList().isEmpty() ?
                  "intention.inline.map.merge.text" : "intention.inline.map.inline.text";
-    setText(CodeInsightBundle.message(key, element.getText(), nextCall.getMethodExpression().getReferenceName()));
+    setText(JavaBundle.message(key, element.getText(), nextCall.getMethodExpression().getReferenceName()));
     return true;
   }
 
   private static boolean isMapCall(@NotNull PsiMethodCallExpression methodCallExpression) {
     String name = methodCallExpression.getMethodExpression().getReferenceName();
-    if (name == null || !MAP_METHODS.contains(name)) return false;
+    if (name == null || !Holder.MAP_METHODS.contains(name)) return false;
 
     final PsiExpressionList argumentList = methodCallExpression.getArgumentList();
     final PsiExpression[] expressions = argumentList.getExpressions();
@@ -87,7 +74,7 @@ public class InlineStreamMapAction extends PsiElementBaseIntentionAction {
     PsiMethodCallExpression nextCall = ExpressionUtils.getCallForQualifier(methodCallExpression);
     if (nextCall == null) return null;
     String nextName = nextCall.getMethodExpression().getReferenceName();
-    if (nextName == null || !NEXT_METHODS.contains(nextName) || translateName(methodCallExpression, nextCall) == null) return null;
+    if (nextName == null || !Holder.NEXT_METHODS.contains(nextName) || translateName(methodCallExpression, nextCall) == null) return null;
     PsiExpressionList argumentList = (nextCall).getArgumentList();
     PsiExpression[] expressions = argumentList.getExpressions();
     if(expressions.length == 0) {
@@ -125,7 +112,7 @@ public class InlineStreamMapAction extends PsiElementBaseIntentionAction {
     if (prevName.equals("map")) {
       return translateMap(nextName);
     }
-    if(MAP_METHODS.contains(nextName)) {
+    if(Holder.MAP_METHODS.contains(nextName)) {
       PsiType type = nextMethod.getReturnType();
       if(!(type instanceof PsiClassType)) return null;
       PsiClass nextClass = ((PsiClassType)type).resolve();
@@ -187,7 +174,7 @@ public class InlineStreamMapAction extends PsiElementBaseIntentionAction {
   @Override
   @NotNull
   public String getFamilyName() {
-    return CodeInsightBundle.message("intention.inline.map.family");
+    return JavaBundle.message("intention.inline.map.family");
   }
 
   @Override

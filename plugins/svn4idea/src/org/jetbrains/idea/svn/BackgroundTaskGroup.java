@@ -1,4 +1,4 @@
-// Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn;
 
 import com.intellij.openapi.application.ModalityState;
@@ -7,10 +7,12 @@ import com.intellij.openapi.progress.BackgroundTaskQueue;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts.ProgressTitle;
 import com.intellij.openapi.vcs.AbstractVcsHelper;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.util.ThrowableConsumer;
 import com.intellij.util.ThrowableRunnable;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,7 +33,7 @@ public class BackgroundTaskGroup extends BackgroundTaskQueue {
   @NotNull protected final List<VcsException> myExceptions = createLockFreeCopyOnWriteList();
   @NotNull private final Project myProject;
 
-  public BackgroundTaskGroup(@NotNull Project project, @NotNull String title) {
+  public BackgroundTaskGroup(@NotNull Project project, @ProgressTitle @NotNull String title) {
     super(project, title);
     myProject = project;
   }
@@ -41,7 +43,8 @@ public class BackgroundTaskGroup extends BackgroundTaskQueue {
     throw new UnsupportedOperationException();
   }
 
-  public void runInBackground(@NotNull String title, @NotNull ThrowableConsumer<ProgressIndicator, VcsException> task) {
+  public void runInBackground(@Nls(capitalization = Nls.Capitalization.Sentence) @NotNull String title,
+                              @NotNull ThrowableConsumer<ProgressIndicator, VcsException> task) {
     myProcessor.add(continuation -> new Task.Backgroundable(myProject, title, true) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {

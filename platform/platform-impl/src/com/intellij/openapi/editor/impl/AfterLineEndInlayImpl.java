@@ -1,36 +1,44 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.editor.impl;
 
+import com.intellij.diagnostic.PluginException;
 import com.intellij.openapi.editor.EditorCustomElementRenderer;
 import com.intellij.openapi.editor.Inlay;
 import com.intellij.openapi.editor.VisualPosition;
-import com.intellij.util.DocumentUtil;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.util.List;
 
-class AfterLineEndInlayImpl<R extends EditorCustomElementRenderer> extends InlayImpl<R, AfterLineEndInlayImpl> {
+public final class AfterLineEndInlayImpl<R extends EditorCustomElementRenderer> extends InlayImpl<R, AfterLineEndInlayImpl<?>> {
   private static int ourGlobalCounter = 0;
+  private final boolean mySoftWrappable;
   final int myOrder;
 
-  AfterLineEndInlayImpl(@NotNull EditorImpl editor, int offset, boolean relatesToPrecedingText, @NotNull R renderer) {
+  AfterLineEndInlayImpl(@NotNull EditorImpl editor,
+                        int offset,
+                        boolean relatesToPrecedingText,
+                        boolean insertFirst,
+                        boolean softWrappable,
+                        @NotNull R renderer) {
     super(editor, offset, relatesToPrecedingText, renderer);
+    mySoftWrappable = softWrappable;
     //noinspection AssignmentToStaticFieldFromInstanceMethod
-    myOrder = ourGlobalCounter++;
+    int order = ourGlobalCounter++;
+    myOrder = insertFirst ? -order : order;
   }
 
   @Override
-  RangeMarkerTree<AfterLineEndInlayImpl> getTree() {
+  RangeMarkerTree<AfterLineEndInlayImpl<?>> getTree() {
     return myEditor.getInlayModel().myAfterLineEndElementsTree;
   }
 
   @Override
-  void doUpdateSize() {
+  void doUpdate() {
     myWidthInPixels = myRenderer.calcWidthInPixels(this);
     if (myWidthInPixels <= 0) {
-      throw new IllegalArgumentException("Positive width should be defined for an after-line-end element");
+      throw PluginException.createByClass("Positive width should be defined for an after-line-end element by " + myRenderer, null,
+                                          myRenderer.getClass());
     }
   }
 
@@ -38,15 +46,6 @@ class AfterLineEndInlayImpl<R extends EditorCustomElementRenderer> extends Inlay
   Point getPosition() {
     VisualPosition pos = getVisualPosition();
     return myEditor.visualPositionToXY(pos);
-  }
-
-  @Nullable
-  @Override
-  public Rectangle getBounds() {
-    int targetOffset = DocumentUtil.getLineEndOffset(getOffset(), myEditor.getDocument());
-    if (myEditor.getFoldingModel().isOffsetCollapsed(targetOffset)) return null;
-    Point pos = getPosition();
-    return new Rectangle(pos.x, pos.y, getWidthInPixels(), getHeightInPixels());
   }
 
   @NotNull
@@ -63,9 +62,13 @@ class AfterLineEndInlayImpl<R extends EditorCustomElementRenderer> extends Inlay
     int lineEndOffset = myEditor.getDocument().getLineEndOffset(logicalLine);
     VisualPosition position = myEditor.offsetToVisualPosition(lineEndOffset, true, true);
     if (myEditor.getFoldingModel().isOffsetCollapsed(lineEndOffset)) return position;
-    List<Inlay> inlays = myEditor.getInlayModel().getAfterLineEndElementsForLogicalLine(logicalLine);
+    List<Inlay<?>> inlays = myEditor.getInlayModel().getAfterLineEndElementsForLogicalLine(logicalLine);
     int order = inlays.indexOf(this);
     return new VisualPosition(position.line, position.column + 1 + order);
+  }
+
+  public boolean isSoftWrappable() {
+    return mySoftWrappable;
   }
 
   @Override
@@ -75,6 +78,6 @@ class AfterLineEndInlayImpl<R extends EditorCustomElementRenderer> extends Inlay
 
   @Override
   public String toString() {
-    return "[After-line-end inlay, offset=" + getOffset() + ", width=" + myWidthInPixels + ", renderer=" + myRenderer + "]";
+    return "[After-line-end inlay, offset=" + getOffset() + ", width=" + myWidthInPixels + ", renderer=" + myRenderer + "]" + (isValid() ? "" : "(invalid)");
   }
 }

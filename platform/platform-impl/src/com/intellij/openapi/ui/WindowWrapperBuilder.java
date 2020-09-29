@@ -1,3 +1,4 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.ui;
 
 import com.intellij.openapi.Disposable;
@@ -6,6 +7,7 @@ import com.intellij.openapi.ui.WindowWrapper.Mode;
 import com.intellij.openapi.util.BooleanGetter;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.mac.touchbar.TouchBarsManager;
 import com.intellij.util.ui.UIUtil;
@@ -23,9 +25,9 @@ public class WindowWrapperBuilder {
   @NotNull private final JComponent myComponent;
   @Nullable private Project myProject;
   @Nullable private Component myParent;
-  @Nullable private String myTitle;
+  @Nullable private @NlsContexts.DialogTitle String title;
   @Nullable private Computable<JComponent> myPreferredFocusedComponent;
-  @Nullable private String myDimensionServiceKey;
+  @NonNls @Nullable private String myDimensionServiceKey;
   @Nullable private Runnable myOnShowCallback;
   @Nullable private BooleanGetter myOnCloseHandler;
 
@@ -47,8 +49,8 @@ public class WindowWrapperBuilder {
   }
 
   @NotNull
-  public WindowWrapperBuilder setTitle(@Nullable String title) {
-    myTitle = title;
+  public WindowWrapperBuilder setTitle(@NlsContexts.DialogTitle @Nullable String title) {
+    this.title = title;
     return this;
   }
 
@@ -65,7 +67,7 @@ public class WindowWrapperBuilder {
   }
 
   @NotNull
-  public WindowWrapperBuilder setDimensionServiceKey(@Nullable String dimensionServiceKey) {
+  public WindowWrapperBuilder setDimensionServiceKey(@NonNls @Nullable String dimensionServiceKey) {
     myDimensionServiceKey = dimensionServiceKey;
     return this;
   }
@@ -119,7 +121,7 @@ public class WindowWrapperBuilder {
 
       installOnShowCallback(myDialog.getWindow(), builder.myOnShowCallback);
 
-      setTitle(builder.myTitle);
+      setTitle(builder.title);
       switch (builder.myMode) {
         case MODAL:
           myDialog.setModal(true);
@@ -184,7 +186,7 @@ public class WindowWrapperBuilder {
 
     private static class MyDialogWrapper extends DialogWrapper {
       @NotNull private final JComponent myComponent;
-      @Nullable private String myDimensionServiceKey;
+      @Nullable @NonNls private String myDimensionServiceKey;
       @Nullable private Computable<? extends JComponent> myPreferredFocusedComponent;
       @Nullable private BooleanGetter myOnCloseHandler;
 
@@ -198,7 +200,7 @@ public class WindowWrapperBuilder {
         myComponent = component;
       }
 
-      public void setParameters(@Nullable String dimensionServiceKey,
+      public void setParameters(@Nullable @NonNls String dimensionServiceKey,
                                 @Nullable Computable<? extends JComponent> preferredFocusedComponent,
                                 @Nullable BooleanGetter onCloseHandler) {
         myDimensionServiceKey = dimensionServiceKey;
@@ -218,9 +220,8 @@ public class WindowWrapperBuilder {
       }
 
       // it is information dialog - no need to OK or Cancel. Close the dialog by clicking the cross button or pressing Esc.
-      @NotNull
       @Override
-      protected Action[] createActions() {
+      protected Action @NotNull [] createActions() {
         return new Action[0];
       }
 
@@ -273,7 +274,7 @@ public class WindowWrapperBuilder {
       myOnShowCallback = builder.myOnShowCallback;
 
       myFrame.setComponent(builder.myComponent);
-      myFrame.setTitle(builder.myTitle);
+      myFrame.setTitle(builder.title == null ? "" : builder.title);
       myFrame.closeOnEsc();
       Disposer.register(myFrame, this);
     }
@@ -318,8 +319,12 @@ public class WindowWrapperBuilder {
       myFrame.setTitle(title);
 
       Window window = getWindow();
-      if (window instanceof JFrame) ((JFrame)window).setTitle(title);
-      if (window instanceof JDialog) ((JDialog)window).setTitle(title);
+      if (window instanceof JFrame) {
+        ((JFrame)window).setTitle(title);
+      }
+      else if (window instanceof JDialog) {
+        ((JDialog)window).setTitle(title);
+      }
     }
 
     @Override

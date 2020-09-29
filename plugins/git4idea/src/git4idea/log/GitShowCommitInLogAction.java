@@ -47,7 +47,7 @@ public class GitShowCommitInLogAction extends DumbAwareAction {
   private static final Logger LOG = Logger.getInstance(GitShowCommitInLogAction.class);
 
   public GitShowCommitInLogAction() {
-    super(GitBundle.getString("vcs.history.action.gitlog"));
+    super(GitBundle.messagePointer("vcs.history.action.gitlog"));
   }
 
   @Override
@@ -97,7 +97,8 @@ public class GitShowCommitInLogAction extends DumbAwareAction {
                                                   @NotNull Hash hash) {
     Future<Boolean> future = logUi.getVcsLog().jumpToReference(hash.asString());
     if (!future.isDone()) {
-      ProgressManager.getInstance().run(new Task.Backgroundable(project, "Searching for revision " + hash.asString(),
+      ProgressManager.getInstance().run(new Task.Backgroundable(project,
+                                                                GitBundle.message("git.log.show.commit.in.log.process", hash.asString()),
                                                                 false/*can not cancel*/,
                                                                 PerformInBackgroundOption.ALWAYS_BACKGROUND) {
         @Override

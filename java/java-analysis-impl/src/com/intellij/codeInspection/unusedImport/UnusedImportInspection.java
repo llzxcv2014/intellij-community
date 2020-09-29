@@ -16,18 +16,19 @@
 package com.intellij.codeInspection.unusedImport;
 
 import com.intellij.codeInspection.*;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.psi.*;
 import com.intellij.psi.util.FileTypeUtils;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.fixes.DeleteImportFix;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 public class UnusedImportInspection extends GlobalSimpleInspectionTool {
   @NonNls
   public static final String SHORT_NAME = "UNUSED_IMPORT";
-  public static final String DISPLAY_NAME = InspectionsBundle.message("unused.import.display.name");
 
   @Override
   public void checkFile(@NotNull PsiFile file,
@@ -58,13 +59,11 @@ public class UnusedImportInspection extends GlobalSimpleInspectionTool {
   }
 
   @Override
-  @NotNull
-  public String getDisplayName() {
-    return DISPLAY_NAME;
-  }
-
-  @Override
   public boolean worksInBatchModeOnly() {
     return false;
+  }
+
+  public static @Nls String getDisplayNameText() {
+    return JavaAnalysisBundle.message("unused.import.display.name");
   }
 }

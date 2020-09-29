@@ -22,6 +22,7 @@ import com.intellij.vcs.log.graph.GraphCommitImpl;
 import com.intellij.vcs.log.graph.PermanentGraph;
 import com.intellij.vcs.log.impl.RequirementsImpl;
 import com.intellij.vcs.log.util.StopWatch;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -190,7 +191,7 @@ public class VcsLogRefresherImpl implements VcsLogRefresher, Disposable {
     @NotNull private final LogInfo myLoadedInfo = new LogInfo(myStorage);
 
     MyRefreshTask(@NotNull DataPack currentDataPack) {
-      super(VcsLogRefresherImpl.this.myProject, "Refreshing History...", false);
+      super(VcsLogRefresherImpl.this.myProject, VcsLogBundle.message("vcs.log.refreshing.process"), false);
       myCurrentDataPack = currentDataPack;
     }
 
@@ -207,7 +208,14 @@ public class VcsLogRefresherImpl implements VcsLogRefresher, Disposable {
           mySingleTaskController.taskCompleted(dataPack);
           break;
         }
-        dataPack = doRefresh(rootsToRefresh);
+
+        try {
+          dataPack = doRefresh(rootsToRefresh);
+        }
+        catch (ProcessCanceledException e) {
+          mySingleTaskController.taskCompleted(null);
+          throw e;
+        }
       }
     }
 
@@ -236,9 +244,8 @@ public class VcsLogRefresherImpl implements VcsLogRefresher, Disposable {
             loadLogAndRefs(roots, currentRefs, commitCount);
             List<? extends GraphCommit<Integer>> compoundLog = multiRepoJoin(myLoadedInfo.getCommits());
             Map<VirtualFile, CompressedRefs> allNewRefs = getAllNewRefs(myLoadedInfo, currentRefs);
-            List<? extends GraphCommit<Integer>> joinedFullLog =
-              join(compoundLog, new ArrayList<>(permanentGraph.getAllCommits()),
-                   currentRefs, allNewRefs);
+            List<? extends GraphCommit<Integer>> joinedFullLog = join(compoundLog, new ArrayList<>(permanentGraph.getAllCommits()),
+                                                                      currentRefs, allNewRefs);
             if (joinedFullLog == null) {
               commitCount *= 5;
             }
@@ -361,6 +368,7 @@ public class VcsLogRefresherImpl implements VcsLogRefresher, Disposable {
   private static class RefreshRequest {
     private static final RefreshRequest RELOAD_ALL = new RefreshRequest(Collections.emptyList()) {
       @Override
+      @NonNls
       public String toString() {
         return "RELOAD_ALL";
       }
@@ -401,8 +409,7 @@ public class VcsLogRefresherImpl implements VcsLogRefresher, Disposable {
 
     @NotNull
     Map<VirtualFile, VcsLogProvider.Requirements> asMap(@NotNull Collection<VirtualFile> roots) {
-      return ContainerUtil
-        .map2Map(roots, root -> Pair.create(root, this));
+      return ContainerUtil.map2Map(roots, root -> Pair.create(root, this));
     }
   }
 

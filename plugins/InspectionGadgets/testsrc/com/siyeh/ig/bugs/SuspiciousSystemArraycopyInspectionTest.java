@@ -71,7 +71,7 @@ public class SuspiciousSystemArraycopyInspectionTest extends LightJavaInspection
   public void testRangesIntersect() {
     doMemberTest("    public void rangesIntersects() {\n" +
                  "        int[] src = new int[] { 1, 2, 3, 4 };\n" +
-                 "        System./*Ranges always intersect*/arraycopy/**/(src, 0, src, 1, 2);\n" +
+                 "        System./*Copying to the same array with intersecting ranges*/arraycopy/**/(src, 0, src, 1, 2);\n" +
                  "    }");
   }
 
@@ -105,6 +105,18 @@ public class SuspiciousSystemArraycopyInspectionTest extends LightJavaInspection
                  "        assert (a2.length == 8);\n" +
                  "        System.arraycopy(a1, 0, a2, 4, a1.length);\n" +
                  "    }");
+  }
+
+  public void test248060() {
+    doMemberTest("public class ArrayCopyExample {\n" +
+                 "    private double[] margins = new double[4];\n" +
+                 "\n" +
+                 "    public ArrayCopyExample() {}\n" +
+                 "\n" +
+                 "    public ArrayCopyExample(ArrayCopyExample original) {\n" +
+                 "        System.arraycopy(original.margins, 0, margins, 0, 4);\n" +
+                 "    }\n" +
+                 "}");
   }
 
   @Nullable

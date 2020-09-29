@@ -1,10 +1,12 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.updater;
 
+import com.intellij.openapi.util.io.IoTestUtil;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.*;
@@ -47,14 +49,14 @@ public class DigesterTest extends UpdaterTestCase {
 
   @Test
   public void testSymlinks() throws Exception {
-    assumeFalse(Utils.IS_WINDOWS);
+    IoTestUtil.assumeSymLinkCreationIsSupported();
 
     File simpleLink = getTempFile("Readme.simple.link");
-    Utils.createLink("Readme.txt", simpleLink);
+    IoTestUtil.createSymbolicLink(simpleLink.toPath(), Paths.get("Readme.txt"));
     File relativeLink = getTempFile("Readme.relative.link");
-    Utils.createLink("./Readme.txt", relativeLink);
+    IoTestUtil.createSymbolicLink(relativeLink.toPath(), Paths.get("./Readme.txt"));
     File absoluteLink = getTempFile("Readme.absolute.link");
-    Utils.createLink(dataDir.getPath() + "/Readme.txt", absoluteLink);
+    IoTestUtil.createSymbolicLink(absoluteLink.toPath(), Paths.get(dataDir.getPath() + "/Readme.txt"));
 
     assertEquals(CHECKSUMS.LINK_TO_README_TXT, Digester.digestRegularFile(simpleLink, false));
     assertEquals(CHECKSUMS.LINK_TO_DOT_README_TXT, Digester.digestRegularFile(relativeLink, false));
@@ -70,9 +72,10 @@ public class DigesterTest extends UpdaterTestCase {
 
   @Test
   public void testExecutables() throws Exception {
-    assumeFalse(Utils.IS_WINDOWS);
+    assumeFalse("Windows-allergic", Utils.IS_WINDOWS);
+
     File testFile = new File(tempDir.getRoot(), "idea.bat");
-    Utils.copy(new File(dataDir, "bin/idea.bat"), testFile);
+    Utils.copy(new File(dataDir, "bin/idea.bat"), testFile, false);
     assertEquals(CHECKSUMS.IDEA_BAT, Digester.digestRegularFile(testFile, false));
     Utils.setExecutable(testFile);
     assertEquals(CHECKSUMS.IDEA_BAT | Digester.EXECUTABLE, Digester.digestRegularFile(testFile, false));

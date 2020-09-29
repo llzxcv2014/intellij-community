@@ -1,12 +1,14 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.testDiscovery.actions;
 
+import com.intellij.execution.ExecutionBundle;
 import com.intellij.ide.CommonActionsManager;
 import com.intellij.ide.DefaultTreeExpander;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataProvider;
 import com.intellij.openapi.actionSystem.LangDataKeys;
+import com.intellij.openapi.compiler.JavaCompilerBundle;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.ui.popup.util.PopupUtil;
@@ -34,6 +36,7 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -50,7 +53,7 @@ class DiscoveredTestsTree extends Tree implements DataProvider, Disposable {
       return component instanceof PsiMember ? ((PsiMember)component).getName() : null;
     }, true);
     getSelectionModel().setSelectionMode(TreeSelectionModel.CONTIGUOUS_TREE_SELECTION);
-    getEmptyText().setText("No tests captured for " + title);
+    getEmptyText().setText(ExecutionBundle.message("no.tests.captured.for.0", title));
     setPaintBusy(true);
     setRootVisible(false);
     setCellRenderer(new ColoredTreeCellRenderer() {
@@ -74,12 +77,12 @@ class DiscoveredTestsTree extends Tree implements DataProvider, Disposable {
               append(FontUtil.spaceAndThinSpace() + packageName, SimpleTextAttributes.GRAYED_ATTRIBUTES);
             }
             int testMethodCount = myModel.getChildren(value).size();
-            append(" / " + (testMethodCount != 1 ? (testMethodCount + " tests") : "1 test"), SimpleTextAttributes.GRAYED_ATTRIBUTES);
+            append(JavaCompilerBundle.message("affected.tests.counts", testMethodCount, testMethodCount == 1 ? 0 : 1), SimpleTextAttributes.GRAYED_ATTRIBUTES);
           }
           else if (node instanceof DiscoveredTestsTreeModel.Node.Method) {
             boolean isParametrized = !((DiscoveredTestsTreeModel.Node.Method)node).getParameters().isEmpty();
             if (isParametrized) {
-              append(FontUtil.spaceAndThinSpace() + "parametrized", SimpleTextAttributes.GRAYED_ATTRIBUTES);
+              append(FontUtil.spaceAndThinSpace() + JavaCompilerBundle.message("test.discovery.parametrized"), SimpleTextAttributes.GRAYED_ATTRIBUTES);
             }
           }
           SpeedSearchUtil.applySpeedSearchHighlighting(tree, this, true, false);
@@ -122,12 +125,11 @@ class DiscoveredTestsTree extends Tree implements DataProvider, Disposable {
                     SmartPsiElementPointer<PsiClass> pointer = element.getPointer();
                     return ModuleUtilCore.findModuleForFile(pointer.getVirtualFile(), pointer.getProject());
                   })
-                  .filter(module -> module != null)
+                  .filter(Objects::nonNull)
                   .collect(Collectors.toSet());
   }
 
-  @NotNull
-  TestMethodUsage[] getTestMethods() {
+  TestMethodUsage @NotNull [] getTestMethods() {
     return myModel.getTestMethods();
   }
 

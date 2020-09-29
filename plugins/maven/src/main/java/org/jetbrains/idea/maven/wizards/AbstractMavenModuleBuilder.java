@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.maven.wizards;
 
 import com.intellij.ide.util.projectWizard.*;
@@ -19,12 +19,14 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.maven.model.MavenArchetype;
 import org.jetbrains.idea.maven.model.MavenId;
 import org.jetbrains.idea.maven.project.MavenEnvironmentForm;
 import org.jetbrains.idea.maven.project.MavenProject;
+import org.jetbrains.idea.maven.project.MavenProjectBundle;
 import org.jetbrains.idea.maven.project.MavenProjectsManager;
 import org.jetbrains.idea.maven.utils.MavenUtil;
 
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static icons.OpenapiIcons.RepositoryLibraryLogo;
+import static org.jetbrains.idea.maven.utils.MavenUtil.MAVEN_NAME;
 
 public abstract class AbstractMavenModuleBuilder extends ModuleBuilder implements SourcePathsBuilder {
   private MavenProject myAggregatorProject;
@@ -70,23 +73,24 @@ public abstract class AbstractMavenModuleBuilder extends ModuleBuilder implement
       }
 
       new MavenModuleBuilderHelper(myProjectId, myAggregatorProject, myParentProject, myInheritGroupId,
-                                   myInheritVersion, myArchetype, myPropertiesToCreateByArtifact, "Create new Maven module").configure(project, root, false);
+                                   myInheritVersion, myArchetype, myPropertiesToCreateByArtifact,
+                                   MavenProjectBundle.message("command.name.create.new.maven.module")).configure(project, root, false);
     });
   }
 
   @Override
-  public String getBuilderId() {
+  public @NonNls String getBuilderId() {
     return getClass().getName();
   }
 
   @Override
   public String getPresentableName() {
-    return "Maven";
+    return MavenProjectBundle.message("configurable.MavenSettings.display.name");
   }
 
   @Override
   public String getParentGroup() {
-    return JavaModuleType.BUILD_TOOLS_GROUP;
+    return JavaModuleType.JAVA_GROUP;
   }
 
   @Override
@@ -96,8 +100,7 @@ public abstract class AbstractMavenModuleBuilder extends ModuleBuilder implement
 
   @Override
   public String getDescription() {
-    return "Maven modules are used for developing <b>JVM-based</b> applications with dependencies managed by <b>Maven</b>. " +
-           "You can create either a blank Maven module or a module based on a <b>Maven archetype</b>.";
+    return MavenWizardBundle.message("maven.builder.module.builder.description");
   }
 
   @Override

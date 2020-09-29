@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch.impl.matcher;
 
 import com.intellij.dupLocator.iterators.ArrayBackedNodeIterator;
@@ -24,12 +24,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Class to hold compiled pattern information
+ * Class to hold compiled pattern information. Contains the PSI pattern tree, and maps PsiElements to matching handlers.
+ * @see MatchingHandler
  */
 public abstract class CompiledPattern {
   public static final Key<Object> HANDLER_KEY = Key.create("ss.handler");
   private final Map<Object, MatchingHandler> handlers = new THashMap<>();
-  private final MultiMap<String, PsiElement> variableNodes = MultiMap.createSmart();
+  private final MultiMap<String, PsiElement> variableNodes = new MultiMap<>();
   private SearchScope scope;
   private NodeIterator nodes;
   private MatchingStrategy strategy;
@@ -38,11 +39,10 @@ public abstract class CompiledPattern {
   private PsiElement last;
   private MatchingHandler lastHandler;
 
-  @NotNull
-  public abstract String[] getTypedVarPrefixes();
+  public abstract String @NotNull [] getTypedVarPrefixes();
   public abstract boolean isTypedVar(@NotNull String str);
 
-  public void setTargetNode(PsiElement element) {
+  public void setTargetNode(@NotNull PsiElement element) {
     targetNode = element;
   }
 
@@ -113,11 +113,11 @@ public abstract class CompiledPattern {
     return handler;
   }
 
-  public MatchingHandler getHandler(String name) {
+  public MatchingHandler getHandler(@NotNull String name) {
     return handlers.get(name);
   }
 
-  public void setHandler(PsiElement node, MatchingHandler handler) {
+  public void setHandler(@NotNull PsiElement node, @NotNull MatchingHandler handler) {
     last = null;
     handlers.put(node, handler);
   }

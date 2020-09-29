@@ -8,7 +8,6 @@ import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.ExternalProjectInfo;
@@ -55,18 +54,15 @@ import static com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil.toC
 public abstract class AbstractIdeModifiableModelsProvider extends IdeModelsProviderImpl implements IdeModifiableModelsProvider {
   private static final Logger LOG = Logger.getInstance(AbstractIdeModifiableModelsProvider.class);
 
-  private final static ExtensionPointName<ModifiableModelsProviderExtension<ModifiableModel>> EP_NAME =
-    ExtensionPointName.create("com.intellij.externalSystem.modifiableModelsProvider");
-
-  private ModifiableModuleModel myModifiableModuleModel;
-  private final Map<Module, ModifiableRootModel> myModifiableRootModels = new THashMap<>();
-  private final Map<Module, ModifiableFacetModel> myModifiableFacetModels = new THashMap<>();
-  private final Map<Module, String> myProductionModulesForTestModules = new THashMap<>();
-  private final Map<Library, Library.ModifiableModel> myModifiableLibraryModels = new IdentityHashMap<>();
-  private final ClassMap<ModifiableModel> myModifiableModels = new ClassMap<>();
+  protected ModifiableModuleModel myModifiableModuleModel;
+  protected final Map<Module, ModifiableRootModel> myModifiableRootModels = new THashMap<>();
+  protected final Map<Module, ModifiableFacetModel> myModifiableFacetModels = new THashMap<>();
+  protected final Map<Module, String> myProductionModulesForTestModules = new THashMap<>();
+  protected final Map<Library, Library.ModifiableModel> myModifiableLibraryModels = new IdentityHashMap<>();
+  protected final ClassMap<ModifiableModel> myModifiableModels = new ClassMap<>();
   @Nullable
   private ModifiableWorkspace myModifiableWorkspace;
-  private final MyUserDataHolderBase myUserData;
+  protected final MyUserDataHolderBase myUserData;
   private volatile boolean myDisposed;
 
   public AbstractIdeModifiableModelsProvider(@NotNull Project project) {
@@ -107,15 +103,13 @@ public abstract class AbstractIdeModifiableModelsProvider extends IdeModelsProvi
   @Override
   public abstract LibraryTable.ModifiableModel getModifiableProjectLibrariesModel();
 
-  @NotNull
   @Override
-  public Module[] getModules() {
+  public Module @NotNull [] getModules() {
     return getModifiableModuleModel().getModules();
   }
 
-  @NotNull
   @Override
-  public OrderEntry[] getOrderEntries(@NotNull Module module) {
+  public OrderEntry @NotNull [] getOrderEntries(@NotNull Module module) {
     return getRootModel(module).getOrderEntries();
   }
 
@@ -173,20 +167,17 @@ public abstract class AbstractIdeModifiableModelsProvider extends IdeModelsProvi
   }
 
   @Override
-  @NotNull
-  public VirtualFile[] getContentRoots(Module module) {
+  public VirtualFile @NotNull [] getContentRoots(Module module) {
     return getRootModel(module).getContentRoots();
   }
 
-  @NotNull
   @Override
-  public VirtualFile[] getSourceRoots(Module module) {
+  public VirtualFile @NotNull [] getSourceRoots(Module module) {
     return getRootModel(module).getSourceRoots();
   }
 
-  @NotNull
   @Override
-  public VirtualFile[] getSourceRoots(Module module, boolean includingTests) {
+  public VirtualFile @NotNull [] getSourceRoots(Module module, boolean includingTests) {
     return getRootModel(module).getSourceRoots(includingTests);
   }
 
@@ -217,8 +208,7 @@ public abstract class AbstractIdeModifiableModelsProvider extends IdeModelsProvi
   }
 
   @Override
-  @NotNull
-  public Library[] getAllLibraries() {
+  public Library @NotNull [] getAllLibraries() {
     return getModifiableProjectLibrariesModel().getLibraries();
   }
 
@@ -256,9 +246,8 @@ public abstract class AbstractIdeModifiableModelsProvider extends IdeModelsProvi
     return myModifiableWorkspace;
   }
 
-  @NotNull
   @Override
-  public String[] getLibraryUrls(@NotNull Library library, @NotNull OrderRootType type) {
+  public String @NotNull [] getLibraryUrls(@NotNull Library library, @NotNull OrderRootType type) {
     final Library.ModifiableModel model = myModifiableLibraryModels.get(library);
     if (model != null) {
       return model.getUrls(type);
@@ -305,7 +294,7 @@ public abstract class AbstractIdeModifiableModelsProvider extends IdeModelsProvi
     }));
   }
 
-  private static class MyUserDataHolderBase extends UserDataHolderBase {
+  protected static class MyUserDataHolderBase extends UserDataHolderBase {
     void clear() {
       clearUserData();
     }
@@ -361,7 +350,7 @@ public abstract class AbstractIdeModifiableModelsProvider extends IdeModelsProvi
 
   @Override
   public void dispose() {
-    ApplicationManager.getApplication().assertIsDispatchThread();
+    ApplicationManager.getApplication().assertIsWriteThread();
     assert !myDisposed : "Already disposed!";
     myDisposed = true;
 
@@ -454,7 +443,7 @@ public abstract class AbstractIdeModifiableModelsProvider extends IdeModelsProvi
     return workspace == null ? null : workspace.findModule(publicationId);
   }
 
-  private void updateSubstitutions() {
+  protected void updateSubstitutions() {
     ModifiableWorkspace workspace = getModifiableWorkspace();
     if (workspace == null) return;
 

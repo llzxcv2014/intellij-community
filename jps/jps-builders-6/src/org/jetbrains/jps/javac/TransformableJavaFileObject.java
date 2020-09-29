@@ -1,26 +1,11 @@
-/*
- * Copyright 2000-2013 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.jps.javac;
 
-import org.jetbrains.jps.PathUtils;
 import org.jetbrains.jps.builders.java.JavaSourceTransformer;
 
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.NestingKind;
-import javax.tools.JavaFileObject;
+import javax.tools.*;
 import java.io.*;
 import java.net.URI;
 import java.util.Collection;
@@ -28,7 +13,7 @@ import java.util.Collection;
 /**
  * @author Eugene Zhuravlev
  */
-public class TransformableJavaFileObject implements JavaFileObject {
+public final class TransformableJavaFileObject implements JavaFileObject {
   private final JavaFileObject myOriginal;
   private final Collection<? extends JavaSourceTransformer> myTransformers;
 
@@ -44,7 +29,7 @@ public class TransformableJavaFileObject implements JavaFileObject {
   @Override
   public CharSequence getCharContent(boolean ignoreEncodingErrors) throws IOException {
     // todo: cache transformed content?
-    final File file = PathUtils.convertToFile(myOriginal.toUri());
+    final File file = new File(myOriginal.toUri());
     CharSequence content = myOriginal.getCharContent(ignoreEncodingErrors);
     for (JavaSourceTransformer transformer : myTransformers) {
       content = transformer.transform(file, content);
@@ -116,6 +101,6 @@ public class TransformableJavaFileObject implements JavaFileObject {
   @Override
   public final String toString() {
     // must implement like this because toString() is called inside com.sun.tools.javac.jvm.ClassWriter instead of getName()
-    return getName();  
+    return getName();
   }
 }

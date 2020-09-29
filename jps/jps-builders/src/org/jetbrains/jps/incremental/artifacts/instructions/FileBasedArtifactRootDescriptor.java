@@ -22,9 +22,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Collections;
 
-/**
- * @author nik
- */
 public class FileBasedArtifactRootDescriptor extends ArtifactRootDescriptor {
   private static final Logger LOG = Logger.getInstance(FileBasedArtifactRootDescriptor.class);
   private final FileCopyingHandler myCopyingHandler;
@@ -83,7 +80,7 @@ public class FileBasedArtifactRootDescriptor extends ArtifactRootDescriptor {
     if (outSrcMapping.getState(targetPath) == null) {
       ProjectBuilderLogger logger = context.getLoggingManager().getProjectBuilderLogger();
       if (logger.isEnabled()) {
-        logger.logCompiledFiles(Collections.singletonList(file), IncArtifactBuilder.BUILDER_NAME, "Copying file:");
+        logger.logCompiledFiles(Collections.singletonList(file), IncArtifactBuilder.BUILDER_ID, "Copying file:");
       }
       myCopyingHandler.copyFile(file, targetFile, context);
       outputConsumer.registerOutputFile(targetFile, Collections.singletonList(filePath));

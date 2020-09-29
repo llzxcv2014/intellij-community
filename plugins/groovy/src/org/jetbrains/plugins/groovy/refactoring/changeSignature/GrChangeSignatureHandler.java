@@ -47,12 +47,12 @@ public class GrChangeSignatureHandler implements ChangeSignatureHandler {
     else {
       String message =
         RefactoringBundle.getCannotRefactorMessage(GroovyRefactoringBundle.message("error.wrong.caret.position.method.name"));
-      CommonRefactoringUtil.showErrorHint(project, editor, message, REFACTORING_NAME, HelpID.CHANGE_SIGNATURE);
+      CommonRefactoringUtil.showErrorHint(project, editor, message, RefactoringBundle.message("changeSignature.refactoring.name"), HelpID.CHANGE_SIGNATURE);
     }
   }
 
   @Override
-  public void invoke(@NotNull final Project project, @NotNull final PsiElement[] elements, final DataContext dataContext) {
+  public void invoke(@NotNull final Project project, final PsiElement @NotNull [] elements, final DataContext dataContext) {
     if (elements.length != 1) return;
     Editor editor = dataContext == null ? null : CommonDataKeys.EDITOR.getData(dataContext);
     invokeOnElement(project, editor, elements[0]);
@@ -68,7 +68,7 @@ public class GrChangeSignatureHandler implements ChangeSignatureHandler {
     if (!CommonRefactoringUtil.checkReadOnlyStatus(project, method)) return;
     if (method instanceof GrReflectedMethod) method = ((GrReflectedMethod)method).getBaseMethod();
 
-    PsiMethod newMethod = SuperMethodWarningUtil.checkSuperMethod(method, RefactoringBundle.message("to.refactor"));
+    PsiMethod newMethod = SuperMethodWarningUtil.checkSuperMethod(method);
     if (newMethod == null) return;
 
     if (!newMethod.equals(method)) {

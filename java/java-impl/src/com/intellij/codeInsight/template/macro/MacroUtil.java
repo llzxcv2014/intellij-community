@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.template.macro;
 
 import com.intellij.codeInsight.completion.proc.VariablesProcessor;
@@ -21,7 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class MacroUtil {
+public final class MacroUtil {
   private static final Logger LOG = Logger.getInstance(MacroUtil.class);
 
   @Nullable public static PsiType resultToPsiType(Result result, ExpressionContext context){
@@ -80,7 +80,7 @@ public class MacroUtil {
     }
   }
 
-  @NotNull private static PsiExpression[] getStandardExpressions(PsiElement place) {
+  private static PsiExpression @NotNull [] getStandardExpressions(PsiElement place) {
     ArrayList<PsiExpression> array = new ArrayList<>();
     PsiElementFactory factory = JavaPsiFacade.getElementFactory(place.getProject());
     try {
@@ -115,7 +115,7 @@ public class MacroUtil {
     return array.toArray(PsiExpression.EMPTY_ARRAY);
   }
 
-  @NotNull public static PsiExpression[] getStandardExpressionsOfType(PsiElement place, PsiType type) {
+  public static PsiExpression @NotNull [] getStandardExpressionsOfType(PsiElement place, PsiType type) {
     List<PsiExpression> array = new ArrayList<>();
     PsiExpression[] expressions = getStandardExpressions(place);
     for (PsiExpression expr : expressions) {
@@ -127,7 +127,7 @@ public class MacroUtil {
     return array.toArray(PsiExpression.EMPTY_ARRAY);
   }
 
-  @NotNull public static PsiVariable[] getVariablesVisibleAt(@Nullable final PsiElement place, String prefix) {
+  public static PsiVariable @NotNull [] getVariablesVisibleAt(@Nullable final PsiElement place, String prefix) {
     if (place == null) {
       return new PsiVariable[0];
     }

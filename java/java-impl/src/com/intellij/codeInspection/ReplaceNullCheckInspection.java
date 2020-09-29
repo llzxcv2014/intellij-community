@@ -1,10 +1,11 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection;
 
 import com.intellij.codeInsight.Nullability;
 import com.intellij.codeInspection.dataFlow.NullabilityUtil;
 import com.intellij.codeInspection.ui.MultipleCheckboxOptionsPanel;
 import com.intellij.codeInspection.util.LambdaGenerationUtil;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.CodeStyleManager;
@@ -41,7 +42,7 @@ public class ReplaceNullCheckInspection extends AbstractBaseJavaLocalInspectionT
   public JComponent createOptionsPanel() {
     MultipleCheckboxOptionsPanel panel = new MultipleCheckboxOptionsPanel(this);
     panel
-      .addCheckbox(InspectionsBundle.message("inspection.require.non.null.no.warning.replacement.bigger"), "noWarningReplacementBigger");
+      .addCheckbox(JavaBundle.message("inspection.require.non.null.no.warning.replacement.bigger"), "noWarningReplacementBigger");
     return panel;
   }
 
@@ -64,7 +65,7 @@ public class ReplaceNullCheckInspection extends AbstractBaseJavaLocalInspectionT
         boolean isInfoLevel = noWarningReplacementBigger && ifStatement.getTextLength() + maybeImplicitElseLength - context.getLenAfterReplace() < MINIMAL_WARN_DELTA_SIZE;
         ProblemHighlightType highlight = getHighlight(context, isInfoLevel);
         if (!isOnTheFly && highlight == ProblemHighlightType.INFORMATION) return;
-        holder.registerProblem(ifStatement.getFirstChild(), InspectionsBundle.message("inspection.require.non.null.message", method), highlight,
+        holder.registerProblem(ifStatement.getFirstChild(), JavaBundle.message("inspection.require.non.null.message", method), highlight,
                                new ReplaceWithRequireNonNullFix(method, false));
       }
 
@@ -91,13 +92,13 @@ public class ReplaceNullCheckInspection extends AbstractBaseJavaLocalInspectionT
         boolean isInfoLevel = noWarningReplacementBigger && replacementShorter;
         ProblemHighlightType highlightType = isInfoLevel ? ProblemHighlightType.INFORMATION : ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
         if (!isOnTheFly && highlightType == ProblemHighlightType.INFORMATION) return;
-        holder.registerProblem(ternary, InspectionsBundle.message("inspection.require.non.null.message", method),
+        holder.registerProblem(ternary, JavaBundle.message("inspection.require.non.null.message", method),
                                highlightType, new ReplaceWithRequireNonNullFix(method, true));
       }
     };
   }
 
-  private static class ReplaceWithRequireNonNullFix implements LocalQuickFix {
+  private static final class ReplaceWithRequireNonNullFix implements LocalQuickFix {
     private final @NotNull String myMethod;
     private final boolean myIsTernary;
 
@@ -109,14 +110,14 @@ public class ReplaceNullCheckInspection extends AbstractBaseJavaLocalInspectionT
     @NotNull
     @Override
     public String getName() {
-      return InspectionsBundle.message("inspection.require.non.null.message", myMethod);
+      return JavaBundle.message("inspection.require.non.null.message", myMethod);
     }
 
     @Nls
     @NotNull
     @Override
     public String getFamilyName() {
-      return InspectionsBundle.message("inspection.require.non.null");
+      return JavaBundle.message("inspection.require.non.null");
     }
 
     @Override
@@ -171,7 +172,7 @@ public class ReplaceNullCheckInspection extends AbstractBaseJavaLocalInspectionT
     return factory.createExpressionFromText(requireCallText, context);
   }
 
-  private static class NotNullContext {
+  private static final class NotNullContext {
     private final @NotNull PsiExpression myExpressionToReplace;
     private final @NotNull PsiExpression myDiff;
     private final @NotNull PsiStatement myNullBranchStmt;
@@ -280,7 +281,7 @@ public class ReplaceNullCheckInspection extends AbstractBaseJavaLocalInspectionT
   }
 
 
-  private static class TernaryNotNullContext {
+  private static final class TernaryNotNullContext {
     private final @NotNull PsiConditionalExpression myTernary;
     private final @NotNull PsiExpression myNullExpr;
     private final @NotNull PsiReferenceExpression myReferenceExpression;
@@ -317,7 +318,7 @@ public class ReplaceNullCheckInspection extends AbstractBaseJavaLocalInspectionT
    * Represents difference between o1.m1().m2() and o2.m1().m2()
    * Relies that call chain and arguments are exactly the same
    */
-  private static class TopmostQualifierDiff {
+  private static final class TopmostQualifierDiff {
     private final @Nullable PsiExpression myLeft;
     private final @Nullable PsiExpression myRight;
 

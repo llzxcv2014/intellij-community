@@ -3,6 +3,7 @@ package com.intellij.refactoring.rename;
 
 import com.intellij.find.FindBundle;
 import com.intellij.ide.util.scopeChooser.ScopeChooserCombo;
+import com.intellij.lang.LangBundle;
 import com.intellij.lang.findUsages.DescriptiveNameUtil;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.application.ApplicationManager;
@@ -12,6 +13,8 @@ import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsContexts.DialogMessage;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -46,8 +49,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 
 public class RenameDialog extends RefactoringDialog {
-  private static final String REFACTORING_NAME = RefactoringBundle.message("rename.title");
-
   private SuggestedNameInfo mySuggestedNameInfo;
   private JLabel myNameLabel;
   private NameSuggestionsField myNameSuggestionsField;
@@ -72,7 +73,7 @@ public class RenameDialog extends RefactoringDialog {
     myPsiElement = psiElement;
     myNameSuggestionContext = nameSuggestionContext;
     myEditor = editor;
-    setTitle(REFACTORING_NAME);
+    setTitle(getRefactoringName());
 
     createNewNameComponent();
     init();
@@ -102,7 +103,7 @@ public class RenameDialog extends RefactoringDialog {
   }
 
   @NotNull
-  protected String getLabelText() {
+  protected @NlsContexts.Label String getLabelText() {
     return RefactoringBundle.message("rename.0.and.its.usages.to", getFullName());
   }
 
@@ -336,6 +337,10 @@ public class RenameDialog extends RefactoringDialog {
     invokeRefactoring(processor);
   }
 
+  public RenameProcessor createRenameProcessorEx(@NotNull String newName) {
+    return createRenameProcessor(newName);
+  }
+
   protected RenameProcessor createRenameProcessor(@NotNull String newName) {
     return new RenameProcessor(getProject(), myPsiElement, newName, getRefactoringScope(), isSearchInComments(), isSearchInNonJavaFiles());
   }
@@ -344,9 +349,9 @@ public class RenameDialog extends RefactoringDialog {
   protected void canRun() throws ConfigurationException {
     if (Comparing.strEqual(getNewName(), myOldName)) throw new ConfigurationException(null);
     if (!areButtonsValid()) {
-      throw new ConfigurationException("\'" + getNewName() + "\' is not a valid identifier");
+      throw new ConfigurationException(LangBundle.message("dialog.message.valid.identifier", getNewName()));
     }
-    final Function<String, String> inputValidator = RenameInputValidatorRegistry.getInputErrorValidator(myPsiElement);
+    final Function<String, @DialogMessage String> inputValidator = RenameInputValidatorRegistry.getInputErrorValidator(myPsiElement);
     if (inputValidator != null) {
       setErrorText(inputValidator.fun(getNewName()));
     }
@@ -364,5 +369,9 @@ public class RenameDialog extends RefactoringDialog {
 
   public JCheckBox getCbSearchInComments() {
     return myCbSearchInComments;
+  }
+
+  private static @NlsContexts.DialogTitle String getRefactoringName() {
+    return RefactoringBundle.message("rename.title");
   }
 }

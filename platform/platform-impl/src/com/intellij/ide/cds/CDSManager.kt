@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.cds
 
 import com.intellij.diagnostic.VMOptions
@@ -6,6 +6,7 @@ import com.intellij.execution.CommandLineWrapperUtil
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.OSProcessUtil
 import com.intellij.execution.util.ExecUtil
+import com.intellij.ide.IdeBundle
 import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.PathManager
@@ -14,12 +15,15 @@ import com.intellij.openapi.progress.PerformInBackgroundOption
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.util.NlsContexts
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.util.TimeoutUtil
 import com.intellij.util.text.VersionComparatorUtil
 import com.sun.management.OperatingSystemMXBean
 import com.sun.tools.attach.VirtualMachine
+import org.jetbrains.annotations.Nls
 import java.io.File
 import java.lang.management.ManagementFactory
 import java.nio.charset.StandardCharsets
@@ -109,11 +113,11 @@ object CDSManager {
 
   fun installCDS(canStillWork: () -> Boolean, onResult: (CDSTaskResult) -> Unit) {
     CDSFUSCollector.logCDSBuildingStarted()
-    val startTime = System.currentTimeMillis()
+    val startTime = System.nanoTime()
 
     ProgressManager.getInstance().run(object : Task.Backgroundable(
       null,
-      "Optimizing startup performance...",
+      IdeBundle.message("progress.title.cds.optimize.startup"),
       true,
       PerformInBackgroundOption.ALWAYS_BACKGROUND
     ) {
@@ -131,7 +135,7 @@ object CDSManager {
 
           override var text2: String?
             get() = indicator.text2
-            set(value) {
+            set(@NlsContexts.ProgressText value: String?) {
               indicator.text2 = value
             }
         }
@@ -146,7 +150,7 @@ object CDSManager {
           CDSTaskResult.Failed(message)
         }
 
-        val installTime = System.currentTimeMillis() - startTime
+        val installTime = TimeoutUtil.getDurationMillis(startTime)
         CDSFUSCollector.logCDSBuildingCompleted(installTime, result)
         onResult(result)
       }
@@ -196,7 +200,7 @@ object CDSManager {
     }
 
   private fun generateClassList(indicator: CDSProgressIndicator, paths: CDSPaths) {
-    indicator.text2 = "Collecting classes list..."
+    indicator.text2 = IdeBundle.message("progress.text.collecting.classes")
 
     val selfAttachKey = "jdk.attach.allowAttachSelf"
     if (!System.getProperties().containsKey(selfAttachKey)) {
@@ -217,7 +221,7 @@ object CDSManager {
   }
 
   private fun generateSharedArchive(indicator: CDSProgressIndicator, paths: CDSPaths) {
-    indicator.text2 = "Generating classes archive..."
+    indicator.text2 = IdeBundle.message("progress.text.generate.classes.archive")
 
     val logLevel = if (LOG.isDebugEnabled) "=debug" else ""
     val args = listOf(

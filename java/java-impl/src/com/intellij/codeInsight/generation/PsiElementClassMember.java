@@ -16,9 +16,8 @@
 package com.intellij.codeInsight.generation;
 
 import com.intellij.openapi.util.Iconable;
-import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiDocCommentOwner;
-import com.intellij.psi.PsiSubstitutor;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.psi.*;
 import com.intellij.psi.util.PsiFormatUtil;
 import com.intellij.psi.util.PsiFormatUtilBase;
 import org.jetbrains.annotations.NotNull;
@@ -28,22 +27,26 @@ import org.jetbrains.annotations.NotNull;
 */
 public abstract class PsiElementClassMember<T extends PsiDocCommentOwner> extends PsiDocCommentOwnerMemberChooserObject implements ClassMemberWithElement {
   private final T myPsiMember;
+  private final SmartPsiElementPointer<T> myMemberPointer;
   private PsiSubstitutor mySubstitutor;
 
-  protected PsiElementClassMember(@NotNull T psiMember, String text) {
+  protected PsiElementClassMember(@NotNull T psiMember,  @NlsContexts.Label String text) {
     this(psiMember, PsiSubstitutor.EMPTY, text);
   }
 
-  protected PsiElementClassMember(@NotNull T psiMember, @NotNull PsiSubstitutor substitutor, String text) {
+  protected PsiElementClassMember(@NotNull T psiMember, @NotNull PsiSubstitutor substitutor, @NlsContexts.Label String text) {
     super(psiMember, text, psiMember.getIcon(Iconable.ICON_FLAG_VISIBILITY));
     myPsiMember = psiMember;
+    myMemberPointer = SmartPointerManager.createPointer(psiMember);
     mySubstitutor = substitutor;
   }
 
   @Override
   @NotNull
   public T getElement() {
-    return myPsiMember;
+    T actual = myMemberPointer.getElement();
+    return actual != null ? actual
+                          : myPsiMember; // to at least get invalidation trace in PIEAE later
   }
 
   public PsiSubstitutor getSubstitutor() {
@@ -62,6 +65,6 @@ public abstract class PsiElementClassMember<T extends PsiDocCommentOwner> extend
   }
 
   protected PsiClass getContainingClass() {
-    return myPsiMember.getContainingClass();
+    return getElement().getContainingClass();
   }
 }

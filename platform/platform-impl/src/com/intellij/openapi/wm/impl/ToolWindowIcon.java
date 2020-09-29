@@ -2,6 +2,7 @@
 package com.intellij.openapi.wm.impl;
 
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.ScalableIcon;
 import com.intellij.ui.RetrievableIcon;
 import com.intellij.ui.icons.MenuBarIconProvider;
 import org.jetbrains.annotations.NotNull;
@@ -12,12 +13,12 @@ import java.awt.*;
 /**
  * @author Konstantin Bulenkov
  */
-public final class ToolWindowIcon implements RetrievableIcon, MenuBarIconProvider {
+public final class ToolWindowIcon implements RetrievableIcon, MenuBarIconProvider, ScalableIcon {
   @NotNull
   private final Icon myIcon;
   private final String myToolWindowId;
 
-  ToolWindowIcon(@NotNull Icon icon, String toolWindowId) {
+  ToolWindowIcon(@NotNull Icon icon, @NotNull String toolWindowId) {
     myIcon = icon;
     myToolWindowId = toolWindowId;
   }
@@ -30,7 +31,9 @@ public final class ToolWindowIcon implements RetrievableIcon, MenuBarIconProvide
 
   @NotNull
   @Override
-  public Icon getMenuBarIcon(boolean isDark) { return new ToolWindowIcon(IconLoader.getMenuBarIcon(myIcon, isDark), myToolWindowId); }
+  public Icon getMenuBarIcon(boolean isDark) {
+    return new ToolWindowIcon(IconLoader.getMenuBarIcon(myIcon, isDark), myToolWindowId);
+  }
 
   @Override
   public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -45,5 +48,15 @@ public final class ToolWindowIcon implements RetrievableIcon, MenuBarIconProvide
   @Override
   public int getIconHeight() {
     return myIcon.getIconHeight();
+  }
+
+  @Override
+  public float getScale() {
+    return myIcon instanceof ScalableIcon ? ((ScalableIcon)myIcon).getScale() : 1f;
+  }
+
+  @Override
+  public @NotNull Icon scale(float scaleFactor) {
+    return myIcon instanceof ScalableIcon ? ((ScalableIcon)myIcon).scale(scaleFactor) : myIcon;
   }
 }

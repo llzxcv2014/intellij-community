@@ -2,8 +2,13 @@
   <id>com.jetbrains.sh</id>
   <vendor>JetBrains</vendor>
   <depends>com.intellij.modules.lang</depends>
-  <depends optional="true" config-file="sh-terminal.xml">org.jetbrains.plugins.terminal</depends>
   <name>Shell Script</name>
+  <category>Languages</category>
+  <resource-bundle>messages.ShBundle</resource-bundle>
+
+  <depends optional="true" config-file="sh-terminal.xml">org.jetbrains.plugins.terminal</depends>
+  <depends optional="true" config-file="sh-copyright.xml">com.intellij.copyright</depends>
+
   <description><![CDATA[
 Adds support for working with shell script files
 
@@ -11,13 +16,24 @@ Adds support for working with shell script files
 <li>Dedicated run/debug configuration for shell scripts</li>
 <li>Integration with external tools (<a href="https://github.com/koalaman/shellcheck">ShellCheck</a>, <a href="https://github.com/mvdan/sh">Shfmt</a>, <a href="https://explainshell.com/">Explainshell</a>)
 </li></ul>]]></description>
+
+  <extensionPoints>
+    <extensionPoint qualifiedName="com.intellij.sh.shSupport" interface="com.intellij.sh.ShSupport" dynamic="true"/>
+  </extensionPoints>
+
   <extensions defaultExtensionNs="com.intellij">
-    <applicationService serviceInterface="com.intellij.sh.ShSupport" serviceImplementation="com.intellij.sh.ShSupport$Impl"/>
-    <fileType language="Shell Script" extensions="sh;bash;zsh" fieldName="INSTANCE" name="Shell Script" implementationClass="com.intellij.sh.ShFileType"/>
+    <fileType language="Shell Script" extensions="sh;bash;zsh" hashBangs="sh;bash;zsh" fieldName="INSTANCE" name="Shell Script"
+              implementationClass="com.intellij.sh.ShFileType"/>
+    <backgroundPostStartupActivity implementation="com.intellij.sh.fileType.ShShebangFileTypeDetectorActivity"/>
     <lang.syntaxHighlighter language="Shell Script" implementationClass="com.intellij.sh.highlighter.ShSyntaxHighlighter"/>
     <lang.parserDefinition language="Shell Script" implementationClass="com.intellij.sh.parser.ShParserDefinition"/>
-    <lang.commenter language="Shell Script" implementationClass="com.intellij.sh.ShCommenter"/>
+    <lang.commenter language="Shell Script" implementationClass="com.intellij.sh.editor.ShCommenter"/>
+    <lang.foldingBuilder language="Shell Script" implementationClass="com.intellij.sh.editor.ShFoldingBuilder"/>
     <lang.quoteHandler language="Shell Script" implementationClass="com.intellij.sh.ShQuoteHandler"/>
+    <lang.findUsagesProvider language="Shell Script" implementationClass="com.intellij.sh.codeInsight.ShFindUsagesProvider"/>
+    <resolveScopeProvider implementation="com.intellij.sh.psi.impl.ShResolveScopeProvider"/>
+    <lang.elementManipulator forClass="com.intellij.sh.psi.ShLiteral" implementationClass="com.intellij.sh.psi.manipulator.ShLiteralManipulator" />
+    <targetElementEvaluator language="Shell Script" implementationClass="com.intellij.sh.codeInsight.ShTargetElementEvaluator"/>
     <editor.backspaceModeOverride language="Shell Script" implementationClass="com.intellij.sh.ShBackspaceModeOverride"/>
 
     <lang.psiStructureViewFactory language="Shell Script" implementationClass="com.intellij.sh.ShStructureViewFactory"/>
@@ -31,18 +47,24 @@ Adds support for working with shell script files
 
     <typedHandler implementation="com.intellij.sh.ShTypedHandler"/>
     <completion.contributor language="Shell Script" implementationClass="com.intellij.sh.completion.ShShebangCompletionContributor" order="first"/>
-    <completion.contributor language="Shell Script" implementationClass="com.intellij.sh.completion.ShCommandCompletionContributor"/>
     <completion.contributor id="shFilePathCompletionContributor" language="Shell Script" implementationClass="com.intellij.sh.completion.ShFilePathCompletionContributor"/>
+    <completion.contributor language="Shell Script" implementationClass="com.intellij.sh.completion.ShCommandCompletionContributor"/>
     <completion.contributor language="Shell Script" implementationClass="com.intellij.sh.completion.ShKeywordCompletionContributor" order="after shFilePathCompletionContributor"/>
     <lang.braceMatcher language="Shell Script" implementationClass="com.intellij.sh.ShBraceMatcher"/>
     <lang.documentationProvider language="Shell Script" implementationClass="com.intellij.sh.ShDocumentationProvider"/>
 
     <configurationType implementation="com.intellij.sh.run.ShConfigurationType"/>
-    <stepsBeforeRunProvider implementation="com.intellij.sh.run.ShBeforeRunTaskProvider"/>
     <runConfigurationProducer implementation="com.intellij.sh.run.ShRunConfigurationProducer"/>
-    <runLineMarkerContributor language="Shell Script" implementationClass="com.intellij.sh.run.ShRunLineMarkerContributor"/>
+    <programRunner implementation="com.intellij.sh.run.ShRunProgramRunner"/>
+    <runConfigurationBeforeRunProviderDelegate implementation="com.intellij.sh.run.ShBeforeRunProviderDelegate"/>
+    <experimentalFeature id="com.intellij.sh.run.with.wsl" percentOfUsers="0">
+      <description>Run shell scripts with WSL when needed</description>
+    </experimentalFeature>
+    <runLineMarkerContributor language="" implementationClass="com.intellij.sh.run.ShRunLineMarkerContributor"/>
 
-    <defaultLiveTemplatesProvider implementation="com.intellij.sh.template.ShTemplateProvider"/>
+    <defaultLiveTemplates file="liveTemplates/ShellScript.xml"/>
+    <defaultLiveTemplates file="liveTemplates/ShellScriptArray.xml"/>
+    <defaultLiveTemplates file="liveTemplates/ShellScriptHidden.xml" hidden="true"/>
     <liveTemplateContext implementation="com.intellij.sh.template.ShContextType"/>
     <lineIndentProvider implementation="com.intellij.sh.formatter.ShLineIndentProvider"/>
     <langCodeStyleSettingsProvider implementation="com.intellij.sh.codeStyle.ShLanguageCodeStyleSettingsProvider"/>
@@ -54,42 +76,36 @@ Adds support for working with shell script files
     <editorNotificationProvider implementation="com.intellij.sh.shellcheck.ShellcheckSetupNotificationProvider"/>
 
     <externalAnnotator language="Shell Script" implementationClass="com.intellij.sh.shellcheck.ShShellcheckExternalAnnotator"/>
-    <localInspection language="Shell Script" groupName="Shell Script" shortName="ShellCheck" displayName="ShellCheck" enabledByDefault="true"
+    <localInspection language="Shell Script" shortName="ShellCheck" enabledByDefault="true"
+                     bundle="messages.ShBundle" groupKey="sh.shell.script" key="display.name.shell.check"
                      level="ERROR" unfair="true" implementationClass="com.intellij.sh.shellcheck.ShShellcheckInspection"/>
 
-    <fileTypeDetector implementation="com.intellij.sh.ShFileTypeDetector" order="first"/>
+    <spellchecker.support language="Shell Script" implementationClass="com.intellij.sh.spellchecker.ShSpellcheckingStrategy"/>
+
     <highlightErrorFilter implementation="com.intellij.sh.ShErrorFilter"/>
     <daemon.highlightInfoFilter implementation="com.intellij.sh.ShErrorFilter"/>
 
-    <statistics.counterUsagesCollector groupId="shell.script" version="1"/>
+    <statistics.counterUsagesCollector groupId="sh.shell.script" version="1"/>
 
     <highlightUsagesHandlerFactory implementation="com.intellij.sh.highlighting.ShOccurrencesHighlightingFactory"/>
     <renameHandler implementation="com.intellij.sh.rename.ShRenameHandler"/>
-
     <intentionAction>
       <className>com.intellij.sh.rename.ShRenameAllOccurrencesIntention</className>
-      <category>Shell Script</category>
+      <category>Shell script</category>
     </intentionAction>
     <intentionAction>
       <className>com.intellij.sh.ShExplainShellIntention</className>
-      <category>Shell Script</category>
+      <category>Shell script</category>
     </intentionAction>
+    <notificationGroup id="Shell Script" displayType="BALLOON" bundle="messages.ShBundle" key="sh.shell.script"/>
   </extensions>
   <actions>
-    <action id="runShellFileAction" class="com.intellij.sh.run.ShRunFileAction"
-            text="Run File"
-            description="Run current shell file in the terminal" use-shortcut-of="RunClass"/>
+    <action id="runShellFileAction" class="com.intellij.sh.run.ShRunFileAction" use-shortcut-of="RunClass"/>
 
     <group id="ShGenerateGroup">
-      <action id="ShGenerateForLoop" class="com.intellij.sh.actions.ShGenerateForLoop"
-              text="For Loop"
-              description="Creates for loop"/>
-      <action id="ShGenerateWhileLoop" class="com.intellij.sh.actions.ShGenerateWhileLoop"
-              text="While Loop"
-              description="Creates while loop"/>
-      <action id="ShGenerateUntilLoop" class="com.intellij.sh.actions.ShGenerateUntilLoop"
-              text="Until Loop"
-              description="Creates until loop"/>
+      <action id="ShGenerateForLoop" class="com.intellij.sh.actions.ShGenerateForLoop"/>
+      <action id="ShGenerateWhileLoop" class="com.intellij.sh.actions.ShGenerateWhileLoop"/>
+      <action id="ShGenerateUntilLoop" class="com.intellij.sh.actions.ShGenerateUntilLoop"/>
       <add-to-group group-id="GenerateGroup" anchor="first"/>
     </group>
   </actions>

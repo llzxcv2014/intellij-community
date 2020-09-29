@@ -1,5 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.xml.highlighting;
 
 import com.intellij.codeInsight.daemon.HighlightDisplayKey;
@@ -19,6 +18,7 @@ import com.intellij.psi.xml.XmlFile;
 import com.intellij.psi.xml.XmlTag;
 import com.intellij.util.EventDispatcher;
 import com.intellij.util.SmartList;
+import com.intellij.util.containers.CollectionFactory;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.messages.MessageBusConnection;
 import com.intellij.util.xml.DomElement;
@@ -71,7 +71,8 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
     }
 
   };
-  private final Map<XmlTag, DomElementsProblemsHolderImpl> myHolders = ContainerUtil.createWeakMap();
+
+  private final Map<XmlTag, DomElementsProblemsHolderImpl> myHolders = CollectionFactory.createWeakMap();
 
   public DomElementAnnotationsManagerImpl(@NotNull Project project) {
     MessageBusConnection connection = project.getMessageBus().connect();

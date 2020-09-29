@@ -8,31 +8,29 @@ import com.intellij.codeInsight.intention.impl.config.TextDescriptor;
 import com.intellij.codeInsight.template.impl.TemplateImpl;
 import com.intellij.codeInsight.template.postfix.templates.editable.EditablePostfixTemplate;
 import com.intellij.openapi.util.text.StringUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 public class EditablePostfixTemplateMetaData implements BeforeAfterMetaData {
 
-  @NotNull
-  private final String myAfterText;
-  private final String myBeforeText;
+  private final @NotNull @Nls String myAfterText;
+  private final @NotNull @Nls String myBeforeText;
 
   public EditablePostfixTemplateMetaData(@NotNull EditablePostfixTemplate template) {
     TemplateImpl liveTemplate = template.getLiveTemplate();
     String text = liveTemplate.getString();
 
     myBeforeText = "<spot>$EXPR$</spot>" + template.getKey();
-    myAfterText = StringUtil.replace(text, "$END$", "<spot></spot>", true);
+    myAfterText = StringUtil.replace(text, "$END$", "<spot></spot>", true); //NON-NLS
   }
 
-  @NotNull
   @Override
-  public TextDescriptor[] getExampleUsagesBefore() {
+  public TextDescriptor @NotNull [] getExampleUsagesBefore() {
     return new TextDescriptor[]{new PlainTextDescriptor(myBeforeText, "before.txt")};
   }
 
-  @NotNull
   @Override
-  public TextDescriptor[] getExampleUsagesAfter() {
+  public TextDescriptor @NotNull [] getExampleUsagesAfter() {
     return new TextDescriptor[]{new PlainTextDescriptor(myAfterText, "after.txt")};
   }
 

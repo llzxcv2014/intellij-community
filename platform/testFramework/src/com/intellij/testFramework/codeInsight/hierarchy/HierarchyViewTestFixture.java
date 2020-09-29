@@ -1,6 +1,4 @@
-/*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.testFramework.codeInsight.hierarchy;
 
 import com.intellij.ide.hierarchy.HierarchyNodeDescriptor;
@@ -18,7 +16,7 @@ import java.util.*;
 
 import static junit.framework.TestCase.assertEquals;
 
-public class HierarchyViewTestFixture {
+public final class HierarchyViewTestFixture {
   private static final String NODE_ELEMENT_NAME = "node";
   private static final String ANY_NODES_ELEMENT_NAME = "any";
   private static final String TEXT_ATTR_NAME = "text";
@@ -157,7 +155,7 @@ public class HierarchyViewTestFixture {
 
     Arrays.sort(children, Comparator.comparing(child -> ((HierarchyNodeDescriptor)child).getHighlightedText().getText()));
 
-    Collections.sort(expectedChildren, Comparator.comparing(child -> child.getAttributeValue(TEXT_ATTR_NAME)));
+    expectedChildren.sort(Comparator.comparing(child -> child.getAttributeValue(TEXT_ATTR_NAME)));
 
     Iterator<Element> iterator = expectedChildren.iterator();
     for (Object child : children) {

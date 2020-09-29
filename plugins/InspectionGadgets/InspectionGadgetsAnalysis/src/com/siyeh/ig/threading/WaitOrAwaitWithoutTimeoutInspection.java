@@ -19,16 +19,10 @@ import com.intellij.psi.*;
 import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 public class WaitOrAwaitWithoutTimeoutInspection extends BaseInspection {
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "wait.or.await.without.timeout.display.name");
-  }
 
   @Override
   @NotNull
@@ -51,7 +45,7 @@ public class WaitOrAwaitWithoutTimeoutInspection extends BaseInspection {
       super.visitMethodCallExpression(expression);
       final PsiReferenceExpression methodExpression =
         expression.getMethodExpression();
-      final String methodName = methodExpression.getReferenceName();
+      @NonNls final String methodName = methodExpression.getReferenceName();
       if (!"wait".equals(methodName) && !"await".equals(methodName)) {
         return;
       }

@@ -17,6 +17,7 @@ package com.intellij.openapi.roots.libraries;
 
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,7 +36,6 @@ import java.util.List;
  * </pre>
  *
  * @see LibraryType
- * @author nik
  */
 public abstract class LibraryPresentationProvider<P extends LibraryProperties> {
   public static final ExtensionPointName<LibraryPresentationProvider> EP_NAME = ExtensionPointName.create("com.intellij.library.presentationProvider");
@@ -61,7 +61,6 @@ public abstract class LibraryPresentationProvider<P extends LibraryProperties> {
 
   @Nullable
   public Icon getIcon(@Nullable P properties) {
-    //noinspection deprecation
     return getIcon();
   }
 
@@ -69,7 +68,7 @@ public abstract class LibraryPresentationProvider<P extends LibraryProperties> {
    * @return description of a library to be shown in 'Library Editor' in 'Project Structure' dialog
    */
   @Nullable
-  public String getDescription(@NotNull P properties) {
+  public @Nls String getDescription(@NotNull P properties) {
     return null;
   }
 

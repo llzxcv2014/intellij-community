@@ -1,24 +1,10 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.daemon.impl;
 
-import com.intellij.codeHighlighting.Pass;
 import com.intellij.codeInsight.daemon.LineMarkerInfo;
 import com.intellij.codeInsight.daemon.LineMarkerProviderDescriptor;
 import com.intellij.icons.AllIcons;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.editor.markup.GutterIconRenderer;
 import com.intellij.openapi.progress.ProgressManager;
@@ -42,13 +28,13 @@ import java.util.Set;
 public class RecursiveCallLineMarkerProvider extends LineMarkerProviderDescriptor {
 
   @Override
-  public LineMarkerInfo getLineMarkerInfo(@NotNull PsiElement element) {
+  public LineMarkerInfo<?> getLineMarkerInfo(@NotNull PsiElement element) {
     return null; //do nothing
   }
 
   @Override
-  public void collectSlowLineMarkers(@NotNull List<PsiElement> elements,
-                                     @NotNull Collection<LineMarkerInfo> result) {
+  public void collectSlowLineMarkers(@NotNull List<? extends PsiElement> elements,
+                                     @NotNull Collection<? super LineMarkerInfo<?>> result) {
     final Set<PsiStatement> statements = new HashSet<>();
 
     for (PsiElement element : elements) {
@@ -81,7 +67,7 @@ public class RecursiveCallLineMarkerProvider extends LineMarkerProviderDescripto
   @NotNull
   @Override
   public String getName() {
-    return "Recursive call";
+    return JavaBundle.message("line.marker.recursive.call");
   }
 
   @Nullable
@@ -90,7 +76,7 @@ public class RecursiveCallLineMarkerProvider extends LineMarkerProviderDescripto
     return AllIcons.Gutter.RecursiveMethod;
   }
 
-  private static class RecursiveMethodCallMarkerInfo extends LineMarkerInfo<PsiElement> {
+  private static final class RecursiveMethodCallMarkerInfo extends LineMarkerInfo<PsiElement> {
     private static RecursiveMethodCallMarkerInfo create(@NotNull PsiMethodCallExpression methodCall) {
       PsiElement nameElement = methodCall.getMethodExpression().getReferenceNameElement();
       if (nameElement != null) {
@@ -100,20 +86,14 @@ public class RecursiveCallLineMarkerProvider extends LineMarkerProviderDescripto
     }
 
     private RecursiveMethodCallMarkerInfo(@NotNull PsiElement name) {
-      super(name,
-            name.getTextRange(),
-            AllIcons.Gutter.RecursiveMethod,
-            Pass.LINE_MARKERS,
-            FunctionUtil.constant("Recursive call"),
-            null,
-            GutterIconRenderer.Alignment.RIGHT
-      );
+      super(name, name.getTextRange(), AllIcons.Gutter.RecursiveMethod, FunctionUtil.constant(JavaBundle.message("tooltip.recursive.call")), null,
+            GutterIconRenderer.Alignment.RIGHT);
     }
 
     @Override
     public GutterIconRenderer createGutterRenderer() {
       if (myIcon == null) return null;
-      return new LineMarkerGutterIconRenderer<PsiElement>(this){
+      return new LineMarkerGutterIconRenderer<>(this) {
         @Override
         public AnAction getClickAction() {
           return null; // to place breakpoint on mouse click

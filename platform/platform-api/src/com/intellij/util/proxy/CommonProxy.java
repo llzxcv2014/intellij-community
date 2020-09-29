@@ -1,16 +1,15 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.proxy;
 
 import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.util.text.Strings;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.ui.UIBundle;
-import com.intellij.util.containers.ContainerUtil;
-import gnu.trove.THashMap;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,10 +40,10 @@ public final class CommonProxy extends ProxySelector {
   }
 
   private final Object myLock = new Object();
-  private final Set<Pair<HostInfo, Thread>> myNoProxy = new THashSet<>();
+  private final Set<Pair<HostInfo, Thread>> myNoProxy = new HashSet<>();
 
-  private final Map<String, ProxySelector> myCustom = new THashMap<>();
-  private final Map<String, NonStaticAuthenticator> myCustomAuth = new THashMap<>();
+  private final Map<String, ProxySelector> myCustom = new HashMap<>();
+  private final Map<String, NonStaticAuthenticator> myCustomAuth = new HashMap<>();
 
   public static CommonProxy getInstance() {
     return ourInstance;
@@ -95,10 +94,10 @@ public final class CommonProxy extends ProxySelector {
   }
 
   @Nullable
-  public static String getMessageFromProps(Map<String, String> props) {
+  public static @NlsContexts.DialogMessage String getMessageFromProps(Map<String, String> props) {
     String message = null;
     for (Map.Entry<String, String> entry : props.entrySet()) {
-      if (! StringUtil.isEmptyOrSpaces(entry.getValue())) {
+      if (!Strings.isEmptyOrSpaces(entry.getValue())) {
         message = UIBundle.message("proxy.old.way.label", entry.getKey(), entry.getValue());
         break;
       }
@@ -196,7 +195,7 @@ public final class CommonProxy extends ProxySelector {
     }
     try {
       ourReenterDefence.set(Boolean.TRUE);
-      String host = StringUtil.notNullize(uri.getHost());
+      String host = Strings.notNullize(uri.getHost());
       if (isLocalhost(host)) {
         return NO_PROXY_LIST;
       }
@@ -208,11 +207,11 @@ public final class CommonProxy extends ProxySelector {
           LOG.debug("CommonProxy.select returns no proxy (in no proxy list) for " + uri.toString());
           return NO_PROXY_LIST;
         }
-        copy = new THashMap<>(myCustom);
+        copy = new HashMap<>(myCustom);
       }
       for (Map.Entry<String, ProxySelector> entry : copy.entrySet()) {
-        final List<Proxy> proxies = entry.getValue().select(uri);
-        if (!ContainerUtil.isEmpty(proxies)) {
+        List<Proxy> proxies = entry.getValue().select(uri);
+        if (proxies != null && !proxies.isEmpty()) {
           LOG.debug("CommonProxy.select returns custom proxy for " + uri.toString() + ", " + proxies.toString());
           return proxies;
         }
@@ -242,7 +241,7 @@ public final class CommonProxy extends ProxySelector {
 
     final Map<String, ProxySelector> copy;
     synchronized (myLock) {
-      copy = new THashMap<>(myCustom);
+      copy = new HashMap<>(myCustom);
     }
     for (Map.Entry<String, ProxySelector> entry : copy.entrySet()) {
       entry.getValue().connectFailed(uri, sa, ioe);
@@ -290,7 +289,8 @@ public final class CommonProxy extends ProxySelector {
       authenticator.setRequestingSite(getRequestingSite());
       authenticator.setRequestingPort(getRequestingPort());
       authenticator.setRequestingProtocol(getRequestingProtocol());//http
-      authenticator.setRequestingPrompt(getRequestingPrompt());
+      @NlsSafe String requestingPrompt = getRequestingPrompt();
+      authenticator.setRequestingPrompt(requestingPrompt);
       authenticator.setRequestingScheme(getRequestingScheme());//ntlm
       authenticator.setRequestingURL(getRequestingURL());
       authenticator.setRequestorType(getRequestorType());
@@ -356,7 +356,7 @@ public final class CommonProxy extends ProxySelector {
       }
 
       HostInfo info = (HostInfo)o;
-      return myPort == info.myPort && myHost.equals(info.myHost) && Comparing.equal(myProtocol, info.myProtocol);
+      return myPort == info.myPort && myHost.equals(info.myHost) && Objects.equals(myProtocol, info.myProtocol);
     }
 
     @Override

@@ -2,7 +2,7 @@
 
 package com.intellij.debugger.actions;
 
-import com.intellij.debugger.DebuggerBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.engine.DebugProcessImpl;
 import com.intellij.debugger.engine.JavaStackFrame;
 import com.intellij.debugger.engine.JavaValue;
@@ -20,6 +20,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.xdebugger.XDebuggerBundle;
 import com.intellij.xdebugger.XExpression;
@@ -58,7 +59,7 @@ public class ForceEarlyReturnAction extends DebuggerAction {
           method = proxy.location().method();
         }
         catch (EvaluateException e) {
-          showError(project, DebuggerBundle.message("error.early.return", e.getLocalizedMessage()));
+          showError(project, JavaDebuggerBundle.message("error.early.return", e.getLocalizedMessage()));
           return;
         }
 
@@ -68,7 +69,7 @@ public class ForceEarlyReturnAction extends DebuggerAction {
         else {
           ApplicationManager.getApplication().invokeLater(
             () -> new XExpressionDialog(project, debugProcess.getXdebugProcess().getEditorsProvider(), "forceReturnValue",
-                                        "Return Value", stackFrame.getSourcePosition(), null) {
+                                        JavaDebuggerBundle.message("dialog.title.return.value"), stackFrame.getSourcePosition(), null) {
               @Override
               protected void doOKAction() {
                 evaluateAndReturn(project, stackFrame, debugProcess, getExpression(), this);
@@ -97,7 +98,7 @@ public class ForceEarlyReturnAction extends DebuggerAction {
                                                  @Override
                                                  public void errorOccurred(@NotNull String errorMessage) {
                                                    showError(debugProcess.getProject(),
-                                                             DebuggerBundle.message("error.executing.finally", errorMessage));
+                                                             JavaDebuggerBundle.message("error.executing.finally", errorMessage));
                                                  }
                                                })) {
         return;
@@ -118,7 +119,7 @@ public class ForceEarlyReturnAction extends DebuggerAction {
           thread.forceEarlyReturn(value);
         }
         catch (Exception e) {
-          showError(debugProcess.getProject(), DebuggerBundle.message("error.early.return", e.getLocalizedMessage()));
+          showError(debugProcess.getProject(), JavaDebuggerBundle.message("error.early.return", e.getLocalizedMessage()));
           return;
         }
         //noinspection SSBasedInspection
@@ -152,8 +153,8 @@ public class ForceEarlyReturnAction extends DebuggerAction {
                            }
 
                            @Override
-                           public void errorOccurred(@NotNull final String errorMessage) {
-                             showError(project, DebuggerBundle.message("error.unable.to.evaluate.expression") + ": " + errorMessage);
+                           public void errorOccurred(@NotNull final @NlsContexts.DialogMessage String errorMessage) {
+                             showError(project, JavaDebuggerBundle.message("error.unable.to.evaluate.expression") + ": " + errorMessage);
                            }
                          }, stackFrame.getSourcePosition());
     }
@@ -162,7 +163,7 @@ public class ForceEarlyReturnAction extends DebuggerAction {
     }
   }
 
-  private static void showError(Project project, String message) {
+  private static void showError(Project project, @NlsContexts.DialogMessage String message) {
     PopFrameAction.showError(project, message, UIUtil.removeMnemonic(ActionsBundle.actionText("Debugger.ForceEarlyReturn")));
   }
 

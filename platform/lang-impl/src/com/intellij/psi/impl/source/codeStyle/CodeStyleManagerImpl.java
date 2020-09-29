@@ -1,14 +1,17 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.psi.impl.source.codeStyle;
 
 import com.intellij.application.options.CodeStyle;
+import com.intellij.application.options.codeStyle.cache.CodeStyleCachingService;
 import com.intellij.diagnostic.PluginException;
 import com.intellij.formatting.*;
 import com.intellij.injected.editor.DocumentWindow;
 import com.intellij.lang.*;
 import com.intellij.lang.injection.InjectedLanguageManager;
+import com.intellij.model.ModelBranch;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.*;
 import com.intellij.openapi.editor.ex.util.EditorUtil;
@@ -29,9 +32,11 @@ import com.intellij.psi.impl.source.codeStyle.lineIndent.FormatterBasedIndentAdj
 import com.intellij.psi.impl.source.tree.FileElement;
 import com.intellij.psi.impl.source.tree.RecursiveTreeElementWalkingVisitor;
 import com.intellij.psi.impl.source.tree.TreeElement;
-import com.intellij.psi.util.PsiUtilBase;
+import com.intellij.psi.util.PsiEditorUtil;
+import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.CharTable;
 import com.intellij.util.IncorrectOperationException;
+import com.intellij.util.MathUtil;
 import com.intellij.util.ThrowableRunnable;
 import com.intellij.util.text.CharArrayUtil;
 import org.jetbrains.annotations.NonNls;
@@ -163,6 +168,7 @@ public class CodeStyleManagerImpl extends CodeStyleManager implements Formatting
   public void reformatTextWithContext(@NotNull PsiFile file,
                                       @NotNull ChangedRangesInfo info) throws IncorrectOperationException
   {
+    ensureDocumentCommitted(file);
     FormatTextRanges formatRanges = new FormatTextRanges(info, ChangedRangesUtil.processChangedRanges(file, info));
     formatRanges.setExtendToContext(true);
     reformatText(file, formatRanges, null);
@@ -183,8 +189,7 @@ public class CodeStyleManagerImpl extends CodeStyleManager implements Formatting
     if (ranges.isEmpty()) {
       return;
     }
-    ApplicationManager.getApplication().assertWriteAccessAllowed();
-    PsiDocumentManager.getInstance(getProject()).commitAllDocuments();
+    ensureDocumentCommitted(file);
 
     CheckUtil.checkWritable(file);
     if (!SourceTreeToPsiMap.hasTreeElement(file)) {
@@ -197,7 +202,7 @@ public class CodeStyleManagerImpl extends CodeStyleManager implements Formatting
     LOG.assertTrue(file.isValid(), "File name: " + file.getName() + " , class: " + file.getClass().getSimpleName());
 
     if (editor == null) {
-      editor = PsiUtilBase.findEditor(file);
+      editor = PsiEditorUtil.findEditor(file);
     }
 
     CaretPositionKeeper caretKeeper = null;
@@ -219,6 +224,14 @@ public class CodeStyleManagerImpl extends CodeStyleManager implements Formatting
 
     if (caretKeeper != null) {
       caretKeeper.restoreCaretPosition();
+    }
+  }
+
+  private void ensureDocumentCommitted(@NotNull PsiFile file) {
+    final PsiDocumentManager documentManager = PsiDocumentManager.getInstance(myProject);
+    Document document = documentManager.getDocument(file);
+    if (document != null) {
+      documentManager.commitDocument(document);
     }
   }
 
@@ -505,10 +518,9 @@ public class CodeStyleManagerImpl extends CodeStyleManager implements Formatting
    * </ol>
    * </pre>
    * <p/>
-   * This method inserts that dummy comment (fallback to identifier {@code xxx}, see {@link CodeStyleManagerImpl#createDummy(PsiFile)})
+   * This method inserts that dummy comment (fallback to identifier {@code xxx}, see {@link CodeStyleManagerImpl#createMarker(PsiFile, int)})
    * if necessary.
    * <p/>
-
    * <b>Note:</b> it's expected that the whole white space region that contains given offset is processed in a way that all
    * {@link RangeMarker range markers} registered for the given offset are expanded to the whole white space region.
    * E.g. there is a possible case that particular range marker serves for defining formatting range, hence, its start/end offsets
@@ -541,18 +553,26 @@ public class CodeStyleManagerImpl extends CodeStyleManager implements Formatting
       }
     }
 
-    setSequentialProcessingAllowed(false);
-    String dummy = createDummy(file);
-    document.insertString(offset, dummy);
-    return new TextRange(offset, offset + dummy.length());
+    String marker = createMarker(file, offset);
+    document.insertString(offset, marker);
+    return new TextRange(offset, offset + marker.length());
   }
 
-  @NotNull
-  private static String createDummy(@NotNull PsiFile file) {
-    Language language = file.getLanguage();
+  private static @NotNull String createMarker(@NotNull PsiFile file, int offset) {
+    Project project = file.getProject();
+    PsiElement injectedElement = InjectedLanguageManager.getInstance(project).findInjectedElementAt(file, offset);
+    Language language = injectedElement != null ? injectedElement.getLanguage() : PsiUtilCore.getLanguageAtOffset(file, offset);
+
+    setSequentialProcessingAllowed(false);
+    NewLineIndentMarkerProvider markerProvider = NewLineIndentMarkerProvider.EP.forLanguage(language);
+    String marker = markerProvider == null ? null : markerProvider.createMarker(file, offset);
+    if (marker != null) {
+      return marker;
+    }
+
     PsiComment comment = null;
     try {
-      comment = PsiParserFacade.SERVICE.getInstance(file.getProject()).createLineOrBlockCommentFromText(language, "");
+      comment = PsiParserFacade.SERVICE.getInstance(project).createLineOrBlockCommentFromText(language, "");
     }
     catch (Throwable ignored) {
     }
@@ -858,7 +878,8 @@ public class CodeStyleManagerImpl extends CodeStyleManager implements Formatting
 
     private int getCaretOffset() {
       int caretOffset = myCaretModel.getOffset();
-      caretOffset = Math.max(Math.min(caretOffset, myDocument.getTextLength() - 1), 0);
+      int upperBound = Math.max(myDocument.getTextLength() - 1, 0);
+      caretOffset = MathUtil.clamp(caretOffset, 0, upperBound);
       return caretOffset;
     }
 
@@ -896,22 +917,22 @@ public class CodeStyleManagerImpl extends CodeStyleManager implements Formatting
 
   @Override
   public int getSpacing(@NotNull PsiFile file, int offset) {
-    FormattingModel model = createFormattingModel(file);
+    FormattingModel model = createFormattingModel(file, offset);
     return model == null ? -1 : FormatterEx.getInstance().getSpacingForBlockAtOffset(model, offset);
   }
 
   @Override
   public int getMinLineFeeds(@NotNull PsiFile file, int offset) {
-    FormattingModel model = createFormattingModel(file);
+    FormattingModel model = createFormattingModel(file, offset);
     return model == null ? -1 : FormatterEx.getInstance().getMinLineFeedsBeforeBlockAtOffset(model, offset);
   }
 
   @Nullable
-  private static FormattingModel createFormattingModel(@NotNull PsiFile file) {
+  private static FormattingModel createFormattingModel(@NotNull PsiFile file, int offset) {
     FormattingModelBuilder builder = LanguageFormatting.INSTANCE.forContext(file);
     if (builder == null) return null;
     CodeStyleSettings settings = CodeStyle.getSettings(file);
-    return builder.createModel(file, settings);
+    return builder.createModel(FormattingContext.create(file, TextRange.create(offset, offset), settings, FormattingMode.REFORMAT));
   }
 
   @Override
@@ -941,5 +962,32 @@ public class CodeStyleManagerImpl extends CodeStyleManager implements Formatting
   @Override
   public void scheduleIndentAdjustment(@NotNull Document document, int offset) {
     FormatterBasedIndentAdjuster.scheduleIndentAdjustment(myProject, document, offset);
+  }
+
+  @Override
+  public void scheduleReformatWhenSettingsComputed(@NotNull PsiFile file) {
+    Project project = file.getProject();
+    if (ModelBranch.getPsiBranch(file) != null) {
+      PostprocessReformattingAspect.getInstance(project).disablePostprocessFormattingInside(
+        () -> CodeStyleManager.getInstance(project).reformat(file));
+      return;
+    }
+
+    CodeStyleCachingService.getInstance(project).scheduleWhenSettingsComputed(
+      file,
+      () -> CommandProcessor.getInstance().executeCommand(
+        project,
+        () -> {
+          ApplicationManager.getApplication().runWriteAction(() -> {
+            PostprocessReformattingAspect.getInstance(project).disablePostprocessFormattingInside(
+              () -> {
+                CodeStyleManager.getInstance(project).reformat(file);
+              }
+            );
+          });
+        },
+        LangBundle.message("command.name.reformat"), null
+      )
+    );
   }
 }

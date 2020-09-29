@@ -47,12 +47,6 @@ public class MethodCallInLoopConditionInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("method.call.in.loop.condition.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message("method.call.in.loop.condition.problem.descriptor");
   }
@@ -65,7 +59,7 @@ public class MethodCallInLoopConditionInspection extends BaseInspection {
   @Nullable
   @Override
   public JComponent createOptionsPanel() {
-    return new SingleCheckboxOptionsPanel("Ignore known methods with side-effects", this, "ignoreIterationMethods");
+    return new SingleCheckboxOptionsPanel(InspectionGadgetsBundle.message("inspection.method.call.in.loop.ignore.known.methods.option"), this, "ignoreIterationMethods");
   }
 
   @Override
@@ -118,7 +112,7 @@ public class MethodCallInLoopConditionInspection extends BaseInspection {
                  MethodCallUtils.isCallToMethod(expression, "java.util.ListIterator", PsiType.BOOLEAN, "hasPrevious") ||
                  MethodCallUtils.isCallToMethod(expression, "java.sql.ResultSet", PsiType.BOOLEAN, "next") ||
                  MethodCallUtils.isCallToMethod(expression, "java.util.Enumeration", PsiType.BOOLEAN, "hasMoreElements") ||
-                 MethodCallUtils.isCallToMethod(expression, "java.util.Queue", null, "poll") ||
+                 MethodCallUtils.isCallToMethod(expression, CommonClassNames.JAVA_UTIL_QUEUE, null, "poll") ||
                  MethodCallUtils.isCallToMethod(expression, "java.lang.ref.ReferenceQueue", null, "poll");
         }
 

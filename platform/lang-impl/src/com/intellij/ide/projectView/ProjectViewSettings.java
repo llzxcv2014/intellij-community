@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.projectView;
 
 import com.intellij.ide.projectView.impl.AbstractProjectViewPane;
@@ -8,11 +8,10 @@ import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * @author nik
- */
 public interface ProjectViewSettings extends ViewSettings {
-  boolean isShowExcludedFiles();
+  default boolean isShowExcludedFiles() {
+    return true;
+  }
 
   default boolean isShowVisibilityIcons() {
     return false;
@@ -24,9 +23,11 @@ public interface ProjectViewSettings extends ViewSettings {
    * shown as nested, for example generated {@code foo.js} and {@code foo.js.map} file nodes will be shown as children of the
    * original {@code foo.ts} node in the Project View.
    */
-  default boolean isUseFileNestingRules() {return true;}
+  default boolean isUseFileNestingRules() {
+    return true;
+  }
 
-  class Immutable extends ViewSettings.Immutable implements ProjectViewSettings {
+  final class Immutable extends ViewSettings.Immutable implements ProjectViewSettings {
     public static final ProjectViewSettings DEFAULT = new ProjectViewSettings.Immutable(null);
 
     private final boolean myShowExcludedFiles;
@@ -116,11 +117,6 @@ public interface ProjectViewSettings extends ViewSettings {
     public boolean isShowMembers() {
       ProjectView view = getProjectView();
       return view != null && view.isShowMembers(getPaneID(view));
-    }
-
-    @Override
-    public boolean isStructureView() {
-      return false;
     }
 
     @Override

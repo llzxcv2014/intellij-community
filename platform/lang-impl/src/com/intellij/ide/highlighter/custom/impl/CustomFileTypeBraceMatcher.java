@@ -23,9 +23,8 @@ public class CustomFileTypeBraceMatcher implements PairedBraceMatcher {
     new BracePair(L_BRACE, R_BRACE, true),
   };
 
-  @NotNull
   @Override
-  public BracePair[] getPairs() {
+  public BracePair @NotNull [] getPairs() {
     return PAIRS;
   }
 
@@ -50,7 +49,7 @@ public class CustomFileTypeBraceMatcher implements PairedBraceMatcher {
 
   public static final PairedBraceMatcherAdapter INSTANCE = new PairedBraceMatcherAdapter(new CustomFileTypeBraceMatcher(), IDENTIFIER.getLanguage()) {
     @Override
-    public int getBraceTokenGroupId(IElementType tokenType) {
+    public int getBraceTokenGroupId(@NotNull IElementType tokenType) {
       int id = super.getBraceTokenGroupId(tokenType);
       return id == -1 ? -1 : 777;
     }

@@ -18,12 +18,14 @@ package com.intellij.openapi.vcs.vfs;
 import com.intellij.codeInsight.daemon.OutsidersPsiFileSupport;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileSystem;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,15 +35,18 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public abstract class AbstractVcsVirtualFile extends VirtualFile {
-
+  @NlsSafe
   protected final String myName;
+  @NlsSafe
   protected final String myPath;
+  @NlsSafe
   protected String myRevision;
   private final VirtualFile myParent;
   protected int myModificationStamp = 0;
+  @NotNull
   private final VirtualFileSystem myFileSystem;
 
-  protected AbstractVcsVirtualFile(String path, VirtualFileSystem fileSystem) {
+  protected AbstractVcsVirtualFile(String path, @NotNull VirtualFileSystem fileSystem) {
     myFileSystem = fileSystem;
     myPath = path;
     File file = new File(myPath);
@@ -54,7 +59,7 @@ public abstract class AbstractVcsVirtualFile extends VirtualFile {
     OutsidersPsiFileSupport.markFile(this);
   }
 
-  protected AbstractVcsVirtualFile(@Nullable VirtualFile parent, @NotNull String name, VirtualFileSystem fileSystem) {
+  protected AbstractVcsVirtualFile(@Nullable VirtualFile parent, @NotNull String name, @NotNull VirtualFileSystem fileSystem) {
     myFileSystem = fileSystem;
     myPath = parent != null && !StringUtil.isEmpty(parent.getPath()) ? parent.getPath() + "/" + name : name;
     myName = name;
@@ -87,7 +92,8 @@ public abstract class AbstractVcsVirtualFile extends VirtualFile {
   }
 
   @NotNull
-  String getPresentableName(@NotNull String baseName) {
+  @Nls
+  String getPresentableName(@NotNull @Nls String baseName) {
     if (myRevision == null) return baseName;
     return baseName + " (" + myRevision + ")";
   }
@@ -121,12 +127,11 @@ public abstract class AbstractVcsVirtualFile extends VirtualFile {
   @Override
   @NotNull
   public OutputStream getOutputStream(Object requestor, long newModificationStamp, long newTimeStamp) {
-    throw new RuntimeException(VcsFileSystem.COULD_NOT_IMPLEMENT_MESSAGE);
+    throw new RuntimeException(VcsFileSystem.getCouldNotImplementMessage());
   }
 
   @Override
-  @NotNull
-  public abstract byte[] contentsToByteArray() throws IOException;
+  public abstract byte @NotNull [] contentsToByteArray() throws IOException;
 
   @Override
   public long getModificationStamp() {

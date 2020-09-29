@@ -3,6 +3,7 @@ package com.intellij.openapi.fileChooser.actions;
 
 import com.intellij.CommonBundle;
 import com.intellij.ide.DeleteProvider;
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.application.ApplicationBundle;
@@ -13,6 +14,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.UIBundle;
@@ -47,7 +49,7 @@ public final class VirtualFileDeleteProvider implements DeleteProvider {
     Arrays.sort(files, FileComparator.getInstance());
 
     List<String> problems = new LinkedList<>();
-    CommandProcessor.getInstance().executeCommand(project, () -> new Task.Modal(project, "Deleting Files...", true) {
+    CommandProcessor.getInstance().executeCommand(project, () -> new Task.Modal(project, IdeBundle.message("progress.title.deleting.files"), true) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         indicator.setIndeterminate(false);
@@ -83,7 +85,7 @@ public final class VirtualFileDeleteProvider implements DeleteProvider {
           reportDeletionProblem(problems);
         }
       }
-    }.queue(), "Deleting files", null);
+    }.queue(), IdeBundle.message("command.deleting.files"), null);
   }
 
   private static void reportDeletionProblem(List<String> problems) {
@@ -92,8 +94,9 @@ public final class VirtualFileDeleteProvider implements DeleteProvider {
       problems = problems.subList(0, 10);
       more = true;
     }
-    Messages.showMessageDialog("Could not erase files or folders:\n  " + StringUtil.join(problems, ",\n  ") + (more ? "\n  ..." : ""),
-                               UIBundle.message("error.dialog.title"), Messages.getErrorIcon());
+    Messages.showMessageDialog(
+      IdeBundle.message("dialog.message.could.not.erase.files.or.folders.0.1", StringUtil.join(problems, ",\n  "), more ? "\n  ..." : ""),
+      UIBundle.message("error.dialog.title"), Messages.getErrorIcon());
   }
 
   private static final class FileComparator implements Comparator<VirtualFile> {
@@ -110,7 +113,7 @@ public final class VirtualFileDeleteProvider implements DeleteProvider {
     }
   }
 
-  private static String createConfirmationMessage(VirtualFile[] filesToDelete) {
+  private static @NlsContexts.DialogMessage String createConfirmationMessage(VirtualFile[] filesToDelete) {
     if (filesToDelete.length == 1) {
       if (filesToDelete[0].isDirectory()) {
         return UIBundle.message("are.you.sure.you.want.to.delete.selected.folder.confirmation.message", filesToDelete[0].getName());

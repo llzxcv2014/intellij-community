@@ -1,10 +1,11 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.text;
 
-import com.intellij.CommonBundle;
+import com.intellij.UtilBundle;
 import com.intellij.jna.JnaLoader;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Clock;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
@@ -22,7 +23,7 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
 
-public class DateFormatUtil {
+public final class DateFormatUtil {
   private static final Logger LOG = Logger.getInstance(DateFormatUtil.class);
 
   public static final long SECOND = 1000;
@@ -91,61 +92,73 @@ public class DateFormatUtil {
     return ISO8601_FORMAT;
   }
 
+  @NlsSafe
   @NotNull
   public static String formatTime(@NotNull Date time) {
     return formatTime(time.getTime());
   }
 
+  @NlsSafe
   @NotNull
   public static String formatTime(long time) {
     return getTimeFormat().format(time);
   }
 
+  @NlsSafe
   @NotNull
   public static String formatTimeWithSeconds(@NotNull Date time) {
     return formatTimeWithSeconds(time.getTime());
   }
 
+  @NlsSafe
   @NotNull
   public static String formatTimeWithSeconds(long time) {
     return getTimeWithSecondsFormat().format(time);
   }
 
+  @NlsSafe
   @NotNull
   public static String formatDate(@NotNull Date time) {
     return formatDate(time.getTime());
   }
 
+  @NlsSafe
   @NotNull
   public static String formatDate(long time) {
     return getDateFormat().format(time);
   }
 
+  @NlsSafe
   @NotNull
   public static String formatPrettyDate(@NotNull Date date) {
     return formatPrettyDate(date.getTime());
   }
 
+  @NlsSafe
   @NotNull
   public static String formatPrettyDate(long time) {
     return doFormatPretty(time, false);
   }
 
+  @NlsSafe
   @NotNull
   public static String formatDateTime(Date date) {
     return formatDateTime(date.getTime());
   }
 
+  @NlsSafe
   @NotNull
   public static String formatDateTime(long time) {
     return getDateTimeFormat().format(time);
   }
 
+  @NlsSafe
   @NotNull
   public static String formatPrettyDateTime(@NotNull Date date) {
     return formatPrettyDateTime(date.getTime());
   }
 
+  @NlsSafe
   @NotNull
   public static String formatPrettyDateTime(long time) {
     return doFormatPretty(time, true);
@@ -178,13 +191,13 @@ public class DateFormatUtil {
     if (formatTime) {
       long delta = currentTime - time;
       if (delta >= 0 && delta <= HOUR + MINUTE) {
-        return Pair.create(CommonBundle.message("date.format.minutes.ago", (int)Math.rint(delta / (double)MINUTE)), Boolean.TRUE);
+        return Pair.create(UtilBundle.message("date.format.minutes.ago", (int)Math.rint(delta / (double)MINUTE)), Boolean.TRUE);
       }
     }
 
     boolean isToday = currentYear == year && currentDayOfYear == dayOfYear;
     if (isToday) {
-      String result = CommonBundle.message("date.format.today");
+      String result = UtilBundle.message("date.format.today");
       return Pair.create(formatTime ? result + " " + TIME_FORMAT.format(time) : result, Boolean.TRUE);
     }
 
@@ -192,22 +205,24 @@ public class DateFormatUtil {
       (currentYear == year + 1) && currentDayOfYear == 1 && dayOfYear == c.getActualMaximum(Calendar.DAY_OF_YEAR);
     boolean isYesterday = isYesterdayOnPreviousYear || (currentYear == year && currentDayOfYear == dayOfYear + 1);
     if (isYesterday) {
-      String result = CommonBundle.message("date.format.yesterday");
+      String result = UtilBundle.message("date.format.yesterday");
       return Pair.create(formatTime ? result + " " + TIME_FORMAT.format(time) : result, Boolean.TRUE);
     }
 
     return Pair.create(formatTime ? DATE_TIME_FORMAT.format(time) : DATE_FORMAT.format(time), Boolean.FALSE);
   }
 
+  @NlsSafe
   @NotNull
   public static String formatFrequency(long time) {
-    return CommonBundle.message("date.frequency", formatBetweenDates(time, 0));
+    return UtilBundle.message("date.frequency", formatBetweenDates(time, 0));
   }
 
+  @NlsSafe
   @NotNull
   public static String formatBetweenDates(long d1, long d2) {
     long delta = Math.abs(d1 - d2);
-    if (delta == 0) return CommonBundle.message("date.format.right.now");
+    if (delta == 0) return UtilBundle.message("date.format.right.now");
 
     int n = -1;
     int i;
@@ -221,7 +236,7 @@ public class DateFormatUtil {
 
     if (d2 > d1) {
       if (n <= 0) {
-        return CommonBundle.message("date.format.a.few.moments.ago");
+        return UtilBundle.message("date.format.a.few.moments.ago");
       }
       else {
         return someTimeAgoMessage(PERIODS[i], n);
@@ -229,7 +244,7 @@ public class DateFormatUtil {
     }
     else if (d2 < d1) {
       if (n <= 0) {
-        return CommonBundle.message("date.format.in.a.few.moments");
+        return UtilBundle.message("date.format.in.a.few.moments");
       }
       else {
         return composeInSomeTimeMessage(PERIODS[i], n);
@@ -239,11 +254,13 @@ public class DateFormatUtil {
     return "";
   }
 
+  @NlsSafe
   @NotNull
   public static String formatAboutDialogDate(@NotNull Date date) {
     return formatAboutDialogDate(date.getTime());
   }
 
+  @NlsSafe
   @NotNull
   public static String formatAboutDialogDate(long time) {
     return ABOUT_DATE_FORMAT.format(time);
@@ -265,34 +282,34 @@ public class DateFormatUtil {
   private static String someTimeAgoMessage(final Period period, final int n) {
     switch (period) {
       case DAY:
-        return CommonBundle.message("date.format.n.days.ago", n);
+        return UtilBundle.message("date.format.n.days.ago", n);
       case MINUTE:
-        return CommonBundle.message("date.format.n.minutes.ago", n);
+        return UtilBundle.message("date.format.n.minutes.ago", n);
       case HOUR:
-        return CommonBundle.message("date.format.n.hours.ago", n);
+        return UtilBundle.message("date.format.n.hours.ago", n);
       case MONTH:
-        return CommonBundle.message("date.format.n.months.ago", n);
+        return UtilBundle.message("date.format.n.months.ago", n);
       case WEEK:
-        return CommonBundle.message("date.format.n.weeks.ago", n);
+        return UtilBundle.message("date.format.n.weeks.ago", n);
       default:
-        return CommonBundle.message("date.format.n.years.ago", n);
+        return UtilBundle.message("date.format.n.years.ago", n);
     }
   }
 
   private static String composeInSomeTimeMessage(final Period period, final int n) {
     switch (period) {
       case DAY:
-        return CommonBundle.message("date.format.in.n.days", n);
+        return UtilBundle.message("date.format.in.n.days", n);
       case MINUTE:
-        return CommonBundle.message("date.format.in.n.minutes", n);
+        return UtilBundle.message("date.format.in.n.minutes", n);
       case HOUR:
-        return CommonBundle.message("date.format.in.n.hours", n);
+        return UtilBundle.message("date.format.in.n.hours", n);
       case MONTH:
-        return CommonBundle.message("date.format.in.n.months", n);
+        return UtilBundle.message("date.format.in.n.months", n);
       case WEEK:
-        return CommonBundle.message("date.format.in.n.weeks", n);
+        return UtilBundle.message("date.format.in.n.weeks", n);
       default:
-        return CommonBundle.message("date.format.in.n.years", n);
+        return UtilBundle.message("date.format.in.n.years", n);
     }
   }
 

@@ -1,14 +1,22 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xdebugger.impl.ui.tree.nodes;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.Inlay;
+import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.ColoredTextContainer;
+import com.intellij.ui.SimpleColoredText;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.ThreeState;
 import com.intellij.xdebugger.XDebugSession;
@@ -17,12 +25,15 @@ import com.intellij.xdebugger.XSourcePosition;
 import com.intellij.xdebugger.frame.*;
 import com.intellij.xdebugger.frame.presentation.XValuePresentation;
 import com.intellij.xdebugger.impl.XDebugSessionImpl;
-import com.intellij.xdebugger.impl.XDebuggerInlayUtil;
+import com.intellij.xdebugger.impl.inline.XDebuggerInlayUtil;
+import com.intellij.xdebugger.impl.inline.XDebuggerTreeInlayPopup;
+import com.intellij.xdebugger.impl.evaluate.XDebuggerEditorLinePainter;
+import com.intellij.xdebugger.impl.evaluate.quick.XDebuggerTreeCreator;
 import com.intellij.xdebugger.impl.frame.XDebugView;
 import com.intellij.xdebugger.impl.frame.XValueMarkers;
 import com.intellij.xdebugger.impl.frame.XValueWithInlinePresentation;
 import com.intellij.xdebugger.impl.frame.XVariablesView;
-import com.intellij.xdebugger.impl.pinned.items.PinToTopMemberValue;
+import com.intellij.xdebugger.impl.pinned.items.PinToTopUtilKt;
 import com.intellij.xdebugger.impl.pinned.items.actions.XDebuggerPinToTopAction;
 import com.intellij.xdebugger.impl.ui.DebuggerUIUtil;
 import com.intellij.xdebugger.impl.ui.XDebuggerUIConstants;
@@ -34,17 +45,17 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.MouseEvent;
 import java.util.Comparator;
+import java.util.function.Consumer;
 
-/**
- * @author nik
- */
 public class XValueNodeImpl extends XValueContainerNode<XValue> implements XValueNode, XCompositeNode, XValueNodePresentationConfigurator.ConfigurableXValueNode, RestorableStateNode {
   public static final Comparator<XValueNodeImpl> COMPARATOR = (o1, o2) -> StringUtil.naturalCompare(o1.getName(), o2.getName());
 
   private static final int MAX_NAME_LENGTH = 100;
 
+  @NlsSafe
   private final String myName;
   @Nullable
   private String myRawValue;
@@ -65,7 +76,7 @@ public class XValueNodeImpl extends XValueContainerNode<XValue> implements XValu
         myText.append(myName, XDebuggerUIConstants.VALUE_NAME_ATTRIBUTES);
         myText.append(XDebuggerUIConstants.EQ_TEXT, SimpleTextAttributes.REGULAR_ATTRIBUTES);
       }
-      myText.append(XDebuggerUIConstants.COLLECTING_DATA_MESSAGE, XDebuggerUIConstants.COLLECTING_DATA_HIGHLIGHT_ATTRIBUTES);
+      myText.append(XDebuggerUIConstants.getCollectingDataMessage(), XDebuggerUIConstants.COLLECTING_DATA_HIGHLIGHT_ATTRIBUTES);
     }
   }
 
@@ -133,7 +144,7 @@ public class XValueNodeImpl extends XValueContainerNode<XValue> implements XValu
               return;
             }
 
-            if (!showAsInlay(session, position, debuggerPosition)) {
+            if (!showAsInlay(session, position, debuggerPosition, document)) {
               data.put(file, position, XValueNodeImpl.this, document.getModificationStamp());
 
               myTree.updateEditor();
@@ -152,8 +163,12 @@ public class XValueNodeImpl extends XValueContainerNode<XValue> implements XValu
 
   private boolean showAsInlay(XDebugSession session,
                               XSourcePosition position,
-                              XSourcePosition debuggerPosition) {
-    if (!Registry.is("debugger.show.values.between.lines") && !Registry.is("debugger.show.values.inplace")) return false;
+                              XSourcePosition debuggerPosition,
+                              Document document) {
+    if (!Registry.is("debugger.show.values.between.lines")
+        && !Registry.is("debugger.show.values.inplace")
+        && !Registry.is("debugger.show.values.use.inlays")
+    ) return false;
 
     if (Registry.is("debugger.show.values.between.lines") && session instanceof XDebugSessionImpl) {
       if (XDebuggerInlayUtil.showValueInBlockInlay((XDebugSessionImpl)session, this, position)) {
@@ -170,6 +185,13 @@ public class XValueNodeImpl extends XValueContainerNode<XValue> implements XValu
         }
       }
     }
+    if (Registry.is("debugger.show.values.use.inlays")) {
+      if (XDebuggerInlayUtil.createLineEndInlay(this, session, position.getFile(), position, document)) {
+        return true;
+      }
+    }
+
+
     return false;
   }
 
@@ -292,7 +314,7 @@ public class XValueNodeImpl extends XValueContainerNode<XValue> implements XValu
     myText.clear();
     appendName();
     XValuePresentationUtil.appendSeparator(myText, myValuePresentation.getSeparator());
-    myText.append(XDebuggerUIConstants.MODIFYING_VALUE_MESSAGE, XDebuggerUIConstants.MODIFYING_VALUE_HIGHLIGHT_ATTRIBUTES);
+    myText.append(XDebuggerUIConstants.getModifyingValueMessage(), XDebuggerUIConstants.MODIFYING_VALUE_HIGHLIGHT_ATTRIBUTES);
     setLeaf(true);
     fireNodeStructureChanged();
   }
@@ -305,13 +327,12 @@ public class XValueNodeImpl extends XValueContainerNode<XValue> implements XValu
   @Nullable
   @Override
   public Object getIconTag() {
-    if (!(myValueContainer instanceof PinToTopMemberValue)) {
-      return null;
+    if (!getTree().getPinToTopManager().isEnabled()) {
+        return null;
     }
 
-    if (!((PinToTopMemberValue) myValueContainer).canBePinned()) {
+    if (!PinToTopUtilKt.canBePinned(this))
       return null;
-    }
 
     return new XDebuggerTreeNodeHyperlink(XDebuggerBundle.message("xdebugger.pin.to.top.action")) {
       @Override

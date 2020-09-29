@@ -15,6 +15,7 @@ import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil;
 import com.intellij.util.FileContentUtil;
 import com.intellij.util.IncorrectOperationException;
 import org.intellij.plugins.intelliLang.InjectionsSettingsUI;
+import org.intellij.plugins.intelliLang.IntelliLangBundle;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
@@ -23,18 +24,17 @@ import java.util.Collections;
  * @author Gregory.Shrago
  */
 public class EditInjectionSettingsAction implements IntentionAction, LowPriorityAction {
-  public static final String EDIT_INJECTION_TITLE = "Language Injection Settings";
 
   @Override
   @NotNull
   public String getText() {
-    return EDIT_INJECTION_TITLE;
+    return IntelliLangBundle.message("intention.name.language.injection.settings");
   }
 
   @Override
   @NotNull
   public String getFamilyName() {
-    return "Edit injection settings";
+    return IntelliLangBundle.message("intention.family.name.edit.injection.settings");
   }
 
   @Override

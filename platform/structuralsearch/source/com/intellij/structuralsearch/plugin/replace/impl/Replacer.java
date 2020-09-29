@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch.plugin.replace.impl;
 
 import com.intellij.codeInsight.template.Template;
@@ -26,6 +26,7 @@ import com.intellij.structuralsearch.plugin.replace.ReplacementInfo;
 import com.intellij.structuralsearch.plugin.util.CollectingMatchResultSink;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.SmartList;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -35,12 +36,13 @@ import java.util.List;
  */
 public class Replacer {
   private final Project project;
+  @NotNull
   private final ReplaceOptions options;
   private final StructuralReplaceHandler replaceHandler;
   private final ReplacementBuilder replacementBuilder;
-  private PsiElement lastAffectedElement = null;
+  private PsiElement lastAffectedElement;
 
-  public Replacer(Project project, ReplaceOptions options) {
+  public Replacer(@NotNull Project project, @NotNull ReplaceOptions options) {
     this.project = project;
     this.options = options;
     final StructuralSearchProfile profile = StructuralSearchUtil.getProfileByFileType(options.getMatchOptions().getFileType());
@@ -68,11 +70,11 @@ public class Replacer {
 
   public static String testReplace(String in, String what, String by, ReplaceOptions options, Project project, boolean sourceIsFile) {
     final LanguageFileType type = options.getMatchOptions().getFileType();
-    return testReplace(in, what, by, options, project, sourceIsFile, false, type, null);
+    return testReplace(in, what, by, options, project, sourceIsFile, false, type, type.getLanguage());
   }
 
   public static String testReplace(String in, String what, String by, ReplaceOptions replaceOptions, Project project, boolean sourceIsFile,
-                                   boolean createPhysicalFile, LanguageFileType sourceFileType, Language sourceDialect) {
+                                   boolean createPhysicalFile, @NotNull LanguageFileType sourceFileType, @NotNull Language sourceDialect) {
     replaceOptions.setReplacement(by);
 
     final MatchOptions matchOptions = replaceOptions.getMatchOptions();
@@ -82,15 +84,17 @@ public class Replacer {
     checkReplacementPattern(project, replaceOptions);
 
     final Replacer replacer = new Replacer(project, replaceOptions);
-    final Matcher matcher = new Matcher(project);
+    final Matcher matcher = new Matcher(project, matchOptions);
     try {
-      final PsiElement firstElement, lastElement, parent;
-
+      final PsiElement firstElement;
+      final PsiElement lastElement;
+      final PsiElement parent;
       if (matchOptions.getScope() == null) {
         final PsiElement[] elements = MatcherImplUtil.createTreeFromText(
           in,
-          sourceIsFile ? PatternTreeContext.File : PatternTreeContext.Block,
-          sourceFileType, sourceDialect, null,
+          new PatternContextInfo(sourceIsFile ? PatternTreeContext.File : PatternTreeContext.Block),
+          sourceFileType,
+          sourceDialect,
           project,
           createPhysicalFile
         );
@@ -107,34 +111,32 @@ public class Replacer {
       }
 
       final CollectingMatchResultSink sink = new CollectingMatchResultSink();
-      matcher.testFindMatches(sink, matchOptions);
+      matcher.testFindMatches(sink);
 
-      final List<ReplacementInfo> resultPtrList = new SmartList<>();
+      final List<ReplacementInfo> replacements = new SmartList<>();
       for (final MatchResult result : sink.getMatches()) {
-        resultPtrList.add(replacer.buildReplacement(result));
+        replacements.add(replacer.buildReplacement(result));
       }
 
       int startOffset = firstElement.getTextRange().getStartOffset();
-      int endOffset = sourceIsFile ? 0 : parent.getTextLength() - lastElement.getTextRange().getEndOffset();
+      int endOffset = sourceIsFile ? 0 : (parent.getTextLength() - lastElement.getTextRange().getEndOffset());
 
       // get nodes from text may contain
       final PsiElement prevSibling = firstElement.getPrevSibling();
       if (prevSibling instanceof PsiWhiteSpace) {
-        startOffset -= prevSibling.getTextLength() - 1;
+        startOffset -= prevSibling.getTextLength();
       }
 
       final PsiElement nextSibling = lastElement.getNextSibling();
       if (nextSibling instanceof PsiWhiteSpace) {
-        endOffset -= nextSibling.getTextLength() - 1;
+        endOffset -= nextSibling.getTextLength();
       }
-
-      replacer.replaceAll(resultPtrList);
-
-      String result = parent.getText();
-      result = result.substring(startOffset);
-      result = result.substring(0,result.length() - endOffset);
-
-      return result;
+      replacer.replaceAll(replacements);
+      if (firstElement == lastElement && firstElement instanceof PsiFile) {
+        return firstElement.getText();
+      }
+      final String result = parent.getText();
+      return result.substring(startOffset, result.length() - endOffset);
     }
     catch (RuntimeException e) {
       throw e;
@@ -191,13 +193,13 @@ public class Replacer {
     );
   }
 
-  public void replace(ReplacementInfo info) {
+  public void replace(@NotNull ReplacementInfo info) {
     replaceHandler.prepare(info);
     reformatAndPostProcess(doReplace(info));
   }
 
   @Nullable
-  private PsiElement doReplace(ReplacementInfo info) {
+  private PsiElement doReplace(@NotNull ReplacementInfo info) {
     final PsiElement element = info.getMatch(0);
 
     if (element==null || !element.isWritable() || !element.isValid()) return null;
@@ -261,7 +263,7 @@ public class Replacer {
     }
   }
 
-  public static void checkReplacementPattern(Project project, ReplaceOptions options) {
+  public static void checkReplacementPattern(@NotNull Project project, @NotNull ReplaceOptions options) {
     try {
       final String search = options.getMatchOptions().getSearchPattern();
       final String replacement = options.getReplacement();
@@ -312,7 +314,8 @@ public class Replacer {
     }
   }
 
-  public ReplacementInfo buildReplacement(MatchResult result) {
+  @NotNull
+  public ReplacementInfo buildReplacement(@NotNull MatchResult result) {
     final ReplacementInfoImpl replacementInfo = new ReplacementInfoImpl(result, project);
     replacementInfo.setReplacement(replacementBuilder.process(result, replacementInfo, options.getMatchOptions().getFileType()));
 

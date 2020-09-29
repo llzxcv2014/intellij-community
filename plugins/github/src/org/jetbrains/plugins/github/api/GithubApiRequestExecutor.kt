@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.github.api
 
 import com.intellij.openapi.Disposable
@@ -9,11 +9,11 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.util.EventDispatcher
 import com.intellij.util.ThrowableConvertor
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import com.intellij.util.io.HttpRequests
 import com.intellij.util.io.HttpSecurityUtil
 import com.intellij.util.io.RequestBuilder
 import org.jetbrains.annotations.CalledInAny
-import org.jetbrains.annotations.CalledInBackground
 import org.jetbrains.annotations.TestOnly
 import org.jetbrains.plugins.github.api.data.GithubErrorMessage
 import org.jetbrains.plugins.github.exceptions.*
@@ -34,12 +34,12 @@ sealed class GithubApiRequestExecutor {
 
   protected val authDataChangedEventDispatcher = EventDispatcher.create(AuthDataChangeListener::class.java)
 
-  @CalledInBackground
+  @RequiresBackgroundThread
   @Throws(IOException::class, ProcessCanceledException::class)
   abstract fun <T> execute(indicator: ProgressIndicator, request: GithubApiRequest<T>): T
 
   @TestOnly
-  @CalledInBackground
+  @RequiresBackgroundThread
   @Throws(IOException::class, ProcessCanceledException::class)
   fun <T> execute(request: GithubApiRequest<T>): T = execute(EmptyProgressIndicator(), request)
 
@@ -65,6 +65,8 @@ sealed class GithubApiRequestExecutor {
 
     @Throws(IOException::class, ProcessCanceledException::class)
     override fun <T> execute(indicator: ProgressIndicator, request: GithubApiRequest<T>): T {
+      if (service<GHRequestExecutorBreaker>().isRequestsShouldFail) error(
+        "Request failure was triggered by user action. This a pretty long description of this failure that should resemble some long error which can go out of bounds.")
       indicator.checkCanceled()
       return createRequestBuilder(request)
         .tuner { connection ->
@@ -104,6 +106,18 @@ sealed class GithubApiRequestExecutor {
         twoFactorCode = twoFactorCodeSupplier.get() ?: throw e
         executeWithBasicHeader(indicator, request, header)
       }
+    }
+  }
+
+  class NoAuth internal constructor(githubSettings: GithubSettings) : Base(githubSettings) {
+    override fun <T> execute(indicator: ProgressIndicator, request: GithubApiRequest<T>): T {
+      indicator.checkCanceled()
+      return createRequestBuilder(request)
+        .tuner { connection ->
+          request.additionalHeaders.forEach(connection::addRequestProperty)
+        }
+        .useProxy(true)
+        .execute(request, indicator)
     }
   }
 
@@ -226,7 +240,7 @@ sealed class GithubApiRequestExecutor {
     }
   }
 
-  class Factory internal constructor(private val githubSettings: GithubSettings) {
+  class Factory {
     @CalledInAny
     fun create(token: String): WithTokenAuth {
       return create(token, true)
@@ -234,13 +248,16 @@ sealed class GithubApiRequestExecutor {
 
     @CalledInAny
     fun create(token: String, useProxy: Boolean = true): WithTokenAuth {
-      return WithTokenAuth(githubSettings, token, useProxy)
+      return WithTokenAuth(GithubSettings.getInstance(), token, useProxy)
     }
 
     @CalledInAny
     internal fun create(login: String, password: CharArray, twoFactorCodeSupplier: Supplier<String?>): WithBasicAuth {
-      return WithBasicAuth(githubSettings, login, password, twoFactorCodeSupplier)
+      return WithBasicAuth(GithubSettings.getInstance(), login, password, twoFactorCodeSupplier)
     }
+
+    @CalledInAny
+    fun create() = NoAuth(GithubSettings.getInstance())
 
     companion object {
       @JvmStatic

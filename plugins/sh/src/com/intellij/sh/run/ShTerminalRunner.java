@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.sh.run;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
@@ -21,15 +22,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class ShTerminalRunner extends ShRunner {
+final class ShTerminalRunner extends ShRunner {
   private static final Logger LOG = Logger.getInstance(LocalTerminalDirectRunner.class);
 
-  protected ShTerminalRunner(@NotNull Project project) {
+  private ShTerminalRunner(@NotNull Project project) {
     super(project);
   }
 
   @Override
-  public void run(@NotNull String command, @NotNull String workingDirectory) {
+  public void run(@NotNull String command,
+                  @NotNull String workingDirectory,
+                  @NotNull @NlsContexts.TabTitle String title,
+                  boolean activateToolWindow) {
     TerminalView terminalView = TerminalView.getInstance(myProject);
     ToolWindow window = ToolWindowManager.getInstance(myProject).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID);
     if (window == null) return;
@@ -38,10 +42,13 @@ public class ShTerminalRunner extends ShRunner {
     Pair<Content, ShellTerminalWidget> pair = getSuitableProcess(contentManager, workingDirectory);
     try {
       if (pair == null) {
-        terminalView.createLocalShellWidget(workingDirectory).executeCommand(command);
+        terminalView.createLocalShellWidget(workingDirectory, title, activateToolWindow).executeCommand(command);
         return;
       }
-      window.activate(null);
+      if (activateToolWindow) {
+        window.activate(null);
+      }
+      pair.first.setDisplayName(title);
       contentManager.setSelectedContent(pair.first);
       pair.second.executeCommand(command);
     } catch (IOException e) {

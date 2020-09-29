@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.newvfs.events;
 
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.io.FileAttributes;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileSystem;
 import com.intellij.util.FileContentUtilCore;
@@ -12,10 +13,7 @@ import org.jetbrains.annotations.Nullable;
 import java.nio.charset.Charset;
 import java.util.Objects;
 
-/**
- * @author max
- */
-public class VFilePropertyChangeEvent extends VFileEvent {
+public final class VFilePropertyChangeEvent extends VFileEvent {
   private final VirtualFile myFile;
   private final String myPropertyName;
   private final Object myOldValue;
@@ -66,6 +64,17 @@ public class VFilePropertyChangeEvent extends VFileEvent {
           throw new IllegalArgumentException("newSymTarget must be String, got " + newValue);
         }
         break;
+      case VirtualFile.PROP_CHILDREN_CASE_SENSITIVITY:
+        if (!(oldValue instanceof FileAttributes.CaseSensitivity)) {
+          throw new IllegalArgumentException("oldValue must be FileAttributes.CaseSensitivity but got " + oldValue);
+        }
+        if (!(newValue instanceof FileAttributes.CaseSensitivity)) {
+          throw new IllegalArgumentException("newValue must be FileAttributes.CaseSensitivity but got " + newValue);
+        }
+        if (oldValue.equals(newValue)) {
+          throw new IllegalArgumentException("newValue must be different from the oldValue but got " + newValue);
+        }
+        break;
       default:
         throw new IllegalArgumentException(
           "Unknown property name '" + propertyName + "'. " +
@@ -75,7 +84,7 @@ public class VFilePropertyChangeEvent extends VFileEvent {
 
   @ApiStatus.Experimental
   public boolean isRename() {
-    return myPropertyName == VirtualFile.PROP_NAME && getRequestor() != FileContentUtilCore.FORCE_RELOAD_REQUESTOR;
+    return myPropertyName.equals(VirtualFile.PROP_NAME) && getRequestor() != FileContentUtilCore.FORCE_RELOAD_REQUESTOR;
   }
 
   @NotNull
@@ -168,7 +177,7 @@ public class VFilePropertyChangeEvent extends VFileEvent {
       // fileName must be String, according to `checkPropertyValuesCorrect` implementation
       VirtualFile parent = myFile.getParent();
       if (parent == null) {
-        return ((String)fileName);
+        return (String)fileName;
       }
       return parent.getPath() + "/" + fileName;
     }

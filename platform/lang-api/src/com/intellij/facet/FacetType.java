@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.facet;
 
@@ -7,9 +7,13 @@ import com.intellij.facet.ui.DefaultFacetSettingsEditor;
 import com.intellij.facet.ui.FacetEditor;
 import com.intellij.facet.ui.MultipleFacetSettingsEditor;
 import com.intellij.openapi.extensions.ExtensionPointName;
+import com.intellij.openapi.extensions.PluginAware;
+import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleType;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -23,16 +27,16 @@ import javax.swing.*;
  * &nbsp;&nbsp;&lt;facetType implementation="qualified-class-name"/&gt;
  * &lt;/extensions&gt;
  * </pre>
- *
- * @author nik
  */
-public abstract class FacetType<F extends Facet, C extends FacetConfiguration> {
+public abstract class FacetType<F extends Facet, C extends FacetConfiguration> implements PluginAware {
   public static final ExtensionPointName<FacetType> EP_NAME = ExtensionPointName.create("com.intellij.facetType");
 
   private final @NotNull FacetTypeId<F> myId;
   private final @NotNull String myStringId;
+  @Nls(capitalization = Nls.Capitalization.Title)
   private final @NotNull String myPresentableName;
   private final @Nullable FacetTypeId myUnderlyingFacetType;
+  private PluginDescriptor myPluginDescriptor;
 
   public static <T extends FacetType> T findInstance(Class<T> aClass) {
     return EP_NAME.findExtension(aClass);
@@ -46,7 +50,9 @@ public abstract class FacetType<F extends Facet, C extends FacetConfiguration> {
    *                            subfacets to a facet of the specified type. If this parameter is {@code null} it will be possible to add facet of this type
    *                            directly to a module
    */
-  public FacetType(final @NotNull FacetTypeId<F> id, final @NotNull @NonNls String stringId, final @NotNull String presentableName,
+  public FacetType(final @NotNull FacetTypeId<F> id,
+                   final @NotNull @NonNls String stringId,
+                   final @NotNull @Nls(capitalization = Nls.Capitalization.Title) String presentableName,
                    final @Nullable FacetTypeId underlyingFacetType) {
     myId = id;
     myStringId = stringId;
@@ -59,7 +65,9 @@ public abstract class FacetType<F extends Facet, C extends FacetConfiguration> {
    * @param stringId        unique string id of the facet type
    * @param presentableName name of this facet type which will be shown in UI
    */
-  public FacetType(final @NotNull FacetTypeId<F> id, final @NotNull @NonNls String stringId, final @NotNull String presentableName) {
+  public FacetType(final @NotNull FacetTypeId<F> id,
+                   final @NotNull @NonNls String stringId,
+                   final @NotNull @Nls(capitalization = Nls.Capitalization.Title) String presentableName) {
     this(id, stringId, presentableName, null);
   }
 
@@ -74,6 +82,7 @@ public abstract class FacetType<F extends Facet, C extends FacetConfiguration> {
   }
 
   @NotNull
+  @Nls(capitalization = Nls.Capitalization.Title)
   public String getPresentableName() {
     return myPresentableName;
   }
@@ -82,14 +91,22 @@ public abstract class FacetType<F extends Facet, C extends FacetConfiguration> {
    * Default name which will be used then user creates a facet of this type.
    */
   @NotNull
-  @NonNls
-  public String getDefaultFacetName() {
+  public @NlsSafe String getDefaultFacetName() {
     return myPresentableName;
   }
 
   @Nullable
   public FacetTypeId<?> getUnderlyingFacetType() {
     return myUnderlyingFacetType;
+  }
+
+  @Override
+  public void setPluginDescriptor(@NotNull PluginDescriptor pluginDescriptor) {
+    myPluginDescriptor = pluginDescriptor;
+  }
+
+  public final PluginDescriptor getPluginDescriptor() {
+    return myPluginDescriptor;
   }
 
   /**
@@ -115,7 +132,10 @@ public abstract class FacetType<F extends Facet, C extends FacetConfiguration> {
    * @param underlyingFacet underlying facet. Must be passed to {@link Facet} constructor
    * @return a created facet
    */
-  public abstract F createFacet(@NotNull Module module, final String name, @NotNull C configuration, @Nullable Facet underlyingFacet);
+  public abstract F createFacet(@NotNull Module module,
+                                final @NlsSafe String name,
+                                @NotNull C configuration,
+                                @Nullable Facet underlyingFacet);
 
   /**
    * @return {@code true} if only one facet of this type is allowed within the containing module (if this type doesn't have the underlying
@@ -160,7 +180,7 @@ public abstract class FacetType<F extends Facet, C extends FacetConfiguration> {
    * @return editor
    */
   @Nullable
-  public MultipleFacetSettingsEditor createMultipleConfigurationsEditor(@NotNull Project project, @NotNull FacetEditor[] editors) {
+  public MultipleFacetSettingsEditor createMultipleConfigurationsEditor(@NotNull Project project, FacetEditor @NotNull [] editors) {
     return null;
   }
 }

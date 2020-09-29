@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.intellij.build.impl
 
 import com.intellij.openapi.util.io.FileUtil
@@ -11,9 +11,6 @@ import org.jetbrains.intellij.build.impl.productInfo.ProductInfoValidator
 
 import java.util.regex.Pattern
 
-/**
- * @author nik
- */
 class CrossPlatformDistributionBuilder {
   private final BuildContext buildContext
 
@@ -93,6 +90,7 @@ class CrossPlatformDistributionBuilder {
           exclude(name: "bin/idea.properties")
           exclude(name: "help/**")
           exclude(name: "build.txt")
+          exclude(name: SVGPreBuilder.FILE_NAME)
         }
         zipfileset(dir: "$winDistPath/bin", prefix: "bin/win") {
           include(name: "fsnotifier*.exe")

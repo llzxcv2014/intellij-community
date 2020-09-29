@@ -15,13 +15,17 @@
  */
 package com.jetbrains.python.validation;
 
+import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.codeInsight.controlflow.ScopeOwner;
 import com.jetbrains.python.codeInsight.dataflow.scope.ScopeUtil;
 import com.jetbrains.python.psi.*;
 import com.jetbrains.python.sdk.PythonSdkUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,7 +40,7 @@ public class AssignTargetAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyAssignmentStatement(final PyAssignmentStatement node) {
+  public void visitPyAssignmentStatement(final @NotNull PyAssignmentStatement node) {
     for (PyExpression expression : node.getRawTargets()) {
       expression.accept(new ExprVisitor(Operation.Assign));
     }
@@ -46,12 +50,12 @@ public class AssignTargetAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyAugAssignmentStatement(final PyAugAssignmentStatement node) {
+  public void visitPyAugAssignmentStatement(final @NotNull PyAugAssignmentStatement node) {
     node.getTarget().accept(new ExprVisitor(Operation.AugAssign));
   }
 
   @Override
-  public void visitPyDelStatement(final PyDelStatement node) {
+  public void visitPyDelStatement(final @NotNull PyDelStatement node) {
     ExprVisitor visitor = new ExprVisitor(Operation.Delete);
     for (PyExpression expr : node.getTargets()) {
       expr.accept(visitor);
@@ -59,7 +63,7 @@ public class AssignTargetAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyExceptBlock(final PyExceptPart node) {
+  public void visitPyExceptBlock(final @NotNull PyExceptPart node) {
     PyExpression target = node.getTarget();
     if (target != null) {
       target.accept(new ExprVisitor(Operation.Except));
@@ -67,7 +71,7 @@ public class AssignTargetAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyForStatement(final PyForStatement node) {
+  public void visitPyForStatement(final @NotNull PyForStatement node) {
     PyExpression target = node.getForPart().getTarget();
     if (target != null) {
       target.accept(new ExprVisitor(Operation.For));
@@ -75,7 +79,7 @@ public class AssignTargetAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyWithItem(PyWithItem node) {
+  public void visitPyWithItem(@NotNull PyWithItem node) {
     PyExpression target = node.getTarget();
     if (target != null) {
       target.accept(new ExprVisitor(Operation.With));
@@ -83,105 +87,109 @@ public class AssignTargetAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyExpressionStatement(PyExpressionStatement node) {
+  public void visitPyExpressionStatement(@NotNull PyExpressionStatement node) {
     errorOnUnparenthesizedAssignmentExpression(node.getExpression(), "at the top level of an expression statement");
   }
 
   @Override
-  public void visitPyNamedParameter(PyNamedParameter node) {
+  public void visitPyNamedParameter(@NotNull PyNamedParameter node) {
     errorOnUnparenthesizedAssignmentExpression(node.getDefaultValue(), "at the top level of a function default value");
   }
 
   @Override
-  public void visitPyKeywordArgument(PyKeywordArgument node) {
+  public void visitPyKeywordArgument(@NotNull PyKeywordArgument node) {
     errorOnUnparenthesizedAssignmentExpression(node.getValueExpression(), "for the value of a keyword argument in a call");
   }
 
   @Override
-  public void visitPyLambdaExpression(PyLambdaExpression node) {
+  public void visitPyLambdaExpression(@NotNull PyLambdaExpression node) {
     errorOnUnparenthesizedAssignmentExpression(node.getBody(), "at the top level of a lambda function");
   }
 
   @Override
-  public void visitPyAnnotation(PyAnnotation node) {
+  public void visitPyAnnotation(@NotNull PyAnnotation node) {
     errorOnUnparenthesizedAssignmentExpression(node.getValue(), "as annotations for arguments, return values and assignments");
   }
 
   @Override
-  public void visitPyAssignmentExpression(PyAssignmentExpression node) {
+  public void visitPyAssignmentExpression(@NotNull PyAssignmentExpression node) {
     final PyComprehensionElement comprehensionElement = PsiTreeUtil.getParentOfType(node, PyComprehensionElement.class, true, ScopeOwner.class);
     if (ScopeUtil.getScopeOwner(comprehensionElement) instanceof PyClass) {
-      getHolder().createErrorAnnotation(node, "Assignment expressions within a comprehension cannot be used in a class body");
+      getHolder().newAnnotation(HighlightSeverity.ERROR,
+                                PyBundle.message("ANN.assignment.expressions.within.a.comprehension.cannot.be.used.in.a.class.body")).create();
     }
   }
 
   private void errorOnUnparenthesizedAssignmentExpression(@Nullable PyExpression expression, @NotNull String suffix) {
     if (expression instanceof PyAssignmentExpression) {
-      getHolder().createErrorAnnotation(expression, "Unparenthesized assignment expressions are prohibited " + suffix);
+      getHolder().newAnnotation(HighlightSeverity.ERROR,
+                                PyBundle.message("ANN.unparenthesized.assignment.expressions.are.prohibited.0", suffix)).range(expression).create();
     }
   }
 
   private class ExprVisitor extends PyElementVisitor {
     private final Operation myOp;
-    private final String DELETING_NONE = message("ANN.deleting.none");
-    private final String ASSIGNMENT_TO_NONE = message("ANN.assign.to.none");
-    private final String CANT_ASSIGN_TO_FUNCTION_CALL = message("ANN.cant.assign.to.call");
-    private final String CANT_DELETE_FUNCTION_CALL = message("ANN.cant.delete.call");
+    private final @Nls String DELETING_NONE = message("ANN.deleting.none");
+    private final @Nls String ASSIGNMENT_TO_NONE = message("ANN.assign.to.none");
+    private final @Nls String CANT_ASSIGN_TO_FUNCTION_CALL = message("ANN.cant.assign.to.call");
+    private final @Nls String CANT_DELETE_FUNCTION_CALL = message("ANN.cant.delete.call");
 
     ExprVisitor(Operation op) {
       myOp = op;
     }
 
     @Override
-    public void visitPyReferenceExpression(final PyReferenceExpression node) {
+    public void visitPyReferenceExpression(final @NotNull PyReferenceExpression node) {
       String referencedName = node.getReferencedName();
       if (PyNames.NONE.equals(referencedName)) {
-        getHolder().createErrorAnnotation(node, (myOp == Operation.Delete) ? DELETING_NONE : ASSIGNMENT_TO_NONE);
+        //noinspection DialogTitleCapitalization
+        getHolder().newAnnotation(HighlightSeverity.ERROR, (myOp == Operation.Delete) ? DELETING_NONE : ASSIGNMENT_TO_NONE).range(node).create();
       }
     }
 
     @Override
-    public void visitPyTargetExpression(final PyTargetExpression node) {
+    public void visitPyTargetExpression(final @NotNull PyTargetExpression node) {
       String targetName = node.getName();
       if (PyNames.NONE.equals(targetName)) {
         final VirtualFile vfile = node.getContainingFile().getVirtualFile();
         if (vfile != null && !vfile.getUrl().contains("/" + PythonSdkUtil.SKELETON_DIR_NAME + "/")){
-          getHolder().createErrorAnnotation(node, (myOp == Operation.Delete) ? DELETING_NONE : ASSIGNMENT_TO_NONE);
+          //noinspection DialogTitleCapitalization
+          getHolder().newAnnotation(HighlightSeverity.ERROR, (myOp == Operation.Delete) ? DELETING_NONE : ASSIGNMENT_TO_NONE).range(node).create();
         }
       }
       if (PyNames.DEBUG.equals(targetName)) {
         if (LanguageLevel.forElement(node).isPy3K()) {
-          getHolder().createErrorAnnotation(node, "assignment to keyword");
+          getHolder().newAnnotation(HighlightSeverity.ERROR, PyBundle.message("ANN.assignment.to.keyword")).range(node).create();
         }
         else {
-          getHolder().createErrorAnnotation(node, "cannot assign to __debug__");
+          getHolder().newAnnotation(HighlightSeverity.ERROR, PyBundle.message("ANN.cannot.assign.to.debug")).range(node).create();
         }
       }
     }
 
     @Override
-    public void visitPyCallExpression(final PyCallExpression node) {
-      getHolder().createErrorAnnotation(node, (myOp == Operation.Delete) ? CANT_DELETE_FUNCTION_CALL : CANT_ASSIGN_TO_FUNCTION_CALL);
+    public void visitPyCallExpression(final @NotNull PyCallExpression node) {
+      getHolder().newAnnotation(HighlightSeverity.ERROR, (myOp == Operation.Delete) ? CANT_DELETE_FUNCTION_CALL : CANT_ASSIGN_TO_FUNCTION_CALL).range(node).create();
     }
 
     @Override
-    public void visitPyGeneratorExpression(final PyGeneratorExpression node) {
-      getHolder().createErrorAnnotation(node, message(
-        myOp == Operation.AugAssign ? "ANN.cant.aug.assign.to.generator" : "ANN.cant.assign.to.generator"));
+    public void visitPyGeneratorExpression(final @NotNull PyGeneratorExpression node) {
+      getHolder().newAnnotation(HighlightSeverity.ERROR, message(
+        myOp == Operation.AugAssign ? "ANN.cant.aug.assign.to.generator" : "ANN.cant.assign.to.generator")).range(node).create();
     }
 
     @Override
-    public void visitPyBinaryExpression(final PyBinaryExpression node) {
-      getHolder().createErrorAnnotation(node, message("ANN.cant.assign.to.operator"));
+    public void visitPyBinaryExpression(final @NotNull PyBinaryExpression node) {
+      getHolder().newAnnotation(HighlightSeverity.ERROR, message("ANN.cant.assign.to.operator")).range(node).create();
     }
 
     @Override
-    public void visitPyTupleExpression(final PyTupleExpression node) {
+    public void visitPyTupleExpression(final @NotNull PyTupleExpression node) {
       if (node.isEmpty() && LanguageLevel.forElement(node).isPython2()) {
-        getHolder().createErrorAnnotation(node, message("ANN.cant.assign.to.parens"));
+        getHolder().newAnnotation(HighlightSeverity.ERROR, message("ANN.cant.assign.to.parens")).range(node).create();
       }
       else if (myOp == Operation.AugAssign) {
-        getHolder().createErrorAnnotation(node, message("ANN.cant.aug.assign.to.tuple.or.generator"));
+        getHolder().newAnnotation(HighlightSeverity.ERROR, message("ANN.cant.aug.assign.to.tuple.or.generator")).range(node).create();
       }
       else {
         node.acceptChildren(this);
@@ -189,9 +197,9 @@ public class AssignTargetAnnotator extends PyAnnotator {
     }
 
     @Override
-    public void visitPyParenthesizedExpression(final PyParenthesizedExpression node) {
+    public void visitPyParenthesizedExpression(final @NotNull PyParenthesizedExpression node) {
       if (myOp == Operation.AugAssign) {
-        getHolder().createErrorAnnotation(node, message("ANN.cant.aug.assign.to.tuple.or.generator"));
+        getHolder().newAnnotation(HighlightSeverity.ERROR, message("ANN.cant.aug.assign.to.tuple.or.generator")).range(node).create();
       }
       else {
         node.acceptChildren(this);
@@ -199,9 +207,9 @@ public class AssignTargetAnnotator extends PyAnnotator {
     }
 
     @Override
-    public void visitPyListLiteralExpression(final PyListLiteralExpression node) {
+    public void visitPyListLiteralExpression(final @NotNull PyListLiteralExpression node) {
       if (myOp == Operation.AugAssign) {
-        getHolder().createErrorAnnotation(node, message("ANN.cant.aug.assign.to.list.or.comprh"));
+        getHolder().newAnnotation(HighlightSeverity.ERROR, message("ANN.cant.aug.assign.to.list.or.comprh")).range(node).create();
       }
       else {
         node.acceptChildren(this);
@@ -209,65 +217,65 @@ public class AssignTargetAnnotator extends PyAnnotator {
     }
 
     @Override
-    public void visitPyListCompExpression(final PyListCompExpression node) {
+    public void visitPyListCompExpression(final @NotNull PyListCompExpression node) {
       markError(node, message(myOp == Operation.AugAssign ? "ANN.cant.aug.assign.to.comprh" : "ANN.cant.assign.to.comprh"));
     }
 
     @Override
-    public void visitPyDictCompExpression(PyDictCompExpression node) {
+    public void visitPyDictCompExpression(@NotNull PyDictCompExpression node) {
       markError(node, message(myOp == Operation.AugAssign ? "ANN.cant.aug.assign.to.dict.comprh" : "ANN.cant.assign.to.dict.comprh"));
     }
 
     @Override
-    public void visitPySetCompExpression(PySetCompExpression node) {
+    public void visitPySetCompExpression(@NotNull PySetCompExpression node) {
       markError(node, message(myOp == Operation.AugAssign ? "ANN.cant.aug.assign.to.set.comprh" : "ANN.cant.assign.to.set.comprh"));
     }
 
     @Override
-    public void visitPyStarExpression(PyStarExpression node) {
+    public void visitPyStarExpression(@NotNull PyStarExpression node) {
       super.visitPyStarExpression(node);
       if (!(node.getParent() instanceof PySequenceExpression)) {
-        markError(node, "starred assignment target must be in a list or tuple");
+        markError(node, message("ANN.cant.aug.assign.starred.assignment.target.must.be.in.list.or.tuple"));
       }
     }
 
     @Override
-    public void visitPyDictLiteralExpression(PyDictLiteralExpression node) {
+    public void visitPyDictLiteralExpression(@NotNull PyDictLiteralExpression node) {
       checkLiteral(node);
     }
 
     @Override
-    public void visitPySetLiteralExpression(PySetLiteralExpression node) {
+    public void visitPySetLiteralExpression(@NotNull PySetLiteralExpression node) {
       checkLiteral(node);
     }
 
     @Override
-    public void visitPyNumericLiteralExpression(final PyNumericLiteralExpression node) {
+    public void visitPyNumericLiteralExpression(final @NotNull PyNumericLiteralExpression node) {
       checkLiteral(node);
     }
 
     @Override
-    public void visitPyStringLiteralExpression(final PyStringLiteralExpression node) {
+    public void visitPyStringLiteralExpression(final @NotNull PyStringLiteralExpression node) {
       checkLiteral(node);
     }
 
-    private void checkLiteral(PyExpression node) {
-      getHolder().createErrorAnnotation(node, message(myOp == Operation.Delete? "ANN.cant.delete.literal" : "ANN.cant.assign.to.literal"));
+    private void checkLiteral(@NotNull PsiElement node) {
+      getHolder().newAnnotation(HighlightSeverity.ERROR, message(myOp == Operation.Delete ? "ANN.cant.delete.literal" : "ANN.cant.assign.to.literal")).range(node).create();
     }
 
     @Override
-    public void visitPyLambdaExpression(final PyLambdaExpression node) {
-      getHolder().createErrorAnnotation(node, message("ANN.cant.assign.to.lambda"));
+    public void visitPyLambdaExpression(final @NotNull PyLambdaExpression node) {
+      getHolder().newAnnotation(HighlightSeverity.ERROR, message("ANN.cant.assign.to.lambda")).range(node).create();
     }
 
     @Override
-    public void visitPyNoneLiteralExpression(PyNoneLiteralExpression node) {
-      getHolder().createErrorAnnotation(node, "assignment to keyword");
+    public void visitPyNoneLiteralExpression(@NotNull PyNoneLiteralExpression node) {
+      getHolder().newAnnotation(HighlightSeverity.ERROR, PyBundle.message("ANN.assignment.to.keyword")).range(node).create();
     }
 
     @Override
-    public void visitPyBoolLiteralExpression(PyBoolLiteralExpression node) {
-      getHolder().createErrorAnnotation(node, "assignment to keyword");
+    public void visitPyBoolLiteralExpression(@NotNull PyBoolLiteralExpression node) {
+      getHolder().newAnnotation(HighlightSeverity.ERROR, PyBundle.message("ANN.assignment.to.keyword")).range(node).create();
     }
   }
 }

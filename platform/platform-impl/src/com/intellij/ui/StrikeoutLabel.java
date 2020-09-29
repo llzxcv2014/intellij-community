@@ -1,7 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
-import com.intellij.util.ui.UIUtil;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.ui.paint.LinePainter2D;
 import org.intellij.lang.annotations.JdkConstants;
 
 import javax.swing.*;
@@ -10,7 +11,7 @@ import java.awt.*;
 public class StrikeoutLabel extends JLabel{
   private boolean myStrikeout = false;
 
-  public StrikeoutLabel(String text, @JdkConstants.HorizontalAlignment int horizontalAlignment) {
+  public StrikeoutLabel(@NlsContexts.Label String text, @JdkConstants.HorizontalAlignment int horizontalAlignment) {
     super(text, horizontalAlignment);
   }
 
@@ -32,7 +33,7 @@ public class StrikeoutLabel extends JLabel{
         iconWidth += getIconTextGap();
       }
       g.setColor(getForeground());
-      UIUtil.drawLine(g, iconWidth, size.height / 2, width, size.height / 2);
+      LinePainter2D.paint((Graphics2D)g, iconWidth, size.height / 2, width, size.height / 2);
     }
   }
 }

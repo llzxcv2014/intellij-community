@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.daemon.impl.analysis;
 
 import com.intellij.codeInsight.daemon.QuickFixBundle;
@@ -8,7 +8,7 @@ import com.intellij.codeInsight.daemon.impl.quickfix.ReplaceAssignmentFromVoidWi
 import com.intellij.codeInsight.daemon.impl.quickfix.ReplaceGetClassWithClassLiteralFix;
 import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.codeInsight.intention.QuickFixFactory;
-import com.intellij.codeInsight.intention.impl.PriorityActionWrapper;
+import com.intellij.codeInsight.intention.impl.PriorityIntentionActionWrapper;
 import com.intellij.codeInsight.quickfix.ChangeVariableTypeQuickFixProvider;
 import com.intellij.lang.jvm.JvmModifier;
 import com.intellij.lang.jvm.actions.JvmElementActionFactories;
@@ -32,7 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class HighlightFixUtil {
+public final class HighlightFixUtil {
   private static final Logger LOG = Logger.getInstance(HighlightFixUtil.class);
 
   private static final QuickFixFactory QUICK_FIX_FACTORY = QuickFixFactory.getInstance();
@@ -170,12 +170,13 @@ public class HighlightFixUtil {
 
     registerChangeVariableTypeFixes((PsiVariable)element, type, lExpr, highlightInfo);
 
-    if (lExpr instanceof PsiMethodCallExpression && lExpr.getParent() instanceof PsiAssignmentExpression) {
+    PsiExpression stripped = PsiUtil.skipParenthesizedExprDown(lExpr);
+    if (stripped instanceof PsiMethodCallExpression && lExpr.getParent() instanceof PsiAssignmentExpression) {
       PsiElement parent = lExpr.getParent();
       if (parent.getParent() instanceof PsiStatement) {
-        PsiMethod method = ((PsiMethodCallExpression)lExpr).resolveMethod();
+        PsiMethod method = ((PsiMethodCallExpression)stripped).resolveMethod();
         if (method != null && PsiType.VOID.equals(method.getReturnType())) {
-          QuickFixAction.registerQuickFixAction(highlightInfo, new ReplaceAssignmentFromVoidWithStatementIntentionAction(parent, lExpr));
+          QuickFixAction.registerQuickFixAction(highlightInfo, new ReplaceAssignmentFromVoidWithStatementIntentionAction(parent, stripped));
         }
       }
     }
@@ -234,8 +235,8 @@ public class HighlightFixUtil {
     if (expr instanceof PsiMethodCallExpression) {
       PsiMethod method = ((PsiMethodCallExpression)expr).resolveMethod();
       if (method != null) {
-        QuickFixAction.registerQuickFixAction(highlightInfo, PriorityActionWrapper
-          .lowPriority(method, QUICK_FIX_FACTORY.createMethodReturnFix(method, toType, true)));
+        QuickFixAction.registerQuickFixAction(highlightInfo, PriorityIntentionActionWrapper
+          .lowPriority(QUICK_FIX_FACTORY.createMethodReturnFix(method, toType, true)));
       }
     }
   }

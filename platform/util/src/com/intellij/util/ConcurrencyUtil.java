@@ -15,9 +15,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-/**
- * @author cdr
- */
 public final class ConcurrencyUtil {
   /**
    * Invokes and waits all tasks using threadPool, avoiding thread starvation on the way
@@ -159,15 +156,16 @@ public final class ConcurrencyUtil {
         thread.join(unit.toMillis(timeout));
       }
       catch (InterruptedException e) {
-        StringBuilder trace = new StringBuilder().append("Thread leaked: ").append(thread).append("; ")
+        @NonNls StringBuilder trace = new StringBuilder().append("Thread leaked: ").append(thread).append("; ")
           .append(thread.getState()).append(" (").append(thread.isAlive()).append(")\n--- its stacktrace:\n");
         for (final StackTraceElement stackTraceElement : thread.getStackTrace()) {
           trace.append(" at ").append(stackTraceElement).append("\n");
         }
         trace.append("---\n");
-        System.err.println("Executor " + executor + " is still active after " + unit.toSeconds(timeout) + " seconds://///\n" +
-                           "Thread "+thread+" dump:\n" + trace+
-                           "all thread dump:\n"+ThreadDumper.dumpThreadsToString() + "\n/////");
+        @NonNls String message = "Executor " + executor + " is still active after " + unit.toSeconds(timeout) + " seconds://///\n" +
+                                 "Thread " + thread + " dump:\n" + trace +
+                                 "all thread dump:\n" + ThreadDumper.dumpThreadsToString() + "\n/////";
+        System.err.println(message);
         break;
       }
     }
@@ -183,7 +181,7 @@ public final class ConcurrencyUtil {
       }
     }
   }
-  public static void joinAll(@NotNull Thread... threads) throws RuntimeException {
+  public static void joinAll(Thread @NotNull ... threads) throws RuntimeException {
     joinAll(Arrays.asList(threads));
   }
   public static void getAll(@NotNull Collection<? extends Future<?>> futures) throws ExecutionException, InterruptedException {

@@ -22,6 +22,7 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.command.CommandEvent;
 import com.intellij.openapi.command.CommandListener;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -31,6 +32,7 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener;
 import com.intellij.openapi.vfs.newvfs.events.*;
 import com.intellij.util.containers.DisposableWrapperList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
@@ -73,7 +75,7 @@ class LocalHistoryEventDispatcher implements VirtualFileManagerListener, Command
     myVcs.forceBeginChangeSet();
   }
 
-  void finishAction(String name) {
+  void finishAction(@NlsContexts.Label String name) {
     myGateway.registerUnsavedDocuments(myVcs);
     endChangeSet(name);
   }
@@ -82,11 +84,12 @@ class LocalHistoryEventDispatcher implements VirtualFileManagerListener, Command
     myVcs.beginChangeSet();
   }
 
-  private void endChangeSet(String name) {
+  private void endChangeSet(@NlsContexts.Label String name) {
     myVcs.endChangeSet(name);
   }
 
-  private void fileCreated(@NotNull VirtualFile file) {
+  private void fileCreated(@Nullable VirtualFile file) {
+    if (file == null) return;
     beginChangeSet();
     createRecursively(file);
     endChangeSet(null);
@@ -212,10 +215,10 @@ class LocalHistoryEventDispatcher implements VirtualFileManagerListener, Command
 
   private void handleAfterEvent(VFileEvent event) {
     if (event instanceof VFileCreateEvent) {
-      VirtualFile file = event.getFile();
-      if (file != null) {
-        fileCreated(file);
-      }
+      fileCreated(event.getFile());
+    }
+    else if (event instanceof VFileCopyEvent) {
+      fileCreated(((VFileCopyEvent)event).findCreatedFile());
     }
     else if (event instanceof VFilePropertyChangeEvent) {
       propertyChanged((VFilePropertyChangeEvent)event);

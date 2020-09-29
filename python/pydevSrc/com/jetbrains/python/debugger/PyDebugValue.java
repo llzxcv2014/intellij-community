@@ -6,10 +6,10 @@ import com.google.common.collect.Maps;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.xdebugger.frame.*;
 import com.intellij.xdebugger.frame.presentation.XRegularValuePresentation;
 import com.jetbrains.python.debugger.pydev.PyDebugCallback;
-import com.jetbrains.python.debugger.pydev.PyVariableLocator;
 import com.jetbrains.python.debugger.render.PyNodeRenderer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -23,12 +23,17 @@ import java.util.regex.Pattern;
 
 import static com.jetbrains.python.debugger.PyDebugValueGroupsKt.*;
 
-// todo: null modifier for modify modules, class objects etc.
 public class PyDebugValue extends XNamedValue {
   private static final Logger LOG = Logger.getInstance(PyDebugValue.class);
   private static final String DATA_FRAME = "DataFrame";
   private static final String SERIES = "Series";
-  private static final Map<String, String> EVALUATOR_POSTFIXES = ImmutableMap.of("ndarray", "Array", DATA_FRAME, DATA_FRAME, SERIES, SERIES);
+  private static final Map<String, String> EVALUATOR_POSTFIXES = ImmutableMap.of(
+    "ndarray", "Array",
+    DATA_FRAME, DATA_FRAME,
+    SERIES, SERIES,
+    "GeoDataFrame", DATA_FRAME,
+    "GeoSeries", SERIES
+    );
   private static final int MAX_ITEMS_TO_HANDLE = 100;
   public static final int MAX_VALUE = 256;
   public static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
@@ -47,7 +52,6 @@ public class PyDebugValue extends XNamedValue {
   private @Nullable String myId = null;
   private ValuesPolicy myLoadValuePolicy;
   private @NotNull PyFrameAccessor myFrameAccessor;
-  private @Nullable PyVariableLocator myVariableLocator;
   private volatile @Nullable XValueNode myLastNode = null;
   private final boolean myErrorOnEval;
   private int myOffset;
@@ -117,7 +121,7 @@ public class PyDebugValue extends XNamedValue {
     myParent = parent;
     myFrameAccessor = frameAccessor;
     myLoadValuePolicy = ValuesPolicy.SYNC;
-    if (POLICY_DEFAULT_VALUES.keySet().contains(myValue)) {
+    if (POLICY_DEFAULT_VALUES.containsKey(myValue)) {
       myLoadValuePolicy = POLICY_DEFAULT_VALUES.get(myValue);
       setValue(" ");
     }
@@ -154,7 +158,7 @@ public class PyDebugValue extends XNamedValue {
   }
 
   @Nullable
-  public String getValue() {
+  public @NlsSafe String getValue() {
     return myValue;
   }
 
@@ -249,6 +253,7 @@ public class PyDebugValue extends XNamedValue {
    *
    * @return full variable name at runtime
    */
+  @NlsSafe
   @NotNull
   public String getFullName() {
     return wrapWithPrefix(getName());
@@ -533,15 +538,6 @@ public class PyDebugValue extends XNamedValue {
 
   public void setFrameAccessor(@NotNull PyFrameAccessor frameAccessor) {
     myFrameAccessor = frameAccessor;
-  }
-
-  @Nullable
-  public PyVariableLocator getVariableLocator() {
-    return myVariableLocator;
-  }
-
-  public void setVariableLocator(@Nullable PyVariableLocator variableLocator) {
-    myVariableLocator = variableLocator;
   }
 
   @Nullable

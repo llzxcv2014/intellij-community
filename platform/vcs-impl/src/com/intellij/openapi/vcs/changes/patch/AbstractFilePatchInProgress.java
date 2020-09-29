@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes.patch;
 
 import com.intellij.diff.chains.DiffRequestProducer;
@@ -6,7 +6,6 @@ import com.intellij.openapi.diff.impl.patch.FilePatch;
 import com.intellij.openapi.diff.impl.patch.PatchReader;
 import com.intellij.openapi.diff.impl.patch.formove.PathMerger;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Couple;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.FilePath;
@@ -20,10 +19,7 @@ import com.intellij.vcsUtil.VcsUtil;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 public abstract class AbstractFilePatchInProgress<T extends FilePatch> implements Strippable {
   protected final T myPatch;
@@ -39,7 +35,7 @@ public abstract class AbstractFilePatchInProgress<T extends FilePatch> implement
   private final List<VirtualFile> myAutoBases;
   protected volatile Boolean myConflicts;
 
-  protected AbstractFilePatchInProgress(final T patch, final Collection<VirtualFile> autoBases, final VirtualFile baseDir) {
+  protected AbstractFilePatchInProgress(T patch, Collection<VirtualFile> autoBases, VirtualFile baseDir) {
     myPatch = patch; //should be a copy of FilePatch! because names may be changes during processing variants
     myStrippable = new PatchStrippable(patch);
     myAutoBases = new ArrayList<>();
@@ -142,7 +138,7 @@ public abstract class AbstractFilePatchInProgress<T extends FilePatch> implement
   @NotNull
   protected FilePath detectNewFilePathForMovedOrModified() {
     return FilePatchStatus.MOVED_OR_RENAMED.equals(myStatus)
-           ? VcsUtil.getFilePath(PathMerger.getFile(new File(myBase.getPath()), myPatch.getAfterName()), false)
+           ? VcsUtil.getFilePath(Objects.requireNonNull(PathMerger.getFile(new File(myBase.getPath()), myPatch.getAfterName())), false)
            : (myCurrentBase != null) ? VcsUtil.getFilePath(myCurrentBase) : VcsUtil.getFilePath(myIoCurrentBase, false);
   }
 
@@ -168,10 +164,10 @@ public abstract class AbstractFilePatchInProgress<T extends FilePatch> implement
     return myCurrentRevision;
   }
 
-  public static class PatchChange extends Change {
-    private final AbstractFilePatchInProgress myPatchInProgress;
+  public static final class PatchChange extends Change {
+    private final AbstractFilePatchInProgress<?> myPatchInProgress;
 
-    public PatchChange(ContentRevision beforeRevision, ContentRevision afterRevision, AbstractFilePatchInProgress patchInProgress) {
+    public PatchChange(ContentRevision beforeRevision, ContentRevision afterRevision, AbstractFilePatchInProgress<?> patchInProgress) {
       super(beforeRevision, afterRevision,
             patchInProgress.isBaseExists() || FilePatchStatus.ADDED.equals(patchInProgress.getStatus())
             ? null
@@ -179,7 +175,7 @@ public abstract class AbstractFilePatchInProgress<T extends FilePatch> implement
       myPatchInProgress = patchInProgress;
     }
 
-    public AbstractFilePatchInProgress getPatchInProgress() {
+    public AbstractFilePatchInProgress<?> getPatchInProgress() {
       return myPatchInProgress;
     }
 
@@ -192,7 +188,7 @@ public abstract class AbstractFilePatchInProgress<T extends FilePatch> implement
   public abstract DiffRequestProducer getDiffRequestProducers(Project project, PatchReader baseContents);
 
   public List<VirtualFile> getAutoBasesCopy() {
-    final ArrayList<VirtualFile> result = new ArrayList<>(myAutoBases.size() + 1);
+    List<VirtualFile> result = new ArrayList<>(myAutoBases.size() + 1);
     result.addAll(myAutoBases);
     return result;
   }
@@ -255,7 +251,7 @@ public abstract class AbstractFilePatchInProgress<T extends FilePatch> implement
     return myStrippable.getCurrentStrip();
   }
 
-  private static class StripCapablePath implements Strippable {
+  private static final class StripCapablePath implements Strippable {
     private final int myStripMax;
     private int myCurrentStrip;
 
@@ -343,13 +339,13 @@ public abstract class AbstractFilePatchInProgress<T extends FilePatch> implement
     }
   }
 
-  private static class PatchStrippable implements Strippable {
+  private static final class PatchStrippable implements Strippable {
     private final StripCapablePath[] myParts;
     private final int myBeforeIdx;
     private final int myAfterIdx;
 
     private PatchStrippable(final FilePatch patch) {
-      final boolean onePath = patch.isDeletedFile() || patch.isNewFile() || Comparing.equal(patch.getAfterName(), patch.getBeforeName());
+      final boolean onePath = patch.isDeletedFile() || patch.isNewFile() || Objects.equals(patch.getAfterName(), patch.getBeforeName());
       final int size = onePath ? 1 : 2;
       myParts = new StripCapablePath[size];
 
@@ -466,10 +462,8 @@ public abstract class AbstractFilePatchInProgress<T extends FilePatch> implement
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
 
-    AbstractFilePatchInProgress that = (AbstractFilePatchInProgress)o;
-
+    AbstractFilePatchInProgress<?> that = (AbstractFilePatchInProgress<?>)o;
     if (!myStrippable.equals(that.myStrippable)) return false;
-
     return true;
   }
 

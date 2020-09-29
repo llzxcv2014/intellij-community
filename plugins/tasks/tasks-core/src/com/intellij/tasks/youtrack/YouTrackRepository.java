@@ -1,8 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.tasks.youtrack;
 
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.io.StreamUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.tasks.*;
@@ -31,10 +30,13 @@ import org.jetbrains.annotations.TestOnly;
 
 import javax.swing.*;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -76,11 +78,9 @@ public class YouTrackRepository extends BaseRepositoryImpl {
     }
     String requestUrl = "/rest/project/issues/?filter=" + encodeUrl(query) + "&max=" + max + "&updatedAfter" + since;
     HttpMethod method = doREST(requestUrl, false);
-    try {
-      InputStream stream = method.getResponseBodyAsStream();
-
+    try (Reader reader = new InputStreamReader(method.getResponseBodyAsStream(), StandardCharsets.UTF_8)) {
       // todo workaround for http://youtrack.jetbrains.net/issue/JT-7984
-      String s = StreamUtil.readText(stream, StandardCharsets.UTF_8);
+      String s = StreamUtil.readText(reader);
       for (int i = 0; i < s.length(); i++) {
         if (!XMLChar.isValid(s.charAt(i))) {
           s = s.replace(s.charAt(i), ' ');
@@ -220,8 +220,10 @@ public class YouTrackRepository extends BaseRepositoryImpl {
   private Task createIssue(Element element) {
     final String id = element.getAttributeValue("id");
     if (id == null) return null;
+    //noinspection HardCodedStringLiteral
     final String summary = element.getAttributeValue("summary");
     if (summary == null) return null;
+    //noinspection HardCodedStringLiteral
     final String description = element.getAttributeValue("description");
 
     String type = element.getAttributeValue("type");
@@ -268,9 +270,8 @@ public class YouTrackRepository extends BaseRepositoryImpl {
         return description;
       }
 
-      @NotNull
       @Override
-      public Comment[] getComments() {
+      public Comment @NotNull [] getComments() {
         return Comment.EMPTY_ARRAY;
       }
 
@@ -325,7 +326,7 @@ public class YouTrackRepository extends BaseRepositoryImpl {
   public boolean equals(Object o) {
     if (!super.equals(o)) return false;
     YouTrackRepository repository = (YouTrackRepository)o;
-    return Comparing.equal(repository.getDefaultSearch(), getDefaultSearch());
+    return Objects.equals(repository.getDefaultSearch(), getDefaultSearch());
   }
 
   private static final Logger LOG = Logger.getInstance(YouTrackRepository.class);

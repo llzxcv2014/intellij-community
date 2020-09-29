@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 package com.jetbrains.python.psi.impl;
 
-import com.intellij.extapi.psi.StubBasedPsiElementBase;
 import com.intellij.lang.ASTNode;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -17,6 +16,8 @@ import com.jetbrains.python.PythonDialectsTokenSetProvider;
 import com.jetbrains.python.psi.*;
 import com.jetbrains.python.psi.resolve.PyResolveContext;
 import com.jetbrains.python.psi.stubs.PyDecoratorStub;
+import com.jetbrains.python.psi.types.PyCallableType;
+import com.jetbrains.python.psi.types.PyCallableTypeImpl;
 import com.jetbrains.python.psi.types.PyType;
 import com.jetbrains.python.psi.types.TypeEvalContext;
 import org.jetbrains.annotations.NonNls;
@@ -25,10 +26,12 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+import static com.jetbrains.python.psi.PyUtil.as;
+
 /**
  * @author dcheryasov
  */
-public class PyDecoratorImpl extends StubBasedPsiElementBase<PyDecoratorStub> implements PyDecorator {
+public class PyDecoratorImpl extends PyBaseElementImpl<PyDecoratorStub> implements PyDecorator {
 
   public PyDecoratorImpl(ASTNode astNode) {
     super(astNode);
@@ -36,6 +39,11 @@ public class PyDecoratorImpl extends StubBasedPsiElementBase<PyDecoratorStub> im
 
   public PyDecoratorImpl(PyDecoratorStub stub) {
     super(stub, PyElementTypes.DECORATOR_CALL);
+  }
+
+  @Override
+  protected void acceptPyVisitor(PyElementVisitor pyVisitor) {
+    pyVisitor.visitPyDecorator(this);
   }
 
   /**
@@ -54,8 +62,13 @@ public class PyDecoratorImpl extends StubBasedPsiElementBase<PyDecoratorStub> im
   }
 
   @Override
+  public @Nullable PyExpression getExpression() {
+    return findChildByClass(PyExpression.class);
+  }
+
+  @Override
   public boolean isBuiltin() {
-    ASTNode node = getNode().findChildByType(PythonDialectsTokenSetProvider.INSTANCE.getReferenceExpressionTokens());
+    ASTNode node = getNode().findChildByType(PythonDialectsTokenSetProvider.getInstance().getReferenceExpressionTokens());
     if (node != null) {
       PyReferenceExpression ref = (PyReferenceExpression)node.getPsi();
       PsiElement target = ref.getReference().resolve();
@@ -66,8 +79,13 @@ public class PyDecoratorImpl extends StubBasedPsiElementBase<PyDecoratorStub> im
 
   @Override
   public boolean hasArgumentList() {
-    final ASTNode arglistNode = getNode().findChildByType(PyElementTypes.ARGUMENT_LIST);
-    return (arglistNode != null) && (arglistNode.findChildByType(PyTokenTypes.LPAR) != null);
+    return getExpression() instanceof PyCallExpression;
+  }
+
+  @Override
+  public PyArgumentList getArgumentList() {
+    final PyCallExpression callExpr = as(getExpression(), PyCallExpression.class);
+    return callExpr != null ? callExpr.getArgumentList() : null;
   }
 
   @Override
@@ -78,52 +96,42 @@ public class PyDecoratorImpl extends StubBasedPsiElementBase<PyDecoratorStub> im
       return stub.getQualifiedName();
     }
     else {
-      final PyReferenceExpression node = PsiTreeUtil.getChildOfType(this, PyReferenceExpression.class);
-      if (node != null) {
-        return node.asQualifiedName();
-      }
-      return null;
+      final PyReferenceExpression refExpr = as(getCallee(), PyReferenceExpression.class);
+      return refExpr != null ? refExpr.asQualifiedName() : null;
     }
   }
 
   @Override
   @Nullable
   public PyExpression getCallee() {
-    try {
-      return (PyExpression)getFirstChild().getNextSibling(); // skip the @ before call
-    }
-    catch (NullPointerException npe) { // no sibling
-      return null;
-    }
-    catch (ClassCastException cce) { // error node instead
-      return null;
-    }
+    final PyExpression exprAfterAt = getExpression();
+    return exprAfterAt instanceof PyCallExpression ? ((PyCallExpression)exprAfterAt).getCallee() : exprAfterAt;
   }
 
   @NotNull
   @Override
-  public List<PyMarkedCallee> multiResolveCallee(@NotNull PyResolveContext resolveContext, int implicitOffset) {
-    final Function<PyMarkedCallee, PyMarkedCallee> mapping = markedCallee -> {
+  public List<PyCallableType> multiResolveCallee(@NotNull PyResolveContext resolveContext, int implicitOffset) {
+    final Function<PyCallableType, PyCallableType> mapping = callableType -> {
       if (!hasArgumentList()) {
         // NOTE: that +1 thing looks fishy
-        return new PyMarkedCallee(markedCallee.getCallableType(),
-                                  markedCallee.getElement(),
-                                  markedCallee.getModifier(),
-                                  markedCallee.getImplicitOffset() + 1,
-                                  markedCallee.isImplicitlyResolved(),
-                                  markedCallee.getRate());
+        final TypeEvalContext context = resolveContext.getTypeEvalContext();
+        return new PyCallableTypeImpl(callableType.getParameters(context),
+                                      callableType.getReturnType(context),
+                                      callableType.getCallable(),
+                                      callableType.getModifier(),
+                                      callableType.getImplicitOffset() + 1);
       }
 
-      return markedCallee;
+      return callableType;
     };
 
-    return ContainerUtil.map(PyCallExpressionHelper.multiResolveCallee(this, resolveContext, implicitOffset), mapping);
+    return ContainerUtil.map(PyCallExpressionHelper.multiResolveCallee(this, resolveContext), mapping);
   }
 
   @NotNull
   @Override
   public List<PyArgumentsMapping> multiMapArguments(@NotNull PyResolveContext resolveContext, int implicitOffset) {
-    return PyCallExpressionHelper.multiMapArguments(this, resolveContext, implicitOffset);
+    return PyCallExpressionHelper.mapArguments(this, resolveContext);
   }
 
   @Override
@@ -147,6 +155,6 @@ public class PyDecoratorImpl extends StubBasedPsiElementBase<PyDecoratorStub> im
   @Override
   @Nullable
   public PyType getType(@NotNull TypeEvalContext context, @NotNull TypeEvalContext.Key key) {
-    return PyCallExpressionHelper.getCallType(this, context);
+    return PyCallExpressionHelper.getCallType(this, context, key);
   }
 }

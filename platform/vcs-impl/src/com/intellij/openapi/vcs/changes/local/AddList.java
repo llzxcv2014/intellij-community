@@ -6,7 +6,6 @@ import com.intellij.openapi.vcs.changes.ChangeListData;
 import com.intellij.openapi.vcs.changes.ChangeListListener;
 import com.intellij.openapi.vcs.changes.ChangeListWorker;
 import com.intellij.openapi.vcs.changes.LocalChangeList;
-import com.intellij.util.EventDispatcher;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -49,16 +48,16 @@ public class AddList implements ChangeListCommand {
   }
 
   @Override
-  public void doNotify(final EventDispatcher<? extends ChangeListListener> dispatcher) {
+  public void doNotify(final ChangeListListener listener) {
     if (myWasListCreated) {
-      dispatcher.getMulticaster().changeListAdded(myNewListCopy);
+      listener.changeListAdded(myNewListCopy);
     }
-    else if (myOldComment != null) {
-      dispatcher.getMulticaster().changeListCommentChanged(myNewListCopy, myOldComment);
+    else if (myNewListCopy != null && myOldComment != null) {
+      listener.changeListCommentChanged(myNewListCopy, myOldComment);
     }
   }
 
-  @NotNull
+  @Nullable
   public LocalChangeList getNewListCopy() {
     return myNewListCopy;
   }

@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.usages;
 
 import com.intellij.ide.SelectInEditorManager;
@@ -27,11 +27,14 @@ import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.usageView.UsageInfo;
 import com.intellij.usageView.UsageTreeColorsScheme;
 import com.intellij.usageView.UsageViewBundle;
+import com.intellij.usages.impl.UsageViewStatisticsCollector;
 import com.intellij.usages.impl.rules.UsageType;
 import com.intellij.usages.rules.*;
 import com.intellij.util.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.concurrency.Promise;
+import org.jetbrains.concurrency.Promises;
 
 import javax.swing.*;
 import java.awt.*;
@@ -39,26 +42,22 @@ import java.lang.ref.Reference;
 import java.util.List;
 import java.util.*;
 
-/**
- * @author max
- */
-public class UsageInfo2UsageAdapter implements UsageInModule,
+public class UsageInfo2UsageAdapter implements UsageInModule, UsageInfoAdapter,
                                                UsageInLibrary, UsageInFile, PsiElementUsage,
                                                MergeableUsage, Comparable<UsageInfo2UsageAdapter>,
                                                RenameableUsage, TypeSafeDataProvider, UsagePresentation {
   public static final NotNullFunction<UsageInfo, Usage> CONVERTER = UsageInfo2UsageAdapter::new;
   private static final Comparator<UsageInfo> BY_NAVIGATION_OFFSET = Comparator.comparingInt(UsageInfo::getNavigationOffset);
 
-  private final UsageInfo myUsageInfo;
-  @NotNull
-  private Object myMergedUsageInfos; // contains all merged infos, including myUsageInfo. Either UsageInfo or UsageInfo[]
+  private final @NotNull UsageInfo myUsageInfo;
+  private @NotNull Object myMergedUsageInfos; // contains all merged infos, including myUsageInfo. Either UsageInfo or UsageInfo[]
   private final int myLineNumber;
   private final int myOffset;
   protected Icon myIcon;
   private volatile Reference<TextChunk[]> myTextChunks; // allow to be gced and recreated on-demand because it requires a lot of memory
   private volatile UsageType myUsageType;
 
-  public UsageInfo2UsageAdapter(@NotNull final UsageInfo usageInfo) {
+  public UsageInfo2UsageAdapter(final @NotNull UsageInfo usageInfo) {
     myUsageInfo = usageInfo;
     myMergedUsageInfos = usageInfo;
 
@@ -95,14 +94,25 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
     myModificationStamp = getCurrentModificationStamp();
   }
 
+  @Override
+  public UsageInfo @NotNull [] getMergedInfos() {
+    Object infos = myMergedUsageInfos;
+    return infos instanceof UsageInfo ? new UsageInfo[]{(UsageInfo)infos} : (UsageInfo[])infos;
+  }
+
+  @NotNull
+  @Override
+  public Promise<UsageInfo[]> getMergedInfosAsync() {
+    return Promises.resolvedPromise(getMergedInfos());
+  }
+
   private static int getLineNumber(@NotNull Document document, final int startOffset) {
     if (document.getTextLength() == 0) return 0;
     if (startOffset >= document.getTextLength()) return document.getLineCount();
     return document.getLineNumber(startOffset);
   }
 
-  @NotNull
-  private TextChunk[] initChunks() {
+  private TextChunk @NotNull [] initChunks() {
     TextChunk[] chunks;
     VirtualFile file = getFile();
     boolean isNullOrBinary = file == null || file.getFileType().isBinary();
@@ -219,6 +229,7 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
   @Override
   public void navigate(boolean focus) {
     if (canNavigate()) {
+      UsageViewStatisticsCollector.logUsageNavigate(getProject(), this);
       openTextEditor(focus);
     }
   }
@@ -250,7 +261,8 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
     return new OpenFileDescriptor(getProject(), file, range == null ? getNavigationOffset() : range.getStartOffset());
   }
 
-  int getNavigationOffset() {
+  @Override
+  public int getNavigationOffset() {
     Document document = getDocument();
     if (document == null) return -1;
     int offset = getUsageInfo().getNavigationOffset();
@@ -362,6 +374,12 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
     return getUsageInfo().getFile();
   }
 
+  @Override
+  public @NotNull String getPath() {
+    return getFile().getPath();
+  }
+
+  @Override
   public int getLine() {
     return myLineNumber;
   }
@@ -387,7 +405,7 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
   }
 
   @Override
-  public final PsiElement getElement() {
+  public final @Nullable PsiElement getElement() {
     return getUsageInfo().getElement();
   }
 
@@ -414,8 +432,7 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
     reference.handleElementRename(newName);
   }
 
-  @NotNull
-  public static UsageInfo2UsageAdapter[] convert(@NotNull UsageInfo[] usageInfos) {
+  public static UsageInfo2UsageAdapter @NotNull [] convert(UsageInfo @NotNull [] usageInfos) {
     UsageInfo2UsageAdapter[] result = new UsageInfo2UsageAdapter[usageInfos.length];
     for (int i = 0; i < result.length; i++) {
       result[i] = new UsageInfo2UsageAdapter(usageInfos[i]);
@@ -435,12 +452,6 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
     }
   }
 
-  @NotNull
-  public UsageInfo[] getMergedInfos() {
-    Object infos = myMergedUsageInfos;
-    return infos instanceof UsageInfo ? new UsageInfo[]{(UsageInfo)infos} : (UsageInfo[])infos;
-  }
-
   private long myModificationStamp;
   private long getCurrentModificationStamp() {
     final PsiFile containingFile = getPsiFile();
@@ -448,14 +459,12 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
   }
 
   @Override
-  @NotNull
-  public TextChunk[] getText() {
+  public TextChunk @NotNull [] getText() {
     return doUpdateCachedText();
   }
 
-  @Nullable
   @Override
-  public TextChunk[] getCachedText() {
+  public TextChunk @Nullable [] getCachedText() {
     return SoftReference.dereference(myTextChunks);
   }
 
@@ -464,8 +473,7 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
     doUpdateCachedText();
   }
 
-  @NotNull
-  private TextChunk[] doUpdateCachedText() {
+  private TextChunk @NotNull [] doUpdateCachedText() {
     TextChunk[] chunks = SoftReference.dereference(myTextChunks);
     final long currentModificationStamp = getCurrentModificationStamp();
     boolean isModified = currentModificationStamp != myModificationStamp;
@@ -525,6 +533,9 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
   public Icon getIcon() {
     Icon icon = myIcon;
     if (icon == null) {
+      myIcon = icon = myUsageInfo.getIcon();
+    }
+    if (icon == null) {
       PsiElement psiElement = getElement();
       myIcon = icon = psiElement != null && psiElement.isValid() && !isFindInPathUsage(psiElement) ? psiElement.getIcon(0) : null;
     }
@@ -578,5 +589,10 @@ public class UsageInfo2UsageAdapter implements UsageInModule,
       myUsageType = usageType;
     }
     return usageType;
+  }
+
+  @Override
+  public @Nullable Class<? extends PsiReference> getReferenceClass() {
+    return myUsageInfo.getReferenceClass();
   }
 }

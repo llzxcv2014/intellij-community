@@ -15,14 +15,12 @@
  */
 package com.intellij.ide.util.projectWizard.importSources;
 
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 
-/**
- * @author nik
- */
 public abstract class DetectedProjectRoot {
   private final File myDirectory;
 
@@ -35,7 +33,7 @@ public abstract class DetectedProjectRoot {
   }
 
   @NotNull
-  public abstract String getRootTypeName();
+  public abstract @Nls(capitalization = Nls.Capitalization.Sentence) String getRootTypeName();
 
   @Nullable
   public DetectedProjectRoot combineWith(@NotNull DetectedProjectRoot root) {

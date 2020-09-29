@@ -1,6 +1,7 @@
 // Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection;
 
+import com.intellij.java.JavaBundle;
 import com.intellij.psi.*;
 import com.intellij.psi.controlFlow.*;
 import com.siyeh.ig.psiutils.SideEffectChecker;
@@ -62,8 +63,9 @@ public class IdempotentLoopBodyInspection extends AbstractBaseJavaLocalInspectio
         Collection<PsiVariable> variables = ControlFlowUtil.getWrittenVariables(bodyFlow, 0, bodyFlow.getSize(), true);
         if (variables.isEmpty()) return;
         List<PsiReferenceExpression> reads = ControlFlowUtil.getReadBeforeWrite(bodyFlow);
-        if (StreamEx.of(reads).map(PsiReferenceExpression::resolve).select(PsiVariable.class).noneMatch(variables::contains)) {
-          holder.registerProblem(loop.getFirstChild(), InspectionsBundle.message("inspection.idempotent.loop.body"));
+        if (StreamEx.of(reads).map(PsiReferenceExpression::resolve).select(PsiVariable.class)
+          .noneMatch(v -> v.hasModifierProperty(PsiModifier.VOLATILE) || variables.contains(v))) {
+          holder.registerProblem(loop.getFirstChild(), JavaBundle.message("inspection.idempotent.loop.body"));
         }
       }
     };

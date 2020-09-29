@@ -35,7 +35,7 @@ import org.intellij.plugins.relaxNG.compact.psi.util.RenameUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class RngCompactLanguage extends Language {
+public final class RngCompactLanguage extends Language {
   public static final String ID = "RELAX-NG";
 
   public static final RngCompactLanguage INSTANCE = new RngCompactLanguage();
@@ -77,9 +77,8 @@ public class RngCompactLanguage extends Language {
   public static class MyPairedBraceMatcher implements PairedBraceMatcher {
     private BracePair[] myBracePairs;
 
-    @NotNull
     @Override
-    public BracePair[] getPairs() {
+    public BracePair @NotNull [] getPairs() {
       if (myBracePairs == null) {
         myBracePairs = new BracePair[]{
                 new BracePair(RncTokenTypes.LBRACE, RncTokenTypes.RBRACE, true),

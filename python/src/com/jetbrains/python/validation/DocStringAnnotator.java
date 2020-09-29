@@ -15,12 +15,12 @@
  */
 package com.jetbrains.python.validation;
 
-import com.intellij.lang.annotation.Annotation;
 import com.intellij.openapi.util.TextRange;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.documentation.docstrings.*;
 import com.jetbrains.python.highlighting.PyHighlighter;
 import com.jetbrains.python.psi.*;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Highlights doc strings in classes, functions, and files.
@@ -28,34 +28,33 @@ import com.jetbrains.python.psi.*;
 public class DocStringAnnotator extends PyAnnotator {
 
   @Override
-  public void visitPyFile(final PyFile node) {
+  public void visitPyFile(final @NotNull PyFile node) {
     annotateDocStringStmt(DocStringUtil.findDocStringExpression(node));
   }
 
   @Override
-  public void visitPyFunction(final PyFunction node) {
+  public void visitPyFunction(final @NotNull PyFunction node) {
     annotateDocStringStmt(DocStringUtil.findDocStringExpression(node.getStatementList()));
   }
 
   @Override
-  public void visitPyClass(final PyClass node) {
+  public void visitPyClass(final @NotNull PyClass node) {
     annotateDocStringStmt(DocStringUtil.findDocStringExpression(node.getStatementList()));
   }
 
   @Override
-  public void visitPyAssignmentStatement(PyAssignmentStatement node) {
+  public void visitPyAssignmentStatement(@NotNull PyAssignmentStatement node) {
     if (node.isAssignmentTo(PyNames.DOC)) {
       PyExpression right = node.getAssignedValue();
       if (right instanceof PyStringLiteralExpression) {
-        Annotation ann = getHolder().createInfoAnnotation(right, null);
-        ann.setTextAttributes(PyHighlighter.PY_DOC_COMMENT);
+        getHolder().newSilentAnnotation(com.intellij.lang.annotation.HighlightSeverity.INFORMATION).range(right).textAttributes(PyHighlighter.PY_DOC_COMMENT).create();
         annotateDocStringStmt((PyStringLiteralExpression)right);
       }
     }
   }
 
   @Override
-  public void visitPyExpressionStatement(PyExpressionStatement node) {
+  public void visitPyExpressionStatement(@NotNull PyExpressionStatement node) {
     if (node.getExpression() instanceof PyStringLiteralExpression &&
         DocStringUtil.isVariableDocString((PyStringLiteralExpression)node.getExpression())) {
       annotateDocStringStmt((PyStringLiteralExpression)node.getExpression());
@@ -79,8 +78,7 @@ public class DocStringAnnotator extends PyAnnotator {
       while (true) {
         TextRange textRange = DocStringReferenceProvider.findNextTag(stmt.getText(), pos, tags);
         if (textRange == null) break;
-        Annotation annotation = getHolder().createInfoAnnotation(textRange.shiftRight(stmt.getTextRange().getStartOffset()), null);
-        annotation.setTextAttributes(PyHighlighter.PY_DOC_COMMENT_TAG);
+        getHolder().newSilentAnnotation(com.intellij.lang.annotation.HighlightSeverity.INFORMATION).range(textRange.shiftRight(stmt.getTextRange().getStartOffset())).textAttributes(PyHighlighter.PY_DOC_COMMENT_TAG).create();
         pos = textRange.getEndOffset();
       }
     }

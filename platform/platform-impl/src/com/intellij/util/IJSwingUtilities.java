@@ -1,7 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util;
 
-import com.intellij.ide.ui.UISettings;
+import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.wm.ex.WindowManagerEx;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.ApiStatus;
@@ -57,14 +57,6 @@ public final class IJSwingUtilities {
     return SwingUtilities.isDescendingFrom(focusedComponent, component);
   }
 
-  /**
-   * @deprecated no functionality
-   */
-  @Deprecated
-  @ApiStatus.ScheduledForRemoval(inVersion = "2020.1")
-  public static void adjustComponentsOnMac(@Nullable JLabel label, @Nullable JComponent component) {
-  }
-
   public static HyperlinkEvent createHyperlinkEvent(@Nullable String href, @NotNull Object source) {
     URL url = null;
     try {
@@ -101,8 +93,7 @@ public final class IJSwingUtilities {
 
   public static void moveMousePointerOn(Component component) {
     if (component != null && component.isShowing()) {
-      UISettings settings = UISettings.getInstanceOrNull();
-      if (settings != null && settings.getMoveMouseOnDefaultButton()) {
+      if (Registry.is("ide.settings.move.mouse.on.default.button", false)) {
         Point point = component.getLocationOnScreen();
         int dx = component.getWidth() / 2;
         int dy = component.getHeight() / 2;
@@ -115,5 +106,16 @@ public final class IJSwingUtilities {
         }
       }
     }
+  }
+
+  @ApiStatus.Internal
+  public static void appendComponentClassNames(@NotNull StringBuilder sb, @Nullable Component root) {
+    UIUtil.uiTraverser(root).forEach(c -> appendComponentClassName(sb, root, c));
+  }
+
+  private static void appendComponentClassName(@NotNull StringBuilder sb, @Nullable Component root, @NotNull Component component) {
+    sb.append("\n    ");
+    for (Component p = component; root != p && p != null; p = p.getParent()) sb.append("  ");
+    sb.append(component.getClass().getName());
   }
 }

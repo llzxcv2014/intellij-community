@@ -1,10 +1,12 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.bookmarks;
 
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.ui.UISettings;
 import com.intellij.ide.ui.UISettingsListener;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.*;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -14,17 +16,23 @@ import com.intellij.openapi.editor.event.*;
 import com.intellij.openapi.editor.ex.MarkupModelEx;
 import com.intellij.openapi.editor.impl.DocumentMarkupModel;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.startup.StartupActivity;
 import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.util.*;
+import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.util.TextRange;
+import com.intellij.openapi.util.Trinity;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentListener;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.ui.AppUIUtil;
+import com.intellij.util.concurrency.NonUrgentExecutor;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.messages.MessageBusConnection;
@@ -40,10 +48,7 @@ import java.util.List;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
-@State(name = "BookmarkManager", storages = {
-  @Storage(StoragePathMacros.PRODUCT_WORKSPACE_FILE),
-  @Storage(value = StoragePathMacros.WORKSPACE_FILE, deprecated = true)
-})
+@State(name = "BookmarkManager", storages = @Storage(StoragePathMacros.PRODUCT_WORKSPACE_FILE))
 public final class BookmarkManager implements PersistentStateComponent<Element> {
   private static final int MAX_AUTO_DESCRIPTION_SIZE = 50;
   private final MultiMap<VirtualFile, Bookmark> myBookmarks = MultiMap.createConcurrentSet();
@@ -80,23 +85,57 @@ public final class BookmarkManager implements PersistentStateComponent<Element> 
     });
   }
 
-  static final class BookmarkManagerPsiDocumentManagerListener implements PsiDocumentListener {
+  static final class MyStartupActivity implements StartupActivity.DumbAware {
     @Override
-    public void documentCreated(@NotNull Document document, @Nullable PsiFile psiFile, @NotNull Project project) {
+    public void runActivity(@NotNull Project project) {
+      project.getMessageBus().connect().subscribe(PsiDocumentListener.TOPIC, MyStartupActivity::documentCreated);
+
+      BookmarkManager bookmarkManager = getInstance(project);
+      if (bookmarkManager.myBookmarks.isEmpty() && bookmarkManager.myPendingState.get() == null) {
+        return;
+      }
+
+      ReadAction.nonBlocking(() -> {
+        FileDocumentManager fileDocumentManager = FileDocumentManager.getInstance();
+        FileEditorManager fileEditorManager = FileEditorManager.getInstance(project);
+
+        for (VirtualFile file : fileEditorManager.getOpenFiles()) {
+          Document document = fileDocumentManager.getDocument(file);
+          if (document != null) {
+            checkFile(document, file, bookmarkManager, project);
+          }
+        }
+      })
+        .expireWith(project)
+        .submit(NonUrgentExecutor.getInstance());
+    }
+
+    private static void documentCreated(@NotNull Document document, @Nullable PsiFile psiFile, @NotNull Project project) {
+      BookmarkManager bookmarkManager = getInstance(project);
+      if (bookmarkManager.myBookmarks.isEmpty()) {
+        return;
+      }
+
       VirtualFile file = FileDocumentManager.getInstance().getFile(document);
       if (file == null) {
         return;
       }
 
-      Collection<Bookmark> fileBookmarks = getInstance(project).myBookmarks.get(file);
-      if (!fileBookmarks.isEmpty()) {
-        AppUIUtil.invokeLaterIfProjectAlive(project, () -> {
-          MarkupModelEx markup = (MarkupModelEx)DocumentMarkupModel.forDocument(document, project, true);
-          for (Bookmark bookmark : fileBookmarks) {
-            bookmark.createHighlighter(markup);
-          }
-        });
+      checkFile(document, file, bookmarkManager, project);
+    }
+
+    private static void checkFile(@NotNull Document document, @NotNull VirtualFile file, @NotNull BookmarkManager bookmarkManager, @NotNull Project project) {
+      Collection<Bookmark> fileBookmarks = bookmarkManager.myBookmarks.get(file);
+      if (fileBookmarks.isEmpty()) {
+        return;
       }
+
+      AppUIUtil.invokeLaterIfProjectAlive(project, () -> {
+        MarkupModelEx markup = (MarkupModelEx)DocumentMarkupModel.forDocument(document, project, true);
+        for (Bookmark bookmark : fileBookmarks) {
+          bookmark.createHighlighter(markup);
+        }
+      });
     }
   }
 
@@ -169,9 +208,13 @@ public final class BookmarkManager implements PersistentStateComponent<Element> 
       Collections.sort(answer);
     }
     else {
-      Collections.sort(answer, Comparator.comparingInt(b -> b.index));
+      answer.sort(Comparator.comparingInt(b -> b.index));
     }
     return answer;
+  }
+
+  public Collection<Bookmark> getAllBookmarks() {
+    return myBookmarks.values();
   }
 
   @Nullable
@@ -219,13 +262,13 @@ public final class BookmarkManager implements PersistentStateComponent<Element> 
   public void loadState(@NotNull Element state) {
     myPendingState.set(readExternal(state));
 
-    StartupManager.getInstance(myProject).runWhenProjectIsInitialized(() -> {
+    StartupManager.getInstance(myProject).runAfterOpened(() -> {
       ApplicationManager.getApplication().invokeLater(() -> {
         List<Bookmark> newList = myPendingState.getAndSet(null);
         if (newList != null) {
           applyNewState(newList, true);
         }
-      }, myProject.getDisposed());
+      }, ModalityState.NON_MODAL, myProject.getDisposed());
     });
   }
 
@@ -311,7 +354,7 @@ public final class BookmarkManager implements PersistentStateComponent<Element> 
   private void writeExternal(Element element) {
     List<Bookmark> bookmarks = new ArrayList<>(myBookmarks.values());
     // store in reverse order so that loadExternal() will assign them correct indices
-    Collections.sort(bookmarks, Comparator.<Bookmark>comparingInt(o -> o.index).reversed());
+    bookmarks.sort(Comparator.<Bookmark>comparingInt(o -> o.index).reversed());
 
     for (Bookmark bookmark : bookmarks) {
       if (!bookmark.isValid()) continue;
@@ -379,7 +422,7 @@ public final class BookmarkManager implements PersistentStateComponent<Element> 
     List<Bookmark> bookmarksForDocument = new ArrayList<>(myBookmarks.get(file));
     if (bookmarksForDocument.isEmpty()) return null;
     int sign = next ? 1 : -1;
-    Collections.sort(bookmarksForDocument, (o1, o2) -> sign * (o1.getLine() - o2.getLine()));
+    bookmarksForDocument.sort((o1, o2) -> sign * (o1.getLine() - o2.getLine()));
     int caretLine = editor.getCaretModel().getLogicalPosition().line;
     for (Bookmark bookmark : bookmarksForDocument) {
       if (next && bookmark.getLine() > caretLine) return bookmark;
@@ -417,8 +460,7 @@ public final class BookmarkManager implements PersistentStateComponent<Element> 
       if ((e.getMouseEvent().getModifiers() & (SystemInfo.isMac ? InputEvent.META_MASK : InputEvent.CTRL_MASK)) == 0) return;
 
       Editor editor = e.getEditor();
-      int line = editor.xyToLogicalPosition(new Point(e.getMouseEvent().getX(), e.getMouseEvent().getY())).line;
-      if (line < 0) return;
+      int line = e.getLogicalPosition().line;
 
       Document document = editor.getDocument();
 

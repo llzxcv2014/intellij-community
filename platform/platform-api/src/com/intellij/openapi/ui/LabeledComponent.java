@@ -2,12 +2,14 @@
 package com.intellij.openapi.ui;
 
 import com.intellij.BundleBase;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.PanelWithAnchor;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -16,11 +18,11 @@ import java.awt.*;
 import java.util.Objects;
 
 public class LabeledComponent<Comp extends JComponent> extends JPanel implements PanelWithAnchor {
-  private static final String[] LABEL_BORDER_CONSTRAINS = {BorderLayout.NORTH, BorderLayout.EAST, BorderLayout.SOUTH, BorderLayout.WEST};
+  private static final @NonNls String[] LABEL_BORDER_CONSTRAINS = {BorderLayout.NORTH, BorderLayout.EAST, BorderLayout.SOUTH, BorderLayout.WEST};
 
   private final JBLabel myLabel = new JBLabel();
   private Comp myComponent;
-  private String myLabelConstraints = BorderLayout.NORTH;
+  private @NonNls String myLabelConstraints = BorderLayout.NORTH;
   private JComponent myAnchor;
 
   public LabeledComponent() {
@@ -29,12 +31,14 @@ public class LabeledComponent<Comp extends JComponent> extends JPanel implements
   }
 
   @NotNull
-  public static <Comp extends JComponent> LabeledComponent<Comp> create(@NotNull Comp component, @NotNull String text) {
+  public static <Comp extends JComponent> LabeledComponent<Comp> create(@NotNull Comp component, @NotNull @NlsContexts.Label String text) {
     return create(component, text, BorderLayout.NORTH);
   }
 
   @NotNull
-  public static <Comp extends JComponent> LabeledComponent<Comp> create(@NotNull Comp component, @NotNull String text, String labelConstraint) {
+  public static <Comp extends JComponent> LabeledComponent<Comp> create(@NotNull Comp component,
+                                                                        @NotNull @NlsContexts.Label String text,
+                                                                        @NonNls String labelConstraint) {
     LabeledComponent<Comp> labeledComponent = new LabeledComponent<>();
     labeledComponent.setComponent(component);
     labeledComponent.setText(text);
@@ -48,11 +52,13 @@ public class LabeledComponent<Comp extends JComponent> extends JPanel implements
     setAnchor(myLabel);
   }
 
-  public void setText(String text) {
-    if (!StringUtil.isEmpty(text) && !StringUtil.endsWithChar(text, ':')) {
-      text += ':';
-    }
+  public void setText(@NlsContexts.Label String text) {
+    text = handleSemicolon(text);
     TextWithMnemonic.fromTextWithMnemonic(text).setToLabel(myLabel);
+  }
+
+  private static @NlsContexts.Label String handleSemicolon(@NlsContexts.Label String text) {
+    return StringUtil.isEmpty(text) || StringUtil.endsWithChar(text, ':') || StringUtil.endsWithChar(text, '：') ? text : text + ':';
   }
 
   public String getText() {
@@ -60,7 +66,7 @@ public class LabeledComponent<Comp extends JComponent> extends JPanel implements
     return StringUtil.endsWithChar(text, ':') ? text.substring(0, text.length() - 1) : text;
   }
 
-  public void setComponentClass(String className) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+  public void setComponentClass(@NonNls String className) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
     if (className != null) {
       @SuppressWarnings("unchecked") Class<Comp> aClass = (Class<Comp>)getClass().getClassLoader().loadClass(className);
       setComponent(aClass.newInstance());
@@ -77,13 +83,14 @@ public class LabeledComponent<Comp extends JComponent> extends JPanel implements
       add(myComponent, BorderLayout.CENTER);
     }
     if (myComponent instanceof ComponentWithBrowseButton && !(myComponent instanceof TextFieldWithBrowseButton)) {
-      myLabel.setLabelFor(((ComponentWithBrowseButton)myComponent).getChildComponent());
+      myLabel.setLabelFor(((ComponentWithBrowseButton<?>)myComponent).getChildComponent());
     }
     else {
       myLabel.setLabelFor(myComponent);
     }
   }
 
+  @NonNls
   public String getComponentClass() {
     return myComponent == null ? null : getComponent().getClass().getName();
   }
@@ -99,14 +106,14 @@ public class LabeledComponent<Comp extends JComponent> extends JPanel implements
     myLabel.setEnabled(enabled);
   }
 
-  public void setLabelLocation(String borderConstrains) {
+  public void setLabelLocation(@NonNls String borderConstrains) {
     if (ArrayUtil.indexOf(LABEL_BORDER_CONSTRAINS, borderConstrains) >= 0 && !borderConstrains.equals(myLabelConstraints)) {
       myLabelConstraints = borderConstrains;
       insertLabel();
     }
   }
 
-  public String getLabelLocation() {
+  public @NonNls String getLabelLocation() {
     return myLabelConstraints;
   }
 
@@ -141,10 +148,10 @@ public class LabeledComponent<Comp extends JComponent> extends JPanel implements
   }
 
   public static class TextWithMnemonic {
-    private final String myText;
+    private final @NlsContexts.Label String myText;
     private final int myMnemonicIndex;
 
-    public TextWithMnemonic(String text, int mnemonicIndex) {
+    public TextWithMnemonic(@NlsContexts.Label String text, int mnemonicIndex) {
       myText = text;
       myMnemonicIndex = mnemonicIndex;
     }

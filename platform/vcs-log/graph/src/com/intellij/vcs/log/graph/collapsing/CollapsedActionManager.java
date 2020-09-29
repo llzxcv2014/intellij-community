@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.vcs.log.graph.collapsing;
 
 import com.intellij.util.containers.ContainerUtil;
@@ -24,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-class CollapsedActionManager {
+final class CollapsedActionManager {
 
   @Nullable
   public static LinearGraphAnswer performAction(@NotNull CollapsedController graphController, @NotNull LinearGraphAction action) {
@@ -75,7 +75,7 @@ class CollapsedActionManager {
     Set<GraphAction.Type> supportedActionTypes();
   }
 
-  private static class ActionContext {
+  private static final class ActionContext {
     @NotNull private final CollapsedGraph myCollapsedGraph;
     @NotNull private final LinearGraphAction myGraphAction;
     @NotNull private final FragmentGenerators myDelegatedFragmentGenerators;
@@ -131,7 +131,7 @@ class CollapsedActionManager {
     }
   }
 
-  private static class FragmentGenerators {
+  private static final class FragmentGenerators {
     @NotNull private final FragmentGenerator fragmentGenerator;
     @NotNull private final LinearFragmentGenerator linearFragmentGenerator;
 
@@ -197,9 +197,8 @@ class CollapsedActionManager {
   };
 
   private final static ActionCase EXPAND_ALL = new ActionCase() {
-    @Nullable
     @Override
-    public LinearGraphAnswer performAction(@NotNull ActionContext context) {
+    public @NotNull LinearGraphAnswer performAction(@NotNull ActionContext context) {
       CollapsedGraph.Modification modification = context.myCollapsedGraph.startModification();
       modification.removeAdditionalEdges();
       modification.resetNodesVisibility();
@@ -214,9 +213,8 @@ class CollapsedActionManager {
   };
 
   private final static ActionCase COLLAPSE_ALL = new ActionCase() {
-    @Nullable
     @Override
-    public LinearGraphAnswer performAction(@NotNull ActionContext context) {
+    public @NotNull LinearGraphAnswer performAction(@NotNull ActionContext context) {
       CollapsedGraph.Modification modification = context.myCollapsedGraph.startModification();
       modification.removeAdditionalEdges();
       modification.resetNodesVisibility();

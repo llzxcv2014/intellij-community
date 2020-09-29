@@ -1,11 +1,14 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.execution.test.runner
 
+import com.intellij.execution.RunManager
 import com.intellij.openapi.externalSystem.service.execution.ExternalSystemRunConfiguration
 import com.intellij.openapi.util.Ref
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiDirectory
 import com.intellij.psi.PsiMethod
+import org.jetbrains.plugins.gradle.service.execution.GradleExternalTaskConfigurationType
+import org.jetbrains.plugins.gradle.service.execution.GradleRunConfiguration
 import org.jetbrains.plugins.gradle.settings.TestRunner
 import org.jetbrains.plugins.gradle.util.runReadActionAndWait
 import org.junit.Test
@@ -16,15 +19,15 @@ class GradleTestRunConfigurationProducerTest : GradleTestRunConfigurationProduce
   fun `test simple configuration`() {
     val projectData = generateAndImportTemplateProject()
     assertConfigurationFromContext<TestMethodGradleConfigurationProducer>(
-      """:cleanTest :test --tests "TestCase.test1"""",
+      """:test --tests "TestCase.test1"""",
       projectData["project"]["TestCase"]["test1"].element
     )
     assertConfigurationFromContext<TestClassGradleConfigurationProducer>(
-      """:cleanTest :test --tests "TestCase"""",
+      """:test --tests "TestCase"""",
       projectData["project"]["TestCase"].element
     )
     assertConfigurationFromContext<AllInPackageGradleConfigurationProducer>(
-      """:cleanTest :test --tests "pkg.*"""",
+      """:test --tests "pkg.*"""",
       runReadActionAndWait { projectData["project"]["pkg.TestCase"].element.containingFile.containingDirectory }
     )
   }
@@ -33,22 +36,22 @@ class GradleTestRunConfigurationProducerTest : GradleTestRunConfigurationProduce
   fun `test pattern configuration`() {
     val projectData = generateAndImportTemplateProject()
     assertConfigurationFromContext<PatternGradleConfigurationProducer>(
-      """:cleanTest :test --tests "TestCase.test1" --tests "pkg.TestCase.test1" """ +
-      """:module:cleanTest :module:test --tests "ModuleTestCase.test1" --continue""",
+      """:test --tests "TestCase.test1" --tests "pkg.TestCase.test1" """ +
+      """:module:test --tests "ModuleTestCase.test1" --continue""",
       projectData["project"]["TestCase"]["test1"].element,
       projectData["project"]["pkg.TestCase"]["test1"].element,
       projectData["module"]["ModuleTestCase"]["test1"].element
     )
     assertConfigurationFromContext<PatternGradleConfigurationProducer>(
-      """:cleanTest :test --tests "TestCase" --tests "pkg.TestCase" """ +
-      """:module:cleanTest :module:test --tests "ModuleTestCase" --continue""",
+      """:test --tests "TestCase" --tests "pkg.TestCase" """ +
+      """:module:test --tests "ModuleTestCase" --continue""",
       projectData["project"]["TestCase"].element,
       projectData["project"]["pkg.TestCase"].element,
       projectData["module"]["ModuleTestCase"].element
     )
     assertConfigurationFromContext<PatternGradleConfigurationProducer>(
-      """:cleanTest :test --tests "TestCase.test1" --tests "pkg.TestCase.test1" """ +
-      """:module:cleanTest :module:test --tests "ModuleTestCase" --continue""",
+      """:test --tests "TestCase.test1" --tests "pkg.TestCase.test1" """ +
+      """:module:test --tests "ModuleTestCase" --continue""",
       projectData["project"]["TestCase"]["test1"].element,
       projectData["project"]["pkg.TestCase"]["test1"].element,
       projectData["module"]["ModuleTestCase"].element
@@ -98,24 +101,24 @@ class GradleTestRunConfigurationProducerTest : GradleTestRunConfigurationProduce
   fun `test configuration escaping`() {
     val projectData = generateAndImportTemplateProject()
     assertConfigurationFromContext<TestMethodGradleConfigurationProducer>(
-      """':my module:cleanTest' ':my module:test' --tests "MyModuleTestCase.test1"""",
+      """':my module:test' --tests "MyModuleTestCase.test1"""",
       projectData["my module"]["MyModuleTestCase"]["test1"].element
     )
     assertConfigurationFromContext<TestClassGradleConfigurationProducer>(
-      """':my module:cleanTest' ':my module:test' --tests "MyModuleTestCase"""",
+      """':my module:test' --tests "MyModuleTestCase"""",
       projectData["my module"]["MyModuleTestCase"].element
     )
     assertConfigurationFromContext<PatternGradleConfigurationProducer>(
-      """':my module:cleanTest' ':my module:test' --tests "MyModuleTestCase.test1" --tests "MyModuleTestCase.test2"""",
+      """':my module:test' --tests "MyModuleTestCase.test1" --tests "MyModuleTestCase.test2"""",
       projectData["my module"]["MyModuleTestCase"]["test1"].element,
       projectData["my module"]["MyModuleTestCase"]["test2"].element
     )
     assertConfigurationFromContext<TestMethodGradleConfigurationProducer>(
-      """:cleanTest :test --tests "GroovyTestCase.Don\'t use single * quo\*tes"""",
+      """:test --tests "GroovyTestCase.Don\'t use single * quo\*tes"""",
       projectData["project"]["GroovyTestCase"]["""Don\'t use single . quo\"tes"""].element
     )
     assertConfigurationFromContext<PatternGradleConfigurationProducer>(
-      """:cleanTest :test --tests "GroovyTestCase.Don\'t use single * quo\*tes" --tests "GroovyTestCase.test2"""",
+      """:test --tests "GroovyTestCase.Don\'t use single * quo\*tes" --tests "GroovyTestCase.test2"""",
       projectData["project"]["GroovyTestCase"]["""Don\'t use single . quo\"tes"""].element,
       projectData["project"]["GroovyTestCase"]["test2"].element
     )
@@ -126,7 +129,7 @@ class GradleTestRunConfigurationProducerTest : GradleTestRunConfigurationProduce
     currentExternalProjectSettings.isResolveModulePerSourceSet = false
     val projectData = generateAndImportTemplateProject()
     assertConfigurationFromContext<PatternGradleConfigurationProducer>(
-      """:cleanTest :test --tests "TestCase" :cleanAutoTest :autoTest --tests "AutomationTestCase" --continue""",
+      """:test --tests "TestCase" :autoTest --tests "AutomationTestCase" --continue""",
       projectData["project"]["TestCase"].element,
       projectData["project"]["AutomationTestCase"].element,
       testTasksFilter = { it in setOf("test", "autoTest") }
@@ -137,31 +140,31 @@ class GradleTestRunConfigurationProducerTest : GradleTestRunConfigurationProduce
   fun `test configuration tests for directory`() {
     val projectData = generateAndImportTemplateProject()
     assertConfigurationFromContext<AllInDirectoryGradleConfigurationProducer>(
-      """:cleanAutoTest :autoTest --tests * :cleanAutomationTest :automationTest --tests * :cleanTest :test --tests * --continue""",
+      """:autoTest --tests * :automationTest --tests * :test --tests * --continue""",
       projectData["project"].root
     )
     assertConfigurationFromContext<AllInDirectoryGradleConfigurationProducer>(
-      """:cleanTest :test --tests *""",
+      """:test --tests *""",
       projectData["project"].root.subDirectory("src")
     )
     assertConfigurationFromContext<AllInDirectoryGradleConfigurationProducer>(
-      """:cleanTest :test --tests *""",
+      """:test --tests *""",
       projectData["project"].root.subDirectory("src", "test")
     )
     assertConfigurationFromContext<AllInDirectoryGradleConfigurationProducer>(
-      """:cleanTest :test --tests *""",
+      """:test --tests *""",
       projectData["project"].root.subDirectory("src", "test", "java")
     )
     assertConfigurationFromContext<AllInPackageGradleConfigurationProducer>(
-      """:cleanTest :test --tests "pkg.*"""",
+      """:test --tests "pkg.*"""",
       projectData["project"].root.subDirectory("src", "test", "java", "pkg")
     )
     assertConfigurationFromContext<AllInDirectoryGradleConfigurationProducer>(
-      """:cleanAutoTest :autoTest --tests * :cleanAutomationTest :automationTest --tests * --continue""",
+      """:autoTest --tests * :automationTest --tests * --continue""",
       projectData["project"].root.subDirectory("automation")
     )
     assertConfigurationFromContext<AllInDirectoryGradleConfigurationProducer>(
-      """:module:cleanTest :module:test --tests *""",
+      """:module:test --tests *""",
       projectData["module"].root
     )
   }
@@ -227,6 +230,32 @@ class GradleTestRunConfigurationProducerTest : GradleTestRunConfigurationProduce
       getContextByLocation(abstractTestMethod, abstractTestMethod).let {
         assertFalse(producer.setupConfigurationFromContext(templateConfiguration, it, Ref(it.psiLocation)))
       }
+    }
+  }
+
+  @Test
+  fun `test template-defined arguments are kept`() {
+    val projectData = generateAndImportTemplateProject()
+    val gradleRCTemplate = RunManager.getInstance(myProject).getConfigurationTemplate(
+      GradleExternalTaskConfigurationType.getInstance().factory).configuration as? GradleRunConfiguration
+
+    gradleRCTemplate?.settings?.scriptParameters = "-DmyKey=myVal --debug"
+
+    try {
+      assertConfigurationFromContext<TestMethodGradleConfigurationProducer>(
+        """:test --tests "TestCase.test1" -DmyKey=myVal --debug""",
+        projectData["project"]["TestCase"]["test1"].element
+      )
+      assertConfigurationFromContext<TestClassGradleConfigurationProducer>(
+        """:test --tests "TestCase" -DmyKey=myVal --debug""",
+        projectData["project"]["TestCase"].element
+      )
+      assertConfigurationFromContext<AllInPackageGradleConfigurationProducer>(
+        """:test --tests "pkg.*" -DmyKey=myVal --debug""",
+        runReadActionAndWait { projectData["project"]["pkg.TestCase"].element.containingFile.containingDirectory }
+      )
+    } finally {
+      gradleRCTemplate?.settings?.scriptParameters = ""
     }
   }
 }

@@ -2,12 +2,15 @@
 package com.jetbrains.jsonSchema.settings.mappings;
 
 import com.intellij.execution.configurations.RuntimeConfigurationWarning;
+import com.intellij.json.JsonBundle;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.MessageType;
 import com.intellij.openapi.ui.NamedConfigurable;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts.ConfigurableName;
+import com.intellij.openapi.util.NlsContexts.NotificationContent;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -37,8 +40,8 @@ public class JsonSchemaConfigurable extends NamedConfigurable<UserDefinedJsonSch
   @Nullable private final TreeUpdater myTreeUpdater;
   @NotNull private final Function<? super String, String> myNameCreator;
   private JsonSchemaMappingsView myView;
-  private String myDisplayName;
-  private String myError;
+  private @ConfigurableName String myDisplayName;
+  private @Nls String myError;
 
   public JsonSchemaConfigurable(Project project,
                                 @NotNull String schemaFilePath, @NotNull UserDefinedJsonSchemaConfiguration schema,
@@ -137,7 +140,7 @@ public class JsonSchemaConfigurable extends NamedConfigurable<UserDefinedJsonSch
     String schemaSubPath = myView.getSchemaSubPath();
 
     if (StringUtil.isEmptyOrSpaces(schemaSubPath)) {
-      throw new ConfigurationException((!StringUtil.isEmptyOrSpaces(myDisplayName) ? (myDisplayName + ": ") : "") + "Schema path is empty");
+      throw new ConfigurationException((!StringUtil.isEmptyOrSpaces(myDisplayName) ? (myDisplayName + ": ") : "") + JsonBundle.message("schema.configuration.error.empty.path"));
     }
 
     VirtualFile vFile;
@@ -148,13 +151,13 @@ public class JsonSchemaConfigurable extends NamedConfigurable<UserDefinedJsonSch
 
       if (!isValidURL(schemaSubPath)) {
         throw new ConfigurationException(
-          (!StringUtil.isEmptyOrSpaces(myDisplayName) ? (myDisplayName + ": ") : "") + "Invalid schema URL");
+          (!StringUtil.isEmptyOrSpaces(myDisplayName) ? (myDisplayName + ": ") : "") + JsonBundle.message("schema.configuration.error.invalid.url"));
       }
 
       vFile = JsonFileResolver.urlToFile(schemaSubPath);
       if (vFile == null) {
         throw new ConfigurationException(
-          (!StringUtil.isEmptyOrSpaces(myDisplayName) ? (myDisplayName + ": ") : "") + "Invalid URL resource");
+          (!StringUtil.isEmptyOrSpaces(myDisplayName) ? (myDisplayName + ": ") : "") + JsonBundle.message("schema.configuration.error.invalid.url.resource"));
       }
     }
     else {
@@ -162,12 +165,12 @@ public class JsonSchemaConfigurable extends NamedConfigurable<UserDefinedJsonSch
       final File file = subPath.isAbsolute() ? subPath : new File(myProject.getBasePath(), schemaSubPath);
       if (!file.exists() || (vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file)) == null) {
         throw new ConfigurationException(
-          (!StringUtil.isEmptyOrSpaces(myDisplayName) ? (myDisplayName + ": ") : "") + "Schema file does not exist");
+          (!StringUtil.isEmptyOrSpaces(myDisplayName) ? (myDisplayName + ": ") : "") + JsonBundle.message("schema.configuration.error.file.does.not.exist"));
       }
       filename = file.getName();
     }
 
-    if (StringUtil.isEmptyOrSpaces(myDisplayName)) throw new ConfigurationException(filename + ": Schema name is empty");
+    if (StringUtil.isEmptyOrSpaces(myDisplayName)) throw new ConfigurationException(filename + ": " + JsonBundle.message("schema.configuration.error.empty.name"));
 
     // we don't validate remote schemas while in options dialog
     if (vFile instanceof HttpVirtualFile) return;
@@ -179,7 +182,7 @@ public class JsonSchemaConfigurable extends NamedConfigurable<UserDefinedJsonSch
     }
   }
 
-  private void logErrorForUser(@NotNull final String error) {
+  private void logErrorForUser(@NotNull @NotificationContent String error) {
     JsonSchemaReader.ERRORS_NOTIFICATION.createNotification(error, MessageType.WARNING).notify(myProject);
   }
 
@@ -212,7 +215,7 @@ public class JsonSchemaConfigurable extends NamedConfigurable<UserDefinedJsonSch
     if (myView != null) Disposer.dispose(myView);
   }
 
-  public void setError(String error, boolean showWarning) {
+  public void setError(@Nls String error, boolean showWarning) {
     myError = error;
     if (myView != null) {
       myView.setError(error, showWarning);

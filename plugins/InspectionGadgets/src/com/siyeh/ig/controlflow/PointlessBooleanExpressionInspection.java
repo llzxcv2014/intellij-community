@@ -30,6 +30,7 @@ import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
 import com.siyeh.ig.psiutils.*;
 import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -61,12 +62,6 @@ public class PointlessBooleanExpressionInspection extends BaseInspection {
     return new SingleCheckboxOptionsPanel(
       InspectionGadgetsBundle.message("pointless.boolean.expression.ignore.option"), this, "m_ignoreExpressionsContainingConstants"
     );
-  }
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("pointless.boolean.expression.display.name");
   }
 
   @Override
@@ -267,7 +262,7 @@ public class PointlessBooleanExpressionInspection extends BaseInspection {
     buildSimplifiedExpression(operand, out.append(sign.getText()), tracker);
   }
 
-  private void buildSimplifiedAssignmentExpression(PsiAssignmentExpression expression, StringBuilder out, CommentTracker tracker) {
+  private void buildSimplifiedAssignmentExpression(PsiAssignmentExpression expression, @NonNls StringBuilder out, CommentTracker tracker) {
     final IElementType tokenType = expression.getOperationTokenType();
     final PsiExpression lhs = expression.getLExpression();
 
@@ -376,10 +371,11 @@ public class PointlessBooleanExpressionInspection extends BaseInspection {
       String simplifiedExpression = buildSimplifiedExpression(expression, new StringBuilder(), tracker).toString();
       boolean isConstant = simplifiedExpression.equals("true") || simplifiedExpression.equals("false");
       if (isConstant && myHasSideEffect) {
-        expression = RefactoringUtil.ensureCodeBlock(expression);
-        if (expression == null) return;
-        PsiStatement anchor = PsiTreeUtil.getParentOfType(expression, PsiStatement.class);
-        if (anchor == null) return;
+        CodeBlockSurrounder surrounder = CodeBlockSurrounder.forExpression(expression);
+        if (surrounder == null) return;
+        CodeBlockSurrounder.SurroundResult result = surrounder.surround();
+        expression = result.getExpression();
+        PsiStatement anchor = result.getAnchor();
         List<PsiExpression> sideEffects = extractSideEffects(expression);
         for (PsiExpression sideEffect : sideEffects) {
           tracker.markUnchanged(sideEffect);
@@ -504,7 +500,7 @@ public class PointlessBooleanExpressionInspection extends BaseInspection {
       }
       if (containsConstant) {
         if (sideEffectMayBeRemoved && reducedToConstant) {
-          return ControlFlowUtils.canExtractStatement(expression)
+          return CodeBlockSurrounder.canSurround(expression)
                  ? BooleanExpressionKind.USELESS_WITH_SIDE_EFFECTS
                  : BooleanExpressionKind.UNKNOWN;
         }
@@ -587,7 +583,7 @@ public class PointlessBooleanExpressionInspection extends BaseInspection {
     private boolean referenceFound;
 
     @Override
-    public void visitElement(PsiElement element) {
+    public void visitElement(@NotNull PsiElement element) {
       if (referenceFound) {
         return;
       }

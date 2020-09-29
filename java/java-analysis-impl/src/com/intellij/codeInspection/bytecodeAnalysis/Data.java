@@ -14,13 +14,13 @@ import java.util.stream.Stream;
 final class Component {
   static final Component[] EMPTY_ARRAY = new Component[0];
   @NotNull Value value;
-  @NotNull final EKey[] ids;
+  final EKey @NotNull [] ids;
 
   Component(@NotNull Value value, @NotNull Set<EKey> ids) {
     this(value, ids.toArray(new EKey[0]));
   }
 
-  Component(@NotNull Value value, @NotNull EKey[] ids) {
+  Component(@NotNull Value value, EKey @NotNull [] ids) {
     this.value = value;
     this.ids = ids;
   }
@@ -180,13 +180,13 @@ interface Result {
 }
 
 final class Pending implements Result {
-  @NotNull final Component[] delta; // sum
+  final Component @NotNull [] delta; // sum
 
   Pending(Collection<Component> delta) {
     this(delta.toArray(Component.EMPTY_ARRAY));
   }
 
-  Pending(@NotNull Component[] delta) {
+  Pending(Component @NotNull [] delta) {
     this.delta = delta;
   }
 
@@ -223,8 +223,8 @@ final class Pending implements Result {
 }
 
 final class Effects implements Result {
-  static final Set<EffectQuantum> TOP_EFFECTS = Collections.singleton(EffectQuantum.TopEffectQuantum);
-  static final Effects VOLATILE_EFFECTS = new Effects(DataValue.UnknownDataValue2, Collections.singleton(EffectQuantum.TopEffectQuantum));
+  static final Set<EffectQuantum> TOP_EFFECTS = Set.of(EffectQuantum.TopEffectQuantum);
+  static final Effects VOLATILE_EFFECTS = new Effects(DataValue.UnknownDataValue2, TOP_EFFECTS);
 
   @NotNull final DataValue returnValue;
   @NotNull final Set<EffectQuantum> effects;
@@ -236,10 +236,20 @@ final class Effects implements Result {
 
   Effects combine(Effects other) {
     if (this.equals(other)) return this;
-    Set<EffectQuantum> newEffects = new HashSet<>(this.effects);
-    newEffects.addAll(other.effects);
-    if (newEffects.contains(EffectQuantum.TopEffectQuantum)) {
-      newEffects = TOP_EFFECTS;
+    Set<EffectQuantum> newEffects;
+    if (this.effects.containsAll(other.effects)) {
+      newEffects = this.effects;
+    }
+    else if (other.effects.containsAll(this.effects)) {
+      newEffects = other.effects;
+    }
+    else {
+      newEffects = new HashSet<>(this.effects);
+      newEffects.addAll(other.effects);
+      if (newEffects.contains(EffectQuantum.TopEffectQuantum)) {
+        newEffects = TOP_EFFECTS;
+      }
+      newEffects = Set.copyOf(newEffects);
     }
     DataValue newReturnValue = this.returnValue.equals(other.returnValue) ? this.returnValue : DataValue.UnknownDataValue1;
     return new Effects(newReturnValue, newEffects);

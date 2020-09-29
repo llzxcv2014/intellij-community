@@ -24,8 +24,7 @@ public final class TextEditorState implements FileEditorState {
    * This field can be {@code null}.
    */
   private CodeFoldingState myFoldingState;
-  @Nullable
-  private Supplier<CodeFoldingState> myDelayedFoldInfoProducer;
+  private Supplier<? extends CodeFoldingState> myDelayedFoldInfoProducer;
 
   private static final int MIN_CHANGE_DISTANCE = 4;
 
@@ -41,12 +40,12 @@ public final class TextEditorState implements FileEditorState {
    *
    * @param producer  delayed folding info producer
    */
-  void setDelayedFoldState(@NotNull Supplier<CodeFoldingState> producer) {
+  void setDelayedFoldState(@NotNull Supplier<? extends CodeFoldingState> producer) {
     myDelayedFoldInfoProducer = producer;
   }
 
   @Nullable
-  Supplier<CodeFoldingState> getDelayedFoldState() {
+  Supplier<? extends CodeFoldingState> getDelayedFoldState() {
     return myDelayedFoldInfoProducer;
   }
 
@@ -132,7 +131,6 @@ public final class TextEditorState implements FileEditorState {
 
       if (COLUMN != caretState.COLUMN) return false;
       if (LINE != caretState.LINE) return false;
-      if (LEAN_FORWARD != caretState.LEAN_FORWARD) return false;
       if (VISUAL_COLUMN_ADJUSTMENT != caretState.VISUAL_COLUMN_ADJUSTMENT) return false;
       if (SELECTION_START_LINE != caretState.SELECTION_START_LINE) return false;
       if (SELECTION_START_COLUMN != caretState.SELECTION_START_COLUMN) return false;

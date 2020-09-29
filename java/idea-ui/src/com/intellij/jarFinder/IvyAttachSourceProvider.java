@@ -15,6 +15,7 @@
  */
 package com.intellij.jarFinder;
 
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.diagnostic.Logger;
@@ -83,7 +84,8 @@ public class IvyAttachSourceProvider extends AbstractAttachSourceProvider {
           return Collections.emptyList(); // Sources already attached.
         }
 
-        return Collections.singleton(new AttachExistingSourceAction(jarRoot, library, "Attache sources from Ivy repository") );
+        return Collections.singleton(new AttachExistingSourceAction(jarRoot, library,
+                                                                    JavaUiBundle.message("ivi.attach.source.provider.action.name")));
       }
     }
 
@@ -105,8 +107,8 @@ public class IvyAttachSourceProvider extends AbstractAttachSourceProvider {
           addSourceFile(JarFileSystem.getInstance().getJarRootForLocalFile(srcFile), library);
         }
         catch (IOException e) {
-          String message = "Failed to save " + artifactDir.getPath() + "/sources/" + sourceFileName;
-          new Notification(myMessageGroupId, "IO Error", message, NotificationType.ERROR).notify(myProject);
+          String message = JavaUiBundle.message("error.message.failed.to.save.0", artifactDir.getPath() + "/sources/" + sourceFileName);
+          new Notification(myMessageGroupId, JavaUiBundle.message("notification.title.io.error"), message, NotificationType.ERROR).notify(myProject);
           LOG.warn(e);
         }
       }

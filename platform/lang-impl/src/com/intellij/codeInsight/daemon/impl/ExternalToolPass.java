@@ -6,6 +6,7 @@ import com.intellij.codeInsight.daemon.impl.analysis.HighlightingLevelManager;
 import com.intellij.codeInspection.ex.InspectionProfileImpl;
 import com.intellij.diagnostic.PluginException;
 import com.intellij.lang.ExternalLanguageAnnotators;
+import com.intellij.lang.LangBundle;
 import com.intellij.lang.Language;
 import com.intellij.lang.annotation.Annotation;
 import com.intellij.lang.annotation.AnnotationSession;
@@ -17,6 +18,8 @@ import com.intellij.openapi.diagnostic.Attachment;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.event.DocumentEvent;
+import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
@@ -39,7 +42,6 @@ import java.util.*;
 public class ExternalToolPass extends ProgressableTextEditorHighlightingPass {
   private static final Logger LOG = Logger.getInstance(ExternalToolPass.class);
 
-  private final Document myDocument;
   private final AnnotationHolderImpl myAnnotationHolder;
   private final ExternalToolPassFactory myExternalToolPassFactory;
   private final boolean myMainHighlightingPass;
@@ -74,8 +76,7 @@ public class ExternalToolPass extends ProgressableTextEditorHighlightingPass {
                    int endOffset,
                    @NotNull HighlightInfoProcessor processor,
                    boolean mainHighlightingPass) {
-    super(file.getProject(), document, "External annotators", file, editor, new TextRange(startOffset, endOffset), false, processor);
-    myDocument = document;
+    super(file.getProject(), document, LangBundle.message("pass.external.annotators"), file, editor, new TextRange(startOffset, endOffset), false, processor);
     myAnnotationHolder = new AnnotationHolderImpl(new AnnotationSession(file));
     myExternalToolPassFactory = factory;
     myMainHighlightingPass = mainHighlightingPass;
@@ -176,7 +177,7 @@ public class ExternalToolPass extends ProgressableTextEditorHighlightingPass {
       public void run() {
         if (!documentChanged(modificationStampBefore) && !myProject.isDisposed()) {
           BackgroundTaskUtil.runUnderDisposeAwareIndicator(myProject, () -> {
-            doAnnotate();
+            runChangeAware(myDocument, ExternalToolPass.this::doAnnotate);
             ReadAction.run(() -> {
               ProgressManager.checkCanceled();
               if (!documentChanged(modificationStampBefore)) {
@@ -213,13 +214,14 @@ public class ExternalToolPass extends ProgressableTextEditorHighlightingPass {
     for (MyData data : myAnnotationData) {
       if (data.annotationResult != null && data.psiRoot != null && data.psiRoot.isValid()) {
         try {
-          data.annotator.apply(data.psiRoot, data.annotationResult, myAnnotationHolder);
+          myAnnotationHolder.applyExternalAnnotatorWithContext(data.psiRoot, data.annotator, data.annotationResult);
         }
         catch (Throwable t) {
           process(t, data.annotator, data.psiRoot);
         }
       }
     }
+    myAnnotationHolder.assertAllAnnotationsCreated();
   }
 
   private List<HighlightInfo> getHighlights() {
@@ -252,5 +254,23 @@ public class ExternalToolPass extends ProgressableTextEditorHighlightingPass {
     String message = "annotator: " + annotator + " (" + annotator.getClass() + ")";
     PluginException pe = PluginException.createByClass(message, t, annotator.getClass());
     LOG.error("ExternalToolPass: ", pe, new Attachment("root_path.txt", path));
+  }
+
+  private static void runChangeAware(@NotNull Document document, @NotNull Runnable runnable) {
+    ProgressIndicator currentIndicator = ProgressManager.getInstance().getProgressIndicator();
+    assert currentIndicator != null;
+    DocumentListener cancellingListener = new DocumentListener() {
+      @Override
+      public void documentChanged(@NotNull DocumentEvent event) {
+        currentIndicator.cancel();
+      }
+    };
+    document.addDocumentListener(cancellingListener);
+    try {
+      runnable.run();
+    }
+    finally {
+      document.removeDocumentListener(cancellingListener);
+    }
   }
 }

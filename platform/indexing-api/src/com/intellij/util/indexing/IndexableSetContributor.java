@@ -13,7 +13,10 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * @author peter
+ * Represents a set of files which should be indexed additionally to a default ones.
+ * <br>
+ * Files provided by {@link IndexableSetContributor} will be indexed (or ensured up to date) on project loading and
+ * {@link FileBasedIndex} automatically rebuilds indexes for these files when they are going to be changed.
  */
 public abstract class IndexableSetContributor {
 
@@ -34,7 +37,8 @@ public abstract class IndexableSetContributor {
 
   /**
    * @return an additional project-dependent set of {@link VirtualFile} instances to index,
-   *         the returned set should not contain nulls or invalid files
+   *         the returned set should not contain {@code null} files, invalid files or files that reside
+   *         under excluded project directories (see {@link com.intellij.openapi.roots.ProjectFileIndex#isExcluded(VirtualFile)}.
    */
   @NotNull
   public Set<VirtualFile> getAdditionalProjectRootsToIndex(@NotNull Project project) {
@@ -43,7 +47,8 @@ public abstract class IndexableSetContributor {
 
   /**
    * @return an additional project-independent set of {@link VirtualFile} instances to index,
-   *         the returned set should not contain nulls or invalid files
+   *         the returned set should not contain {@code null} files, invalid files or files that reside
+   *         under excluded project directories (see {@link com.intellij.openapi.roots.ProjectFileIndex#isExcluded(VirtualFile)}.
    */
   @NotNull
   public abstract Set<VirtualFile> getAdditionalRootsToIndex();

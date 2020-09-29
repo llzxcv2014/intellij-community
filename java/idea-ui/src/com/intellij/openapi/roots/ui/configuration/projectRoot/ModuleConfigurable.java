@@ -4,15 +4,18 @@
 
 package com.intellij.openapi.roots.ui.configuration.projectRoot;
 
+import com.intellij.ide.JavaUiBundle;
+import com.intellij.lang.LangBundle;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.*;
 import com.intellij.openapi.options.ConfigurationException;
-import com.intellij.openapi.project.ProjectBundle;
 import com.intellij.openapi.roots.ui.configuration.ModuleEditor;
 import com.intellij.openapi.roots.ui.configuration.ModulesConfigurator;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.daemon.ModuleProjectStructureElement;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.daemon.ProjectStructureElement;
 import com.intellij.openapi.util.ActionCallback;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.navigation.Place;
 import org.jetbrains.annotations.NonNls;
@@ -26,7 +29,7 @@ public class ModuleConfigurable extends ProjectStructureElementConfigurable<Modu
   private final Module myModule;
   private final ModuleGrouper myModuleGrouper;
   private final ModulesConfigurator myConfigurator;
-  private String myModuleName;
+  private @NlsSafe String myModuleName;
   private final ModuleProjectStructureElement myProjectStructureElement;
   private final StructureConfigurableContext myContext;
 
@@ -61,11 +64,11 @@ public class ModuleConfigurable extends ProjectStructureElementConfigurable<Modu
   protected void checkName(@NotNull String name) throws ConfigurationException {
     super.checkName(name);
     if (myModuleGrouper.getShortenedNameByFullModuleName(name).isEmpty()) {
-      throw new ConfigurationException("Short name of a module cannot be empty");
+      throw new ConfigurationException(LangBundle.message("error.short.name.module.cannot.be.empty"));
     }
     List<String> list = myModuleGrouper.getGroupPathByModuleName(name);
-    if (list.stream().anyMatch(s -> s.isEmpty())) {
-      throw new ConfigurationException("Names of parent groups for a module cannot be empty");
+    if (list.stream().anyMatch(String::isEmpty)) {
+      throw new ConfigurationException(LangBundle.message("error.names.of.parent.groups.cannot.be.empty"));
     }
   }
 
@@ -86,7 +89,7 @@ public class ModuleConfigurable extends ProjectStructureElementConfigurable<Modu
 
   @Override
   public String getBannerSlogan() {
-    return ProjectBundle.message("project.roots.module.banner.text", myModuleName);
+    return JavaUiBundle.message("project.roots.module.banner.text", myModuleName);
   }
 
   @Override

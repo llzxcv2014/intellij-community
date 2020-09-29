@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.service.project;
 
 import com.intellij.execution.configurations.ParametersList;
@@ -13,14 +13,17 @@ import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotifica
 import com.intellij.openapi.externalSystem.service.project.ExternalSystemProjectResolver;
 import com.intellij.openapi.externalSystem.service.project.PerformanceTrace;
 import com.intellij.openapi.externalSystem.util.ExternalSystemDebugEnvironment;
+import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.openapi.util.Factory;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.util.ExceptionUtil;
 import com.intellij.util.Function;
 import com.intellij.util.SmartList;
+import com.intellij.util.containers.CollectionFactory;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
 import gnu.trove.THashMap;
@@ -48,6 +51,8 @@ import org.jetbrains.plugins.gradle.util.GradleConstants;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil.*;
@@ -95,10 +100,10 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
                                                   @NotNull final ExternalSystemTaskNotificationListener listener)
     throws ExternalSystemException, IllegalArgumentException, IllegalStateException {
 
-    GradleIncrementalResolverPolicy gradleResolverPolicy = null;
+    GradlePartialResolverPolicy gradleResolverPolicy = null;
     if (resolverPolicy != null) {
-      if (resolverPolicy instanceof GradleIncrementalResolverPolicy) {
-        gradleResolverPolicy = (GradleIncrementalResolverPolicy)resolverPolicy;
+      if (resolverPolicy instanceof GradlePartialResolverPolicy) {
+        gradleResolverPolicy = (GradlePartialResolverPolicy)resolverPolicy;
       }
       else {
         throw new ExternalSystemException("Unsupported project resolver policy: " + resolverPolicy.getClass().getName());
@@ -132,7 +137,9 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
         myHelper.ensureInstalledWrapper(syncTaskId, projectPath, settings, listener, cancellationTokenSource.token());
       }
 
-      final GradleProjectResolverExtension projectResolverChain = createProjectResolverChain(resolverContext, gradleResolverPolicy);
+      Predicate<GradleProjectResolverExtension> extensionsFilter =
+        gradleResolverPolicy != null ? gradleResolverPolicy.getExtensionsFilter() : null;
+      final GradleProjectResolverExtension projectResolverChain = createProjectResolverChain(resolverContext, extensionsFilter);
       final DataNode<ProjectData> projectDataNode = myHelper.execute(
         projectPath, settings, syncTaskId, listener, cancellationTokenSource,
         getProjectDataFunction(resolverContext, projectResolverChain, false));
@@ -142,8 +149,9 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
       new GradleBuildSrcProjectsResolver(this, resolverContext, gradleUserHome, settings, listener, syncTaskId, projectResolverChain)
         .discoverAndAppendTo(projectDataNode);
       return projectDataNode;
-    } finally {
-        myCancellationMap.remove(resolverContext.getExternalSystemTaskId(), cancellationTokenSource);
+    }
+    finally {
+      myCancellationMap.remove(resolverContext.getExternalSystemTaskId(), cancellationTokenSource);
     }
   }
 
@@ -196,8 +204,7 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
     }
 
     configureExecutionArgumentsAndVmOptions(executionSettings, resolverCtx, isBuildSrcProject);
-    final Set<Class> toolingExtensionClasses = new HashSet<>();
-    boolean requiresTaskInitialization = false;
+    final Set<Class<?>> toolingExtensionClasses = new HashSet<>();
     for (GradleProjectResolverExtension resolverExtension = tracedResolverChain;
          resolverExtension != null;
          resolverExtension = resolverExtension.getNext()) {
@@ -230,26 +237,18 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
       catch (Throwable t) {
         LOG.warn(t);
       }
-
-      // see if anything requires Gradle tasks to be run
-      try {
-        requiresTaskInitialization |= resolverExtension.requiresTaskRunning();
-      }
-      catch (Throwable t) {
-        LOG.warn(t);
-      }
     }
     File initScript = GradleExecutionHelper.generateInitScript(isBuildSrcProject, toolingExtensionClasses);
     if (initScript != null) {
       executionSettings.withArguments(GradleConstants.INIT_SCRIPT_CMD_OPTION, initScript.getAbsolutePath());
     }
 
-    BuildActionRunner buildActionRunner =
-      new BuildActionRunner(resolverCtx, projectImportAction, requiresTaskInitialization, executionSettings, myHelper);
+    BuildActionRunner buildActionRunner = new BuildActionRunner(resolverCtx, projectImportAction, executionSettings, myHelper);
     resolverCtx.checkCancelled();
 
     final long startTime = System.currentTimeMillis();
     ProjectImportAction.AllModels allModels;
+    CountDownLatch buildFinishWaiter = new CountDownLatch(1);
     try {
       allModels = buildActionRunner.fetchModels(
         models -> {
@@ -258,13 +257,23 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
           }
         },
         (exception) -> {
-          for (GradleProjectResolverExtension resolver = tracedResolverChain; resolver != null; resolver = resolver.getNext()) {
-            resolver.buildFinished(exception);
+          try {
+            for (GradleProjectResolverExtension resolver = tracedResolverChain; resolver != null; resolver = resolver.getNext()) {
+              resolver.buildFinished(exception);
+            }
           }
-      });
+          finally {
+            buildFinishWaiter.countDown();
+          }
+        });
       performanceTrace.addTrace(allModels.getPerformanceTrace());
     }
+    catch (Exception e) {
+      buildFinishWaiter.countDown();
+      throw e;
+    }
     finally {
+      ProgressIndicatorUtils.awaitWithCheckCanceled(buildFinishWaiter);
       final long timeInMs = (System.currentTimeMillis() - startTime);
       performanceTrace.logPerformance("Gradle data obtained", timeInMs);
       LOG.debug(String.format("Gradle data obtained in %d ms", timeInMs));
@@ -282,18 +291,18 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
     extractExternalProjectModels(allModels, resolverCtx, useCustomSerialization);
 
     String projectName = allModels.getMainBuild().getName();
-    ProjectModelBuilderImpl projectModelBuilder = new ProjectModelBuilderImpl(projectName, resolverCtx.getProjectPath());
+    ModifiableGradleProjectModelImpl modifiableGradleProjectModel = new ModifiableGradleProjectModelImpl(projectName, resolverCtx.getProjectPath());
     ToolingModelsProvider modelsProvider = new ToolingModelsProviderImpl(allModels);
     ProjectModelContributor.EP_NAME.forEachExtensionSafe(extension -> {
       resolverCtx.checkCancelled();
       final long starResolveTime = System.currentTimeMillis();
-      extension.accept(projectModelBuilder, modelsProvider, resolverCtx);
+      extension.accept(modifiableGradleProjectModel, modelsProvider, resolverCtx);
       final long resolveTimeInMs = (System.currentTimeMillis() - starResolveTime);
       performanceTrace.logPerformance("Project model contributed by " + extension.getClass().getSimpleName(), resolveTimeInMs);
       LOG.debug(String.format("Project model contributed by `" + extension.getClass().getSimpleName() + "` in %d ms", resolveTimeInMs));
     });
 
-    DataNode<ProjectData> projectDataNode = projectModelBuilder.buildDataNodeGraph();
+    DataNode<ProjectData> projectDataNode = modifiableGradleProjectModel.buildDataNodeGraph();
     DataNode<PerformanceTrace> performanceTraceNode = new DataNode<>(PerformanceTrace.TRACE_NODE_KEY, performanceTrace, projectDataNode);
     projectDataNode.addChild(performanceTraceNode);
 
@@ -312,11 +321,9 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
     final Map<String /* module id */, Pair<DataNode<GradleSourceSetData>, ExternalSourceSet>> sourceSetsMap = new HashMap<>();
     projectDataNode.putUserData(RESOLVED_SOURCE_SETS, sourceSetsMap);
 
-    final Map<String/* output path */, Pair<String /* module id*/, ExternalSystemSourceType>> moduleOutputsMap =
-      new THashMap<>(FileUtil.PATH_HASHING_STRATEGY);
+    final Map<String/* output path */, Pair<String /* module id*/, ExternalSystemSourceType>> moduleOutputsMap = CollectionFactory.createFilePathMap();
     projectDataNode.putUserData(MODULES_OUTPUTS, moduleOutputsMap);
-    final Map<String/* artifact path */, String /* module id*/> artifactsMap =
-      new THashMap<>(FileUtil.PATH_HASHING_STRATEGY);
+    final Map<String/* artifact path */, String /* module id*/> artifactsMap = CollectionFactory.createFilePathMap();
     projectDataNode.putUserData(CONFIGURATION_ARTIFACTS, artifactsMap);
 
     // import modules data
@@ -394,6 +401,10 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
         }
       }
     }
+    // reuse same gradle home (for auto-discovered buildSrc projects) also for partial imports which doesn't request BuildScriptClasspathModel
+    if (gradleHomeDir == null && executionSettings.getGradleHome() != null) {
+      gradleHomeDir = new File(executionSettings.getGradleHome());
+    }
     resolverCtx.putUserData(GRADLE_HOME_DIR, gradleHomeDir);
 
     for (final Pair<DataNode<ModuleData>, IdeaModule> pair : moduleMap.values()) {
@@ -403,7 +414,7 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
       tracedResolverChain.populateModuleExtraModels(ideaModule, moduleDataNode);
     }
     mergeSourceSetContentRoots(moduleMap, resolverCtx);
-    if(resolverCtx.isResolveModulePerSourceSet()) {
+    if (resolverCtx.isResolveModulePerSourceSet()) {
       mergeLibraryAndModuleDependencyData(resolverCtx, projectDataNode, resolverCtx.getGradleUserHome(), gradleHomeDir, gradleVersion);
     }
 
@@ -469,21 +480,24 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
       for (Build build : includedBuilds) {
         if (!build.getProjects().isEmpty()) {
           IdeaProject ideaProject = allModels.getModel(build, IdeaProject.class);
-          assert ideaProject != null;
+          if (ideaProject != null) {
+            gradleIncludedModules.addAll(ideaProject.getModules());
+          }
           String rootProjectName = build.getName();
           BuildParticipant buildParticipant = new BuildParticipant();
-          gradleIncludedModules.addAll(ideaProject.getModules());
           try {
             String projectPath = toCanonicalPath(build.getBuildIdentifier().getRootDir().getCanonicalPath());
             buildParticipant.setRootProjectName(rootProjectName);
             buildParticipant.setRootPath(projectPath);
-            for (IdeaModule module : ideaProject.getModules()) {
-              try {
-                String modulePath = toCanonicalPath(module.getGradleProject().getProjectDirectory().getCanonicalPath());
-                buildParticipant.getProjects().add(modulePath);
-              }
-              catch (IOException e) {
-                LOG.warn("construction of the canonical path for the module fails", e);
+            if (ideaProject != null) {
+              for (IdeaModule module : ideaProject.getModules()) {
+                try {
+                  String modulePath = toCanonicalPath(module.getGradleProject().getProjectDirectory().getCanonicalPath());
+                  buildParticipant.getProjects().add(modulePath);
+                }
+                catch (IOException e) {
+                  LOG.warn("construction of the canonical path for the module fails", e);
+                }
               }
             }
             compositeBuildData.getCompositeParticipants().add(buildParticipant);
@@ -706,7 +720,7 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
     }
   }
 
-  private class ProjectConnectionDataNodeFunction implements Function<ProjectConnection, DataNode<ProjectData>> {
+  private final class ProjectConnectionDataNodeFunction implements Function<ProjectConnection, DataNode<ProjectData>> {
     @NotNull private final GradleProjectResolverExtension myProjectResolverChain;
     private final boolean myIsBuildSrcProject;
     private final DefaultProjectResolverContext myResolverContext;
@@ -727,6 +741,10 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
       }
       catch (RuntimeException e) {
         LOG.info("Gradle project resolve error", e);
+        ExternalSystemException esException = ExceptionUtil.findCause(e, ExternalSystemException.class);
+        if (esException != null && esException != e) {
+          LOG.info("\nCaused by: " + esException.getOriginalReason());
+        }
         throw myProjectResolverChain.getUserFriendlyError(
           myResolverContext.getBuildEnvironment(), e, myResolverContext.getProjectPath(), null);
       }
@@ -743,10 +761,10 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
 
   @NotNull
   private static GradleProjectResolverExtension createProjectResolverChain(@Nullable DefaultProjectResolverContext resolverContext,
-                                                                           @Nullable GradleIncrementalResolverPolicy policy) {
+                                                                           @Nullable Predicate<? super GradleProjectResolverExtension> extensionsFilter) {
     Stream<GradleProjectResolverExtension> extensions = GradleProjectResolverUtil.createProjectResolvers(resolverContext);
-    if (policy != null) {
-      extensions = extensions.filter(policy.getExtensionsFilter().or(BaseResolverExtension.class::isInstance));
+    if (extensionsFilter != null) {
+      extensions = extensions.filter(extensionsFilter.or(BaseResolverExtension.class::isInstance));
     }
 
     Deque<GradleProjectResolverExtension> deque = new ArrayDeque<>();

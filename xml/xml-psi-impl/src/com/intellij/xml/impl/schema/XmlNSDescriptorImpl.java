@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xml.impl.schema;
 
 import com.intellij.codeInsight.daemon.Validator;
@@ -11,16 +11,14 @@ import com.intellij.openapi.util.Trinity;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiReference;
+import com.intellij.psi.impl.source.resolve.reference.impl.providers.URLReference;
 import com.intellij.psi.meta.PsiMetaData;
 import com.intellij.psi.search.PsiElementProcessor;
 import com.intellij.psi.util.CachedValue;
 import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
-import com.intellij.psi.xml.XmlDocument;
-import com.intellij.psi.xml.XmlFile;
-import com.intellij.psi.xml.XmlTag;
+import com.intellij.psi.xml.*;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.SmartList;
@@ -32,16 +30,12 @@ import com.intellij.xml.XmlNSDescriptor;
 import com.intellij.xml.XmlNSDescriptorEx;
 import com.intellij.xml.impl.ExternalDocumentValidator;
 import com.intellij.xml.util.XmlUtil;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-/**
- * @author Mike
- */
 @SuppressWarnings({"HardCodedStringLiteral"})
 public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocument>, DumbAware, XsdNsDescriptor {
   @NonNls
@@ -171,7 +165,7 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
   }
 
   @Override
-  public boolean processTagsInNamespace(String[] tagNames, PsiElementProcessor<? super XmlTag> processor) {
+  public final boolean processTagsInNamespace(String[] tagNames, PsiElementProcessor<? super XmlTag> processor) {
     return processTagsInNamespaceInner(myTag, tagNames, processor, null);
   }
 
@@ -310,19 +304,14 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
     return null;
   }
 
-  public static XmlFile getRedefinedElementDescriptorFile(final XmlTag parentTag) {
-    final String schemaL = parentTag.getAttributeValue(XmlUtil.SCHEMA_LOCATION_ATT);
-
-    if (schemaL != null) {
-      final PsiReference[] references = parentTag.getAttribute(XmlUtil.SCHEMA_LOCATION_ATT, null).getValueElement().getReferences();
-
-      if (references.length > 0) {
-        final PsiElement psiElement = references[references.length - 1].resolve();
-
+  private static XmlFile getRedefinedElementDescriptorFile(final XmlTag parentTag) {
+    XmlAttribute attribute = parentTag.getAttribute(XmlUtil.SCHEMA_LOCATION_ATT);
+    if (attribute != null) {
+      XmlAttributeValue element = attribute.getValueElement();
+      PsiElement psiElement = new URLReference(element).resolve();
         if (psiElement instanceof XmlFile) {
           return ((XmlFile)psiElement);
         }
-      }
     }
     return null;
   }
@@ -472,7 +461,7 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
 
         if (name != null) {
           if (checkElementNameEquivalence(localName, namespace, name, tag)) {
-            return createAttributeDescriptor(tag);
+            return new XmlAttributeDescriptorImpl(tag);
           }
         }
       } else if (equalsToSchemaName(tag, INCLUDE_TAG_NAME) ||
@@ -515,10 +504,6 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
     }
 
     return null;
-  }
-
-  protected XmlAttributeDescriptorImpl createAttributeDescriptor(final XmlTag tag) {
-    return new XmlAttributeDescriptorImpl(tag);
   }
 
   @Override
@@ -807,8 +792,7 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
   }
 
   @Override
-  @NotNull
-  public XmlElementDescriptor[] getRootElementsDescriptors(@Nullable final XmlDocument doc) {
+  public XmlElementDescriptor @NotNull [] getRootElementsDescriptors(@Nullable final XmlDocument doc) {
     class CollectElementsProcessor implements PsiElementProcessor<XmlTag> {
       final List<XmlElementDescriptor> result = new ArrayList<>();
 
@@ -832,20 +816,16 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
   }
 
   public XmlAttributeDescriptor[] getRootAttributeDescriptors(final XmlTag context) {
-    class CollectAttributesProcessor implements PsiElementProcessor<XmlTag> {
-      final List<XmlAttributeDescriptor> result = new ArrayList<>();
+    return CachedValuesManager.getProjectPsiDependentCache(myTag, XmlNSDescriptorImpl::computeAttributeDescriptors)
+      .toArray(XmlAttributeDescriptor.EMPTY);
+  }
 
-      @Override
-      public boolean execute(@NotNull final XmlTag element) {
-        result.add(createAttributeDescriptor(element));
-        return true;
-      }
-    }
-
-    CollectAttributesProcessor processor = new CollectAttributesProcessor();
-    processTagsInNamespace(new String[] {ATTRIBUTE_TAG_NAME}, processor);
-
-    return processor.result.toArray(XmlAttributeDescriptor.EMPTY);
+  private static List<XmlAttributeDescriptor> computeAttributeDescriptors(XmlTag tag) {
+    List<XmlAttributeDescriptor> result = new ArrayList<>();
+    processTagsInNamespaceInner(tag, new String[] {ATTRIBUTE_TAG_NAME},
+                                element -> result.add(new XmlAttributeDescriptorImpl(element)),
+                                null);
+    return result;
   }
 
   @Override
@@ -931,14 +911,13 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
       myTargetNamespace = myTag.getAttributeValue("targetNamespace");
     }
 
-    final THashSet<PsiFile> dependenciesSet = new THashSet<>();
+    Set<PsiFile> dependenciesSet = new HashSet<>();
     collectDependencies(myTag, myFile, dependenciesSet);
     dependencies = ArrayUtil.toObjectArray(dependenciesSet);
   }
 
-  @NotNull
   @Override
-  public Object[] getDependencies() {
+  public Object @NotNull [] getDependencies() {
     if (dependencies == null) dependencies = myFile == null ? ArrayUtilRt.EMPTY_OBJECT_ARRAY : new Object[] {myFile}; // init was not called
     return dependencies;
   }

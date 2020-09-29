@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.packaging.impl.run;
 
 import com.intellij.execution.BeforeRunTaskProvider;
@@ -10,7 +10,7 @@ import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.ide.DataManager;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.application.ReadAction;
-import com.intellij.openapi.compiler.CompilerBundle;
+import com.intellij.openapi.compiler.JavaCompilerBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogBuilder;
 import com.intellij.openapi.ui.DialogWrapper;
@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-public abstract class BuildArtifactsBeforeRunTaskProviderBase<T extends BuildArtifactsBeforeRunTaskBase>
+public abstract class BuildArtifactsBeforeRunTaskProviderBase<T extends BuildArtifactsBeforeRunTaskBase<?>>
   extends BeforeRunTaskProvider<T> {
   private final Project myProject;
   @NotNull final private Class<T> myTaskClass;
@@ -78,7 +78,7 @@ public abstract class BuildArtifactsBeforeRunTaskProviderBase<T extends BuildArt
     chooser.setPreferredSize(JBUI.size(400, 300));
 
     DialogBuilder builder = new DialogBuilder(myProject);
-    builder.setTitle(CompilerBundle.message("build.artifacts.before.run.selector.title"));
+    builder.setTitle(JavaCompilerBundle.message("build.artifacts.before.run.selector.title"));
     builder.setDimensionServiceKey("#BuildArtifactsBeforeRunChooser");
     builder.addOkAction();
     builder.addCancelAction();
@@ -99,7 +99,7 @@ public abstract class BuildArtifactsBeforeRunTaskProviderBase<T extends BuildArt
 
   @Override
   public boolean canExecuteTask(@NotNull RunConfiguration configuration, @NotNull T task) {
-    for (ArtifactPointer pointer : (List<ArtifactPointer>)task.getArtifactPointers()) {
+    for (ArtifactPointer pointer : task.getArtifactPointers()) {
       if (pointer.getArtifact() != null) {
         return true;
       }

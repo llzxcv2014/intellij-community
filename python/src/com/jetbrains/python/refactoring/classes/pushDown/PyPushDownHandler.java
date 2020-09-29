@@ -17,6 +17,7 @@ package com.jetbrains.python.refactoring.classes.pushDown;
 
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts.DialogTitle;
 import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
 import com.intellij.util.Query;
@@ -26,14 +27,13 @@ import com.jetbrains.python.refactoring.classes.PyClassRefactoringHandler;
 import com.jetbrains.python.refactoring.classes.PyMemberInfoStorage;
 import com.jetbrains.python.vp.Creator;
 import com.jetbrains.python.vp.ViewPresenterUtils;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * @author Dennis.Ushakov
  */
 public class PyPushDownHandler extends PyClassRefactoringHandler {
-  public static final String REFACTORING_NAME = RefactoringBundle.message("push.members.down.title");
-
   @Override
   protected void doRefactorImpl(@NotNull final Project project,
                                 @NotNull final PyClass classUnderRefactoring,
@@ -65,12 +65,16 @@ public class PyPushDownHandler extends PyClassRefactoringHandler {
   }
 
   @Override
-  protected String getTitle() {
-    return REFACTORING_NAME;
+  protected @DialogTitle String getTitle() {
+    return getRefactoringName();
   }
 
   @Override
   protected String getHelpId() {
     return "members.push.down";
+  }
+
+  public static @Nls String getRefactoringName() {
+    return RefactoringBundle.message("push.members.down.title");
   }
 }

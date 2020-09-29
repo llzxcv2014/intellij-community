@@ -76,13 +76,19 @@ elif IS_IRONPYTHON:
 
 IS_64BIT_PROCESS = sys.maxsize > (2 ** 32)
 
-IS_LINUX = sys.platform in ('linux', 'linux2')
+IS_LINUX = sys.platform.startswith('linux')
 IS_MACOS = sys.platform == 'darwin'
 
 IS_PYTHON_STACKLESS = "stackless" in sys.version.lower()
 CYTHON_SUPPORTED = False
 
 NUMPY_NUMERIC_TYPES = "biufc"
+NUMPY_FLOATING_POINT_TYPES = "fc"
+# b boolean
+# i signed integer
+# u unsigned integer
+# f floating-point
+# c complex floating-point
 
 try:
     import platform
@@ -108,6 +114,7 @@ IS_PY34_OR_GREATER = False
 IS_PY36_OR_GREATER = False
 IS_PY37_OR_GREATER = False
 IS_PY36_OR_LESSER = False
+IS_PY38_OR_GREATER = False
 IS_PY2 = True
 IS_PY27 = False
 IS_PY24 = False
@@ -119,6 +126,7 @@ try:
         IS_PY36_OR_GREATER = sys.version_info >= (3, 6)
         IS_PY37_OR_GREATER = sys.version_info >= (3, 7)
         IS_PY36_OR_LESSER = sys.version_info[:2] <= (3, 6)
+        IS_PY38_OR_GREATER = sys.version_info >= (3, 8)
     elif sys.version_info[0] == 2 and sys.version_info[1] == 7:
         IS_PY27 = True
     elif sys.version_info[0] == 2 and sys.version_info[1] == 4:
@@ -131,6 +139,11 @@ try:
 except:
     # Jython 2.1 doesn't accept that construct
     SUPPORT_GEVENT = False
+
+try:
+    DROP_INTO_DEBUGGER_ON_FAILED_TESTS = os.environ.get('DROP_INTO_DEBUGGER_ON_FAILED_TESTS', 'False') == 'True'
+except:
+    DROP_INTO_DEBUGGER_ON_FAILED_TESTS = False
 
 # At the moment gevent supports Python >= 2.6 and Python >= 3.3
 USE_LIB_COPY = SUPPORT_GEVENT and \
@@ -157,6 +170,9 @@ ASYNC_EVAL_TIMEOUT_SEC = 60
 NEXT_VALUE_SEPARATOR = "__pydev_val__"
 BUILTINS_MODULE_NAME = '__builtin__' if IS_PY2 else 'builtins'
 SHOW_DEBUG_INFO_ENV = os.getenv('PYCHARM_DEBUG') == 'True' or os.getenv('PYDEV_DEBUG') == 'True'
+
+# If True, CMD_SET_NEXT_STATEMENT and CMD_RUN_TO_LINE commands have responses indicating success or failure.
+GOTO_HAS_RESPONSE = IS_PYCHARM
 
 if SHOW_DEBUG_INFO_ENV:
     # show debug info before the debugger start

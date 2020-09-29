@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.themes;
 
 import com.intellij.codeInspection.ProblemHighlightType;
@@ -7,9 +7,11 @@ import com.intellij.json.psi.JsonObject;
 import com.intellij.json.psi.JsonProperty;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.Annotator;
+import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.util.Pair;
 import com.intellij.psi.PsiElement;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.idea.devkit.DevKitBundle;
 
 public class ThemeAnnotator implements Annotator {
 
@@ -29,16 +31,18 @@ public class ThemeAnnotator implements Annotator {
       if (parentNames.startsWith("*")) return; // anything allowed
 
       String fullKey = parentNames.isEmpty() ? property.getName() : parentNames + "." + property.getName();
-      holder.createWarningAnnotation(property.getNameElement().getTextRange(),
-                                     "Unresolved key '" + fullKey + "'")
-        .setHighlightType(ProblemHighlightType.WARNING);
+      holder.newAnnotation(HighlightSeverity.WARNING,
+                           DevKitBundle.message("theme.highlighting.unresolved.key", fullKey))
+        .range(property.getNameElement())
+        .highlightType(ProblemHighlightType.WARNING).create();
       return;
     }
 
     if (pair.second.isDeprecated()) {
-      holder.createWarningAnnotation(property.getNameElement().getTextRange(),
-                                     "Deprecated key '" + pair.second.getKey() + "'")
-        .setHighlightType(ProblemHighlightType.LIKE_DEPRECATED);
+      holder.newAnnotation(HighlightSeverity.WARNING,
+                           DevKitBundle.message("theme.highlighting.deprecated.key", pair.second.getKey()))
+        .range(property.getNameElement())
+        .highlightType(ProblemHighlightType.LIKE_DEPRECATED).create();
     }
   }
 }

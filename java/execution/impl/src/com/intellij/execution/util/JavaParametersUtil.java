@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.util;
 
 import com.intellij.execution.CantRunException;
@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  * @author lex
  */
-public class JavaParametersUtil {
+public final class JavaParametersUtil {
   private JavaParametersUtil() { }
 
   public static void configureConfiguration(SimpleJavaParameters parameters, CommonJavaRunConfigurationParameters configuration) {
@@ -56,10 +56,9 @@ public class JavaParametersUtil {
       for (Map.Entry<String, String> each : parameters.getEnv().entrySet()) {
         vmParameters = StringUtil.replace(vmParameters, "$" + each.getKey() + "$", each.getValue(), false); //replace env usages
       }
-      vmParameters = ProgramParametersConfigurator.expandMacros(vmParameters);
+      List<String> vmParametersList = ProgramParametersConfigurator.expandMacrosAndParseParameters(vmParameters);
+      parameters.getVMParametersList().addAll(vmParametersList);
     }
-
-    parameters.getVMParametersList().addParametersString(vmParameters);
   }
 
   @MagicConstant(valuesFromClass = JavaParameters.class)

@@ -8,6 +8,7 @@ import com.intellij.ide.DeleteProvider;
 import com.intellij.ide.highlighter.XmlFileHighlighter;
 import com.intellij.ide.palette.impl.PaletteToolWindowManager;
 import com.intellij.lang.properties.psi.PropertiesFile;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
@@ -23,7 +24,6 @@ import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.ex.util.LexerEditorHighlighter;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
-import com.intellij.openapi.fileTypes.StdFileTypes;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.DumbService;
@@ -86,7 +86,7 @@ import java.util.*;
  * @author Anton Katilin
  * @author Vladimir Kondratyev
  */
-public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade, DataProvider, ModuleProvider {
+public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade, DataProvider, ModuleProvider, Disposable {
   private static final Logger LOG = Logger.getInstance(GuiEditor.class);
 
   private final Project myProject;
@@ -172,7 +172,8 @@ public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade
   private boolean myInsideChange;
   private final DocumentListener myDocumentListener;
   private final CardLayout myCardLayout = new CardLayout();
-  private final ThreeComponentsSplitter myContentSplitter = new ThreeComponentsSplitter();
+  private final Disposable myContentSplitterDisposable = Disposer.newDisposable();
+  private final ThreeComponentsSplitter myContentSplitter = new ThreeComponentsSplitter(myContentSplitterDisposable);
   private final JPanel myCardPanel = new JPanel(myCardLayout);
 
   @NonNls private static final String CARD_VALID = "valid";
@@ -335,7 +336,7 @@ public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade
 
     // PSI listener to restart error highlighter
     myPsiTreeChangeListener = new MyPsiTreeChangeListener();
-    PsiManager.getInstance(getProject()).addPsiTreeChangeListener(myPsiTreeChangeListener);
+    PsiManager.getInstance(getProject()).addPsiTreeChangeListener(myPsiTreeChangeListener, this);
 
     myQuickFixManager = new QuickFixManagerImpl(this, myGlassLayer, myScrollPane.getViewport());
 
@@ -376,6 +377,7 @@ public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade
     return mySelectionState;
   }
 
+  @Override
   public void dispose() {
     ApplicationManager.getApplication().assertIsDispatchThread();
 
@@ -388,7 +390,6 @@ public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade
     }
 
     myDocument.removeDocumentListener(myDocumentListener);
-    PsiManager.getInstance(getProject()).removePsiTreeChangeListener(myPsiTreeChangeListener);
 
     if (!ApplicationManager.getApplication().isUnitTestMode()) {
       DesignerToolWindowManager.getInstance(myProject).dispose(this);
@@ -397,7 +398,7 @@ public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade
 
     myPsiTreeChangeListener.dispose();
 
-    Disposer.dispose(myContentSplitter);
+    Disposer.dispose(myContentSplitterDisposable);
   }
 
   @NotNull
@@ -660,7 +661,7 @@ public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade
       finally {
         myInsideChange = false;
       }
-    }), "UI Designer Save", myNextSaveGroupId);
+    }), UIDesignerBundle.message("gui.editor.save.command"), myNextSaveGroupId);
     myNextSaveGroupId = new Object();
 
     fireHierarchyChanged();
@@ -1012,7 +1013,8 @@ public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade
 
       DialogBuilder dialog = new DialogBuilder(myProject);
 
-      dialog.title("Form - " + myFile.getPresentableName()).dimensionKey("GuiDesigner.FormSource.Dialog");
+      dialog.title(UIDesignerBundle.message("GuiDesigner.FormSource.title", myFile.getPresentableName()))
+        .dimensionKey("GuiDesigner.FormSource.Dialog");
       dialog.centerPanel(component).setPreferredFocusComponent(editor.getContentComponent());
       dialog.addOkAction();
 
@@ -1187,7 +1189,7 @@ public final class GuiEditor extends JPanel implements DesignerEditorPanelFacade
           myAlarm.cancelRequest(myRefreshPropertiesRequest);
           myAlarm.addRequest(myRefreshPropertiesRequest, 500, ModalityState.stateForComponent(GuiEditor.this));
         }
-        else if (containingFile instanceof PsiPlainTextFile && containingFile.getFileType().equals(StdFileTypes.GUI_DESIGNER_FORM)) {
+        else if (containingFile instanceof PsiPlainTextFile && containingFile.getFileType().equals(GuiFormFileType.INSTANCE)) {
           // quick check if relevant
           String resourceName = FormEditingUtil.buildResourceName(containingFile);
           if (myDocument.getText().contains(resourceName)) {

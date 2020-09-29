@@ -1,6 +1,4 @@
-/*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.lang.properties;
 
 import com.intellij.lang.properties.psi.PropertiesFile;
@@ -35,7 +33,6 @@ import java.util.stream.Stream;
  * @author Konstantin Bulenkov
  */
 public class PropertiesImplUtil extends PropertiesUtil {
-
   @NotNull
   public static ResourceBundleWithCachedFiles getResourceBundleWithCachedFiles(@NotNull final PropertiesFile representative) {
     return ReadAction.compute(() -> {
@@ -89,7 +86,7 @@ public class PropertiesImplUtil extends PropertiesUtil {
       .of(baseDirectory.isValid() ? baseDirectory.getFiles() : PsiFile.EMPTY_ARRAY)
       .filter(f -> isPropertiesFile(f) &&
                    Comparing.strEqual(f.getVirtualFile().getExtension(), extension) &&
-                   Comparing.equal(bundleBaseNameManager.getBaseName(f), baseName))
+                   Objects.equals(bundleBaseNameManager.getBaseName(f), baseName))
       .map(PropertiesImplUtil::getPropertiesFile)
       .collect(Collectors.toList());
     if (bundleFiles.isEmpty()) return null;
@@ -124,9 +121,8 @@ public class PropertiesImplUtil extends PropertiesUtil {
 
   @NotNull
   public static List<IProperty> findPropertiesByKey(@NotNull final Project project, @NotNull final String key) {
-    final GlobalSearchScope scope = GlobalSearchScope.allScope(project);
-    final ArrayList<IProperty> properties =
-      new ArrayList<>(PropertyKeyIndex.getInstance().get(key, project, scope));
+    GlobalSearchScope scope = GlobalSearchScope.allScope(project);
+    List<IProperty> properties = new ArrayList<>(PropertyKeyIndex.getInstance().get(key, project, scope));
     final Set<VirtualFile> files = new HashSet<>();
     FileBasedIndex.getInstance().processValues(XmlPropertiesIndex.NAME, new XmlPropertiesIndex.Key(key), null, (file, value) -> {
       if (files.add(file)) {
@@ -170,7 +166,7 @@ public class PropertiesImplUtil extends PropertiesUtil {
     return null;
   }
 
-  public static boolean isAlphaSorted(final Collection<? extends IProperty> properties) {
+  public static boolean isAlphaSorted(final @NotNull Collection<? extends IProperty> properties) {
     String previousKey = null;
     for (IProperty property : properties) {
       final String key = property.getKey();
@@ -199,22 +195,24 @@ public class PropertiesImplUtil extends PropertiesUtil {
     return null;
   }
 
-  public static class ResourceBundleWithCachedFiles {
+  public static final class ResourceBundleWithCachedFiles {
     private static final ResourceBundleWithCachedFiles EMPTY =
       new ResourceBundleWithCachedFiles(EmptyResourceBundle.getInstance(), Collections.emptyList());
 
     private final ResourceBundle myBundle;
     private final List<PropertiesFile> myFiles;
 
-    private ResourceBundleWithCachedFiles(ResourceBundle bundle, List<PropertiesFile> files) {
+    private ResourceBundleWithCachedFiles(@NotNull ResourceBundle bundle, @NotNull List<PropertiesFile> files) {
       myBundle = bundle;
       myFiles = files;
     }
 
+    @NotNull
     public ResourceBundle getBundle() {
       return myBundle;
     }
 
+    @NotNull
     public List<PropertiesFile> getFiles() {
       return myFiles;
     }

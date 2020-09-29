@@ -1,3 +1,4 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.internal.rulerguide;
 
 import com.intellij.openapi.Disposable;
@@ -120,7 +121,7 @@ final class RulerGuidePainter extends AbstractPainter implements Disposable {
                 int horizontalOffset = Math.abs(baselineOtherPoint.y - baselinePivotPoint.y);
                 if (verticalOffset == 0 || horizontalOffset == 0) {
                     g2d.setColor(FINE_COLOR);
-                } else if (verticalOffset <= ALLOWED_GAP || horizontalOffset <= ALLOWED_GAP) {
+                } else if (verticalOffset <= getAllowedGap() || horizontalOffset <= getAllowedGap()) {
                     g2d.setColor(ERROR_COLOR);
                 } else continue;
 
@@ -161,7 +162,7 @@ final class RulerGuidePainter extends AbstractPainter implements Disposable {
     }
 
     // steal own glass pane and using our
-    private class ThiefGlassPane extends JComponent {
+    private final class ThiefGlassPane extends JComponent {
         private final Component realGlassPane;
 
         private ThiefGlassPane(Component realGlassPane) {

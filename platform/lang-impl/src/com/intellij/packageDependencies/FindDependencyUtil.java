@@ -1,22 +1,8 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.packageDependencies;
 
-import com.intellij.analysis.AnalysisScopeBundle;
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
@@ -28,7 +14,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class FindDependencyUtil {
+public final class FindDependencyUtil {
   private FindDependencyUtil() {}
 
   public static UsageInfo[] findDependencies(@Nullable final List<? extends DependenciesBuilder> builders, Set<? extends PsiFile> searchIn, Set<? extends PsiFile> searchFor) {
@@ -114,7 +100,7 @@ public class FindDependencyUtil {
       indicator.setFraction(((double)++count) / totalCount);
       final VirtualFile virtualFile = psiFile.getVirtualFile();
       if (virtualFile != null) {
-        indicator.setText(AnalysisScopeBundle.message("find.dependencies.progress.text", virtualFile.getPresentableUrl()));
+        indicator.setText(CodeInsightBundle.message("find.dependencies.progress.text", virtualFile.getPresentableUrl()));
       }
     }
     return count;

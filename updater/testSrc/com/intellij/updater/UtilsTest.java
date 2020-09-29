@@ -27,6 +27,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.*;
@@ -61,7 +62,7 @@ public class UtilsTest {
   }
 
   @Test
-  public void testDeleteLockedFileOnWindows() throws Exception {
+  public void testDeleteLockedFileOnWindows() {
     IoTestUtil.assumeWindows();
 
     File f = tempDir.newFile("temp_file");
@@ -99,7 +100,7 @@ public class UtilsTest {
 
   @Test
   public void testRecursiveDelete() throws Exception {
-    File topDir = tempDir.newFolder("temp_dir");
+    File topDir = tempDir.newDirectory("temp_dir");
     for (int i = 0; i < 3; i++) {
       for (int j = 0; j < 3; j++) {
         File file = new File(topDir, "dir" + i + "/file" + j);
@@ -116,13 +117,13 @@ public class UtilsTest {
   public void testNonRecursiveSymlinkDelete() throws Exception {
     IoTestUtil.assumeSymLinkCreationIsSupported();
 
-    File dir = tempDir.newFolder("temp_dir");
+    File dir = tempDir.newDirectory("temp_dir");
     File file = new File(dir, "file");
     FileUtil.writeToFile(file, "test");
     assertThat(dir.listFiles()).containsExactly(file);
 
     File link = new File(tempDir.getRoot(), "link");
-    Utils.createLink(dir.getName(), link);
+    IoTestUtil.createSymbolicLink(link.toPath(), dir.toPath().getFileName());
     assertTrue(Utils.isLink(link));
     assertThat(link.listFiles()).hasSize(1);
 
@@ -135,9 +136,9 @@ public class UtilsTest {
   public void testDeleteDanglingSymlink() throws Exception {
     IoTestUtil.assumeSymLinkCreationIsSupported();
 
-    File dir = tempDir.newFolder("temp_dir");
+    File dir = tempDir.newDirectory("temp_dir");
     File link = new File(dir, "link");
-    Utils.createLink("dangling", link);
+    IoTestUtil.createSymbolicLink(link.toPath(), Paths.get("dangling"));
     assertThat(dir.listFiles()).containsExactly(link);
 
     Utils.delete(link);

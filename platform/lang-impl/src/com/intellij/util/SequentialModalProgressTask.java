@@ -6,6 +6,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,18 +27,15 @@ public class SequentialModalProgressTask extends Task.Modal {
    */
   private long myMinIterationTime = DEFAULT_MIN_ITERATION_MIN_TIME;
 
-  private final String myTitle;
-
   private ProgressIndicator myIndicator;
   private SequentialTask myTask;
 
-  public SequentialModalProgressTask(@Nullable Project project, @NotNull String title) {
+  public SequentialModalProgressTask(@Nullable Project project, @NotNull @NlsContexts.DialogTitle String title) {
     this(project, title, true);
   }
 
-  public SequentialModalProgressTask(@Nullable Project project, @NotNull String title, boolean canBeCancelled) {
+  public SequentialModalProgressTask(@Nullable Project project, @NotNull @NlsContexts.DialogTitle String title, boolean canBeCancelled) {
     super(project, title, canBeCancelled);
-    myTitle = title;
   }
 
   @Override
@@ -47,9 +45,6 @@ public class SequentialModalProgressTask extends Task.Modal {
     }
     catch (Exception e) {
       LOG.info("Unexpected exception occurred during processing sequential task '" + myTitle + "'", e);
-    }
-    finally {
-      indicator.stop();
     }
   }
 

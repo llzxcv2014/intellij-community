@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.vcs.log.history;
 
 import com.intellij.openapi.vcs.FilePath;
@@ -23,11 +23,11 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
-import static com.intellij.util.ObjectUtils.notNull;
 import static com.intellij.util.containers.ContainerUtil.*;
 
-public class FileHistoryUtil {
+public final class FileHistoryUtil {
   @Nullable
   public static VirtualFile createVcsVirtualFile(@Nullable VcsFileRevision revision) {
     if (!VcsHistoryUtil.isEmpty(revision)) {
@@ -97,14 +97,14 @@ public class FileHistoryUtil {
     return diffHandler.createContentRevision(path, commitHash);
   }
 
-  private static class MyVcsChangesMerger extends VcsChangesMerger {
+  private static final class MyVcsChangesMerger extends VcsChangesMerger {
     @NotNull private final Hash myCommit;
     @NotNull private final Hash myFirstParent;
     @NotNull private final VcsLogDiffHandler myDiffHandler;
 
     private MyVcsChangesMerger(@NotNull Hash commit, @NotNull List<Hash> parentCommits, @NotNull VcsLogDiffHandler diffHandler) {
       myCommit = commit;
-      myFirstParent = notNull(getFirstItem(parentCommits));
+      myFirstParent = Objects.requireNonNull(getFirstItem(parentCommits));
       myDiffHandler = diffHandler;
     }
 

@@ -28,7 +28,7 @@ import org.intellij.lang.xpath.validation.inspections.quickfix.RemoveRedundantCo
 import org.intellij.lang.xpath.validation.inspections.quickfix.XPathQuickFixFactory;
 import org.jetbrains.annotations.NotNull;
 
-public class XPathQuickFixFactoryImpl implements XPathQuickFixFactory {
+public final class XPathQuickFixFactoryImpl implements XPathQuickFixFactory {
     public static final XPathQuickFixFactory INSTANCE = new XPathQuickFixFactoryImpl();
 
     private XPathQuickFixFactoryImpl() {
@@ -60,8 +60,7 @@ public class XPathQuickFixFactoryImpl implements XPathQuickFixFactory {
     }
 
     @Override
-    @NotNull
-    public SuppressIntentionAction[] getSuppressActions(XPathInspection inspection) {
+    public SuppressIntentionAction @NotNull [] getSuppressActions(XPathInspection inspection) {
         return SuppressIntentionAction.EMPTY_ARRAY;
     }
 

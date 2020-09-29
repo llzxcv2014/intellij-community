@@ -21,7 +21,9 @@ import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.libraries.LibraryKind;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.LibrariesContainer;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.StructureConfigurableContext;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,9 +31,6 @@ import javax.swing.*;
 import java.util.List;
 import java.util.Set;
 
-/**
- * @author nik
- */
 public abstract class LibraryPresentationManager {
   public static LibraryPresentationManager getInstance() {
     return ServiceManager.getService(LibraryPresentationManager.class);
@@ -47,10 +46,10 @@ public abstract class LibraryPresentationManager {
   public abstract List<Icon> getCustomIcons(@NotNull Library library, @Nullable StructureConfigurableContext context);
 
   @NotNull
-  public abstract List<String> getDescriptions(@NotNull Library library, StructureConfigurableContext context);
+  public abstract List<@NlsSafe String> getDescriptions(@NotNull Library library, StructureConfigurableContext context);
 
   @NotNull
-  public abstract List<String> getDescriptions(@NotNull VirtualFile[] classRoots, Set<? extends LibraryKind> excludedKinds);
+  public abstract List<@Nls String> getDescriptions(VirtualFile @NotNull [] classRoots, Set<? extends LibraryKind> excludedKinds);
 
   public abstract List<Library> getLibraries(@NotNull Set<? extends LibraryKind> kinds, @NotNull Project project, @Nullable StructureConfigurableContext context);
 

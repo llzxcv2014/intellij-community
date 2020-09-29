@@ -1,7 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide;
 
+import com.intellij.CommonBundle;
 import com.intellij.ide.impl.OpenProjectTask;
+import com.intellij.ide.lightEdit.LightEdit;
+import com.intellij.ide.lightEdit.LightEditCompatible;
 import com.intellij.openapi.actionSystem.ActionPlaces;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -9,9 +12,10 @@ import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsActions;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.BitUtil;
-import com.intellij.util.PathUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.SystemIndependent;
@@ -21,23 +25,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-/**
-* @author yole
-*/
 @SuppressWarnings("ComponentNotRegistered")
-public class ReopenProjectAction extends AnAction implements DumbAware {
+public class ReopenProjectAction extends AnAction implements DumbAware, LightEditCompatible {
   private final String myProjectPath;
   private final String myProjectName;
   private boolean myIsRemoved = false;
 
-  public ReopenProjectAction(@NotNull @SystemIndependent String projectPath, String projectName, String displayName) {
+  public ReopenProjectAction(@NotNull @SystemIndependent String projectPath, @NlsSafe String projectName, @NlsSafe String displayName) {
     myProjectPath = projectPath;
     myProjectName = projectName;
 
     Presentation presentation = getTemplatePresentation();
     String text = projectPath.equals(displayName) ? FileUtil.getLocationRelativeToUserHome(projectPath) : displayName;
     presentation.setText(text, false);
-    presentation.setDescription(PathUtil.toSystemDependentName(projectPath));
+    presentation.setDescription(FileUtil.toSystemDependentName(projectPath));
   }
 
   @Override
@@ -46,11 +47,11 @@ public class ReopenProjectAction extends AnAction implements DumbAware {
     IdeEventQueue.getInstance().getPopupManager().closeAllPopups();
 
     Project project = e.getProject();
-    Path file = Paths.get(myProjectPath);
+    Path file = Paths.get(myProjectPath).normalize();
     if (!Files.exists(file)) {
-      if (Messages.showDialog(project, "The path " + PathUtil.toSystemDependentName(myProjectPath) + " does not exist.\n" +
-                                       "If it is on a removable or network drive, please make sure that the drive is connected.",
-                                       "Reopen Project", new String[]{"OK", "&Remove From List"}, 0, Messages.getErrorIcon()) == 1) {
+      if (Messages.showDialog(project, IdeBundle
+                                .message("message.the.path.0.does.not.exist.maybe.on.remote", FileUtil.toSystemDependentName(myProjectPath)),
+                              IdeBundle.message("dialog.title.reopen.project"), new String[]{CommonBundle.getOkButtonText(), IdeBundle.message("button.remove.from.list")}, 0, Messages.getErrorIcon()) == 1) {
         myIsRemoved = true;
         RecentProjectsManager.getInstance().removePath(myProjectPath);
       }
@@ -61,8 +62,9 @@ public class ReopenProjectAction extends AnAction implements DumbAware {
     int modifiers = e.getModifiers();
     boolean forceOpenInNewFrame = BitUtil.isSet(modifiers, InputEvent.CTRL_MASK)
                                   || BitUtil.isSet(modifiers, InputEvent.SHIFT_MASK)
-                                  || e.getPlace() == ActionPlaces.WELCOME_SCREEN;
-    RecentProjectsManagerBase.getInstanceEx().openProject(file, new OpenProjectTask(forceOpenInNewFrame, project));
+                                  || e.getPlace() == ActionPlaces.WELCOME_SCREEN
+                                  || LightEdit.owns(project);
+    RecentProjectsManagerBase.getInstanceEx().openProject(file, OpenProjectTask.withProjectToClose(project, forceOpenInNewFrame).withRunConfigurators());
   }
 
   @SystemIndependent
@@ -74,6 +76,7 @@ public class ReopenProjectAction extends AnAction implements DumbAware {
     return myIsRemoved;
   }
 
+  @NlsSafe
   public String getProjectName() {
     final RecentProjectsManager mgr = RecentProjectsManager.getInstance();
     if (mgr instanceof RecentProjectsManagerBase) {
@@ -82,9 +85,10 @@ public class ReopenProjectAction extends AnAction implements DumbAware {
     return myProjectName;
   }
 
+  @NlsActions.ActionText
   @Nullable
   @Override
   public String getTemplateText() {
-    return "Reopen Project";
+    return IdeBundle.message("action.ReopenProject.reopen.project.text");
   }
 }

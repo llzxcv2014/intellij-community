@@ -5,7 +5,7 @@ The goal achieves by download already built compilations outputs and caches prod
 ### Important note
 **If you think that compilation outputs old enough you can remove them and the plugin will download the fresh one.**
 ### Enabling
-For its work, you should enable separate flag in registry `compiler.build.portable.caches`. After that, each time when you change the commit 
+For its work, you should enable plugin. After that, each time when you change the commit 
 you will get a notification with a proposal to download already existing on the server caches (if they exist).
  - Example of notification which you will get after pull: `Compile server contains caches for the 1th commit behind of yours. Do you want to update your data?`
  - Example of notification on success loading: `Update compilation caches completed successfully in 142 s` on fail: `Update compilation caches failed`
@@ -21,9 +21,9 @@ What was done:
  
 What should be done(first priority):
 - [ ] Reduce download size (for now JPS caches entirely loads for commit around 300Mb)
-- [ ] Make the same mechanic to provide incremental compilation for any TC agent
+- [x] Make the same mechanic to provide incremental compilation for any TC agent
 
 #### Additional info
-Cache server available only in the internal network or by VPN [link](https://repo.labs.intellij.net/list/intellij-jps-compilation-caches/)  
-List of commits existing on server [link](https://repo.labs.intellij.net/list/intellij-jps-compilation-caches/caches/)  
-TC build which fill cache server [link](https://buildserver.labs.intellij.net/buildConfiguration/ijplatform_master_Idea_Experiments_CompileInc_JpsCaches#all-projects)
+Globally available cache server protected by Space authorization [link](https://cache-redirector.jetbrains.com/www.jetbrains.com/jps-cache/intellij)  
+List of commits existing on server [link](https://cache-redirector.jetbrains.com/www.jetbrains.com/jps-cache/intellij/commit_history.json)  
+CI project [link](https://buildserver.labs.intellij.net/project/ijplatform_master_Idea_Experiments_Jps_Caches_Project?mode=builds)

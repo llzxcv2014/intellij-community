@@ -2,9 +2,16 @@
 
 package com.intellij.psi.search.scope.packageSet;
 
-import com.intellij.analysis.AnalysisScopeBundle;
+import com.intellij.codeInsight.CodeInsightBundle;
+import com.intellij.icons.AllIcons;
 import com.intellij.lexer.Lexer;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.components.ServiceKt;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.extensions.ExtensionPointListener;
+import com.intellij.openapi.extensions.PluginDescriptor;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectManager;
 import com.intellij.psi.TokenType;
 import com.intellij.psi.search.scope.packageSet.lexer.ScopeTokenTypes;
 import com.intellij.psi.search.scope.packageSet.lexer.ScopesLexer;
@@ -16,6 +23,43 @@ import java.util.List;
 
 public class PackageSetFactoryImpl extends PackageSetFactory {
   private static final Logger LOG = Logger.getInstance(PackageSetFactoryImpl.class);
+
+  public PackageSetFactoryImpl() {
+    PackageSetParserExtension.EP_NAME.addExtensionPointListener(new ExtensionPointListener<PackageSetParserExtension>() {
+      @Override
+      public void extensionAdded(@NotNull PackageSetParserExtension extension, @NotNull PluginDescriptor pluginDescriptor) {
+        for (Project project : ProjectManager.getInstance().getOpenProjects()) {
+          for (NamedScopesHolder holder : NamedScopesHolder.getAllNamedScopeHolders(project)) {
+            ServiceKt.getStateStore(project).reloadState(holder.getClass());
+            holder.fireScopeListeners();
+          }
+        }
+      }
+
+      @Override
+      public void extensionRemoved(@NotNull PackageSetParserExtension extension, @NotNull PluginDescriptor pluginDescriptor) {
+        ClassLoader pluginClassLoader = pluginDescriptor.getPluginClassLoader();
+        for (Project project : ProjectManager.getInstance().getOpenProjects()) {
+          for (NamedScopesHolder holder : NamedScopesHolder.getAllNamedScopeHolders(project)) {
+            boolean changed = false;
+            NamedScope[] scopes = holder.getScopes();
+            for (int i = 0; i < scopes.length; i++) {
+              NamedScope scope = scopes[i];
+              PackageSet value = scope.getValue();
+              if (value != null && value.getClass().getClassLoader() == pluginClassLoader) {
+                String presentableName = scope.getPresentableName();
+                scopes[i] = new NamedScope(scope.getScopeId(), () -> presentableName, AllIcons.Ide.LocalScope, new InvalidPackageSet(value.getText()));
+                changed = true;
+              }
+            }
+            if (changed) {
+              holder.setScopes(scopes);
+            }
+          }
+        }
+      }
+    }, ApplicationManager.getApplication());
+  }
 
   @Override
   public PackageSet compile(String text) throws ParsingException {
@@ -33,7 +77,7 @@ public class PackageSetFactoryImpl extends PackageSetFactory {
 
     public PackageSet parse() throws ParsingException {
       PackageSet set = parseUnion();
-      if (myLexer.getTokenType() != null) error(AnalysisScopeBundle.message("error.package.set.token.expectations", getTokenText()));
+      if (myLexer.getTokenType() != null) error(CodeInsightBundle.message("error.package.set.token.expectations", getTokenText()));
       return set;
     }
 
@@ -41,8 +85,7 @@ public class PackageSetFactoryImpl extends PackageSetFactory {
       List<PackageSet> sets = new ArrayList<>();
       PackageSet set = parseIntersection();
       sets.add(set);
-      while (true) {
-        if (myLexer.getTokenType() != ScopeTokenTypes.OROR) break;
+      while (myLexer.getTokenType() == ScopeTokenTypes.OROR) {
         myLexer.advance();
         sets.add(parseIntersection());
       }
@@ -53,8 +96,7 @@ public class PackageSetFactoryImpl extends PackageSetFactory {
       PackageSet set = parseTerm();
       List<PackageSet> sets = new ArrayList<>();
       sets.add(set);
-      while (true) {
-        if (myLexer.getTokenType() != ScopeTokenTypes.ANDAND) break;
+      while (myLexer.getTokenType() == ScopeTokenTypes.ANDAND) {
         myLexer.advance();
         sets.add(parseTerm());
       }
@@ -135,7 +177,7 @@ public class PackageSetFactoryImpl extends PackageSetFactory {
         myLexer.advance();
       }
       if (pattern.length() == 0) {
-        error(AnalysisScopeBundle.message("error.package.set.pattern.expectations"));
+        error(CodeInsightBundle.message("error.package.set.pattern.expectations"));
       }
       return pattern.toString();
     }
@@ -145,7 +187,7 @@ public class PackageSetFactoryImpl extends PackageSetFactory {
       myLexer.advance();
 
       PackageSet result = parseUnion();
-      if (myLexer.getTokenType() != ScopeTokenTypes.RPARENTH) error(AnalysisScopeBundle.message("error.package.set.rparen.expected"));
+      if (myLexer.getTokenType() != ScopeTokenTypes.RPARENTH) error(CodeInsightBundle.message("error.package.set.rparen.expected"));
       myLexer.advance();
 
       return result;
@@ -153,7 +195,7 @@ public class PackageSetFactoryImpl extends PackageSetFactory {
 
     private void error(@NotNull String message) throws ParsingException {
       throw new ParsingException(
-        AnalysisScopeBundle.message("error.package.set.position.parsing.error", message, (myLexer.getTokenStart() + 1)));
+        CodeInsightBundle.message("error.package.set.position.parsing.error", message, (myLexer.getTokenStart() + 1)));
     }
   }
 }

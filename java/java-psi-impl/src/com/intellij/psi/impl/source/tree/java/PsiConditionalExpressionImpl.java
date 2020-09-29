@@ -24,10 +24,15 @@ import com.intellij.psi.impl.source.tree.ChildRole;
 import com.intellij.psi.impl.source.tree.ElementType;
 import com.intellij.psi.impl.source.tree.JavaElementType;
 import com.intellij.psi.infos.MethodCandidateInfo;
+import com.intellij.psi.scope.ElementClassHint;
+import com.intellij.psi.scope.PatternResolveState;
+import com.intellij.psi.scope.PsiScopeProcessor;
 import com.intellij.psi.tree.ChildRoleBase;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.psi.util.TypeConversionUtil;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Objects;
 
 public class PsiConditionalExpressionImpl extends ExpressionPsiElement implements PsiConditionalExpression {
   private static final Logger LOG = Logger.getInstance(PsiConditionalExpressionImpl.class);
@@ -61,18 +66,17 @@ public class PsiConditionalExpressionImpl extends ExpressionPsiElement implement
     PsiExpression expr2 = getElseExpression();
     PsiType type1 = expr1 == null ? null : expr1.getType();
     PsiType type2 = expr2 == null ? null : expr2.getType();
-    if (type1 == null) return type2;
-    if (type2 == null) return type1;
-
-    if (type1.equals(type2)) return type1;
+    if (Objects.equals(type1, type2)) return type1;
 
     if (PsiUtil.isLanguageLevel8OrHigher(this) &&
         PsiPolyExpressionUtil.isPolyExpression(this)) {
       //15.25.3 Reference Conditional Expressions 
       // The type of a poly reference conditional expression is the same as its target type.
       PsiType targetType = InferenceSession.getTargetType(this);
-      if (MethodCandidateInfo.isOverloadCheck(PsiUtil.skipParenthesizedExprUp(this.getParent()))) {
+      if (MethodCandidateInfo.isOverloadCheck()) {
         return targetType != null && 
+               type1 != null &&
+               type2 != null &&
                targetType.isAssignableFrom(type1) && 
                targetType.isAssignableFrom(type2) ? targetType : null;
       }
@@ -81,6 +85,9 @@ public class PsiConditionalExpressionImpl extends ExpressionPsiElement implement
         return targetType;
       }
     }
+
+    if (type1 == null) return type2;
+    if (type2 == null) return type1;
 
     final int typeRank1 = TypeConversionUtil.getTypeRank(type1);
     final int typeRank2 = TypeConversionUtil.getTypeRank(type2);
@@ -187,6 +194,24 @@ public class PsiConditionalExpressionImpl extends ExpressionPsiElement implement
     else {
       visitor.visitElement(this);
     }
+  }
+
+  @Override
+  public boolean processDeclarations(@NotNull PsiScopeProcessor processor,
+                                     @NotNull ResolveState state,
+                                     PsiElement lastParent,
+                                     @NotNull PsiElement place) {
+    if (lastParent == null) return true;
+    ElementClassHint elementClassHint = processor.getHint(ElementClassHint.KEY);
+    if (elementClassHint != null && !elementClassHint.shouldProcess(ElementClassHint.DeclarationKind.VARIABLE)) return true;
+    PsiExpression condition = getCondition();
+    if (lastParent == getThenExpression()) {
+      return condition.processDeclarations(processor, PatternResolveState.WHEN_TRUE.putInto(state), null, place);
+    }
+    if (lastParent == getElseExpression()) {
+      return condition.processDeclarations(processor, PatternResolveState.WHEN_FALSE.putInto(state), null, place);
+    }
+    return true;
   }
 
   @Override

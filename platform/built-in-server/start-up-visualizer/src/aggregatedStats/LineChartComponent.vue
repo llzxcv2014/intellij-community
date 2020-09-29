@@ -1,109 +1,259 @@
-<!-- Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file. -->
+<!-- Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file. -->
 <template>
-  <div v-loading="isLoading" class="aggregatedChart" ref="chartContainer"></div>
+  <el-popover
+    placement="top"
+    trigger="manual"
+    v-model="infoIsVisible">
+    <div>
+      <div>
+        <!-- cell text has 10px padding - so, add link margin to align text  -->
+        <el-link v-if="reportName.length !== 0" style="margin-left: 10px" :href="reportLink" target="_blank" type="text">{{reportName}}
+        </el-link>
+        <small v-else style="margin-left: 10px">use <code>as is</code> granularity to see report</small>
+
+        <el-link type="default"
+                 style="float: right"
+                 :underline="false"
+                 icon="el-icon-close"
+                 @click='infoIsVisible = false'/>
+      </div>
+      <el-table :data="reportTableData" :show-header="false">
+        <el-table-column property="name" class-name="infoMetricName" min-width="180"/>
+        <el-table-column property="value" align="right" class-name="infoMetricValue"/>
+      </el-table>
+    </div>
+    <div slot="reference" v-loading="isLoading" class="aggregatedChart" ref="chartContainer"></div>
+  </el-popover>
 </template>
 
+<style>
+.el-table .cell {
+  word-break: normal;
+}
+
+.infoMetricName {
+  white-space: nowrap;
+}
+
+.infoMetricValue {
+  font-family: monospace;
+}
+</style>
+
 <script lang="ts">
-  import {Component, Prop, Vue, Watch} from "vue-property-decorator"
-  import {LineChartManager} from "@/aggregatedStats/LineChartManager"
-  import {ChartSettings} from "@/aggregatedStats/ChartSettings"
-  import {AppState, mainModuleName} from "@/state/StateStorageManager"
-  import {loadJson} from "@/httpUtil"
-  import {AggregatedStatComponent, DataRequest} from "@/aggregatedStats/AggregatedStatComponent"
-  import {SortedByCategory, SortedByDate} from "@/aggregatedStats/ChartConfigurator"
-  import PQueue from "p-queue"
+import {Component, Prop, Watch} from "vue-property-decorator"
+import {LineChartManager} from "@/aggregatedStats/LineChartManager"
+import {ChartSettings} from "@/aggregatedStats/ChartSettings"
+import {SortedByCategory, SortedByDate} from "@/aggregatedStats/ChartConfigurator"
+import {DataQuery, DataQueryDimension, DataRequest, encodeQuery, getFilters, MetricDescriptor, Metrics} from "@/aggregatedStats/model"
+import {BaseStatChartComponent} from "@/aggregatedStats/BaseStatChartComponent"
+import {parseTimeRange, toClickhouseSql} from "@/aggregatedStats/parseDuration"
 
-  @Component
-  export default class LineChartComponent extends Vue {
-    @Prop(String)
-    type!: "duration" | "instant"
+const rison = require("rison-node")
 
-    @Prop(String)
-    order!: "date" | "buildNumber"
+@Component
+export default class LineChartComponent extends BaseStatChartComponent<LineChartManager> {
+  @Prop({type: String, required: true})
+  type!: "duration" | "instant"
 
-    @Prop(Object)
-    dataRequest!: DataRequest | null
+  @Prop(String)
+  order!: "date" | "buildNumber"
 
-    private chartManager: LineChartManager | null = null
+  @Prop({type: String})
+  timeRange!: string
 
-    // ensure that if several tasks were added, the last one will set the chart data
-    private readonly queue = new PQueue({concurrency: 1})
+  @Watch("chartSettings.showScrollbarXPreview")
+  showScrollbarXPreviewChanged(): void {
+    const chartManager = this.chartManager
+    if (chartManager != null) {
+      chartManager.scrollbarXPreviewOptionChanged(this.chartSettings)
+    }
+  }
 
-    private dataRequestCounter = 0
+  infoIsVisible: boolean = false
+  reportTableData: Array<any> = []
+  reportName: string = ""
 
-    isLoading: boolean = false
+  reportLink: string | null = null
 
-    get chartSettings(): ChartSettings | null {
-      return (this.$store.state[mainModuleName] as AppState).chartSettings
+  @Watch("chartSettings.granularity")
+  granularityChanged() {
+    this.loadDataAfterDelay()
+  }
+
+  @Watch("timeRange")
+  timeRangeChanged(value: string, oldValue: string) {
+    console.info(`timeRange changed (${oldValue} => ${value})`)
+    this.loadDataAfterDelay()
+  }
+
+  protected reloadData(request: DataRequest) {
+    const timeRange = parseTimeRange(this.timeRange)
+
+    const dataQuery: DataQuery = {
+      db: request.db,
+      fields: this.metrics,
+      filters: getFilters(request).concat([
+        {field: "generated_time", sql: `> ${toClickhouseSql(timeRange)}`}
+      ]),
     }
 
-    created() {
-      Object.seal(this.queue)
+    const chartSettings = this.chartSettings
+    let granularity = chartSettings.granularity
+    if (granularity == null) {
+      granularity = "2 hour"
     }
 
-    mounted() {
-      const configurator = this.order == "date" ? new SortedByDate() : new SortedByCategory()
-      this.chartManager = new LineChartManager(this.$refs.chartContainer as HTMLElement, this.chartSettings || new ChartSettings(), this.type === "instant", configurator)
-      if (this.dataRequest != null) {
-        this.reloadData(this.dataRequest)
+    if (this.order === "buildNumber") {
+      dataQuery.dimensions = [
+        {name: "build_c1"},
+        {name: "build_c2"},
+        {name: "build_c3"},
+      ]
+
+      const fields: Array<string | DataQueryDimension> = [{name: "t", sql: `toUnixTimestamp(anyHeavy(generated_time)) * 1000`}]
+      fields.push(...this.metrics)
+      dataQuery.fields = fields
+      dataQuery.order = dataQuery.dimensions.map(it => it.name)
+      dataQuery.aggregator = "medianTDigest"
+    }
+    else {
+      if (granularity !== "as is") {
+        let sql = "toStartOfInterval(generated_time, interval "
+        // hour - backward compatibility
+        if (granularity == null || granularity === "2 hour" || granularity === "hour" as any) {
+          sql += "2 hour"
+        }
+        else if (granularity === "day") {
+          sql += "1 day"
+        }
+        else if (granularity === "week") {
+          sql += "1 week"
+        }
+        else {
+          sql += "1 month"
+        }
+        sql += ")"
+
+        dataQuery.dimensions = [
+          // seconds to milliseconds
+          {name: "t", sql: `toUnixTimestamp(${sql}) * 1000`}
+        ]
+
+        dataQuery.fields = ["build_c1", "build_c2", "build_c3"].map(it => {
+          return {name: it, sql: `anyHeavy(${it})`}
+        })
+        dataQuery.fields = dataQuery.fields.concat(this.metrics)
+      }
+      else {
+        const fields: Array<string | DataQueryDimension> = [{
+          name: "t",
+          sql: `toUnixTimestamp(generated_time) * 1000`
+        }, "build_c1", "build_c2", "build_c3"]
+        fields.push(...this.metrics)
+        dataQuery.fields = fields
+      }
+      dataQuery.order = ["t"]
+      if (granularity !== "as is") {
+        dataQuery.aggregator = "medianTDigest"
       }
     }
 
-    @Watch("chartSettings")
-    chartSettingsChanged(value: ChartSettings): void {
-      this.chartManager!!.scrollbarXPreviewOptionChanged(value)
-    }
+    console.log(JSON.stringify(dataQuery, null, 2))
 
-    @Watch("dataRequest")
-    dataRequestChanged(request: DataRequest | null): void {
-      console.log(`dataRequestChanged: LineChartComponent(type=${this.type}, order=${this.order})`, request)
-      if (request != null) {
-        this.reloadData(request)
+    this.loadData(`${chartSettings.serverUrl}/api/v1/metrics/${encodeQuery(dataQuery)}`, (data: Array<Metrics>, chartManager: LineChartManager) => {
+      chartManager.render(data)
+    })
+  }
+
+  protected createChartManager() {
+    const metricDescriptors: Array<MetricDescriptor> = this.metrics.map(key => {
+      const metricPathEndDotIndex = key.indexOf(".")
+      let name: string
+      let effectiveKey = key
+      if (metricPathEndDotIndex == -1) {
+        name = keyToName(key)
       }
-    }
-
-    beforeDestroy() {
-      const chartManager = this.chartManager
-      if (chartManager != null) {
-        console.log("unset chart manager")
-        this.chartManager = null
-        chartManager.dispose()
+      else {
+        name = key.substring(metricPathEndDotIndex + 1)
+        if (name.length > 2 && name[name.length - 2] == ".") {
+          name = name.substring(0, name.length - 2)
+        }
+        effectiveKey = name.replace(/ /g, "_")
       }
-    }
 
-    private reloadData(request: DataRequest) {
-      if (this.chartManager == null) {
-        console.log("skip data reloading: chartManager is null", this)
+      return {
+        key: effectiveKey,
+        name,
+        hiddenByDefault: false,
+      }
+    })
+
+    const configurator = this.order === "date" ? new SortedByDate(data => {
+      if (data == null) {
+        this.infoIsVisible = false
         return
       }
 
-      const productAndMachineParams = `product=${encodeURIComponent(request.product)}&machine=${encodeURIComponent(AggregatedStatComponent.expandMachine(request))}`
-      const url = `${request.chartSettings.serverUrl}/api/v1/metrics/` + productAndMachineParams
-      const reportUrlPrefix = `${request.chartSettings.serverUrl}/api/v1/report/` + productAndMachineParams
-
-      const onFinish = () => {
-        this.isLoading = false
+      const tableData = []
+      for (const metricDescriptor of metricDescriptors) {
+        tableData.push({
+          name: metricDescriptor.name,
+          value: data[metricDescriptor.key],
+        })
       }
-      this.isLoading = true
 
-      this.dataRequestCounter++
-      const dataRequestCounter = this.dataRequestCounter
-      this.queue.add(() => {
-        loadJson(`${url}&eventType=${this.type[0]}&order=${this.order[0]}`, null, this.$notify)
-          .then(data => {
-            if (data == null || dataRequestCounter !== this.dataRequestCounter) {
-              return
-            }
+      const request = this.dataRequest!!
+      const reportQuery: DataQuery = {
+        db: request.db,
+        filters: getFilters(request).concat([{field: "generated_time", value: data.t / 1000}]),
+      }
 
-            const chartManager = this.chartManager
-            if (chartManager == null) {
-              return
-            }
+      if (this.chartSettings.granularity === "as is") {
+        const reportUrl = `/api/v1/report/${encodeQuery(reportQuery)}`
+        this.reportLink = `/#/report?reportUrl=${encodeURIComponent(this.chartSettings.serverUrl)}${reportUrl}`
+        const generatedTime = new Date(data.t)
+        // 18 Oct, 13:01:49
+        this.reportName = `${generatedTime.getDate()} ${generatedTime.toLocaleString("default", {month: "short"})}, ${generatedTime.toLocaleTimeString("default", {hour12: false})}`
+      }
+      else {
+        this.reportName = ""
+      }
 
-            chartManager.setData(data, request.infoResponse, reportUrlPrefix)
+      this.reportTableData = tableData
+      this.infoIsVisible = true
+    }) : new SortedByCategory()
+    const chartManager = new LineChartManager(this.$refs.chartContainer as HTMLElement, this.chartSettings || new ChartSettings(), this.type === "instant", metricDescriptors, configurator)
+
+    chartManager.chart.exporting.menu!!.items[0]!!.menu!!.push({
+      label: "Open",
+      type: "custom",
+      options: {
+        callback: () => {
+          const configuration = rison.encode({
+            chartSettings: this.chartSettings,
+            metrics: this.metrics,
+            order: this.order,
+            dataRequest: this.dataRequest,
           })
-      })
-      .then(onFinish, onFinish)
-    }
+          window.open("/#/line-chart/" + configuration, "_blank")
+        }
+      }
+    })
+
+    return chartManager
   }
+}
+
+function keyToName(key: string) {
+  if (key == "pluginDescriptorInitV18_d") {
+    return "pluginDescriptorInit"
+  }
+  else if (key == "appStarter_d") {
+    return "licenseCheck"
+  }
+  else {
+    return (key.endsWith("_d") || key.endsWith("_i")) ? key.substring(0, key.length - 2) : key
+  }
+}
 </script>

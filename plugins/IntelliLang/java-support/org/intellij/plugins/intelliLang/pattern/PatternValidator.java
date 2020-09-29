@@ -32,6 +32,7 @@ import com.intellij.refactoring.RefactoringActionHandler;
 import com.intellij.util.SmartList;
 import com.intellij.util.ui.JBUI;
 import org.intellij.plugins.intelliLang.Configuration;
+import org.intellij.plugins.intelliLang.IntelliLangBundle;
 import org.intellij.plugins.intelliLang.util.AnnotateFix;
 import org.intellij.plugins.intelliLang.util.AnnotationUtilEx;
 import org.intellij.plugins.intelliLang.util.PsiUtilEx;
@@ -59,8 +60,9 @@ public class PatternValidator extends LocalInspectionTool {
   @Override
   @Nullable
   public JComponent createOptionsPanel() {
-    final JCheckBox jCheckBox = new JCheckBox("Flag non compile-time constant expressions");
-    jCheckBox.setToolTipText("If checked, the inspection will flag expressions with unknown values and offer to add a substitution (@Subst) annotation");
+    final JCheckBox jCheckBox = new JCheckBox(IntelliLangBundle.message("flag.non.compile.time.constant.expressions"));
+    jCheckBox.setToolTipText(IntelliLangBundle.message(
+      "the.inspection.will.flag.expressions.with.unknown.values"));
     jCheckBox.setSelected(CHECK_NON_CONSTANT_VALUES);
     jCheckBox.addItemListener(new ItemListener() {
       @Override
@@ -204,12 +206,12 @@ public class PatternValidator extends LocalInspectionTool {
           assert fqn != null;
 
           final String name = StringUtil.getShortName(fqn);
-          holder.registerProblem(expression, MessageFormat.format("Expression ''{0}'' doesn''t match ''{1}'' pattern: {2}", o, name,
-                                                                  pattern.pattern()));
+          holder.registerProblem(expression,
+                                 IntelliLangBundle.message("inspection.message.expression.does.not.match.pattern", o, name, pattern.pattern()));
         }
         else {
           holder.registerProblem(expression,
-                                 MessageFormat.format("Expression ''{0}'' doesn''t match pattern: {1}", o, pattern.pattern()));
+                                 IntelliLangBundle.message("inspection.message.expression.does.not.match.pattern2", o, pattern.pattern()));
         }
       }
     }
@@ -240,7 +242,7 @@ public class PatternValidator extends LocalInspectionTool {
         else {
           quickFix = new IntroduceVariableFix();
         }
-        holder.registerProblem(expr, "Unsubstituted expression", quickFix);
+        holder.registerProblem(expr, IntelliLangBundle.message("inspection.pattern.validator.description"), quickFix);
       }
     }
   }
@@ -252,7 +254,7 @@ public class PatternValidator extends LocalInspectionTool {
     @Override
     @NotNull
     public String getFamilyName() {
-      return "Introduce variable";
+      return IntelliLangBundle.message("introduce.variable.fix.family.name");
     }
 
     @NotNull

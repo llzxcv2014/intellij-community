@@ -7,7 +7,6 @@ import com.intellij.debugger.engine.events.SuspendContextCommandImpl;
 import com.intellij.debugger.engine.requests.LocatableEventRequestor;
 import com.intellij.debugger.engine.requests.MethodReturnValueWatcher;
 import com.intellij.debugger.engine.requests.RequestManagerImpl;
-import com.intellij.debugger.impl.DebuggerManagerImpl;
 import com.intellij.debugger.impl.DebuggerSession;
 import com.intellij.debugger.impl.DebuggerUtilsImpl;
 import com.intellij.debugger.impl.PrioritizedTask;
@@ -16,12 +15,16 @@ import com.intellij.debugger.jdi.VirtualMachineProxyImpl;
 import com.intellij.debugger.memory.agent.MemoryAgentUtil;
 import com.intellij.debugger.requests.Requestor;
 import com.intellij.debugger.settings.DebuggerSettings;
-import com.intellij.debugger.ui.breakpoints.*;
+import com.intellij.debugger.ui.breakpoints.Breakpoint;
+import com.intellij.debugger.ui.breakpoints.InstrumentationTracker;
+import com.intellij.debugger.ui.breakpoints.StackCapturingLineBreakpoint;
 import com.intellij.debugger.ui.overhead.OverheadProducer;
 import com.intellij.debugger.ui.overhead.OverheadTimings;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.extensions.ExtensionPointListener;
+import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.MessageType;
@@ -45,6 +48,7 @@ import com.sun.jdi.event.*;
 import com.sun.jdi.request.EventRequest;
 import com.sun.jdi.request.EventRequestManager;
 import one.util.streamex.StreamEx;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -52,7 +56,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
 
 /**
  * @author lex
@@ -91,26 +94,27 @@ public class DebugProcessEvents extends DebugProcessImpl {
     debugProcess.showStatusText(text);
   }
 
-  public String getEventText(Pair<Breakpoint, Event> descriptor) {
+  public @Nls String getEventText(Pair<Breakpoint, Event> descriptor) {
     String text = "";
     final Event event = descriptor.getSecond();
     final Breakpoint breakpoint = descriptor.getFirst();
     if (event instanceof LocatableEvent) {
       try {
-        text = breakpoint != null ? breakpoint.getEventMessage(((LocatableEvent)event)) : DebuggerBundle.message("status.generic.breakpoint.reached");
+        text = breakpoint != null ? breakpoint.getEventMessage(((LocatableEvent)event)) : JavaDebuggerBundle
+          .message("status.generic.breakpoint.reached");
       }
       catch (InternalException e) {
-        text = DebuggerBundle.message("status.generic.breakpoint.reached");
+        text = JavaDebuggerBundle.message("status.generic.breakpoint.reached");
       }
     }
     else if (event instanceof VMStartEvent) {
-      text = DebuggerBundle.message("status.process.started");
+      text = JavaDebuggerBundle.message("status.process.started");
     }
     else if (event instanceof VMDeathEvent) {
-      text = DebuggerBundle.message("status.process.terminated");
+      text = JavaDebuggerBundle.message("status.process.terminated");
     }
     else if (event instanceof VMDisconnectEvent) {
-      text = DebuggerBundle.message("status.disconnected", DebuggerUtilsImpl.getConnectionDisplayName(getConnection()));
+      text = JavaDebuggerBundle.message("status.disconnected", DebuggerUtilsImpl.getConnectionDisplayName(getConnection()));
     }
     return text;
   }
@@ -151,7 +155,7 @@ public class DebugProcessEvents extends DebugProcessImpl {
                       continue;
                     }
                   }
-                  Consumer<Event> handler = getEventRequestHandler(event);
+                  Consumer<? super Event> handler = getEventRequestHandler(event);
                   if (handler != null) {
                     handler.consume(event);
                     processed++;
@@ -287,22 +291,22 @@ public class DebugProcessEvents extends DebugProcessImpl {
     }
   }
 
-  private static Consumer<Event> getEventRequestHandler(Event event) {
+  private static Consumer<? super Event> getEventRequestHandler(Event event) {
     EventRequest request = event.request();
     Object property = request != null ? request.getProperty(REQUEST_HANDLER) : null;
     if (property instanceof Consumer) {
       //noinspection unchecked
-      return ((Consumer<Event>)property);
+      return ((Consumer<? super Event>)property);
     }
     return null;
   }
 
-  public static void enableRequestWithHandler(EventRequest request, Consumer<Event> handler) {
+  public static void enableRequestWithHandler(EventRequest request, Consumer<? super Event> handler) {
     request.putProperty(REQUEST_HANDLER, handler);
     request.enable();
   }
 
-  private static void enableNonSuspendingRequest(EventRequest request, Consumer<Event> handler) {
+  private static void enableNonSuspendingRequest(EventRequest request, Consumer<? super Event> handler) {
     request.setSuspendPolicy(EventRequest.SUSPEND_NONE);
     enableRequestWithHandler(request, handler);
   }
@@ -351,6 +355,16 @@ public class DebugProcessEvents extends DebugProcessImpl {
         .filter(Objects::nonNull)
         .forEach(this::appendPositionManager);
 
+      PositionManagerFactory.EP_NAME.getPoint(getProject()).addExtensionPointListener(new ExtensionPointListener<>() {
+        @Override
+        public void extensionAdded(@NotNull PositionManagerFactory extension, @NotNull PluginDescriptor pluginDescriptor) {
+          PositionManager manager = extension.createPositionManager(DebugProcessEvents.this);
+          if (manager != null) {
+            appendPositionManager(manager);
+          }
+        }
+      }, false, myDisposable);
+
       myDebugProcessDispatcher.getMulticaster().processAttached(this);
 
       if (canBeModified) {
@@ -362,9 +376,10 @@ public class DebugProcessEvents extends DebugProcessImpl {
         MemoryAgentUtil.setupAgent(this);
       }
 
+      XDebugSessionImpl session = (XDebugSessionImpl)getSession().getXDebugSession();
+
       // breakpoints should be initialized after all processAttached listeners work
       ApplicationManager.getApplication().runReadAction(() -> {
-        XDebugSession session = getSession().getXDebugSession();
         if (session != null) {
           session.initBreakpoints();
         }
@@ -374,15 +389,15 @@ public class DebugProcessEvents extends DebugProcessImpl {
         trackClassRedefinitions();
       }
 
-      showStatusText(DebuggerBundle.message("status.connected", DebuggerUtilsImpl.getConnectionDisplayName(getConnection())));
+      showStatusText(JavaDebuggerBundle.message("status.connected", DebuggerUtilsImpl.getConnectionDisplayName(getConnection())));
       LOG.debug("leave: processVMStartEvent()");
 
+      if (session != null) {
+        session.setReadOnly(!canBeModified);
+        session.setPauseActionSupported(canBeModified);
+      }
+
       if (!canBeModified) {
-        XDebugSessionImpl session = (XDebugSessionImpl)getSession().getXDebugSession();
-        if (session != null) {
-          session.setReadOnly(true);
-          session.setPauseActionSupported(false);
-        }
         myDebugProcessDispatcher.getMulticaster().paused(getSuspendManager().pushSuspendContext(EventRequest.SUSPEND_ALL, 0));
         UIUtil.invokeLaterIfNeeded(() -> XDebugSessionTab.showFramesView(session));
       }
@@ -473,7 +488,8 @@ public class DebugProcessEvents extends DebugProcessImpl {
       if (hint != null) {
         final MethodFilter methodFilter = hint.getMethodFilter();
         if (methodFilter instanceof NamedMethodFilter && !hint.wasStepTargetMethodMatched()) {
-          final String message = "Method <b>" + ((NamedMethodFilter)methodFilter).getMethodName() + "()</b> has not been called";
+          final String message =
+            JavaDebuggerBundle.message("notification.method.has.not.been.called", ((NamedMethodFilter)methodFilter).getMethodName());
           XDebuggerManagerImpl.NOTIFICATION_GROUP.createNotification(message, MessageType.INFO).notify(project);
         }
         if (hint.wasStepTargetMethodMatched()) {
@@ -523,7 +539,7 @@ public class DebugProcessEvents extends DebugProcessImpl {
           final boolean[] considerRequestHit = new boolean[]{true};
           DebuggerInvocationUtil.invokeAndWait(getProject(), () -> {
             final String displayName = requestor instanceof Breakpoint? ((Breakpoint)requestor).getDisplayName() : requestor.getClass().getSimpleName();
-            final String message = DebuggerBundle.message("error.evaluating.breakpoint.condition.or.action", displayName, ex.getMessage());
+            final String message = JavaDebuggerBundle.message("error.evaluating.breakpoint.condition.or.action", displayName, ex.getMessage());
             considerRequestHit[0] = Messages.showYesNoDialog(getProject(), message, ex.getTitle(), Messages.getQuestionIcon()) == Messages.YES;
           }, ModalityState.NON_MODAL);
           requestHit = considerRequestHit[0];
@@ -593,7 +609,7 @@ public class DebugProcessEvents extends DebugProcessImpl {
     if (event != null && myNotificationsCoolDown.compareAndSet(false, true)) {
       AppExecutorUtil.getAppScheduledExecutorService().schedule(() -> myNotificationsCoolDown.set(false), 1, TimeUnit.SECONDS);
       XDebuggerManagerImpl.NOTIFICATION_GROUP
-        .createNotification(DebuggerBundle.message("message.breakpoint.skipped", event.location()), MessageType.WARNING)
+        .createNotification(JavaDebuggerBundle.message("message.breakpoint.skipped", event.location()), MessageType.WARNING)
         .notify(getProject());
     }
   }

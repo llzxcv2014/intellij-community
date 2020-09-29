@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.statistics.impl
 
 import com.intellij.CommonBundle
@@ -16,12 +16,11 @@ import com.intellij.util.ScrambledInputStream
 import com.intellij.util.ScrambledOutputStream
 import com.intellij.util.io.inputStream
 import com.intellij.util.io.outputStream
-import gnu.trove.THashSet
 import org.jetbrains.annotations.TestOnly
 import java.io.BufferedOutputStream
 import java.io.IOException
 import java.nio.file.Path
-import java.util.Collections
+import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.collections.ArrayList
 import kotlin.concurrent.read
@@ -29,7 +28,7 @@ import kotlin.concurrent.write
 
 class StatisticsManagerImpl : StatisticsManager(), SettingsSavingComponent {
   private val units = ArrayList(Collections.nCopies<SoftReference<StatisticsUnit>>(UNIT_COUNT, null))
-  private val modifiedUnits = THashSet<StatisticsUnit>()
+  private val modifiedUnits = HashSet<StatisticsUnit>()
   private var testingStatistics = false
 
   private val lock = ReentrantReadWriteLock()
@@ -79,7 +78,7 @@ class StatisticsManagerImpl : StatisticsManager(), SettingsSavingComponent {
       return
     }
 
-    ApplicationManager.getApplication().assertIsDispatchThread()
+    ApplicationManager.getApplication().assertIsWriteThread()
 
     for (conjunct in info.conjuncts) {
       doIncUseCount(conjunct)

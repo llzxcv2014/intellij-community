@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.deadCode;
 
 import com.intellij.analysis.AnalysisScope;
@@ -25,6 +11,7 @@ import com.intellij.codeInspection.reference.*;
 import com.intellij.codeInspection.ui.InspectionToolPresentation;
 import com.intellij.codeInspection.unusedSymbol.UnusedSymbolLocalInspection;
 import com.intellij.codeInspection.unusedSymbol.UnusedSymbolLocalInspectionBase;
+import com.intellij.java.JavaBundle;
 import com.intellij.psi.*;
 import com.intellij.psi.controlFlow.DefUseUtil;
 import com.intellij.ui.ScrollPaneFactory;
@@ -125,12 +112,12 @@ public class UnusedDeclarationInspection extends UnusedDeclarationInspectionBase
   @Override
   public JComponent createOptionsPanel() {
     JTabbedPane tabs = new JBTabbedPane(SwingConstants.TOP);
-    tabs.add("Members to report", ScrollPaneFactory.createScrollPane(myLocalInspectionBase.createOptionsPanel(), true));
-    tabs.add("Entry points", ScrollPaneFactory.createScrollPane(new OptionsPanel(), true));
+    tabs.add(JavaBundle.message("tab.title.members.to.report"), ScrollPaneFactory.createScrollPane(myLocalInspectionBase.createOptionsPanel(), true));
+    tabs.add(JavaBundle.message("tab.title.entry.points"), ScrollPaneFactory.createScrollPane(new OptionsPanel(), true));
     return tabs;
   }
 
-  private class OptionsPanel extends JPanel {
+  private final class OptionsPanel extends JPanel {
     private final JCheckBox myMainsCheckbox;
     private final JCheckBox myAppletToEntries;
     private final JCheckBox myServletToEntries;
@@ -147,11 +134,11 @@ public class UnusedDeclarationInspection extends UnusedDeclarationInspectionBase
       gc.gridx = 0;
       gc.gridy = 0;
       gc.gridwidth = 2;
-      add(new JBLabel("When entry points are in test sources, mark callees as:"), gc);
+      add(new JBLabel(JavaBundle.message("label.unused.declaration.reachable.from.tests.option")), gc);
       gc.gridy++;
 
-      final JBRadioButton asEntryPoint = new JBRadioButton("used", isTestEntryPoints());
-      final JBRadioButton asUnused = new JBRadioButton("unused", !isTestEntryPoints());
+      final JBRadioButton asEntryPoint = new JBRadioButton(JavaBundle.message("radio.button.unused.declaration.used.option"), isTestEntryPoints());
+      final JBRadioButton asUnused = new JBRadioButton(JavaBundle.message("radio.button.unused.declaration.unused.option"), !isTestEntryPoints());
       final ButtonGroup group = new ButtonGroup();
       group.add(asEntryPoint);
       group.add(asUnused);
@@ -172,7 +159,7 @@ public class UnusedDeclarationInspection extends UnusedDeclarationInspectionBase
       gc.gridwidth = 2;
       add(new TitledSeparator(), gc);
       gc.gridy++;
-      add(new JBLabel("Entry points:"), gc);
+      add(new JBLabel(JavaBundle.message("label.entry.points")), gc);
       gc.insets = JBUI.insets(5, 0, 0, 0);
       gc.gridy++;
 
@@ -180,7 +167,7 @@ public class UnusedDeclarationInspection extends UnusedDeclarationInspectionBase
       gc.gridy++;
       gc.insets = JBUI.insets(0, 5, 2, 0);
 
-      myMainsCheckbox = new JCheckBox(InspectionsBundle.message("inspection.dead.code.option.main"));
+      myMainsCheckbox = new JCheckBox(JavaBundle.message("inspection.dead.code.option.main"));
       myMainsCheckbox.setSelected(ADD_MAINS_TO_ENTRIES);
       myMainsCheckbox.addActionListener(e -> ADD_MAINS_TO_ENTRIES = myMainsCheckbox.isSelected());
 
@@ -188,19 +175,19 @@ public class UnusedDeclarationInspection extends UnusedDeclarationInspectionBase
       add(myMainsCheckbox, gc);
       gc.gridy++;
 
-      myAppletToEntries = new JCheckBox(InspectionsBundle.message("inspection.dead.code.option.applet"));
+      myAppletToEntries = new JCheckBox(JavaBundle.message("inspection.dead.code.option.applet"));
       myAppletToEntries.setSelected(ADD_APPLET_TO_ENTRIES);
       myAppletToEntries.addActionListener(e -> ADD_APPLET_TO_ENTRIES = myAppletToEntries.isSelected());
       add(myAppletToEntries, gc);
       gc.gridy++;
 
-      myServletToEntries = new JCheckBox(InspectionsBundle.message("inspection.dead.code.option.servlet"));
+      myServletToEntries = new JCheckBox(JavaBundle.message("inspection.dead.code.option.servlet"));
       myServletToEntries.setSelected(ADD_SERVLET_TO_ENTRIES);
       myServletToEntries.addActionListener(e -> ADD_SERVLET_TO_ENTRIES = myServletToEntries.isSelected());
       add(myServletToEntries, gc);
       gc.gridy++;
 
-      for (final EntryPoint extension : myExtensions) {
+      for (final EntryPoint extension : getExtensions()) {
         if (extension.showUI()) {
           final JCheckBox extCheckbox = new JCheckBox(extension.getDisplayName());
           extCheckbox.setSelected(extension.isSelected());
@@ -211,7 +198,7 @@ public class UnusedDeclarationInspection extends UnusedDeclarationInspectionBase
       }
 
       myNonJavaCheckbox =
-      new JCheckBox(InspectionsBundle.message("inspection.dead.code.option.external"));
+      new JCheckBox(JavaBundle.message("inspection.dead.code.option.external"));
       myNonJavaCheckbox.setSelected(ADD_NONJAVA_TO_ENTRIES);
       myNonJavaCheckbox.addActionListener(e -> ADD_NONJAVA_TO_ENTRIES = myNonJavaCheckbox.isSelected());
 
@@ -322,7 +309,7 @@ public class UnusedDeclarationInspection extends UnusedDeclarationInspectionBase
       PsiElement toHighlight = ObjectUtils.notNull(psiVariable.getNameIdentifier(), psiVariable);
       return myInspectionManager.createProblemDescriptor(
         toHighlight,
-        InspectionsBundle.message("inspection.unused.assignment.problem.descriptor1", "<code>#ref</code> #loc"), (LocalQuickFix)null,
+        JavaBundle.message("inspection.unused.assignment.problem.descriptor1", "<code>#ref</code> #loc"), (LocalQuickFix)null,
         ProblemHighlightType.LIKE_UNUSED_SYMBOL, false);
     }
   }

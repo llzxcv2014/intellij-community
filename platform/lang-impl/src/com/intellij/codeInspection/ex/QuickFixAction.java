@@ -1,8 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInspection.ex;
 
-import com.intellij.ReviseWhenPortedToJDK;
 import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInspection.CommonProblemDescriptor;
 import com.intellij.codeInspection.InspectionManager;
@@ -28,6 +27,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.vfs.ReadonlyStatusHandler;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -47,9 +47,6 @@ import java.awt.event.MouseEvent;
 import java.util.List;
 import java.util.*;
 
-/**
- * @author max
- */
 public abstract class QuickFixAction extends AnAction implements CustomComponentAction {
   private static final Logger LOG = Logger.getInstance(QuickFixAction.class);
 
@@ -60,11 +57,11 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
     return e.getData(InspectionResultsView.DATA_KEY);
   }
 
-  protected QuickFixAction(String text, @NotNull InspectionToolWrapper toolWrapper) {
+  protected QuickFixAction(@NlsActions.ActionText String text, @NotNull InspectionToolWrapper toolWrapper) {
     this(text, AllIcons.Actions.IntentionBulb, null, toolWrapper);
   }
 
-  protected QuickFixAction(String text, Icon icon, KeyStroke keyStroke, @NotNull InspectionToolWrapper toolWrapper) {
+  protected QuickFixAction(@NlsActions.ActionText String text, Icon icon, KeyStroke keyStroke, @NotNull InspectionToolWrapper toolWrapper) {
     super(text, null, icon);
     myToolWrapper = toolWrapper;
     if (keyStroke != null) {
@@ -103,7 +100,6 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
   }
 
   @Override
-  @ReviseWhenPortedToJDK("9")
   public void actionPerformed(@NotNull final AnActionEvent e) {
     final InspectionResultsView view = getInvoker(e);
     final InspectionTree tree = view.getTree();
@@ -113,7 +109,7 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
       TreePath[] paths = tree.getSelectionPaths();
       if (!ProgressManager.getInstance().runProcessWithProgressSynchronously(() -> ReadAction.run(() -> {
         final ProgressIndicator indicator = ProgressManager.getInstance().getProgressIndicator();
-        indicator.setText("Checking problem descriptors...");
+        indicator.setText(InspectionsBundle.message("quick.fix.action.checking.problem.progress"));
         descriptors.set(tree.getSelectedDescriptorPacks(true, readOnlyFiles, false, paths));
       }), InspectionsBundle.message("preparing.for.apply.fix"), true, e.getProject())) {
         return;
@@ -133,7 +129,7 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
 
   protected void applyFix(@NotNull Project project,
                           @NotNull GlobalInspectionContextImpl context,
-                          @NotNull CommonProblemDescriptor[] descriptors,
+                          CommonProblemDescriptor @NotNull [] descriptors,
                           @NotNull Set<? super PsiElement> ignoredElements) {
   }
 
@@ -187,7 +183,7 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
     }, templatePresentationText, null);
   }
 
-  private void doApplyFix(@NotNull final RefEntity[] refElements, @NotNull InspectionResultsView view) {
+  private void doApplyFix(final RefEntity @NotNull [] refElements, @NotNull InspectionResultsView view) {
     final RefManagerImpl refManager = (RefManagerImpl)view.getGlobalInspectionContext().getRefManager();
 
     final boolean initial = refManager.isInProcess();
@@ -214,7 +210,7 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
     }
   }
 
-  public static void removeElements(@NotNull RefEntity[] refElements, @NotNull Project project, @NotNull InspectionToolWrapper toolWrapper) {
+  public static void removeElements(RefEntity @NotNull [] refElements, @NotNull Project project, @NotNull InspectionToolWrapper toolWrapper) {
     refreshViews(project, refElements, toolWrapper);
     final ArrayList<RefElement> deletedRefs = new ArrayList<>(1);
     for (RefEntity refElement : refElements) {
@@ -223,7 +219,7 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
     }
   }
 
-  private static Set<VirtualFile> getReadOnlyFiles(@NotNull RefEntity[] refElements) {
+  private static Set<VirtualFile> getReadOnlyFiles(RefEntity @NotNull [] refElements) {
     Set<VirtualFile> readOnlyFiles = new THashSet<>();
     for (RefEntity refElement : refElements) {
       PsiElement psiElement = refElement instanceof RefElement ? ((RefElement)refElement).getPsiElement() : null;
@@ -233,8 +229,7 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
     return readOnlyFiles;
   }
 
-  @NotNull
-  private static RefEntity[] getSelectedElements(InspectionResultsView view) {
+  private static RefEntity @NotNull [] getSelectedElements(InspectionResultsView view) {
     if (view == null) return RefEntity.EMPTY_ELEMENTS_ARRAY;
     RefEntity[] selection = view.getTree().getSelectedElements();
     PsiDocumentManager.getInstance(view.getProject()).commitAllDocuments();
@@ -253,7 +248,7 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
     }
   }
 
-  protected static void refreshViews(@NotNull Project project, @NotNull RefEntity[] resolvedElements, @NotNull InspectionToolWrapper toolWrapper) {
+  protected static void refreshViews(@NotNull Project project, RefEntity @NotNull [] resolvedElements, @NotNull InspectionToolWrapper toolWrapper) {
     final Set<PsiElement> ignoredElements = new HashSet<>();
     for (RefEntity element : resolvedElements) {
       final PsiElement psiElement = element instanceof RefElement ? ((RefElement)element).getPsiElement() : null;
@@ -267,7 +262,7 @@ public abstract class QuickFixAction extends AnAction implements CustomComponent
   /**
    * @return true if immediate UI update needed.
    */
-  protected boolean applyFix(@NotNull RefEntity[] refElements) {
+  protected boolean applyFix(RefEntity @NotNull [] refElements) {
     Set<VirtualFile> readOnlyFiles = getReadOnlyFiles(refElements);
     if (!readOnlyFiles.isEmpty()) {
       final Project project = refElements[0].getRefManager().getProject();

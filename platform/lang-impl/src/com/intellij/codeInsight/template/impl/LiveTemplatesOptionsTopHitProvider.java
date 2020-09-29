@@ -1,18 +1,16 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.template.impl;
 
 import com.intellij.ide.ui.OptionsTopHitProvider;
 import com.intellij.ide.ui.search.BooleanOptionDescription;
 import com.intellij.ide.ui.search.OptionDescription;
+import com.intellij.openapi.util.NlsContexts;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
-/**
- * @author Sergey.Malenkov
- */
 final class LiveTemplatesOptionsTopHitProvider implements OptionsTopHitProvider.ApplicationLevelProvider {
   @NotNull
   @Override
@@ -54,8 +52,8 @@ final class LiveTemplatesOptionsTopHitProvider implements OptionsTopHitProvider.
       myElement.setDeactivated(!enabled);
     }
 
-    private static String getOptionName(TemplateImpl element) {
-      StringBuilder sb = new StringBuilder().append(element.getGroupName()).append(": ").append(element.getKey());
+    private static @NlsContexts.Label String getOptionName(TemplateImpl element) {
+      @NlsContexts.Label StringBuilder sb = new StringBuilder().append(element.getGroupName()).append(": ").append(element.getKey());
       String description = element.getDescription();
       if (description != null) {
         sb.append(" (").append(description).append(")");

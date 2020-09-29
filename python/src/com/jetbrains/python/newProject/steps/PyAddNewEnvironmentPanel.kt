@@ -8,21 +8,23 @@ import com.intellij.openapi.util.UserDataHolder
 import com.intellij.openapi.util.UserDataHolderBase
 import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.util.ui.FormBuilder
+import com.jetbrains.python.sdk.PySdkProvider
 import com.jetbrains.python.sdk.PySdkSettings
 import com.jetbrains.python.sdk.add.PyAddNewCondaEnvPanel
 import com.jetbrains.python.sdk.add.PyAddNewEnvPanel
 import com.jetbrains.python.sdk.add.PyAddNewVirtualEnvPanel
 import com.jetbrains.python.sdk.add.PyAddSdkPanel
-import com.jetbrains.python.sdk.pipenv.PyAddPipEnvPanel
+import com.jetbrains.python.sdk.conda.PyCondaSdkCustomizer
 import java.awt.BorderLayout
 import java.awt.event.ItemEvent
 import javax.swing.JComboBox
+import kotlin.streams.toList
 
 /**
  * @author vlan
  */
 class PyAddNewEnvironmentPanel(existingSdks: List<Sdk>, newProjectPath: String?, preferredType: String?) : PyAddSdkPanel() {
-  override val panelName: String = "New environment using"
+  override val panelName: String get() = com.jetbrains.python.PyBundle.message("python.add.sdk.panel.name.new.environment.using")
   override val nameExtensionComponent: JComboBox<PyAddNewEnvPanel>
 
   override var newProjectPath: String? = newProjectPath
@@ -32,13 +34,10 @@ class PyAddNewEnvironmentPanel(existingSdks: List<Sdk>, newProjectPath: String?,
         panel.newProjectPath = newProjectPath
       }
     }
-  private val context:UserDataHolder = UserDataHolderBase()
+  private val context: UserDataHolder = UserDataHolderBase()
 
   // TODO: Introduce a method in PyAddSdkProvider or in a Python SDK Provider
-  private val panels = listOf(PyAddNewVirtualEnvPanel(null, null, existingSdks, newProjectPath,context),
-                              PyAddPipEnvPanel(null, null, existingSdks, newProjectPath, context),
-                              PyAddNewCondaEnvPanel(null, null, existingSdks, newProjectPath, context))
-
+  private val panels = createPanels(existingSdks, newProjectPath)
   var selectedPanel: PyAddNewEnvPanel = panels.find { it.envName == preferredType ?: PySdkSettings.instance.preferredEnvironmentType } ?: panels[0]
 
   private val listeners = mutableListOf<Runnable>()
@@ -90,5 +89,21 @@ class PyAddNewEnvironmentPanel(existingSdks: List<Sdk>, newProjectPath: String?,
       panel.addChangeListener(listener)
     }
     listeners += listener
+  }
+
+  private fun createPanels(existingSdks: List<Sdk>, newProjectPath: String?): List<PyAddNewEnvPanel> {
+    val condaPanel = PyAddNewCondaEnvPanel(null, null, existingSdks, newProjectPath, context)
+    val venvPanel = PyAddNewVirtualEnvPanel(null, null, existingSdks, newProjectPath, context)
+
+    val envPanelsFromProviders = PySdkProvider.EP_NAME.extensions()
+      .map { it.createNewEnvironmentPanel(null, null, existingSdks, newProjectPath, context) }
+      .toList().toTypedArray()
+
+    return if (PyCondaSdkCustomizer.instance.preferCondaEnvironments) {
+      listOf(condaPanel, venvPanel, *envPanelsFromProviders)
+    }
+    else {
+      listOf(venvPanel, *envPanelsFromProviders, condaPanel)
+    }
   }
 }

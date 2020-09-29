@@ -15,6 +15,7 @@
  */
 package com.intellij.platform.templates;
 
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.components.ExportableComponent;
 import org.jetbrains.annotations.NotNull;
 
@@ -22,15 +23,14 @@ import java.io.File;
 
 public class ProjectTemplateExportable implements ExportableComponent {
 
-  @NotNull
   @Override
-  public File[] getExportFiles() {
+  public File @NotNull [] getExportFiles() {
     return new File[]{new File(ArchivedTemplatesFactory.getCustomTemplatesPath())};
   }
 
   @NotNull
   @Override
   public String getPresentableName() {
-    return "Project templates";
+    return LangBundle.message("project.template.presentable.name");
   }
 }

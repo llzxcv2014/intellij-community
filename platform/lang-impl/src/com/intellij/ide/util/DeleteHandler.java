@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.util;
 
 import com.intellij.CommonBundle;
@@ -7,6 +7,7 @@ import com.intellij.history.LocalHistoryAction;
 import com.intellij.ide.DataManager;
 import com.intellij.ide.DeleteProvider;
 import com.intellij.ide.IdeBundle;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.LangDataKeys;
@@ -53,9 +54,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Stream;
 
-public class DeleteHandler {
+public final class DeleteHandler {
   private DeleteHandler() { }
 
   public static class DefaultDeleteProvider implements DeleteProvider {
@@ -68,8 +68,7 @@ public class DeleteHandler {
       return shouldEnableDeleteAction(elements);
     }
 
-    @Nullable
-    private static PsiElement[] getPsiElements(DataContext dataContext) {
+    private static PsiElement @Nullable [] getPsiElements(DataContext dataContext) {
       PsiElement[] elements = LangDataKeys.PSI_ELEMENT_ARRAY.getData(dataContext);
       if (elements == null) {
         final PsiElement data = CommonDataKeys.PSI_ELEMENT.getData(dataContext);
@@ -111,7 +110,7 @@ public class DeleteHandler {
 
     final PsiElement[] elements = PsiTreeUtil.filterAncestors(elementsToDelete);
 
-    boolean safeDeleteApplicable = Arrays.stream(elements).allMatch(SafeDeleteProcessor::validElement);
+    boolean safeDeleteApplicable = ContainerUtil.and(elements, SafeDeleteProcessor::validElement);
 
     final boolean dumb = DumbService.getInstance(project).isDumb();
     if (safeDeleteApplicable && !dumb) {
@@ -142,8 +141,7 @@ public class DeleteHandler {
       }
     }
     else {
-      @SuppressWarnings({"UnresolvedPropertyKey"})
-      String warningMessage = DeleteUtil.generateWarningMessage(IdeBundle.message("prompt.delete.elements"), elements);
+      String warningMessage = DeleteUtil.generateWarningMessage("prompt.delete.elements", elements);
 
       boolean anyDirectories = false;
       String directoryName = null;
@@ -164,9 +162,8 @@ public class DeleteHandler {
       }
 
       if (safeDeleteApplicable) {
-        warningMessage += "\n\nWarning:\n  Safe delete is not available while " +
-                          ApplicationNamesInfo.getInstance().getFullProductName() +
-                          " updates indices,\n  no usages will be checked.";
+        warningMessage +=
+          LangBundle.message("dialog.message.warning.safe.delete.not.available.while.updates.indices.no.usages.will.be.checked", ApplicationNamesInfo.getInstance().getFullProductName());
       }
 
       if (needConfirmation) {
@@ -204,7 +201,7 @@ public class DeleteHandler {
         CommandProcessor.getInstance().markCurrentCommandAsGlobal(project);
       }
 
-      if (Stream.of(elements).allMatch(DeleteHandler::isLocalFile)) {
+      if (ContainerUtil.and(elements, DeleteHandler::isLocalFile)) {
         doDeleteFiles(project, elements);
       }
       else {
@@ -372,7 +369,7 @@ public class DeleteHandler {
           Path path = Paths.get(file.getPath());
           indicator.setText(path.toString());
 
-          Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+          Files.walkFileTree(path, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
               if (SystemInfo.isWindows && attrs.isOther()) {  // a junction

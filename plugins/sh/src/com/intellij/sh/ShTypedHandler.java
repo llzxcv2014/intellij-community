@@ -15,8 +15,8 @@ public class ShTypedHandler extends TypedHandlerDelegate {
   public Result checkAutoPopup(char charTyped, @NotNull Project project, @NotNull Editor editor, @NotNull PsiFile file) {
     if (!(file instanceof ShFile)) return Result.CONTINUE;
     int currentLine = editor.getCaretModel().getPrimaryCaret().getLogicalPosition().line;
-    if (currentLine == 0 && (charTyped == '!' || charTyped == '/')) {
-      AutoPopupController.getInstance(editor.getProject()).autoPopupMemberLookup(editor, null);
+    if ((currentLine == 0 && charTyped == '!') || charTyped == '/') {
+      AutoPopupController.getInstance(project).autoPopupMemberLookup(editor, null);
       return Result.STOP;
     }
     return Result.CONTINUE;

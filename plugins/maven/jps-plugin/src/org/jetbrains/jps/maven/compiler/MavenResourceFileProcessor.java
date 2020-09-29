@@ -10,6 +10,7 @@ import org.jetbrains.jps.incremental.CompileContext;
 import org.jetbrains.jps.incremental.FSOperations;
 import org.jetbrains.jps.incremental.messages.BuildMessage;
 import org.jetbrains.jps.incremental.messages.CompilerMessage;
+import org.jetbrains.jps.maven.MavenJpsBundle;
 import org.jetbrains.jps.maven.model.impl.MavenModuleResourceConfiguration;
 import org.jetbrains.jps.maven.model.impl.MavenProjectConfiguration;
 import org.jetbrains.jps.maven.model.impl.ResourceRootConfiguration;
@@ -27,9 +28,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * @author nik
- */
 public class MavenResourceFileProcessor {
   private static final int FILTERING_SIZE_LIMIT = 10 * 1024 * 1024 /*10 mb*/;
   private static final String MAVEN_BUILD_TIMESTAMP_PROPERTY = "maven.build.timestamp";
@@ -56,8 +54,8 @@ public class MavenResourceFileProcessor {
     boolean shouldFilter = rootConfiguration.isFiltered && !myFilteringExcludedExtensions.contains(FileUtilRt.getExtension(file.getName()))
                            && filteringFilter.accept(file);
     if (shouldFilter && file.length() > FILTERING_SIZE_LIMIT) {
-      context.processMessage(new CompilerMessage("MavenResources", BuildMessage.Kind.WARNING,
-                                                 "File is too big to be filtered. Most likely it is a binary file and should be excluded from filtering",
+      context.processMessage(new CompilerMessage(MavenJpsBundle.message("maven.resources.compiler"), BuildMessage.Kind.WARNING,
+                                                 MavenJpsBundle.message("file.is.too.big.to.be.filtered"),
                                                  file.getPath()));
       shouldFilter = false;
     }

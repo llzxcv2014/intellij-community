@@ -1,6 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.encapsulateFields;
 
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.lang.findUsages.DescriptiveNameUtil;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
@@ -11,7 +12,6 @@ import com.intellij.psi.search.searches.ClassInheritorsSearch;
 import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.util.*;
 import com.intellij.refactoring.BaseRefactoringProcessor;
-import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.listeners.RefactoringEventData;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
 import com.intellij.refactoring.util.DocCommentPolicy;
@@ -77,7 +77,7 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
 
   @Nullable
   @Override
-  protected RefactoringEventData getAfterData(@NotNull UsageInfo[] usages) {
+  protected RefactoringEventData getAfterData(UsageInfo @NotNull [] usages) {
     RefactoringEventData data = new RefactoringEventData();
     List<PsiElement> elements = new ArrayList<>();
     if (myNameToGetter != null) {
@@ -92,7 +92,7 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
 
   @Override
   @NotNull
-  protected UsageViewDescriptor createUsageViewDescriptor(@NotNull UsageInfo[] usages) {
+  protected UsageViewDescriptor createUsageViewDescriptor(UsageInfo @NotNull [] usages) {
     FieldDescriptor[] fields = new FieldDescriptor[myFieldDescriptors.length];
     System.arraycopy(myFieldDescriptors, 0, fields, 0, myFieldDescriptors.length);
     return new EncapsulateFieldsViewDescriptor(fields);
@@ -101,7 +101,7 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
   @Override
   @NotNull
   protected String getCommandName() {
-    return RefactoringBundle.message("encapsulate.fields.command.name", DescriptiveNameUtil.getDescriptiveName(myClass));
+    return JavaRefactoringBundle.message("encapsulate.fields.command.name", DescriptiveNameUtil.getDescriptiveName(myClass));
   }
 
   @Override
@@ -144,10 +144,10 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
             final boolean isGetter = !PsiUtil.isAccessedForWriting((PsiExpression)place);
             for (PsiMethod overridden : isGetter ? getters : setters) {
               if (InheritanceUtil.isInheritorOrSelf(myClass, ancestor, true)) {
-                conflicts.putValue(overridden, "There is already a " +
-                                               RefactoringUIUtil.getDescription(overridden, true) +
-                                               " which would hide generated " +
-                                               (isGetter ? "getter" : "setter") + " for " + place.getText());
+                String accessorExistsMessage = JavaRefactoringBundle.message("encapsulate.fields.existed.accessor.hides.generated",
+                                                                             RefactoringUIUtil.getDescription(overridden, true),
+                                                                             place.getText());
+                conflicts.putValue(overridden, accessorExistsMessage);
                 break;
               }
             }
@@ -162,7 +162,7 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
       if (element != null) {
         PsiElement parent = element.getParent();
         if (PsiUtil.isIncrementDecrementOperation(parent) && !(parent.getParent() instanceof PsiExpressionStatement)) {
-          conflicts.putValue(parent, "Unable to proceed with postfix/prefix expression when it's result type is used");
+          conflicts.putValue(parent, JavaRefactoringBundle.message("encapsulate.fields.expression.type.is.used"));
         }
       }
     }
@@ -194,9 +194,9 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
                                                           PsiFormatUtilBase.SHOW_TYPE
           );
           String message = isGetter ?
-                           RefactoringBundle.message("encapsulate.fields.getter.exists", CommonRefactoringUtil.htmlEmphasize(descr),
+                           JavaRefactoringBundle.message("encapsulate.fields.getter.exists", CommonRefactoringUtil.htmlEmphasize(descr),
                                                 CommonRefactoringUtil.htmlEmphasize(prototype.getName())) :
-                           RefactoringBundle.message("encapsulate.fields.setter.exists", CommonRefactoringUtil.htmlEmphasize(descr),
+                           JavaRefactoringBundle.message("encapsulate.fields.setter.exists", CommonRefactoringUtil.htmlEmphasize(descr),
                                                 CommonRefactoringUtil.htmlEmphasize(prototype.getName()));
           conflicts.putValue(existing, message);
         }
@@ -217,7 +217,9 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
                 }
 
                 if (InheritanceUtil.isInheritorOrSelf(inheritor, myClass, true)) {
-                  conflicts.putValue(existing, "There is already a " + RefactoringUIUtil.getDescription(existing, true) + " which would be hidden by generated " + (isGetter ? "getter" : "setter"));
+                  String accessorExistsMessage = JavaRefactoringBundle.message("encapsulate.fields.existed.accessor.hidden",
+                                                                               RefactoringUIUtil.getDescription(existing, true), isGetter);
+                  conflicts.putValue(existing, accessorExistsMessage);
                   break;
                 }
               }
@@ -230,7 +232,7 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
   }
 
   @Override
-  @NotNull protected UsageInfo[] findUsages() {
+  protected UsageInfo @NotNull [] findUsages() {
     ArrayList<EncapsulateFieldUsageInfo> array = new ArrayList<>();
     for (FieldDescriptor fieldDescriptor : myFieldDescriptors) {
       for (final PsiReference reference : ReferencesSearch.search(fieldDescriptor.getField())) {
@@ -251,7 +253,7 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
   }
 
   @Override
-  protected void refreshElements(@NotNull PsiElement[] elements) {
+  protected void refreshElements(PsiElement @NotNull [] elements) {
     LOG.assertTrue(elements.length == myFieldDescriptors.length);
 
     for (int idx = 0; idx < elements.length; idx++) {
@@ -266,7 +268,7 @@ public class EncapsulateFieldsProcessor extends BaseRefactoringProcessor {
   }
 
   @Override
-  protected void performRefactoring(@NotNull UsageInfo[] usages) {
+  protected void performRefactoring(UsageInfo @NotNull [] usages) {
     updateFieldVisibility();
     generateAccessors();
     processUsagesPerFile(usages);

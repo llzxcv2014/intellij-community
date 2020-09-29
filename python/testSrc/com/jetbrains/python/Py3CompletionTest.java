@@ -2,9 +2,8 @@
 package com.jetbrains.python;
 
 import com.intellij.codeInsight.completion.impl.CamelHumpMatcher;
+import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.vfs.StandardFileSystems;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.PsiTestUtil;
 import com.intellij.testFramework.TestDataPath;
@@ -65,6 +64,14 @@ public class Py3CompletionTest extends PyTestCase {
     myFixture.configureByFile(testName + ".py");
     myFixture.completeBasic();
     myFixture.checkResultByFile(testName + ".after.py");
+  }
+
+  public void doNegativeTest() {
+    final String testName = getTestName(true);
+    myFixture.configureByFile(testName + ".py");
+    LookupElement[] variants = myFixture.completeBasic();
+    assertNotNull("Expected no completion variants, but one item was auto-completed", variants);
+    assertEmpty(variants);
   }
 
   private void doMultiFileTest() {
@@ -242,11 +249,8 @@ public class Py3CompletionTest extends PyTestCase {
   public void testMockPatchObject1() {
     final String testName = getTestName(true);
 
-    final VirtualFile libDir = StandardFileSystems.local().findFileByPath(getTestDataPath() + "/" + testName + "/lib");
-    assertNotNull(libDir);
-
     runWithAdditionalClassEntryInSdkRoots(
-      libDir,
+      testName + "/lib",
       () -> {
         myFixture.configureByFile(testName + "/a.py");
         myFixture.completeBasic();
@@ -259,11 +263,8 @@ public class Py3CompletionTest extends PyTestCase {
   public void testMockPatchObject2() {
     final String testName = getTestName(true);
 
-    final VirtualFile libDir = StandardFileSystems.local().findFileByPath(getTestDataPath() + "/" + testName + "/lib");
-    assertNotNull(libDir);
-
     runWithAdditionalClassEntryInSdkRoots(
-      libDir,
+      testName + "/lib",
       () -> {
         myFixture.configureByFile(testName + "/a.py");
         myFixture.completeBasic();
@@ -408,6 +409,73 @@ public class Py3CompletionTest extends PyTestCase {
     assertContainsElements(suggested, PyNamedTupleType.NAMEDTUPLE_SPECIAL_ATTRIBUTES);
   }
 
+  // PY-33254, PY-12339, PY-40834
+  public void testTypedParameterStringPath() {
+    myFixture.copyDirectoryToProject(getTestName(true), "");
+    myFixture.configureByFile("a.py");
+    myFixture.completeBasicAllCarets(null);
+    myFixture.checkResultByFile(getTestName(true) + "/a.after.py");
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionInOrdinaryStringLiterals() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionPreservesParenthesesForCallables() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionNotAvailableBefore36() {
+    runWithLanguageLevel(LanguageLevel.PYTHON35, this::doNegativeTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionNotAvailableInByteLiterals() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doNegativeTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionNotAvailableInUnicodeLiterals() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doNegativeTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionNotAvailableInStrFormatCalls() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doNegativeTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionNotAvailableAfterEscapedOpeningBrace() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doNegativeTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionAvailableAfterOpeningBraceFollowingEscapedOne() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionDoesNotDuplicateClosingBrace() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionOnMultipleCaretsDoesNotDuplicatePrefix() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doTest);
+  }
+
+  // PY-42700
+  public void testFStringLikeCompletionDoesNotWorkInStringWithInjections() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doNegativeTest);
+  }
+
+  // EA-232631
+  public void testFStringLikeCompletionNotAvailableInStringElementsInSyntacticallyIllegalPosition() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), this::doNegativeTest);
+  }
 
   @Override
   protected String getTestDataPath() {

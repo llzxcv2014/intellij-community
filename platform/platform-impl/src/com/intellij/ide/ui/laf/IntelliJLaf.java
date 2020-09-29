@@ -1,56 +1,31 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.ui.laf;
 
 import com.intellij.ide.ui.laf.darcula.DarculaLaf;
-import com.intellij.openapi.util.SystemInfo;
-import com.intellij.ui.mac.foundation.Foundation;
-import com.intellij.ui.mac.foundation.MacUtil;
-import com.intellij.util.ui.UIUtil;
+import com.intellij.openapi.util.NlsSafe;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import javax.swing.plaf.metal.DefaultMetalTheme;
-import java.awt.*;
 
 /**
  * @author Konstantin Bulenkov
  */
 public class IntelliJLaf extends DarculaLaf {
+  public static final @NlsSafe String NAME = "IntelliJ";
+
   @Override
   public String getName() {
-    return "IntelliJ";
+    return NAME;
   }
 
   @Override
   @NotNull
   protected String getPrefix() {
-    return UIUtil.isUnderWin10LookAndFeel() ? "intellijlaf_native" : "intellijlaf";
-  }
-
-  @Override
-  @Nullable
-  protected String getSystemPrefix() {
-    if (SystemInfo.isLinux) {
-      return super.getSystemPrefix();
-    }
-    else if (SystemInfo.isWindows) {
-      return UIUtil.isUnderWin10LookAndFeel() ? null : getPrefix() + "_windows";
-    }
-    else if (SystemInfo.isMac) {
-      return UIUtil.isUnderDefaultMacTheme() ? getPrefix() + "_mac" : null;
-    }
-    else {
-      return null;
-    }
+    return "intellijlaf";
   }
 
   @Override
   protected DefaultMetalTheme createMetalTheme() {
     return new IdeaBlueMetalTheme();
-  }
-
-  public static Color getSelectedControlColor() {
-    // https://developer.apple.com/library/mac/e/Cocoa/Reference/ApplicationKit/Classes/NSColor_Class/#//apple_ref/occ/clm/NSColor/alternateSelectedControlColor
-    return MacUtil.colorFromNative(Foundation.invoke("NSColor", "alternateSelectedControlColor"));
   }
 }

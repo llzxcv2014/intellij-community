@@ -1,12 +1,14 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.duplicatePropertyInspection;
 
+import com.intellij.analysis.AnalysisBundle;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.ex.GlobalInspectionContextBase;
 import com.intellij.codeInspection.reference.RefManager;
 import com.intellij.concurrency.JobLauncher;
 import com.intellij.lang.properties.IProperty;
 import com.intellij.lang.properties.PropertiesBundle;
+import com.intellij.lang.properties.PropertiesFileType;
 import com.intellij.lang.properties.psi.PropertiesFile;
 import com.intellij.lang.properties.psi.Property;
 import com.intellij.openapi.editor.Document;
@@ -18,7 +20,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
 import com.intellij.openapi.progress.util.ProgressWrapper;
-import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
@@ -26,10 +28,12 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.impl.search.LowLevelSearchUtil;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiSearchHelper;
+import com.intellij.util.ObjectUtils;
 import com.intellij.util.Processors;
 import com.intellij.util.text.CharArrayUtil;
 import com.intellij.util.text.StringSearcher;
 import gnu.trove.THashSet;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -61,25 +65,23 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
       if (elementToLink != null) {
         HTMLComposer.appendAfterHeaderIndention(anchor);
         HTMLComposer.appendAfterHeaderIndention(anchor);
-        anchor.append("<a HREF=\"");
+        String link = "";
         final PsiFile file = element.getContainingFile();
         if (file != null) {
           final VirtualFile virtualFile = file.getVirtualFile();
           if (virtualFile != null) {
-            anchor.append(virtualFile.getUrl()).append("#").append(elementToLink.getTextRange().getStartOffset());
+            link = virtualFile.getUrl() + "#" + elementToLink.getTextRange().getStartOffset();
           }
         }
-        anchor.append("\">");
-        anchor.append(elementToLink.getText().replaceAll("\\$", "\\\\\\$"));
-        anchor.append("</a>");
+        HtmlChunk.link(link, elementToLink.getText().replaceAll("\\$", "\\\\\\$")).appendTo(anchor);
         compoundLineLink(anchor, element);
         anchor.append("<br>");
       }
     }
     else {
-      anchor.append("<font style=\"font-family:verdana; font-weight:bold; color:#FF0000\";>");
-      anchor.append(InspectionsBundle.message("inspection.export.results.invalidated.item"));
-      anchor.append("</font>");
+      HtmlChunk.tag("font")
+        .style("font-family:verdana; font-weight:bold; color:#FF0000")
+        .addText(PropertiesBundle.message("inspection.export.results.invalidated.item")).appendTo(anchor);
     }
   }
 
@@ -90,14 +92,10 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
       if (vFile != null) {
         Document doc = FileDocumentManager.getInstance().getDocument(vFile);
         final int lineNumber = doc.getLineNumber(psiElement.getTextOffset()) + 1;
-        lineAnchor.append(" ").append(InspectionsBundle.message("inspection.export.results.at.line")).append(" ");
-        lineAnchor.append("<a HREF=\"");
+        lineAnchor.append(" ").append(AnalysisBundle.message("inspection.export.results.at.line")).append(" ");
         int offset = doc.getLineStartOffset(lineNumber - 1);
         offset = CharArrayUtil.shiftForward(doc.getCharsSequence(), offset, " \t");
-        lineAnchor.append(vFile.getUrl()).append("#").append(offset);
-        lineAnchor.append("\">");
-        lineAnchor.append(lineNumber);
-        lineAnchor.append("</a>");
+        HtmlChunk.link(vFile.getUrl() + "#" + offset, String.valueOf(lineNumber)).appendTo(lineAnchor);
       }
     }
   }
@@ -114,11 +112,11 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
     final List<IProperty> properties = propertiesFile.getProperties();
     Module module = ModuleUtilCore.findModuleForPsiElement(file);
     if (module == null) return;
-    final GlobalSearchScope scope = CURRENT_FILE
+    final GlobalSearchScope scope = GlobalSearchScope.getScopeRestrictedByFileTypes(CURRENT_FILE
                                     ? GlobalSearchScope.fileScope(file)
                                     : MODULE_WITH_DEPENDENCIES
                                       ? GlobalSearchScope.moduleWithDependenciesScope(module)
-                                      : GlobalSearchScope.projectScope(file.getProject());
+                                      : GlobalSearchScope.projectScope(file.getProject()), PropertiesFileType.INSTANCE);
     final Map<String, Set<PsiFile>> processedValueToFiles = Collections.synchronizedMap(new HashMap<>());
     final Map<String, Set<PsiFile>> processedKeyToFiles = Collections.synchronizedMap(new HashMap<>());
     final ProgressIndicator original = ProgressManager.getInstance().getProgressIndicator();
@@ -177,13 +175,14 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
                                                    final ProgressIndicator progress) {
     for (final String value : valueToFiles.keySet()) {
       if (progress != null){
-        progress.setText2(InspectionsBundle.message("duplicate.property.value.progress.indicator.text", value));
+        progress.setText2(PropertiesBundle.message("duplicate.property.value.progress.indicator.text", value));
         progress.checkCanceled();
       }
       if (value.length() == 0) continue;
       StringSearcher searcher = new StringSearcher(value, true, true);
-      StringBuilder message = new StringBuilder();
+      @Nls StringBuilder message = new StringBuilder();
       final int[] duplicatesCount = {0};
+      Property[] propertyInCurrentFile = new Property[1];
       Set<PsiFile> psiFilesWithDuplicates = valueToFiles.get(value);
       for (final PsiFile file : psiFilesWithDuplicates) {
         CharSequence text = file.getViewProvider().getContents();
@@ -191,19 +190,23 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
           PsiElement element = file.findElementAt(offset);
           if (element != null && element.getParent() instanceof Property) {
             final Property property = (Property)element.getParent();
-            if (Comparing.equal(property.getValue(), value) && element.getStartOffsetInParent() != 0) {
+            if (Objects.equals(property.getValue(), value) && element.getStartOffsetInParent() != 0) {
               if (duplicatesCount[0] == 0){
-                message.append(InspectionsBundle.message("duplicate.property.value.problem.descriptor", property.getValue()));
+                message.append(PropertiesBundle.message("duplicate.property.value.problem.descriptor", property.getValue()));
               }
               surroundWithHref(message, element, true);
               duplicatesCount[0]++;
+              if (propertyInCurrentFile[0] == null && psiFile == file) {
+                propertyInCurrentFile[0] = property;
+              }
             }
           }
           return true;
         });
       }
       if (duplicatesCount[0] > 1) {
-        problemDescriptors.add(manager.createProblemDescriptor(psiFile, message.toString(), false, null, ProblemHighlightType.GENERIC_ERROR_OR_WARNING));
+        PsiElement elementToHighlight = ObjectUtils.notNull(propertyInCurrentFile[0], psiFile);
+        problemDescriptors.add(manager.createProblemDescriptor(elementToHighlight, message.toString(), false, null, ProblemHighlightType.GENERIC_ERROR_OR_WARNING));
       }
     }
 
@@ -218,11 +221,12 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
                                           final ProgressIndicator progress) {
     for (String key : keyToFiles.keySet()) {
       if (progress!= null){
-        progress.setText2(InspectionsBundle.message("duplicate.property.key.progress.indicator.text", key));
+        progress.setText2(PropertiesBundle.message("duplicate.property.key.progress.indicator.text", key));
         ProgressIndicatorUtils.checkCancelledEvenWithPCEDisabled(progress);
       }
-      StringBuilder message = new StringBuilder();
+      @Nls StringBuilder message = new StringBuilder();
       int duplicatesCount = 0;
+      PsiElement propertyInCurrentFile = null;
       Set<PsiFile> psiFilesWithDuplicates = keyToFiles.get(key);
       for (PsiFile file : psiFilesWithDuplicates) {
         if (!(file instanceof PropertiesFile)) continue;
@@ -230,7 +234,7 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
         final List<IProperty> propertiesByKey = propertiesFile.findPropertiesByKey(key);
         for (IProperty property : propertiesByKey) {
           if (duplicatesCount == 0){
-            message.append(InspectionsBundle.message("duplicate.property.key.problem.descriptor", key));
+            message.append(PropertiesBundle.message("duplicate.property.key.problem.descriptor", key));
           }
           surroundWithHref(message, property.getPsiElement().getFirstChild(), false);
           duplicatesCount ++;
@@ -241,10 +245,13 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
             keyToValues.put(key, values);
           }
           values.add(property.getValue());
+          if (propertyInCurrentFile == null && file == psiFile) {
+            propertyInCurrentFile = property.getPsiElement();
+          }
         }
       }
       if (duplicatesCount > 1 && CHECK_DUPLICATE_KEYS) {
-        problemDescriptors.add(manager.createProblemDescriptor(psiFile, message.toString(), false, null, ProblemHighlightType.GENERIC_ERROR_OR_WARNING));
+        problemDescriptors.add(manager.createProblemDescriptor(ObjectUtils.notNull(propertyInCurrentFile, psiFile), message.toString(), false, null, ProblemHighlightType.GENERIC_ERROR_OR_WARNING));
       }
     }
 
@@ -259,14 +266,14 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
                                                               final ProgressIndicator progress) {
     for (String key : keyToDifferentValues.keySet()) {
       if (progress != null) {
-        progress.setText2(InspectionsBundle.message("duplicate.property.diff.key.progress.indicator.text", key));
+        progress.setText2(PropertiesBundle.message("duplicate.property.diff.key.progress.indicator.text", key));
         ProgressIndicatorUtils.checkCancelledEvenWithPCEDisabled(progress);
       }
       final Set<String> values = keyToDifferentValues.get(key);
       if (values == null || values.size() < 2){
         keyToFiles.remove(key);
       } else {
-        StringBuilder message = new StringBuilder();
+        @Nls StringBuilder message = new StringBuilder();
         final Set<PsiFile> psiFiles = keyToFiles.get(key);
         boolean firstUsage = true;
         for (PsiFile file : psiFiles) {
@@ -275,7 +282,7 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
           final List<IProperty> propertiesByKey = propertiesFile.findPropertiesByKey(key);
           for (IProperty property : propertiesByKey) {
             if (firstUsage){
-              message.append(InspectionsBundle.message("duplicate.property.diff.key.problem.descriptor", key));
+              message.append(PropertiesBundle.message("duplicate.property.diff.key.problem.descriptor", key));
               firstUsage = false;
             }
             surroundWithHref(message, property.getPsiElement().getFirstChild(), false);
@@ -292,7 +299,7 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
                                         final Set<? super PsiFile> resultFiles) {
     final List<String> words = StringUtil.getWordsIn(stringToFind);
     if (words.isEmpty()) return;
-    Collections.sort(words, (o1, o2) -> o2.length() - o1.length());
+    words.sort((o1, o2) -> o2.length() - o1.length());
     for (String word : words) {
       final Set<PsiFile> files = new THashSet<>();
       searchHelper.processAllFilesWithWord(word, scope, Processors.cancelableCollectProcessor(files), true);
@@ -304,12 +311,6 @@ public class DuplicatePropertyInspection extends GlobalSimpleInspectionTool {
       }
       if (resultFiles.isEmpty()) return;
     }
-  }
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionsBundle.message("duplicate.property.display.name");
   }
 
   @Override

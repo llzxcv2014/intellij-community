@@ -12,6 +12,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.locks.ReentrantLock;
 
 class FileAdapter {
@@ -67,8 +68,12 @@ class FileAdapter {
     return vFile.getCharset().name();
   }
 
-  // TODO: 22.01.19 cashedFileSize is not the best solving of race condition, but it's better than "synchronized" in performance. Probably it's still need to be done in another way.
   long getPagesAmount() throws IOException {
+    return (getFileSize() + pageSize - 1) / pageSize;
+  }
+
+  // TODO: 22.01.19 cashedFileSize is not the best solving of race condition, but it's better than "synchronized" in performance. Probably it's still need to be done in another way.
+  long getFileSize() throws IOException {
     if (randomAccessFileLock.isHeldByCurrentThread()) {
       cashedFileSize = randomAccessFile.length();
     }
@@ -93,8 +98,7 @@ class FileAdapter {
         }
       }
     }
-
-    return (cashedFileSize + pageSize - 1) / pageSize;
+    return cashedFileSize;
   }
 
   int getPageSize() {
@@ -112,16 +116,15 @@ class FileAdapter {
 
   /**
    * @param pageNumber - page number
-   * @return text of the page
+   * @return text of the page if page exists or null if page doesn't
    * @throws NullPointerException - when access to physical file was not established
    */
-  @NotNull
   String getPageText(long pageNumber) throws IOException {
     randomAccessFileLock.lock();
     try {
       long pagesAmount = getPagesAmount();
       if (pageNumber < 0 || pageNumber >= pagesAmount) {
-        throw new IllegalArgumentException("pageNumber=" + pageNumber + ", pagesAmount=" + pagesAmount);
+        return null;
       }
 
       long minProbStartPos;
@@ -194,7 +197,7 @@ class FileAdapter {
 
     if (substringLength != -1) {
       int substringLengthInBytes;
-      if (charset.equals(CharsetToolkit.UTF_16_CHARSET)) {
+      if (charset.equals(StandardCharsets.UTF_16)) {
         substringLengthInBytes = text1.substring(0, substringLength).getBytes(CharsetToolkit.UTF_16BE_CHARSET).length;
       }
       else {
@@ -213,7 +216,7 @@ class FileAdapter {
     if (charset.compareTo(CharsetToolkit.UTF8_CHARSET) == 0) {
       return findNextSymbolBeginningOffsetFrom_UTF8(numberOfStartByte, randomAccessFile);
     }
-    else if (charset.compareTo(CharsetToolkit.UTF_16_CHARSET) == 0
+    else if (charset.compareTo(StandardCharsets.UTF_16) == 0
              || charset.compareTo(CharsetToolkit.UTF_16BE_CHARSET) == 0
              || charset.compareTo(CharsetToolkit.UTF_16LE_CHARSET) == 0) {
       return findNextSymbolBeginningOffsetFrom_UTF16(numberOfStartByte, randomAccessFile, charset);
@@ -269,7 +272,7 @@ class FileAdapter {
     long offset = numberOfStartByte % 2;
 
     // taking the HIGH byte of the word
-    if (charset.compareTo(CharsetToolkit.UTF_16_CHARSET) == 0 || charset.compareTo(CharsetToolkit.UTF_16BE_CHARSET) == 0) {
+    if (charset.compareTo(StandardCharsets.UTF_16) == 0 || charset.compareTo(CharsetToolkit.UTF_16BE_CHARSET) == 0) {
       randomAccessFile.seek(numberOfStartByte + offset);
     }
     else {

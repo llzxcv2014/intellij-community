@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
 import com.intellij.icons.AllIcons;
@@ -6,13 +6,14 @@ import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.markup.EffectType;
 import com.intellij.openapi.editor.markup.TextAttributes;
+import com.intellij.openapi.util.NlsContexts.LinkLabel;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.PlatformColors;
 import com.intellij.util.ui.StartupUiUtil;
 import com.intellij.util.ui.UIUtil;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.*;
 
 import javax.accessibility.AccessibleAction;
 import javax.accessibility.AccessibleContext;
@@ -40,6 +41,9 @@ public class HyperlinkLabel extends HighlightableComponent {
 
   private static final Logger LOG = Logger.getInstance(HyperlinkLabel.class.getName());
 
+  private static final String startTag = "<hyperlink>";
+  private static final String finishTag = "</hyperlink>";
+
   private UIUtil.FontSize myFontSize;
   private HighlightedText myHighlightedText;
   private final List<HyperlinkListener> myListeners = ContainerUtil.createLockFreeCopyOnWriteList();
@@ -54,15 +58,15 @@ public class HyperlinkLabel extends HighlightableComponent {
     this("");
   }
 
-  public HyperlinkLabel(String text) {
+  public HyperlinkLabel(@LinkLabel String text) {
     this(text, UIUtil.getLabelBackground());
   }
 
-  public HyperlinkLabel(String text, Color background) {
+  public HyperlinkLabel(@LinkLabel String text, Color background) {
     this(text, PlatformColors.BLUE, background, PlatformColors.BLUE);
   }
 
-  public HyperlinkLabel(String text, final Color textForegroundColor, final Color textBackgroundColor, final Color textEffectColor) {
+  public HyperlinkLabel(@LinkLabel String text, final Color textForegroundColor, final Color textBackgroundColor, final Color textEffectColor) {
     myAnchorAttributes = StartupUiUtil.isUnderDarcula() || UIUtil.isUnderIntelliJLaF() ?
                          new CustomTextAttributes(textBackgroundColor) :
                          new TextAttributes(textForegroundColor, textBackgroundColor, textEffectColor, EffectType.LINE_UNDERSCORE, Font.PLAIN);
@@ -83,11 +87,42 @@ public class HyperlinkLabel extends HighlightableComponent {
     myFontSize = fontSize;
   }
 
-  public void setHyperlinkText(String text) {
-    setHyperlinkText("", text, "");
+  public void setHyperlinkText(@LinkLabel String text) {
+    doSetHyperLinkText("", text, "");
   }
 
-  public void setHyperlinkText(String beforeLinkText, String linkText, String afterLinkText) {
+  /**
+   * @deprecated please use {@link HyperlinkLabel#setTextWithHyperlink(String) with "beforeLinkText<hyperlink>linkText</hyperlink>" instead}
+   */
+  @Deprecated()
+  public void setHyperlinkText(@LinkLabel String beforeLinkText, @LinkLabel String linkText, @LinkLabel String afterLinkText) {
+    doSetHyperLinkText(beforeLinkText, linkText, afterLinkText);
+  }
+
+  @ApiStatus.Experimental
+  public void setTextWithHyperlink(@NotNull @LinkLabel String text) {
+    int startTagOffset = text.indexOf(startTag);
+    if (startTagOffset == -1){
+      LOG.error("Text \"" + text + "\" doesn't contain <hyperlink> tag");
+      return;
+    }
+
+    int finishTagOffset = text.indexOf(finishTag);
+    if (finishTagOffset == -1) {
+      LOG.error("Text \"" + text + "\" doesn't contain </hyperlink> tag");
+      return;
+    }
+
+    String beforeLinkText = StringUtil.unescapeXmlEntities(text.substring(0, startTagOffset));
+    String linkText = StringUtil.unescapeXmlEntities(text.substring(startTagOffset + startTag.length(), finishTagOffset));
+    String afterLinkText = StringUtil.unescapeXmlEntities(text.substring(finishTagOffset + finishTag.length()));
+
+    doSetHyperLinkText(beforeLinkText, linkText, afterLinkText);
+  }
+
+  private void doSetHyperLinkText(@NotNull @LinkLabel String beforeLinkText,
+                                  @NotNull @LinkLabel String linkText,
+                                  @NotNull @LinkLabel String afterLinkText) {
     myUseIconAsLink = beforeLinkText.isEmpty();
     prepareText(beforeLinkText, linkText, afterLinkText);
   }
@@ -155,7 +190,7 @@ public class HyperlinkLabel extends HighlightableComponent {
     return region != null && region.textAttributes == myAnchorAttributes;
   }
 
-  private void prepareText(String beforeLinkText, String linkText, String afterLinkText) {
+  private void prepareText(@Nls String beforeLinkText, @Nls String linkText, @Nls String afterLinkText) {
     applyFont();
     myHighlightedText = new HighlightedText();
     myHighlightedText.appendText(beforeLinkText, null);
@@ -166,14 +201,14 @@ public class HyperlinkLabel extends HighlightableComponent {
   }
 
   @Override
-  public void setText(@Nullable String text) {
+  public void setText(@Nullable @Nls String text) {
     applyFont();
     myUseIconAsLink = false;
     super.setText(text);
     updateOnTextChange();
   }
 
-  public void setHyperlinkTarget(@Nullable final String url) {
+  public void setHyperlinkTarget(@NonNls @Nullable final String url) {
     if (myHyperlinkListener != null) {
       removeHyperlinkListener(myHyperlinkListener);
     }
@@ -194,7 +229,7 @@ public class HyperlinkLabel extends HighlightableComponent {
   }
 
   @NotNull
-  public String getText() {
+  public @LinkLabel String getText() {
     return myHighlightedText.getText();
   }
 
@@ -209,7 +244,7 @@ public class HyperlinkLabel extends HighlightableComponent {
     fireHyperlinkEvent(null);
   }
 
-  public void setHtmlText(String text) {
+  public void setHtmlText(@LinkLabel String text) {
     HTMLEditorKit.Parser parse = new ParserDelegator();
     final HighlightedText highlightedText = new HighlightedText();
     try {
@@ -317,7 +352,7 @@ public class HyperlinkLabel extends HighlightableComponent {
     }
   }
 
-  private class CustomTextAttributes extends TextAttributes {
+  private final class CustomTextAttributes extends TextAttributes {
     private CustomTextAttributes(Color textBackgroundColor) {
       super(null, textBackgroundColor, null, null, Font.PLAIN);
     }

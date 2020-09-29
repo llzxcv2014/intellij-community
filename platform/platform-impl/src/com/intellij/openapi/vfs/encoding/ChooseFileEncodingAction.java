@@ -1,20 +1,20 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.openapi.vfs.encoding;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.IdeBundle;
+import com.intellij.ide.lightEdit.LightEditCompatible;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.actionSystem.ex.ComboBoxAction;
 import com.intellij.openapi.fileEditor.impl.LoadTextUtil;
 import com.intellij.openapi.project.DumbAwareAction;
-import com.intellij.openapi.util.NotNullLazyValue;
-import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.VolatileNotNullLazyValue;
+import com.intellij.openapi.util.*;
 import com.intellij.openapi.vfs.CharsetToolkit;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.ui.IconDeferrer;
+import com.intellij.ui.IconManager;
 import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.Function;
 import com.intellij.util.ui.EmptyIcon;
@@ -42,11 +42,11 @@ public abstract class ChooseFileEncodingAction extends ComboBoxAction {
   public abstract void update(@NotNull final AnActionEvent e);
 
   private void fillCharsetActions(@NotNull DefaultActionGroup group,
-                                  @Nullable final VirtualFile virtualFile,
+                                  @Nullable VirtualFile virtualFile,
                                   @NotNull List<? extends Charset> charsets,
-                                  @NotNull final Function<? super Charset, String> charsetFilter) {
+                                  @NotNull Function<? super Charset, @NlsActions.ActionDescription String> descriptionSupplier) {
     for (final Charset charset : charsets) {
-      AnAction action = new DumbAwareAction(charset.displayName(), null, EmptyIcon.ICON_16) {
+      AnAction action = new CharsetAction(charset.displayName(), null, EmptyIcon.ICON_16) {
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
           chosen(virtualFile, charset);
@@ -55,7 +55,7 @@ public abstract class ChooseFileEncodingAction extends ComboBoxAction {
         @Override
         public void update(@NotNull AnActionEvent e) {
           super.update(e);
-          String description = charsetFilter.fun(charset);
+          String description = descriptionSupplier.fun(charset);
           Icon defer;
           if (virtualFile == null || virtualFile.isDirectory()) {
             defer = null;
@@ -70,14 +70,17 @@ public abstract class ChooseFileEncodingAction extends ComboBoxAction {
                 return ArrayUtilRt.EMPTY_BYTE_ARRAY;
               }
             });
-            defer = IconDeferrer.getInstance().defer(null, Pair.create(virtualFile, charset), pair -> {
+            defer = IconManager.getInstance().createDeferredIcon(null, new Pair<>(virtualFile, charset), pair -> {
               VirtualFile myFile = pair.getFirst();
               Charset charset = pair.getSecond();
               CharSequence text = myText.getValue();
               byte[] bytes = myBytes.getValue();
               EncodingUtil.Magic8 safeToReload = EncodingUtil.isSafeToReloadIn(myFile, text, bytes, charset);
-              EncodingUtil.Magic8 safeToConvert = EncodingUtil.Magic8.ABSOLUTELY;
-              if (safeToReload != EncodingUtil.Magic8.ABSOLUTELY) {
+              EncodingUtil.Magic8 safeToConvert;
+              if (safeToReload == EncodingUtil.Magic8.ABSOLUTELY) {
+                safeToConvert = EncodingUtil.Magic8.ABSOLUTELY;
+              }
+              else {
                 safeToConvert = EncodingUtil.isSafeToConvertTo(myFile, text, bytes, charset);
               }
               return safeToReload == EncodingUtil.Magic8.ABSOLUTELY || safeToConvert == EncodingUtil.Magic8.ABSOLUTELY ? null :
@@ -112,9 +115,9 @@ public abstract class ChooseFileEncodingAction extends ComboBoxAction {
   protected abstract void chosen(@Nullable VirtualFile virtualFile, @NotNull Charset charset);
 
   @NotNull
-  protected DefaultActionGroup createCharsetsActionGroup(@Nullable String clearItemText,
+  protected DefaultActionGroup createCharsetsActionGroup(@Nullable @NlsActions.ActionText String clearItemText,
                                                          @Nullable Charset alreadySelected,
-                                                         @NotNull Function<? super Charset, String> charsetFilter) {
+                                                         @NotNull Function<? super Charset, @NlsActions.ActionDescription String> descriptionSupplier) {
     DefaultActionGroup group = new DefaultActionGroup();
     List<Charset> favorites = new ArrayList<>(EncodingManager.getInstance().getFavorites());
     Collections.sort(favorites);
@@ -123,7 +126,9 @@ public abstract class ChooseFileEncodingAction extends ComboBoxAction {
     favorites.remove(alreadySelected);
 
     if (clearItemText != null) {
-      String description = "Clear " + (myVirtualFile == null ? "default" : "file '" + myVirtualFile.getName() + "'") + " encoding.";
+      String description = myVirtualFile == null
+                           ? IdeBundle.message("action.clear.encoding.description")
+                           : IdeBundle.message("action.clear.encoding.description.file", myVirtualFile.getName());
       group.add(new DumbAwareAction(clearItemText, description, null) {
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
@@ -132,15 +137,21 @@ public abstract class ChooseFileEncodingAction extends ComboBoxAction {
       });
     }
     if (favorites.isEmpty() && clearItemText == null) {
-      fillCharsetActions(group, myVirtualFile, Arrays.asList(CharsetToolkit.getAvailableCharsets()), charsetFilter);
+      fillCharsetActions(group, myVirtualFile, Arrays.asList(CharsetToolkit.getAvailableCharsets()), descriptionSupplier);
     }
     else {
-      fillCharsetActions(group, myVirtualFile, favorites, charsetFilter);
+      fillCharsetActions(group, myVirtualFile, favorites, descriptionSupplier);
 
-      DefaultActionGroup more = new DefaultActionGroup("more", true);
+      DefaultActionGroup more = DefaultActionGroup.createPopupGroup(() -> IdeBundle.message("action.text.more"));
       group.add(more);
-      fillCharsetActions(more, myVirtualFile, Arrays.asList(CharsetToolkit.getAvailableCharsets()), charsetFilter);
+      fillCharsetActions(more, myVirtualFile, Arrays.asList(CharsetToolkit.getAvailableCharsets()), descriptionSupplier);
     }
     return group;
+  }
+
+  private abstract static class CharsetAction extends DumbAwareAction implements LightEditCompatible {
+    CharsetAction(@NlsSafe String name, @NlsActions.ActionDescription String description, Icon icon) {
+      super(name, description, icon);
+    }
   }
 }

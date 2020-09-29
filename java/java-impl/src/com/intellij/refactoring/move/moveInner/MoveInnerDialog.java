@@ -1,6 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.move.moveInner;
 
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.JavaProjectRootsUtil;
@@ -14,7 +15,6 @@ import com.intellij.psi.codeStyle.SuggestedNameInfo;
 import com.intellij.psi.codeStyle.VariableKind;
 import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.refactoring.HelpID;
-import com.intellij.refactoring.JavaRefactoringSettings;
 import com.intellij.refactoring.PackageWrapper;
 import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.move.MoveDialogBase;
@@ -33,15 +33,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public class MoveInnerDialog extends MoveDialogBase {
-  private final Project myProject;
   private final PsiClass myInnerClass;
   private final PsiElement myTargetContainer;
   private final MoveInnerProcessor myProcessor;
@@ -56,35 +55,27 @@ public class MoveInnerDialog extends MoveDialogBase {
   private JLabel myPackageNameLabel;
   private JLabel myClassNameLabel;
   private JLabel myParameterNameLabel;
-  private JPanel myOpenInEditorPanel;
   private SuggestedNameInfo mySuggestedNameInfo;
   private final PsiClass myOuterClass;
 
   @NonNls private static final String RECENTS_KEY = "MoveInnerDialog.RECENTS_KEY";
 
   @Override
-  protected String getMovePropertySuffix() {
-    return "Inner";
-  }
-
-  @Override
-  protected String getCbTitle() {
-    return "Open moved member in editor";
+  protected @NotNull String getRefactoringId() {
+    return "MoveInner";
   }
 
   public MoveInnerDialog(Project project, PsiClass innerClass, MoveInnerProcessor processor, final PsiElement targetContainer) {
-    super(project, true);
-    myProject = project;
+    super(project, true, true);
     myInnerClass = innerClass;
     myTargetContainer = targetContainer;
     myOuterClass = myInnerClass.getContainingClass();
     myProcessor = processor;
-    setTitle(MoveInnerImpl.REFACTORING_NAME);
+    setTitle(MoveInnerImpl.getRefactoringName());
     init();
     myPackageNameLabel.setLabelFor(myPackageNameField.getChildComponent());
     myClassNameLabel.setLabelFor(myClassNameField);
     myParameterNameLabel.setLabelFor(myParameterField);
-    myOpenInEditorPanel.add(initOpenInEditorCb(), BorderLayout.EAST);
   }
 
   public boolean isSearchInComments() {
@@ -198,7 +189,7 @@ public class MoveInnerDialog extends MoveDialogBase {
       PsiPackage oldPackage = getTargetPackage();
       String name = oldPackage == null ? "" : oldPackage.getQualifiedName();
       final String targetName = getPackageName();
-      if (!Comparing.equal(name, targetName)) {
+      if (!Objects.equals(name, targetName)) {
         final ProjectRootManager projectRootManager = ProjectRootManager.getInstance(myProject);
         final List<VirtualFile> contentSourceRoots = JavaProjectRootsUtil.getSuitableDestinationSourceRoots(myProject);
         final PackageWrapper newPackage = new PackageWrapper(PsiManager.getInstance(myProject), targetName);
@@ -247,7 +238,7 @@ public class MoveInnerDialog extends MoveDialogBase {
     final String parameterName = getParameterName();
     PsiManager manager = PsiManager.getInstance(myProject);
     if (className.isEmpty()) {
-      message = RefactoringBundle.message("no.class.name.specified");
+      message = JavaRefactoringBundle.message("no.class.name.specified");
     }
     else {
       if (!PsiNameHelper.getInstance(manager.getProject()).isIdentifier(className)) {
@@ -256,7 +247,7 @@ public class MoveInnerDialog extends MoveDialogBase {
       else {
         if (myCbPassOuterClass.isSelected()) {
           if (parameterName != null && parameterName.isEmpty()) {
-            message = RefactoringBundle.message("no.parameter.name.specified");
+            message = JavaRefactoringBundle.message("no.parameter.name.specified");
           }
           else {
             if (!PsiNameHelper.getInstance(manager.getProject()).isIdentifier(parameterName)) {
@@ -270,7 +261,7 @@ public class MoveInnerDialog extends MoveDialogBase {
             PsiClass[] classes = targetClass.getInnerClasses();
             for (PsiClass aClass : classes) {
               if (className.equals(aClass.getName())) {
-                message = RefactoringBundle.message("inner.class.exists", className, targetClass.getName());
+                message = JavaRefactoringBundle.message("inner.class.exists", className, targetClass.getName());
                 break;
               }
             }
@@ -304,7 +295,7 @@ public class MoveInnerDialog extends MoveDialogBase {
 
     if (message != null) {
       CommonRefactoringUtil.showErrorMessage(
-        MoveInnerImpl.REFACTORING_NAME,
+        MoveInnerImpl.getRefactoringName(),
         message,
         HelpID.MOVE_INNER_UPPER,
         myProject);
@@ -316,7 +307,6 @@ public class MoveInnerDialog extends MoveDialogBase {
                       isSearchInComments(), isSearchInNonJavaFiles(), target);
 
     final boolean openInEditor = isOpenInEditor();
-    saveOpenInEditorOption();
     myProcessor.setOpenInEditor(openInEditor);
     invokeRefactoring(myProcessor);
   }

@@ -29,12 +29,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class AssertWithSideEffectsInspection extends BaseInspection {
-  @Override
-  @Nls
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("assert.with.side.effects.display.name");
-  }
 
   @Override
   @NotNull
@@ -72,9 +66,9 @@ public class AssertWithSideEffectsInspection extends BaseInspection {
   }
 
   private static class SideEffectVisitor extends JavaRecursiveElementWalkingVisitor {
-    private String sideEffectDescription;
+    private @Nls String sideEffectDescription;
 
-    private String getSideEffectDescription() {
+    private @Nls String getSideEffectDescription() {
       return sideEffectDescription;
     }
 
@@ -105,8 +99,7 @@ public class AssertWithSideEffectsInspection extends BaseInspection {
     }
   }
 
-  @Nullable
-  private static String getCallSideEffectDescription(PsiMethodCallExpression call) {
+  private static @Nullable @Nls String getCallSideEffectDescription(PsiMethodCallExpression call) {
     PsiMethod method = call.resolveMethod();
     if (method == null) return null;
     if (JavaMethodContractUtil.isPure(method)) return null;
@@ -115,7 +108,7 @@ public class AssertWithSideEffectsInspection extends BaseInspection {
       PsiExpression expression =
         signature.mutatedExpressions(call).filter(expr -> !ExpressionUtils.isNewObject(expr)).findFirst().orElse(null);
       if (expression != null) {
-        return "call to '" + method.getName() + "()' mutates '" + expression.getText() + "'";
+        return InspectionGadgetsBundle.message("assert.with.side.effects.call.mutates.expression", method.getName(), expression.getText());
       }
     }
     final PsiCodeBlock body = method.getBody();
@@ -126,7 +119,7 @@ public class AssertWithSideEffectsInspection extends BaseInspection {
     body.accept(visitor);
     String description = visitor.getMutatedField();
     if (description != null) {
-      return "call to '" + method.getName() + "()' mutates field '" + description + "'";
+      return InspectionGadgetsBundle.message("assert.with.side.effects.call.mutates.field", method.getName(), description);
     }
     return null;
   }

@@ -34,8 +34,7 @@ public class ClsParameterListImpl extends ClsRepositoryPsiElement<PsiParameterLi
   }
 
   @Override
-  @NotNull
-  public PsiParameter[] getParameters() {
+  public PsiParameter @NotNull [] getParameters() {
     return getStub().getChildrenByType(JavaStubElementTypes.PARAMETER, PsiParameter.ARRAY_FACTORY);
   }
 
@@ -76,6 +75,13 @@ public class ClsParameterListImpl extends ClsRepositoryPsiElement<PsiParameterLi
       appendText(parameters[i], indentLevel, buffer);
     }
     buffer.append(')');
+  }
+
+  @Override
+  public String getText() {
+    StringBuilder builder = new StringBuilder();
+    appendMirrorText(0, builder);
+    return builder.toString();
   }
 
   @Override

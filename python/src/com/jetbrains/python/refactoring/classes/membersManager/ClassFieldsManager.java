@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.refactoring.classes.membersManager;
 
 import com.google.common.collect.FluentIterable;
@@ -45,7 +31,7 @@ class ClassFieldsManager extends FieldsManager {
   @Override
   protected Collection<PyElement> moveAssignments(@NotNull final PyClass from,
                                                   @NotNull final Collection<PyAssignmentStatement> statements,
-                                                  @NotNull final PyClass... to) {
+                                                  final PyClass @NotNull ... to) {
     return moveAssignmentsImpl(from, statements, to);
   }
 
@@ -58,7 +44,7 @@ class ClassFieldsManager extends FieldsManager {
    */
   static Collection<PyElement> moveAssignmentsImpl(@NotNull final PyClass from,
                                                    @NotNull final Collection<? extends PyAssignmentStatement> statements,
-                                                   @NotNull final PyClass... to) {
+                                                   final PyClass @NotNull ... to) {
     //TODO: Copy/paste with InstanceFieldsManager. Move to parent?
     final Collection<PyElement> result = new ArrayList<>();
     for (final PyClass destClass : to) {
@@ -83,7 +69,7 @@ class ClassFieldsManager extends FieldsManager {
    * Exclude "__metaclass__" field and properties (there should be separate managers for them)
    * TODO: Check type and filter out any builtin element instead?
    */
-  private static class NoMetaAndProperties extends NotNullPredicate<PyTargetExpression> {
+  private static final class NoMetaAndProperties extends NotNullPredicate<PyTargetExpression> {
     @NotNull
     private final PyClass myClass;
 

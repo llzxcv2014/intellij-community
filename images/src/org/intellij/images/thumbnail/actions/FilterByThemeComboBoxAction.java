@@ -16,11 +16,13 @@
 
 package org.intellij.images.thumbnail.actions;
 
+import com.intellij.CommonBundle;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.actionSystem.ex.ComboBoxAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.intellij.images.ImagesBundle;
 import org.intellij.images.thumbnail.ThumbnailView;
 import org.intellij.images.thumbnail.actionSystem.ThumbnailViewActionUtil;
 import org.jetbrains.annotations.NotNull;
@@ -39,7 +41,7 @@ public final class FilterByThemeComboBoxAction extends ComboBoxAction {
             .allMatch(filter -> project != null && filter.isApplicableToProject(project));
         e.getPresentation().setVisible(view != null && hasApplicableExtension);
         ThemeFilter filter = view != null ? view.getFilter() : null;
-        e.getPresentation().setText(filter == null ? "All" : filter.getDisplayName());
+        e.getPresentation().setText(filter == null ? CommonBundle.message("action.text.all") : filter.getDisplayName());
     }
 
     @NotNull
@@ -49,7 +51,7 @@ public final class FilterByThemeComboBoxAction extends ComboBoxAction {
         group.add(new FilterImagesAction(new ThemeFilter() {
             @Override
             public String getDisplayName() {
-                return "All";
+                return ImagesBundle.message("action.all.text");
             }
 
             @Override

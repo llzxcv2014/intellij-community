@@ -1,8 +1,9 @@
 package com.intellij.jps.cache.client;
 
 import com.intellij.jps.cache.model.AffectedModule;
+import com.intellij.jps.cache.model.OutputLoadResult;
 import com.intellij.jps.cache.ui.SegmentedProgressIndicatorManager;
-import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -13,14 +14,14 @@ import java.util.Set;
 
 public interface JpsServerClient {
   @NotNull
-  Set<String> getAllCacheKeys();
-  @NotNull
-  Set<String> getAllBinaryKeys();
+  Map<String, Set<String>> getCacheKeysPerRemote(@NotNull Project project);
   @Nullable
   File downloadMetadataById(@NotNull String metadataId, @NotNull File targetDir);
-  Pair<Boolean, File> downloadCacheById(@NotNull SegmentedProgressIndicatorManager indicatorManager,
-                                        @NotNull String cacheId, @NotNull File targetDir);
-  Pair<Boolean, Map<File, String>> downloadCompiledModules(@NotNull SegmentedProgressIndicatorManager indicatorManager,
-                                                           @NotNull List<AffectedModule> affectedModules);
-  void uploadBinaryData(@NotNull File uploadData, @NotNull String moduleName, @NotNull String prefix);
+  File downloadCacheById(@NotNull SegmentedProgressIndicatorManager downloadIndicatorManager, @NotNull String cacheId,
+                         @NotNull File targetDir);
+  List<OutputLoadResult> downloadCompiledModules(@NotNull SegmentedProgressIndicatorManager downloadIndicatorManager,
+                                                 @NotNull List<AffectedModule> affectedModules);
+  static JpsServerClient getServerClient() {
+    return TemporaryCacheServerClient.INSTANCE;
+  }
 }

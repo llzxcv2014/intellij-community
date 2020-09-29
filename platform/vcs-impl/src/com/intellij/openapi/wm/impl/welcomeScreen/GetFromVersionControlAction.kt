@@ -2,11 +2,13 @@
 package com.intellij.openapi.wm.impl.welcomeScreen
 
 import com.intellij.icons.AllIcons
+import com.intellij.idea.ActionsBundle
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.ProjectManager
+import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.vcs.CheckoutProvider
 import com.intellij.openapi.vcs.ProjectLevelVcsManager
 import com.intellij.util.ui.cloneDialog.VcsCloneDialog
@@ -19,12 +21,19 @@ open class GetFromVersionControlAction : DumbAwareAction() {
     if (!isEnabled)
       return
     if (e.place == ActionPlaces.WELCOME_SCREEN) {
-      presentation.icon = AllIcons.Vcs.Clone
-      presentation.text = "Get from Version Control"
+      if (Registry.`is`("use.tabbed.welcome.screen")) {
+        presentation.icon = AllIcons.Welcome.FromVCSTab
+        presentation.selectedIcon = AllIcons.Welcome.FromVCSTabSelected
+        presentation.text = ActionsBundle.message("Vcs.VcsClone.Tabbed.Welcome.text")
+      }
+      else {
+        presentation.icon = AllIcons.Vcs.Branch
+        presentation.text = ActionsBundle.message("Vcs.VcsClone.Welcome.text");
+      }
     }
     else {
       presentation.icon = null
-      presentation.text = "Get from Version Control..."
+      presentation.text = ActionsBundle.message("action.Vcs.VcsClone.text")
     }
   }
 
@@ -40,7 +49,7 @@ open class GetFromVersionControlAction : DumbAwareAction() {
 class ProjectFromVersionControlAction : GetFromVersionControlAction() {
   override fun update(e: AnActionEvent) {
     super.update(e)
-    e.presentation.text = "Project from Version Control..."
+    e.presentation.text = ActionsBundle.message("Vcs.VcsClone.Project.text")
   }
 }
 

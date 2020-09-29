@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.xdebugger;
 
@@ -10,6 +10,7 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.DataKey;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.MessageType;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.xdebugger.breakpoints.XBreakpoint;
 import com.intellij.xdebugger.breakpoints.XLineBreakpoint;
 import com.intellij.xdebugger.frame.XExecutionStack;
@@ -28,8 +29,6 @@ import javax.swing.event.HyperlinkListener;
  * {@link XDebuggerManager#startSessionAndShowTab} method is called. It isn't supposed to be implemented by a plugin.
  * <p/>
  * Instance of this class can be obtained from {@link XDebugProcess#getSession()} method and used to control debugging process
- *
- * @author nik
  */
 public interface XDebugSession extends AbstractDebuggerSession {
   DataKey<XDebugSession> DATA_KEY = DataKey.create("XDebugSessionTab.XDebugSession");
@@ -150,13 +149,14 @@ public interface XDebugSession extends AbstractDebuggerSession {
 
   void removeSessionListener(@NotNull XDebugSessionListener listener);
 
-  void reportError(@NotNull String message);
+  void reportError(@NotNull @NlsContexts.NotificationContent String message);
 
-  void reportMessage(@NotNull String message, @NotNull MessageType type);
+  void reportMessage(@NotNull @NlsContexts.NotificationContent String message, @NotNull MessageType type);
 
-  void reportMessage(@NotNull String message, @NotNull MessageType type, @Nullable HyperlinkListener listener);
+  void reportMessage(@NotNull @NlsContexts.NotificationContent String message, @NotNull MessageType type, @Nullable HyperlinkListener listener);
 
   @NotNull
+  @NlsContexts.TabTitle
   String getSessionName();
 
   @NotNull

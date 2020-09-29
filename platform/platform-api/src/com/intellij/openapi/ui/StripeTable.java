@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2009 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.openapi.ui;
 
@@ -33,7 +19,6 @@ import java.awt.*;
  */
 public class StripeTable extends JBTable {
   private static final Color GRID_COLOR = Gray._217;
-  private static final CellRendererPane RENDER_PANE = new CellRendererPane();
 
   public StripeTable(TableModel model) {
     super(model);
@@ -52,25 +37,33 @@ public class StripeTable extends JBTable {
   }
 
   private static JTableHeader createTableHeader(@NotNull TableColumnModel columnModel) {
-    return new JTableHeader(columnModel) {
-      @Override
-      protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        JViewport viewport = (JViewport)table.getParent();
-        if (viewport != null && table.getWidth() < viewport.getWidth()) {
-          int x = table.getWidth();
-          int width = viewport.getWidth() - table.getWidth();
-          paintHeader(g, getTable(), x, width);
-        }
-      }
-    };
+    return new StripeTableHeader(columnModel);
   }
 
-  private static void paintHeader(Graphics g, JTable table, int x, int width) {
-    TableCellRenderer renderer = table.getTableHeader().getDefaultRenderer();
-    Component component = renderer.getTableCellRendererComponent(table, "", false, false, -1, 2);
-    component.setBounds(0, 0, width, table.getTableHeader().getHeight());
-    ((JComponent)component).setOpaque(false);
-    RENDER_PANE.paintComponent(g, component, null, x, 0, width, table.getTableHeader().getHeight(), true);
+  private static final class StripeTableHeader extends JTableHeader {
+    private final CellRendererPane myRenderPane = new CellRendererPane(); // don't make this static to avoid classloader leaks (IDEA-239761)
+
+    private StripeTableHeader(@NotNull TableColumnModel columnModel) {
+      super(columnModel);
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+      super.paintComponent(g);
+      JViewport viewport = (JViewport)table.getParent();
+      if (viewport != null && table.getWidth() < viewport.getWidth()) {
+        int x = table.getWidth();
+        int width = viewport.getWidth() - table.getWidth();
+        paintHeader(g, getTable(), x, width);
+      }
+    }
+
+    private void paintHeader(Graphics g, JTable table, int x, int width) {
+      TableCellRenderer renderer = table.getTableHeader().getDefaultRenderer();
+      Component component = renderer.getTableCellRendererComponent(table, "", false, false, -1, 2);
+      component.setBounds(0, 0, width, table.getTableHeader().getHeight());
+      ((JComponent)component).setOpaque(false);
+      myRenderPane.paintComponent(g, component, null, x, 0, width, table.getTableHeader().getHeight(), true);
+    }
   }
 }

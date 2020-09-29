@@ -1,15 +1,18 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.codeInspection.assignment;
 
 import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.SmartPsiElementPointer;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 import com.intellij.util.IncorrectOperationException;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.plugins.groovy.GroovyBundle;
 import org.jetbrains.plugins.groovy.codeInspection.GroovyFix;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElementFactory;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpression;
@@ -27,7 +30,9 @@ public class GrCastFix extends GroovyFix {
 
   @NotNull
   private final SmartPsiElementPointer<GrExpression> pointer;
+
   @NotNull
+  @IntentionName
   private final String myName;
 
   public GrCastFix(PsiType expectedType, GrExpression expression) {
@@ -35,10 +40,10 @@ public class GrCastFix extends GroovyFix {
   }
 
   public GrCastFix(PsiType expectedType, GrExpression expression, boolean safe) {
-    this(expectedType, expression, safe, "Cast to " + expectedType.getPresentableText());
+    this(expectedType, expression, safe, GroovyBundle.message("intention.name.cast.to.0", expectedType.getPresentableText()));
   }
 
-  public GrCastFix(PsiType expectedType, GrExpression expression, boolean safe, @NotNull String name) {
+  public GrCastFix(PsiType expectedType, GrExpression expression, boolean safe, @NotNull @IntentionName String name) {
     mySafe = safe;
     myName = name;
     myExpectedType = PsiImplUtil.normalizeWildcardTypeByPosition(expectedType, expression);
@@ -68,7 +73,8 @@ public class GrCastFix extends GroovyFix {
     JavaCodeStyleManager.getInstance(project).shortenClassReferences(replaced);
   }
 
-  static void doSafeCast(@NotNull Project project, @NotNull PsiType type, @NotNull GrExpression expr) {
+  @ApiStatus.Internal
+  public static void doSafeCast(@NotNull Project project, @NotNull PsiType type, @NotNull GrExpression expr) {
     if (!type.isValid()) return;
 
     final GroovyPsiElementFactory factory = GroovyPsiElementFactory.getInstance(project);
@@ -93,6 +99,6 @@ public class GrCastFix extends GroovyFix {
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Add cast";
+    return GroovyBundle.message("intention.family.name.add.cast");
   }
 }

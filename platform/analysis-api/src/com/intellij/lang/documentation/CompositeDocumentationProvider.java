@@ -1,10 +1,12 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.lang.documentation;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.TextRange;
+import com.intellij.psi.PsiDocCommentBase;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
@@ -17,8 +19,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
-public class CompositeDocumentationProvider extends DocumentationProviderEx implements ExternalDocumentationProvider, ExternalDocumentationHandler {
+public final class CompositeDocumentationProvider implements DocumentationProvider, ExternalDocumentationProvider, ExternalDocumentationHandler {
   private static final Logger LOG = Logger.getInstance(CompositeDocumentationProvider.class);
 
   private final List<DocumentationProvider> myProviders;
@@ -155,6 +158,37 @@ public class CompositeDocumentationProvider extends DocumentationProviderEx impl
   }
 
   @Override
+  public @Nullable String generateRenderedDoc(@NotNull PsiDocCommentBase comment) {
+    for (DocumentationProvider provider : getAllProviders()) {
+      String result = provider.generateRenderedDoc(comment);
+      if (result != null) {
+        LOG.debug("generateRenderedDoc: ", provider);
+        return result;
+      }
+    }
+    return null;
+  }
+
+  @Override
+  public void collectDocComments(@NotNull PsiFile file, @NotNull Consumer<? super @NotNull PsiDocCommentBase> sink) {
+    for (DocumentationProvider provider : getAllProviders()) {
+      provider.collectDocComments(file, sink);
+    }
+  }
+
+  @Override
+  public @Nullable PsiDocCommentBase findDocComment(@NotNull PsiFile file, @NotNull TextRange range) {
+    for (DocumentationProvider provider : getAllProviders()) {
+      PsiDocCommentBase result = provider.findDocComment(file, range);
+      if (result != null) {
+        LOG.debug("findDocComment: ", provider);
+        return result;
+      }
+    }
+    return null;
+  }
+
+  @Override
   public PsiElement getDocumentationElementForLookupItem(PsiManager psiManager, Object object, PsiElement element) {
     for (DocumentationProvider provider : getAllProviders()) {
       PsiElement result = provider.getDocumentationElementForLookupItem(psiManager, object, element);
@@ -191,10 +225,10 @@ public class CompositeDocumentationProvider extends DocumentationProviderEx impl
   }
 
   @Override
-  public String fetchExternalDocumentation(Project project, PsiElement element, List<String> docUrls) {
+  public String fetchExternalDocumentation(Project project, PsiElement element, List<String> docUrls, boolean onHover) {
     for (DocumentationProvider provider : getAllProviders()) {
       if (provider instanceof ExternalDocumentationProvider) {
-        final String doc = ((ExternalDocumentationProvider)provider).fetchExternalDocumentation(project, element, docUrls);
+        final String doc = ((ExternalDocumentationProvider)provider).fetchExternalDocumentation(project, element, docUrls, onHover);
         if (doc != null) {
           LOG.debug("fetchExternalDocumentation: ", provider);
           return doc;
@@ -249,14 +283,13 @@ public class CompositeDocumentationProvider extends DocumentationProviderEx impl
   @Override
   public PsiElement getCustomDocumentationElement(@NotNull Editor editor,
                                                   @NotNull PsiFile file,
-                                                  @Nullable PsiElement contextElement) {
+                                                  @Nullable PsiElement contextElement,
+                                                  int targetOffset) {
     for (DocumentationProvider provider : getAllProviders()) {
-      if (provider instanceof DocumentationProviderEx) {
-        PsiElement element = ((DocumentationProviderEx)provider).getCustomDocumentationElement(editor, file, contextElement);
-        if (element != null) {
-          LOG.debug("getCustomDocumentationElement: ", provider);
-          return element;
-        }
+      PsiElement element = provider.getCustomDocumentationElement(editor, file, contextElement, targetOffset);
+      if (element != null) {
+        LOG.debug("getCustomDocumentationElement: ", provider);
+        return element;
       }
     }
     return null;

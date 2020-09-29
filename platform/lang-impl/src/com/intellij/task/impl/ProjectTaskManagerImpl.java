@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.task.impl;
 
 import com.intellij.execution.ExecutionException;
@@ -31,6 +31,7 @@ import org.jetbrains.concurrency.Promise;
 import org.jetbrains.concurrency.Promises;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -49,8 +50,7 @@ import static java.util.stream.Collectors.groupingBy;
  * @author Vladislav.Soroka
  */
 @SuppressWarnings("deprecation")
-public class ProjectTaskManagerImpl extends ProjectTaskManager {
-
+public final class ProjectTaskManagerImpl extends ProjectTaskManager {
   private static final Logger LOG = Logger.getInstance(ProjectTaskManager.class);
   private final ProjectTaskRunner myDummyTaskRunner = new DummyTaskRunner();
   private final ProjectTaskListener myEventPublisher;
@@ -62,17 +62,17 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
   }
 
   @Override
-  public Promise<Result> build(@NotNull Module[] modules) {
+  public Promise<Result> build(Module @NotNull [] modules) {
     return run(createModulesBuildTask(modules, true, true, false));
   }
 
   @Override
-  public Promise<Result> rebuild(@NotNull Module[] modules) {
+  public Promise<Result> rebuild(Module @NotNull [] modules) {
     return run(createModulesBuildTask(modules, false, false, false));
   }
 
   @Override
-  public Promise<Result> compile(@NotNull VirtualFile[] files) {
+  public Promise<Result> compile(VirtualFile @NotNull [] files) {
     List<ModuleFilesBuildTask> buildTasks = map(
       stream(files)
         .collect(groupingBy(file -> ProjectFileIndex.SERVICE.getInstance(myProject).getModuleForFile(file, false)))
@@ -83,12 +83,12 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
   }
 
   @Override
-  public Promise<Result> build(@NotNull ProjectModelBuildableElement[] buildableElements) {
+  public Promise<Result> build(ProjectModelBuildableElement @NotNull [] buildableElements) {
     return doBuild(buildableElements, true);
   }
 
   @Override
-  public Promise<Result> rebuild(@NotNull ProjectModelBuildableElement[] buildableElements) {
+  public Promise<Result> rebuild(ProjectModelBuildableElement @NotNull [] buildableElements) {
     return doBuild(buildableElements, false);
   }
 
@@ -146,7 +146,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
 
     Consumer<Collection<? extends ProjectTask>> taskClassifier = tasks -> {
       Map<ProjectTaskRunner, ? extends List<? extends ProjectTask>> toBuild = tasks.stream().collect(
-        groupingBy(aTask -> stream(getTaskRunners())
+        groupingBy(aTask -> stream(ProjectTaskRunner.EP_NAME.getExtensions())
           .filter(runner -> {
             try {
               return runner.canRun(myProject, aTask);
@@ -169,9 +169,8 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     visitTasks(projectTask instanceof ProjectTaskList ? (ProjectTaskList)projectTask : Collections.singleton(projectTask), taskClassifier);
 
     context.putUserData(ProjectTaskScope.KEY, new ProjectTaskScope() {
-      @NotNull
       @Override
-      public <T extends ProjectTask> List<T> getRequestedTasks(@NotNull Class<T> instanceOf) {
+      public @NotNull <T extends ProjectTask> List<T> getRequestedTasks(@NotNull Class<T> instanceOf) {
         List<T> tasks = new ArrayList<>();
         //noinspection unchecked
         toRun.forEach(pair -> pair.second.stream().filter(instanceOf::isInstance).map(task -> (T)task).forEach(tasks::add));
@@ -236,9 +235,8 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     return promiseResult;
   }
 
-  @Nullable
   @ApiStatus.Experimental
-  public static <T> T waitForPromise(@NotNull Promise<T> promise) {
+  public static @Nullable <T> T waitForPromise(@NotNull Promise<T> promise) {
     while (true) {
       try {
         return promise.blockingGet(10, TimeUnit.MILLISECONDS);
@@ -252,11 +250,11 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     }
   }
 
-  @NotNull
-  private static Supplier<List<String>> moduleOutputPathsProvider(@NotNull Module module) {
+  private static @NotNull Supplier<List<String>> moduleOutputPathsProvider(@NotNull Module module) {
     return () -> ReadAction.compute(() -> {
       return JBIterable.of(OrderEnumerator.orderEntries(module).withoutSdk().withoutLibraries().getClassesRoots())
-        .filterMap(file -> file.isDirectory() && !file.getFileSystem().isReadOnly() ? file.getPath() : null).toList();
+        .filterMap(file -> file.isDirectory() && !file.getFileSystem().isReadOnly() ? file.getPath() : null)
+        .toList();
     });
   }
 
@@ -264,11 +262,11 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     myListeners.add(listener);
   }
 
-  private static void sendSuccessEmptyResult(@NotNull ProjectTaskContext context, @NotNull Consumer<Result> resultConsumer) {
+  private static void sendSuccessEmptyResult(@NotNull ProjectTaskContext context, @NotNull Consumer<? super Result> resultConsumer) {
     resultConsumer.accept(new MyResult(context, Collections.emptyMap(), false, false));
   }
 
-  private static void sendAbortedEmptyResult(@NotNull ProjectTaskContext context, @NotNull Consumer<Result> resultConsumer) {
+  private static void sendAbortedEmptyResult(@NotNull ProjectTaskContext context, @NotNull Consumer<? super Result> resultConsumer) {
     resultConsumer.accept(new MyResult(context, Collections.emptyMap(), true, false));
   }
 
@@ -293,12 +291,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     consumer.accept(tasks);
   }
 
-  @NotNull
-  private static ProjectTaskRunner[] getTaskRunners() {
-    return ProjectTaskRunner.EP_NAME.getExtensions();
-  }
-
-  private Promise<Result> doBuild(@NotNull ProjectModelBuildableElement[] buildableElements, boolean isIncrementalBuild) {
+  private Promise<Result> doBuild(ProjectModelBuildableElement @NotNull [] buildableElements, boolean isIncrementalBuild) {
     return run(createBuildTask(isIncrementalBuild, buildableElements));
   }
 
@@ -306,7 +299,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     @Override
     public Promise<Result> run(@NotNull Project project,
                                @NotNull ProjectTaskContext context,
-                               @NotNull ProjectTask... tasks) {
+                               ProjectTask @NotNull ... tasks) {
       return Promises.resolvedPromise(TaskRunnerResults.SUCCESS);
     }
 
@@ -316,8 +309,8 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     }
   }
 
-  private class ResultConsumer implements Consumer<Result> {
-    @NotNull private final AsyncPromise<Result> myPromise;
+  private final class ResultConsumer implements Consumer<Result> {
+    private final @NotNull AsyncPromise<Result> myPromise;
 
     private ResultConsumer(@NotNull AsyncPromise<Result> promise) {
       myPromise = promise;
@@ -360,14 +353,14 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     }
   }
 
-  private static class ProjectTaskResultsAggregator {
+  private static final class ProjectTaskResultsAggregator {
     private final ProjectTaskContext myContext;
     private final ResultConsumer myResultConsumer;
     private final AtomicInteger myProgressCounter;
     private final IdeActivity myActivity;
     private final AtomicBoolean myErrorsFlag;
     private final AtomicBoolean myAbortedFlag;
-    private final Map<ProjectTask, ProjectTaskState> myTasksState = ContainerUtil.newConcurrentMap();
+    private final Map<ProjectTask, ProjectTaskState> myTasksState = new ConcurrentHashMap<>();
 
     private ProjectTaskResultsAggregator(@NotNull ProjectTaskContext context,
                                          @NotNull ResultConsumer resultConsumer,
@@ -415,7 +408,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     }
   }
 
-  private static class MyResult implements Result {
+  private static final class MyResult implements Result {
     private final ProjectTaskContext myContext;
     private final boolean myAborted;
     private final boolean myErrors;
@@ -431,9 +424,8 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
       myErrors = hasErrors;
     }
 
-    @NotNull
     @Override
-    public ProjectTaskContext getContext() {
+    public @NotNull ProjectTaskContext getContext() {
       return myContext;
     }
 
@@ -458,9 +450,8 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
 
     private ResultWrapper(Result result) {myResult = result;}
 
-    @NotNull
     @Override
-    public ProjectTaskContext getContext() {
+    public @NotNull ProjectTaskContext getContext() {
       return myResult.getContext();
     }
 
@@ -533,7 +524,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
   @Override
   @ApiStatus.ScheduledForRemoval(inVersion = "2020.1")
   @Deprecated
-  public void build(@NotNull Module[] modules, @Nullable ProjectTaskNotification callback) {
+  public void build(Module @NotNull [] modules, @Nullable ProjectTaskNotification callback) {
     assertUnsupportedOperation(callback);
     notifyIfNeeded(build(modules), callback);
   }
@@ -544,7 +535,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
   @Override
   @ApiStatus.ScheduledForRemoval(inVersion = "2020.1")
   @Deprecated
-  public void rebuild(@NotNull Module[] modules, @Nullable ProjectTaskNotification callback) {
+  public void rebuild(Module @NotNull [] modules, @Nullable ProjectTaskNotification callback) {
     assertUnsupportedOperation(callback);
     notifyIfNeeded(rebuild(modules), callback);
   }
@@ -555,7 +546,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
   @Override
   @ApiStatus.ScheduledForRemoval(inVersion = "2020.1")
   @Deprecated
-  public void compile(@NotNull VirtualFile[] files, @Nullable ProjectTaskNotification callback) {
+  public void compile(VirtualFile @NotNull [] files, @Nullable ProjectTaskNotification callback) {
     assertUnsupportedOperation(callback);
     notifyIfNeeded(compile(files), callback);
   }
@@ -566,7 +557,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
   @Override
   @ApiStatus.ScheduledForRemoval(inVersion = "2020.1")
   @Deprecated
-  public void build(@NotNull ProjectModelBuildableElement[] buildableElements, @Nullable ProjectTaskNotification callback) {
+  public void build(ProjectModelBuildableElement @NotNull [] buildableElements, @Nullable ProjectTaskNotification callback) {
     assertUnsupportedOperation(callback);
     notifyIfNeeded(build(buildableElements), callback);
   }
@@ -577,7 +568,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
   @Override
   @ApiStatus.ScheduledForRemoval(inVersion = "2020.1")
   @Deprecated
-  public void rebuild(@NotNull ProjectModelBuildableElement[] buildableElements, @Nullable ProjectTaskNotification callback) {
+  public void rebuild(ProjectModelBuildableElement @NotNull [] buildableElements, @Nullable ProjectTaskNotification callback) {
     assertUnsupportedOperation(callback);
     notifyIfNeeded(rebuild(buildableElements), callback);
   }
@@ -597,7 +588,7 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     }
   }
 
-  private static class ProjectTaskNotificationAdapter implements ProjectTaskNotification {
+  private static final class ProjectTaskNotificationAdapter implements ProjectTaskNotification {
     private final AsyncPromise<Result> myPromise;
     private final ProjectTaskContext myContext;
 
@@ -609,9 +600,8 @@ public class ProjectTaskManagerImpl extends ProjectTaskManager {
     @Override
     public void finished(@NotNull ProjectTaskResult executionResult) {
       myPromise.setResult(new Result() {
-        @NotNull
         @Override
-        public ProjectTaskContext getContext() {
+        public @NotNull ProjectTaskContext getContext() {
           return myContext;
         }
 

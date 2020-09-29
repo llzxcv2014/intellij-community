@@ -19,6 +19,7 @@ import com.intellij.codeInsight.template.postfix.templates.SurroundPostfixTempla
 import com.intellij.lang.surroundWith.Surrounder;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.codeStyle.CodeStyleManager;
@@ -33,7 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class PyMainPostfixTemplate extends SurroundPostfixTemplateBase {
 
-  public static final String DESCR = "if __name__ == '__main__': expr";
+  public static final @NlsSafe String DESCR = "if __name__ == '__main__': expr";
 
   protected PyMainPostfixTemplate() {
     super("main", DESCR, PyPostfixUtils.PY_PSI_INFO, PyPostfixUtils.currentStatementSelector());
@@ -45,7 +46,7 @@ public class PyMainPostfixTemplate extends SurroundPostfixTemplateBase {
     return new PyStatementSurrounder() {
       @Nullable
       @Override
-      protected TextRange surroundStatement(@NotNull Project project, @NotNull Editor editor, @NotNull PsiElement[] elements)
+      protected TextRange surroundStatement(@NotNull Project project, @NotNull Editor editor, PsiElement @NotNull [] elements)
         throws IncorrectOperationException {
         PyIfStatement ifStatement = PyElementGenerator.getInstance(project).createFromText(LanguageLevel.forElement(elements[0]), PyIfStatement.class, "if __name__ == '__main__':\n expr");
         ifStatement = (PyIfStatement)CodeStyleManager.getInstance(project).reformat(ifStatement);
@@ -60,6 +61,7 @@ public class PyMainPostfixTemplate extends SurroundPostfixTemplateBase {
 
       @Override
       public String getTemplateDescription() {
+        //noinspection DialogTitleCapitalization
         return DESCR;
       }
     };

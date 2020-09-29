@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.tools;
 
 import com.intellij.execution.filters.RegexpFilter;
@@ -15,28 +15,27 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.keymap.MacKeymapUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.*;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.changes.RefreshablePanel;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.ui.AbstractTitledSeparatorWithIcon;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.RawCommandLineEditor;
 import com.intellij.ui.components.JBCheckBox;
+import com.intellij.ui.components.fields.ExtendableTextField;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.JBUI;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.swing.text.BadLocationException;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.List;
 
 public class ToolEditorDialog extends DialogWrapper {
@@ -54,11 +53,8 @@ public class ToolEditorDialog extends DialogWrapper {
   private ComboBox<String> myGroupCombo;
   private JTextField myDescriptionField;
   private TextFieldWithBrowseButton myProgramField;
-  private JButton myInsertCommandMacroButton;
   private RawCommandLineEditor myArgumentsField;
-  private JButton myInsertParametersMacroButton;
   private TextFieldWithBrowseButton myWorkingDirField;
-  private JButton myInsertWorkingDirectoryMacroButton;
   private JPanel myAdditionalOptionsPanel;
   private AbstractTitledSeparatorWithIcon myAdvancedOptionsSeparator;
   private JPanel myAdvancedOptionsPanel;
@@ -68,7 +64,7 @@ public class ToolEditorDialog extends DialogWrapper {
   private JBCheckBox myShowConsoleOnStdErrCheckbox;
   private RawCommandLineEditor myOutputFilterField;
 
-  protected ToolEditorDialog(JComponent parent, String title) {
+  protected ToolEditorDialog(JComponent parent, @NlsContexts.DialogTitle String title) {
     super(parent, true);
 
     myArgumentsField.setDialogCaption("Program Arguments");
@@ -137,7 +133,7 @@ public class ToolEditorDialog extends DialogWrapper {
 
     myAdvancedOptionsSeparator = new AbstractTitledSeparatorWithIcon(AllIcons.General.ArrowRight,
                                                                      AllIcons.General.ArrowDown,
-                                                                     "Advanced Options") {
+                                                                     ToolsBundle.message("dialog.separator.advanced.options")) {
       @Override
       protected RefreshablePanel createPanel() {
         return new RefreshablePanel() {
@@ -177,37 +173,13 @@ public class ToolEditorDialog extends DialogWrapper {
     };
   }
 
-  private class InsertMacroActionListener implements ActionListener {
-    private final JTextField myTextField;
-
-    InsertMacroActionListener(JTextField textField) {
-      myTextField = textField;
-    }
-
-    @Override
-    public void actionPerformed(ActionEvent e) {
-      MacrosDialog dialog = new MacrosDialog(myProject);
-      if (dialog.showAndGet() && dialog.getSelectedMacro() != null) {
-        String macro = dialog.getSelectedMacro().getName();
-        int position = myTextField.getCaretPosition();
-        try {
-          myTextField.getDocument().insertString(position, "$" + macro + "$", null);
-          myTextField.setCaretPosition(position + macro.length() + 2);
-        }
-        catch (BadLocationException ignored) {
-        }
-      }
-      IdeFocusManager.findInstance().requestFocus(myTextField, true);
-    }
-  }
-
   private void addListeners() {
     addProgramBrowseAction(myProgramField);
     addWorkingDirectoryBrowseAction(myWorkingDirField);
 
-    myInsertCommandMacroButton.addActionListener(new InsertMacroActionListener(myProgramField.getTextField()));
-    myInsertParametersMacroButton.addActionListener(new InsertMacroActionListener(myArgumentsField.getTextField()));
-    myInsertWorkingDirectoryMacroButton.addActionListener(new InsertMacroActionListener(myWorkingDirField.getTextField()));
+    MacrosDialog.addTextFieldExtension((ExtendableTextField)myProgramField.getTextField());
+    MacrosDialog.addTextFieldExtension((ExtendableTextField)myArgumentsField.getTextField());
+    MacrosDialog.addTextFieldExtension((ExtendableTextField)myWorkingDirField.getTextField());
 
     myUseConsoleCheckbox.addChangeListener(new ChangeListener() {
       @Override
@@ -222,12 +194,13 @@ public class ToolEditorDialog extends DialogWrapper {
   @Override
   protected ValidationInfo doValidate() {
     if (myNameField.getText().trim().isEmpty()) {
-      return new ValidationInfo("Specify the tool name", myNameField);
+      return new ValidationInfo(ToolsBundle.message("dialog.message.specify.the.tool.name"), myNameField);
     }
 
     for (String s : OUTPUT_FILTERS_SPLITTER.fun(myOutputFilterField.getText())) {
       if (!s.contains(RegexpFilter.FILE_PATH_MACROS)) {
-        return new ValidationInfo("Each output filter must contain " + RegexpFilter.FILE_PATH_MACROS + " macro", myOutputFilterField);
+        return new ValidationInfo(
+          ToolsBundle.message("dialog.message.each.output.filter.must.contain.0.macro", RegexpFilter.FILE_PATH_MACROS), myOutputFilterField);
       }
     }
 
@@ -270,13 +243,13 @@ public class ToolEditorDialog extends DialogWrapper {
   /**
    * Initialize controls
    */
-  protected void setData(Tool tool, String[] existingGroups) {
+  protected void setData(Tool tool, String @Nls [] existingGroups) {
     myNameField.setText(tool.getName());
     myDescriptionField.setText(tool.getDescription());
     if (myGroupCombo.getItemCount() > 0) {
       myGroupCombo.removeAllItems();
     }
-    for (String existingGroup : existingGroups) {
+    for (@Nls String existingGroup : existingGroups) {
       if (existingGroup != null) {
         myGroupCombo.addItem(existingGroup);
       }

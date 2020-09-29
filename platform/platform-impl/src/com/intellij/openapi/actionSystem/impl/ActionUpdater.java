@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.actionSystem.impl;
 
 import com.intellij.concurrency.SensitiveProgressWrapper;
@@ -38,11 +38,12 @@ import java.awt.event.ComponentEvent;
 import java.awt.event.PaintEvent;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-class ActionUpdater {
+final class ActionUpdater {
   private static final Logger LOG = Logger.getInstance(ActionUpdater.class);
   private static final Executor ourExecutor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Action Updater", 2);
 
@@ -54,9 +55,9 @@ class ActionUpdater {
   private final boolean myToolbarAction;
   private final boolean myTransparentOnly;
 
-  private final Map<AnAction, Presentation> myUpdatedPresentations = ContainerUtil.newConcurrentMap();
-  private final Map<ActionGroup, List<AnAction>> myGroupChildren = ContainerUtil.newConcurrentMap();
-  private final Map<ActionGroup, Boolean> myCanBePerformedCache = ContainerUtil.newConcurrentMap();
+  private final Map<AnAction, Presentation> myUpdatedPresentations = new ConcurrentHashMap<>();
+  private final Map<ActionGroup, List<AnAction>> myGroupChildren = new ConcurrentHashMap<>();
+  private final Map<ActionGroup, Boolean> myCanBePerformedCache = new ConcurrentHashMap<>();
   private final UpdateStrategy myRealUpdateStrategy;
   private final UpdateStrategy myCheapStrategy;
   private final Utils.ActionGroupVisitor myVisitor;
@@ -128,8 +129,10 @@ class ActionUpdater {
     });
   }
 
-  private static <T> T callAction(AnAction action, String operation, Supplier<T> call) {
-    if (action instanceof UpdateInBackground || ApplicationManager.getApplication().isDispatchThread()) return call.get();
+  private static <T> T callAction(AnAction action, String operation, Supplier<? extends T> call) {
+    if (action instanceof UpdateInBackground || ApplicationManager.getApplication().isDispatchThread()) {
+      return call.get();
+    }
 
     ProgressIndicator progress = Objects.requireNonNull(ProgressManager.getInstance().getProgressIndicator());
 
@@ -364,7 +367,7 @@ class ActionUpdater {
   }
 
   private boolean hasEnabledChildren(ActionGroup group, UpdateStrategy strategy) {
-    return hasChildrenWithState(group, false, true, strategy);
+    return hasChildrenWithState(group, false, true, strategy, new LinkedHashSet<>());
   }
 
   boolean hasVisibleChildren(ActionGroup group) {
@@ -372,11 +375,16 @@ class ActionUpdater {
   }
 
   private boolean hasVisibleChildren(ActionGroup group, UpdateStrategy strategy) {
-    return hasChildrenWithState(group, true, false, strategy);
+    return hasChildrenWithState(group, true, false, strategy, new LinkedHashSet<>());
   }
 
-  private boolean hasChildrenWithState(ActionGroup group, boolean checkVisible, boolean checkEnabled, UpdateStrategy strategy) {
+  private boolean hasChildrenWithState(ActionGroup group, boolean checkVisible, boolean checkEnabled, UpdateStrategy strategy, LinkedHashSet<ActionGroup> visited) {
     if (group instanceof AlwaysVisibleActionGroup) {
+      return true;
+    }
+
+    if (visited.size() > 1000) {
+      LOG.error("Too deep action group nesting: " + visited);
       return true;
     }
 
@@ -393,6 +401,10 @@ class ActionUpdater {
       Presentation presentation = orDefault(anAction, update(anAction, strategy));
       if (anAction instanceof ActionGroup) {
         ActionGroup childGroup = (ActionGroup)anAction;
+        if (!visited.add(childGroup)) {
+          LOG.error("Action group cycle detected: " + childGroup + " in " + visited);
+          return true;
+        }
 
         // popup menu must be visible itself
         if (childGroup.isPopup()) {
@@ -401,7 +413,7 @@ class ActionUpdater {
           }
         }
 
-        if (hasChildrenWithState(childGroup, checkVisible, checkEnabled, strategy)) {
+        if (hasChildrenWithState(childGroup, checkVisible, checkEnabled, strategy, visited)) {
           return true;
         }
       }
@@ -423,8 +435,7 @@ class ActionUpdater {
     }
   }
 
-  @Nullable
-  private Presentation update(AnAction action, UpdateStrategy strategy) {
+  private @Nullable Presentation update(AnAction action, UpdateStrategy strategy) {
     Presentation cached = myUpdatedPresentations.get(action);
     if (cached != null) {
       return cached;

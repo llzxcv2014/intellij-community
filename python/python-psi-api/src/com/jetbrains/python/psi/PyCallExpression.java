@@ -7,15 +7,15 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
-import com.intellij.util.containers.Predicate;
 import com.jetbrains.python.FunctionParameter;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.nameResolver.FQNamesProvider;
 import com.jetbrains.python.nameResolver.NameResolverTools;
 import com.jetbrains.python.psi.resolve.PyResolveContext;
-import com.jetbrains.python.psi.resolve.RatedResolveResult;
 import com.jetbrains.python.psi.types.PyCallableParameter;
 import com.jetbrains.python.psi.types.PyCallableType;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Represents an entire call expression, like <tt>foo()</tt> or <tt>foo.bar[1]('x')</tt>.
@@ -46,9 +47,13 @@ public interface PyCallExpression extends PyCallSiteExpression {
 
       if (resolvedCallee instanceof PyFunction &&
           qualifiedCallee.isQualified() &&
-          isConstructorName.apply(resolvedCallee.getName()) &&
-          !isConstructorName.apply(qualifiedCallee.getName())) {
+          isConstructorName.test(resolvedCallee.getName()) &&
+          !isConstructorName.test(qualifiedCallee.getName())) {
         return null;
+      }
+
+      if (resolvedCallee != null && PyNames.CALL.equals(resolvedCallee.getName()) && !PyNames.CALL.equals(qualifiedCallee.getName())) {
+        return qualifiedCallee;
       }
 
       return qualifiedCallee.getQualifier();
@@ -80,8 +85,7 @@ public interface PyCallExpression extends PyCallSiteExpression {
   /**
    * @return the argument array used in the call, or an empty array if the call has no argument list.
    */
-  @NotNull
-  default PyExpression[] getArguments() {
+  default PyExpression @NotNull [] getArguments() {
     final PyArgumentList argList = getArgumentList();
     return argList != null ? argList.getArguments() : PyExpression.EMPTY_ARRAY;
   }
@@ -109,7 +113,7 @@ public interface PyCallExpression extends PyCallSiteExpression {
    * @return the argument or null
    */
   @Nullable
-  default <T extends PsiElement> T getArgument(int index, @NotNull String keyword, @NotNull Class<T> argClass) {
+  default <T extends PsiElement> T getArgument(int index, @NonNls @NotNull String keyword, @NotNull Class<T> argClass) {
     final PyExpression arg = getKeywordArgument(keyword);
     if (arg != null) {
       return ObjectUtils.tryCast(arg, argClass);
@@ -159,11 +163,10 @@ public interface PyCallExpression extends PyCallSiteExpression {
    *
    * @param resolveContext resolve context
    * @return the resolved callees or an empty list.
-   * <i>Note: the returned list does not contain null values.</i>
    */
   @NotNull
-  default List<PyCallable> multiResolveCalleeFunction(@NotNull PyResolveContext resolveContext) {
-    return ContainerUtil.mapNotNull(multiResolveCallee(resolveContext, 0), PyMarkedCallee::getElement);
+  default List<@NotNull PyCallable> multiResolveCalleeFunction(@NotNull PyResolveContext resolveContext) {
+    return ContainerUtil.mapNotNull(multiResolveCallee(resolveContext), PyCallableType::getCallable);
   }
 
   /**
@@ -171,10 +174,10 @@ public interface PyCallExpression extends PyCallSiteExpression {
    *
    * @param resolveContext resolve context
    * @return objects which contains callable, modifier, implicit offset and "implicitly resolved" flag.
-   * <i>Note: the returned list does not contain null values.</i>
+   * @apiNote This method will become abstract in 2021.1.
    */
   @NotNull
-  default List<PyMarkedCallee> multiResolveCallee(@NotNull PyResolveContext resolveContext) {
+  default List<@NotNull PyCallableType> multiResolveCallee(@NotNull PyResolveContext resolveContext) {
     return multiResolveCallee(resolveContext, 0);
   }
 
@@ -184,10 +187,12 @@ public interface PyCallExpression extends PyCallSiteExpression {
    * @param resolveContext resolve context
    * @param implicitOffset implicit offset which is known from the context
    * @return objects which contains callable, modifier, implicit offset and "implicitly resolved" flag.
-   * <i>Note: the returned list does not contain null values.</i>
+   * @deprecated {@code implicitOffset} is no longer processed, use {@link PyCallExpression#multiResolveCallee(PyResolveContext)} instead.
    */
   @NotNull
-  List<PyMarkedCallee> multiResolveCallee(@NotNull PyResolveContext resolveContext, int implicitOffset);
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2021.1")
+  List<@NotNull PyCallableType> multiResolveCallee(@NotNull PyResolveContext resolveContext, int implicitOffset);
 
   /**
    * Resolves the callee to possible functions and maps arguments to parameters for all of them.
@@ -195,10 +200,10 @@ public interface PyCallExpression extends PyCallSiteExpression {
    * @param resolveContext resolve context
    * @return objects which contains callable and mappings.
    * Returned list is empty if the callee couldn't be resolved.
-   * <i>Note: the returned list does not contain null values.</i>
+   * @apiNote This method will become abstract in 2021.1.
    */
   @NotNull
-  default List<PyArgumentsMapping> multiMapArguments(@NotNull PyResolveContext resolveContext) {
+  default List<@NotNull PyArgumentsMapping> multiMapArguments(@NotNull PyResolveContext resolveContext) {
     return multiMapArguments(resolveContext, 0);
   }
 
@@ -209,10 +214,12 @@ public interface PyCallExpression extends PyCallSiteExpression {
    * @param implicitOffset implicit offset which is known from the context
    * @return objects which contains callable and mappings.
    * Returned list is empty if the callee couldn't be resolved.
-   * <i>Note: the returned list does not contain null values.</i>
+   * @deprecated {@code implicitOffset} is no longer processed, use {@link PyCallExpression#multiMapArguments(PyResolveContext)} instead.
    */
   @NotNull
-  List<PyArgumentsMapping> multiMapArguments(@NotNull PyResolveContext resolveContext, int implicitOffset);
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2021.1")
+  List<@NotNull PyArgumentsMapping> multiMapArguments(@NotNull PyResolveContext resolveContext, int implicitOffset);
 
   /**
    * Checks if the unqualified name of the callee matches any of the specified names
@@ -220,7 +227,7 @@ public interface PyCallExpression extends PyCallSiteExpression {
    * @param nameCandidates names to check
    * @return true if matches, false otherwise
    */
-  default boolean isCalleeText(@NotNull String... nameCandidates) {
+  default boolean isCalleeText(String @NotNull ... nameCandidates) {
     final PyExpression callee = getCallee();
 
     return callee instanceof PyReferenceExpression &&
@@ -229,22 +236,25 @@ public interface PyCallExpression extends PyCallSiteExpression {
 
   /**
    * Checks if the qualified name of the callee matches any of the specified names provided by provider.
-   * May be <strong>heavy</strong>.
-   * Use {@link NameResolverTools#isCalleeShortCut(PyCallExpression, FQNamesProvider)}
-   * if you can.
+   * May be <strong>heavy</strong>, and it is not recommended to use.
+   * Use {@link NameResolverTools#isCalleeShortCut(PyCallExpression, FQNamesProvider...)} or
+   * {@link com.jetbrains.extensions.python.PyCallExpressionExtKt#isCalleeName(PyCallExpression, FQNamesProvider...)}.
    *
    * @param name providers that provides one or more names to check
    * @return true if matches, false otherwise
    * @see com.jetbrains.python.nameResolver
+   * @see com.jetbrains.extensions.python.PyCallExpressionExtKt#isCalleeName(PyCallExpression, FQNamesProvider...)
+   * @deprecated use {@link com.jetbrains.extensions.python.PyCallExpressionExtKt#isCalleeName(PyCallExpression, FQNamesProvider...)}.
    */
-  default boolean isCallee(@NotNull FQNamesProvider... name) {
+  @Deprecated
+  default boolean isCallee(FQNamesProvider @NotNull ... name) {
     final PyExpression callee = getCallee();
     return callee instanceof PyReferenceExpression && NameResolverTools.isName(callee, name);
   }
 
   class PyArgumentsMapping {
     @NotNull private final PyCallSiteExpression myCallSiteExpression;
-    @Nullable private final PyMarkedCallee myMarkedCallee;
+    @Nullable private final PyCallableType myCallableType;
     @NotNull private final List<PyCallableParameter> myImplicitParameters;
     @NotNull private final Map<PyExpression, PyCallableParameter> myMappedParameters;
     @NotNull private final List<PyCallableParameter> myUnmappedParameters;
@@ -254,7 +264,7 @@ public interface PyCallExpression extends PyCallSiteExpression {
     @NotNull private final Map<PyExpression, PyCallableParameter> myMappedTupleParameters;
 
     public PyArgumentsMapping(@NotNull PyCallSiteExpression callSiteExpression,
-                              @Nullable PyMarkedCallee markedCallee,
+                              @Nullable PyCallableType callableType,
                               @NotNull List<PyCallableParameter> implicitParameters,
                               @NotNull Map<PyExpression, PyCallableParameter> mappedParameters,
                               @NotNull List<PyCallableParameter> unmappedParameters,
@@ -263,7 +273,7 @@ public interface PyCallExpression extends PyCallSiteExpression {
                               @NotNull List<PyCallableParameter> parametersMappedToVariadicKeywordArguments,
                               @NotNull Map<PyExpression, PyCallableParameter> tupleMappedParameters) {
       myCallSiteExpression = callSiteExpression;
-      myMarkedCallee = markedCallee;
+      myCallableType = callableType;
       myImplicitParameters = implicitParameters;
       myMappedParameters = mappedParameters;
       myUnmappedParameters = unmappedParameters;
@@ -292,8 +302,8 @@ public interface PyCallExpression extends PyCallSiteExpression {
     }
 
     @Nullable
-    public PyMarkedCallee getMarkedCallee() {
-      return myMarkedCallee;
+    public PyCallableType getCallableType() {
+      return myCallableType;
     }
 
     @NotNull
@@ -329,71 +339,6 @@ public interface PyCallExpression extends PyCallSiteExpression {
     @NotNull
     public Map<PyExpression, PyCallableParameter> getMappedTupleParameters() {
       return myMappedTupleParameters;
-    }
-  }
-
-  /**
-   * Couples function with a flag describing the way it is called.
-   */
-  class PyMarkedCallee extends RatedResolveResult {
-    @NotNull private final PyCallableType myCallableType;
-    @Nullable private final PyFunction.Modifier myModifier;
-    private final int myImplicitOffset;
-    private final boolean myImplicitlyResolved;
-
-    /**
-     * Method-oriented constructor.
-     *
-     * @param callableType       type describing callable object
-     * @param function           the method (or any other callable, but why bother then).
-     * @param modifier           classmethod or staticmethod modifier
-     * @param offset             implicit argument offset; parameters up to this are implicitly filled in the call.
-     * @param implicitlyResolved value for {@link #isImplicitlyResolved()}
-     * @param rate               callee rate
-     */
-    public PyMarkedCallee(@NotNull PyCallableType callableType,
-                          @Nullable PyCallable function,
-                          @Nullable PyFunction.Modifier modifier,
-                          int offset,
-                          boolean implicitlyResolved,
-                          int rate) {
-      super(rate, function);
-      myCallableType = callableType;
-      myModifier = modifier;
-      myImplicitOffset = offset;
-      myImplicitlyResolved = implicitlyResolved;
-    }
-
-    @NotNull
-    public PyCallableType getCallableType() {
-      return myCallableType;
-    }
-
-    @Override
-    @Nullable
-    public PyCallable getElement() {
-      return (PyCallable)super.getElement();
-    }
-
-    @Nullable
-    public PyFunction.Modifier getModifier() {
-      return myModifier;
-    }
-
-    /**
-     * @return number of implicitly passed positional parameters; 0 means no parameters are passed implicitly.
-     * Note that a <tt>*args</tt> is never marked as passed implicitly.
-     * E.g. for a function like <tt>foo(a, b, *args)</tt> always holds <tt>getImplicitOffset() < 2</tt>.
-     */
-    public int getImplicitOffset() {
-      return myImplicitOffset;
-    }
-
-    /**
-     * @return true iff the result is resolved based on divination and name similarity rather than by proper resolution process.
-     */
-    public boolean isImplicitlyResolved() {
-      return myImplicitlyResolved;
     }
   }
 }

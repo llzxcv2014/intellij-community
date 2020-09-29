@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.tree;
 
 import com.intellij.openapi.Disposable;
@@ -30,10 +30,11 @@ public class TreeTest implements Disposable {
   private final AsyncPromise<Throwable> promise = new AsyncPromise<>();
   private JTree tree;
 
-  public TreeTest(int minutes, Consumer<TreeTest> consumer, Function<Disposable, TreeModel> function) {
+  public TreeTest(int minutes, Consumer<? super TreeTest> consumer, Function<? super Disposable, ? extends TreeModel> function) {
     assert !EventQueue.isDispatchThread() : "main thread is expected";
     invokeLater(() -> {
       tree = new JTree(function.apply(this));
+      TreeTestUtil.assertTreeUI(tree);
       invokeAfterProcessing(() -> {
         tree.collapseRow(0); // because root node is expanded by default
         consumer.accept(this);
@@ -109,24 +110,20 @@ public class TreeTest implements Disposable {
     return tree;
   }
 
-  public static void test(Supplier<TreeNode> supplier, Consumer<TreeTest> consumer) {
-    test(2, supplier, consumer);
+  public static void test(Supplier<? extends TreeNode> supplier, Consumer<? super TreeTest> consumer) {
+    test(FAST, 1, supplier, consumer);
+    test(SLOW, 2, supplier, consumer);
   }
 
-  public static void test(int minutes, Supplier<TreeNode> supplier, Consumer<TreeTest> consumer) {
-    new TreeTest(minutes, consumer, parent -> model(supplier, FAST, false, null));
-    new TreeTest(minutes, consumer, parent -> model(supplier, SLOW, false, null));
-    new TreeTest(minutes, consumer, parent -> model(supplier, FAST, true, new Invoker.EDT(parent)));
-    new TreeTest(minutes, consumer, parent -> model(supplier, FAST, false, new Invoker.EDT(parent)));
-    new TreeTest(minutes, consumer, parent -> model(supplier, SLOW, true, new Invoker.EDT(parent)));
-    new TreeTest(minutes, consumer, parent -> model(supplier, SLOW, false, new Invoker.EDT(parent)));
-    new TreeTest(minutes, consumer, parent -> model(supplier, FAST, true, new Invoker.Background(parent)));
-    new TreeTest(minutes, consumer, parent -> model(supplier, FAST, false, new Invoker.Background(parent)));
-    new TreeTest(minutes, consumer, parent -> model(supplier, SLOW, true, new Invoker.Background(parent)));
-    new TreeTest(minutes, consumer, parent -> model(supplier, SLOW, false, new Invoker.Background(parent)));
+  public static void test(long delay, int minutes, Supplier<? extends TreeNode> supplier, Consumer<? super TreeTest> consumer) {
+    new TreeTest(minutes, consumer, parent -> model(supplier, delay, false, null));
+    new TreeTest(minutes, consumer, parent -> model(supplier, delay, true, Invoker.forEventDispatchThread(parent)));
+    new TreeTest(minutes, consumer, parent -> model(supplier, delay, false, Invoker.forEventDispatchThread(parent)));
+    new TreeTest(minutes, consumer, parent -> model(supplier, delay, true, Invoker.forBackgroundThreadWithReadAction(parent)));
+    new TreeTest(minutes, consumer, parent -> model(supplier, delay, false, Invoker.forBackgroundThreadWithReadAction(parent)));
   }
 
-  private static TreeModel model(Supplier<TreeNode> supplier, long delay, boolean showLoadingNode, Invoker invoker) {
+  private static TreeModel model(Supplier<? extends TreeNode> supplier, long delay, boolean showLoadingNode, Invoker invoker) {
     TreeModel model = new DefaultTreeModel(supplier.get());
     if (delay > 0) {
       model = new Wrapper.WithDelay(model, delay);

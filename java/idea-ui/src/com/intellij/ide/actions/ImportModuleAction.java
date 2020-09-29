@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actions;
 
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.ide.impl.NewProjectUtil;
 import com.intellij.ide.impl.ProjectUtil;
 import com.intellij.ide.util.PropertiesComponent;
@@ -18,10 +19,11 @@ import com.intellij.openapi.fileChooser.FileChooserFactory;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectBundle;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.roots.ui.configuration.actions.NewModuleAction;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.text.HtmlBuilder;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.projectImport.DeprecatedProjectBuilderForImport;
@@ -59,7 +61,7 @@ public class ImportModuleAction extends AnAction implements NewProjectOrModuleAc
   @NotNull
   @Override
   public String getActionText(boolean isInNewSubmenu, boolean isInJavaIde) {
-    return ProjectBundle.message("import.module.action.text", isInNewSubmenu ? 1 : 0, isInJavaIde ? 1 : 0);
+    return JavaUiBundle.message("import.module.action.text", isInNewSubmenu ? 1 : 0, isInJavaIde ? 1 : 0);
   }
 
   @Override
@@ -132,7 +134,7 @@ public class ImportModuleAction extends AnAction implements NewProjectOrModuleAc
   public static AddModuleWizard selectFileAndCreateWizard(@Nullable Project project, @Nullable Component dialogParent) {
     FileChooserDescriptor descriptor = FileChooserDescriptorFactory.createSingleLocalFileDescriptor();
     descriptor.setHideIgnored(false);
-    descriptor.setTitle("Select File or Directory to Import");
+    descriptor.setTitle(JavaUiBundle.message("chooser.title.select.file.or.directory.to.import"));
     List<ProjectImportProvider> providers = getProviders(project);
     String description = getFileChooserDescription(providers);
     descriptor.setDescription(description);
@@ -158,7 +160,7 @@ public class ImportModuleAction extends AnAction implements NewProjectOrModuleAc
     final VirtualFile file = files[0];
     if (project == null) { // wizard will create a new project
       for (Project p : ProjectManager.getInstance().getOpenProjects()) {
-        if (ProjectUtil.isSameProject(file.getPath(), p)) {
+        if (ProjectUtil.isSameProject(file.toNioPath(), p)) {
           ProjectUtil.focusProjectWindow(p, false);
           return null;
         }
@@ -168,25 +170,25 @@ public class ImportModuleAction extends AnAction implements NewProjectOrModuleAc
     return createImportWizard(project, dialogParent, file, providers);
   }
 
-  private static String getFileChooserDescription(List<ProjectImportProvider> providers) {
-    StringBuilder builder = new StringBuilder("<html>Select ");
+  private static @NlsContexts.Label String getFileChooserDescription(List<ProjectImportProvider> providers) {
+    HtmlBuilder builder = new HtmlBuilder().append(JavaUiBundle.message("select")).append(" ");
     boolean first = true;
     if (providers.size() > 0) {
       for (ProjectImportProvider provider : providers) {
         String sample = provider.getFileSample();
         if (sample != null) {
           if (!first) {
-            builder.append(", <br>");
+            builder.append(", ").br();
           }
           else {
             first = false;
           }
-          builder.append(sample);
+          builder.appendRaw(sample);
         }
       }
     }
-    builder.append(".</html>");
-    return builder.toString();
+    builder.append(".");
+    return builder.wrapWith("html").toString();
   }
 
   @NotNull
@@ -202,7 +204,8 @@ public class ImportModuleAction extends AnAction implements NewProjectOrModuleAc
                                                    ProjectImportProvider... providers) {
     List<ProjectImportProvider> available = ContainerUtil.filter(providers, provider -> provider.canImport(file, project));
     if (available.isEmpty()) {
-      Messages.showInfoMessage(project, "Cannot import anything from " + file.getPath(), "Cannot Import");
+      Messages.showInfoMessage(project, JavaUiBundle.message("message.cannot.import.anything.from.0", file.getPath()),
+                               JavaUiBundle.message("dialog.title.cannot.import"));
       return null;
     }
 

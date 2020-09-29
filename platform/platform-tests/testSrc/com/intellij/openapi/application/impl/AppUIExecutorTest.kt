@@ -2,9 +2,7 @@
 package com.intellij.openapi.application.impl
 
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.application.AppUIExecutor
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.*
 import com.intellij.openapi.application.constraints.ConstrainedExecution
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileTypes.PlainTextFileType
@@ -12,6 +10,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFileFactory
 import com.intellij.testFramework.LightPlatformTestCase
+import com.intellij.util.ThrowableRunnable
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -25,10 +24,10 @@ import kotlin.coroutines.CoroutineContext
  * @author eldar
  */
 class AppUIExecutorTest : LightPlatformTestCase() {
-  override fun runInDispatchThread() = false
-
-  override fun invokeTestRunnable(runnable: Runnable) {
-    SwingUtilities.invokeLater(runnable)
+  override fun runTestRunnable(testRunnable: ThrowableRunnable<Throwable>) {
+    SwingUtilities.invokeLater {
+      testRunnable.run()
+    }
     UIUtil.dispatchAllInvocationEvents()
   }
 
@@ -144,14 +143,13 @@ class AppUIExecutorTest : LightPlatformTestCase() {
     return file.viewProvider.document!!
   }
 
+  @ExperimentalCoroutinesApi
   fun `test withDocumentsCommitted`() {
     val executor = AppUIExecutor.onUiThread(ModalityState.NON_MODAL)
-      .inWriteAction()
       .withDocumentsCommitted(project)
 
     val transactionExecutor = AppUIExecutor.onUiThread(ModalityState.NON_MODAL)
       .inTransaction(project)
-      .inWriteAction()
 
     GlobalScope.async(SwingDispatcher) {
       val pdm = PsiDocumentManager.getInstance(project)
@@ -160,16 +158,21 @@ class AppUIExecutorTest : LightPlatformTestCase() {
         commitChannel.receive()
         assertFalse(pdm.hasUncommitedDocuments())
 
-        val document = createDocument()
-        document.insertString(0, "a")
-        assertTrue(pdm.hasUncommitedDocuments())
+        val document = runWriteAction {
+          createDocument().apply {
+            insertString(0, "a")
+            assertTrue(pdm.hasUncommitedDocuments())
+          }
+        }
 
         commitChannel.receive()
         assertFalse(pdm.hasUncommitedDocuments())
         assertEquals("a", document.text)
 
-        document.insertString(1, "b")
-        assertTrue(pdm.hasUncommitedDocuments())
+        runWriteAction {
+          document.insertString(1, "b")
+          assertTrue(pdm.hasUncommitedDocuments())
+        }
 
         commitChannel.receive()
         assertFalse(pdm.hasUncommitedDocuments())
@@ -177,12 +180,17 @@ class AppUIExecutorTest : LightPlatformTestCase() {
 
         commitChannel.close()
       }
-      launch(transactionExecutor.coroutineDispatchingContext() + job) {
+      withContext(transactionExecutor.coroutineDispatchingContext() + job) {
         while (true) {
-          pdm.commitAllDocuments()
-          commitChannel.send(Unit)
+          runWriteAction { pdm.commitAllDocuments() }
+          if (!commitChannel.isClosedForSend) {
+            commitChannel.send(Unit)
+          }
+          else {
+            return@withContext
+          }
         }
-      }.join()
+      }
       coroutineContext.cancelChildren()
 
     }.joinNonBlocking()
@@ -346,15 +354,16 @@ class AppUIExecutorTest : LightPlatformTestCase() {
       job.join()
       queue.add("end")
 
-      assertOrderedEquals(queue,
-                          "start",
-                          "coroutine start",
-                          "before yield",
-                          "disposing",
-                          "disposable.beforeTreeDispose()",
-                          "coroutine yield caught JobCancellationException",
-                          "disposable.dispose()",
-                          "end")
+      assertOrderedEquals(queue,(
+                          "start\n" +
+                          "coroutine start\n" +
+                          "before yield\n" +
+                          "disposing\n" +
+                          "disposable.beforeTreeDispose()\n" +
+                          "refuse to run already disposed\n" +
+                          "disposable.dispose()\n" +
+                          "coroutine yield caught JobCancellationException\n" +
+                          "end").split("\n"))
     }.joinNonBlocking()
   }
 
@@ -522,6 +531,21 @@ class AppUIExecutorTest : LightPlatformTestCase() {
       emit("end")
       assertOrderedEquals(queue, *expectedLog)
 
+    }.joinNonBlocking()
+  }
+
+  fun `test use write-safe context if called from write-unsafe context`() {
+    GlobalScope.async(SwingDispatcher) {
+      launch(AppUIExecutor.onWriteThread().coroutineDispatchingContext()) {
+        (TransactionGuard.getInstance() as TransactionGuardImpl).assertWriteActionAllowed()
+      }
+      launch(AppUIExecutor.onUiThread().coroutineDispatchingContext()) {
+        (TransactionGuard.getInstance() as TransactionGuardImpl).assertWriteActionAllowed()
+      }
+      launch(AppUIExecutor.onUiThread(ModalityState.any()).coroutineDispatchingContext()) {
+        assertFalse("Passing write-unsafe modality should not lead to write-safety checks",
+                    TransactionGuard.getInstance().isWritingAllowed)
+      }
     }.joinNonBlocking()
   }
 }

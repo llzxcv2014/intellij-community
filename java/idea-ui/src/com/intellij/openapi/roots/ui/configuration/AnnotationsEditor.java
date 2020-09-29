@@ -15,12 +15,13 @@
  */
 package com.intellij.openapi.roots.ui.configuration;
 
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.openapi.fileChooser.FileChooser;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectBundle;
 import com.intellij.openapi.roots.JavaModuleExternalPaths;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.*;
 import com.intellij.ui.components.JBLabel;
@@ -42,8 +43,6 @@ import java.util.List;
 public class AnnotationsEditor extends ModuleElementsEditor {
   private JTable myTable;
 
-  public static final String NAME = ProjectBundle.message("project.roots.external.annotations.tab.title");
-
   public AnnotationsEditor(final ModuleConfigurationState state) {
     super(state);
   }
@@ -55,7 +54,7 @@ public class AnnotationsEditor extends ModuleElementsEditor {
 
   @Override
   public String getDisplayName() {
-    return NAME;
+    return getName();
   }
 
   @Override
@@ -88,8 +87,8 @@ public class AnnotationsEditor extends ModuleElementsEditor {
       @Override
       public void run(AnActionButton button) {
         FileChooserDescriptor myDescriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
-              myDescriptor.setTitle(ProjectBundle.message("add.external.annotations.path.title"));
-              myDescriptor.setDescription(ProjectBundle.message("add.external.annotations.path.description"));
+              myDescriptor.setTitle(JavaUiBundle.message("add.external.annotations.path.title"));
+              myDescriptor.setDescription(JavaUiBundle.message("add.external.annotations.path.description"));
         VirtualFile[] files = FileChooser.chooseFiles(myDescriptor, myTable, getProject(), null);
         final MyTableModel tableModel = (MyTableModel)myTable.getModel();
         boolean changes = false;
@@ -107,7 +106,7 @@ public class AnnotationsEditor extends ModuleElementsEditor {
     }).setRemoveAction(new AnActionButtonRunnable() {
         @Override
         public void run(AnActionButton button) {
-          final List removedItems = TableUtil.removeSelectedItems(myTable);
+          final List<Object[]> removedItems = TableUtil.removeSelectedItems(myTable);
           if (removedItems.size() > 0) {
             saveData();
           }
@@ -118,7 +117,7 @@ public class AnnotationsEditor extends ModuleElementsEditor {
     final JPanel mainPanel = new JPanel(new BorderLayout());
 
     mainPanel.add(tablePanel, BorderLayout.CENTER);
-    mainPanel.add(new JBLabel(ProjectBundle.message("project.roots.external.annotations.description"), UIUtil.ComponentStyle.SMALL,
+    mainPanel.add(new JBLabel(JavaUiBundle.message("project.roots.external.annotations.description"), UIUtil.ComponentStyle.SMALL,
                               UIUtil.FontColor.BRIGHTER), BorderLayout.NORTH);
     return mainPanel;
   }
@@ -149,7 +148,7 @@ public class AnnotationsEditor extends ModuleElementsEditor {
     private static final Border NO_FOCUS_BORDER = BorderFactory.createEmptyBorder(1, 1, 1, 1);
 
     @Override
-    protected void customizeCellRenderer(JTable table, Object value, boolean selected, boolean hasFocus, int row, int column) {
+    protected void customizeCellRenderer(@NotNull JTable table, Object value, boolean selected, boolean hasFocus, int row, int column) {
       setPaintFocusBorder(false);
       setFocusBorderAroundIcon(true);
       setBorder(NO_FOCUS_BORDER);
@@ -166,7 +165,7 @@ public class AnnotationsEditor extends ModuleElementsEditor {
     }
 
     @Override
-    public Class getColumnClass(int columnIndex) {
+    public Class<TableItem> getColumnClass(int columnIndex) {
       return TableItem.class;
     }
 
@@ -187,5 +186,9 @@ public class AnnotationsEditor extends ModuleElementsEditor {
     public void addTableItem(TableItem item) {
       addRow(new Object[] {item});
     }
+  }
+
+  public static @NlsContexts.ConfigurableName String getName() {
+    return JavaUiBundle.message("project.roots.external.annotations.tab.title");
   }
 }

@@ -9,11 +9,14 @@ import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
 import com.intellij.codeInsight.intention.AddAnnotationPsiFix;
 import com.intellij.codeInsight.intention.LowPriorityAction;
 import com.intellij.codeInsight.intention.impl.BaseIntentionAction;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogBuilder;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.ui.DocumentAdapter;
@@ -34,14 +37,11 @@ import java.util.Collections;
  * @author peter
  */
 public class EditContractIntention extends BaseIntentionAction implements LowPriorityAction {
-  private static final String ourPrompt = "<html>Please specify the contract text<p>" +
-                                          "Example: <code>_, null -> false</code><br>" +
-                                          "<small>See intention action description for more details</small></html>";
 
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Edit method contract";
+    return JavaBundle.message("intention.family.edit.method.contract");
   }
 
   @Nullable
@@ -59,7 +59,8 @@ public class EditContractIntention extends BaseIntentionAction implements LowPri
     final PsiMethod method = getTargetMethod(editor, file);
     if (method != null) {
       boolean hasContract = JavaMethodContractUtil.findContractAnnotation(method) != null;
-      setText(hasContract ? "Edit method contract of '" + method.getName() + "'" : "Add method contract to '" + method.getName() + "'");
+      setText(hasContract ? JavaBundle.message("intention.text.edit.method.contract.of.0", method.getName())
+                          : JavaBundle.message("intention.text.add.method.contract.to.0", method.getName()));
       return true;
     }
     return false;
@@ -70,9 +71,9 @@ public class EditContractIntention extends BaseIntentionAction implements LowPri
     final PsiMethod method = getTargetMethod(editor, file);
     assert method != null;
     PsiAnnotation existingAnno = AnnotationUtil.findAnnotationInHierarchy(method, Collections.singleton(Contract.class.getName()));
-    String oldContract = existingAnno == null ? null : AnnotationUtil.getStringAttributeValue(existingAnno, "value");
+    @NlsSafe String oldContract = existingAnno == null ? null : AnnotationUtil.getStringAttributeValue(existingAnno, "value");
     boolean oldPure = existingAnno != null && Boolean.TRUE.equals(AnnotationUtil.getBooleanAttributeValue(existingAnno, "pure"));
-    String oldMutates = existingAnno == null ? null : AnnotationUtil.getStringAttributeValue(existingAnno, "mutates");
+    @NlsSafe String oldMutates = existingAnno == null ? null : AnnotationUtil.getStringAttributeValue(existingAnno, "mutates");
 
     JBTextField contractText = new JBTextField(oldContract);
     JBTextField mutatesText = new JBTextField(oldMutates);
@@ -125,12 +126,12 @@ public class EditContractIntention extends BaseIntentionAction implements LowPri
 
     GridBagConstraints constraints =
       new GridBagConstraints(0, 0, 2, 1, 4.0, 1.0, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, JBUI.insets(2), 0, 0);
-    panel.add(Messages.configureMessagePaneUi(new JTextPane(), ourPrompt), constraints);
+    panel.add(Messages.configureMessagePaneUi(new JTextPane(), JavaBundle.message("edit.contract.dialog.hint")), constraints);
     constraints.gridx = 0;
     constraints.gridy = 1;
     constraints.gridwidth = 1;
     constraints.weightx = 1;
-    JLabel contractLabel = new JLabel("Contract:");
+    JLabel contractLabel = new JLabel(JavaBundle.message("label.contract"));
     contractLabel.setDisplayedMnemonic('c');
     contractLabel.setLabelFor(contractText);
     panel.add(contractLabel, constraints);
@@ -148,7 +149,7 @@ public class EditContractIntention extends BaseIntentionAction implements LowPri
       constraints.gridy = 3;
       constraints.weightx = 1;
       constraints.gridwidth = 1;
-      JLabel mutatesLabel = new JLabel("Mutates:");
+      JLabel mutatesLabel = new JLabel(JavaBundle.message("label.mutates"));
       mutatesLabel.setDisplayedMnemonic('m');
       mutatesLabel.setLabelFor(mutatesText);
       panel.add(mutatesLabel, constraints);
@@ -157,14 +158,15 @@ public class EditContractIntention extends BaseIntentionAction implements LowPri
       panel.add(mutatesText, constraints);
     }
 
-    DialogBuilder builder = new DialogBuilder(project).setNorthPanel(panel).title("Edit Method Contract");
+    DialogBuilder builder = new DialogBuilder(project).setNorthPanel(panel).title(JavaBundle.message(
+      "dialog.title.edit.method.contract"));
     builder.setPreferredFocusComponent(contractText);
     builder.setHelpId("define_contract_dialog");
     return builder;
   }
 
   private static JCheckBox createPureCheckBox(boolean selected) {
-    JCheckBox pureCB = new NonFocusableCheckBox("Method is pure (has no side effects)");
+    JCheckBox pureCB = new NonFocusableCheckBox(JavaBundle.message("edit.contract.dialog.checkbox.pure.method"));
     pureCB.setMnemonic('p');
     pureCB.setSelected(selected);
     return pureCB;
@@ -186,12 +188,12 @@ public class EditContractIntention extends BaseIntentionAction implements LowPri
   }
 
   @Nullable
-  private static String getMutatesErrorMessage(String mutates, PsiMethod method) {
+  private static @NlsContexts.DialogMessage String getMutatesErrorMessage(String mutates, PsiMethod method) {
     return StringUtil.isEmpty(mutates) ? null : MutationSignature.checkSignature(mutates, method);
   }
 
   @Nullable
-  private static String getContractErrorMessage(String contract, PsiMethod method) {
+  private static @NlsContexts.DialogMessage String getContractErrorMessage(String contract, PsiMethod method) {
     if (StringUtil.isEmpty(contract)) {
       return null;
     }

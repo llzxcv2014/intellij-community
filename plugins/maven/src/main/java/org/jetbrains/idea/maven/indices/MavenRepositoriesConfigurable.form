@@ -28,7 +28,10 @@
             <children>
               <component id="d806c" class="com.intellij.ui.table.JBTable" binding="myIndicesTable" default-binding="true">
                 <constraints/>
-                <properties/>
+                <properties>
+                  <showHorizontalLines value="false"/>
+                  <showVerticalLines value="false"/>
+                </properties>
               </component>
             </children>
           </scrollpane>
@@ -51,7 +54,7 @@
                 </constraints>
                 <properties>
                   <focusable value="false"/>
-                  <text value="&amp;Update"/>
+                  <text resource-bundle="messages/MavenConfigurableBundle" key="maven.settings.repositories.update"/>
                 </properties>
               </component>
             </children>

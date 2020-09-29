@@ -14,8 +14,10 @@ import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
+import com.siyeh.InspectionGadgetsBundle;
 import one.util.streamex.Joining;
 import one.util.streamex.StreamEx;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,12 +30,11 @@ public class CreateSwitchBranchesUtil {
    * @param names names of individual branches to create (non-empty)
    * @return a name of the action which creates missing switch branches.
    */
-  @NotNull
-  public static String getActionName(Collection<String> names) {
+  public static @NotNull @Nls String getActionName(Collection<String> names) {
     if (names.size() == 1) {
-      return "Create missing switch branch '" + names.iterator().next() + "'";
+      return InspectionGadgetsBundle.message("create.missing.switch.branch", names.iterator().next());
     }
-    return "Create missing branches: " + formatMissingBranches(names);
+    return InspectionGadgetsBundle.message("create.missing.switch.branches", formatMissingBranches(names));
   }
 
   /**
@@ -59,7 +60,7 @@ public class CreateSwitchBranchesUtil {
   public static List<PsiSwitchLabelStatementBase> createMissingBranches(@NotNull PsiSwitchBlock switchBlock,
                                                                         @NotNull List<String> allNames,
                                                                         @NotNull Collection<String> missingNames,
-                                                                        @NotNull Function<PsiSwitchLabelStatementBase, List<String>> caseExtractor) {
+                                                                        @NotNull Function<? super PsiSwitchLabelStatementBase, ? extends List<String>> caseExtractor) {
     boolean isRuleBasedFormat = SwitchUtils.isRuleFormatSwitch(switchBlock);
     final PsiCodeBlock body = switchBlock.getBody();
     if (body == null) {
@@ -119,20 +120,22 @@ public class CreateSwitchBranchesUtil {
    */
   public static void createTemplate(@NotNull PsiSwitchBlock block, List<PsiSwitchLabelStatementBase> addedLabels) {
     if (!(block instanceof PsiSwitchExpression)) return;
+    List<SmartPsiElementPointer<PsiSwitchLabelStatementBase>> pointers = ContainerUtil.map(addedLabels, SmartPointerManager::createPointer);
     Editor editor = prepareForTemplateAndObtainEditor(block);
     if (editor == null) return;
     TemplateBuilder builder = TemplateBuilderFactory.getInstance().createTemplateBuilder(block);
-    List<PsiExpression> elementsToReplace = getElementsToReplace(addedLabels);
+    List<PsiExpression> elementsToReplace = getElementsToReplace(pointers);
     for (PsiExpression expression : elementsToReplace) {
       builder.replaceElement(expression, new ConstantNode(expression.getText()));
     }
     builder.run(editor, true);
   }
 
-  @NotNull
-  private static List<PsiExpression> getElementsToReplace(@NotNull List<PsiSwitchLabelStatementBase> labels) {
+  private static @NotNull List<PsiExpression> getElementsToReplace(@NotNull List<SmartPsiElementPointer<PsiSwitchLabelStatementBase>> labels) {
     List<PsiExpression> elementsToReplace = new ArrayList<>();
-    for (PsiSwitchLabelStatementBase label : labels) {
+    for (SmartPsiElementPointer<PsiSwitchLabelStatementBase> pointer : labels) {
+      PsiSwitchLabelStatementBase label = pointer.getElement();
+      if (label == null) continue;
       if (label instanceof PsiSwitchLabeledRuleStatement) {
         PsiStatement body = ((PsiSwitchLabeledRuleStatement)label).getBody();
         if (body instanceof PsiExpressionStatement) {
@@ -149,7 +152,7 @@ public class CreateSwitchBranchesUtil {
     return elementsToReplace;
   }
 
-  private static List<String> generateStatements(String name, PsiSwitchBlock switchBlock, boolean isRuleBasedFormat) {
+  private static @NonNls List<String> generateStatements(String name, PsiSwitchBlock switchBlock, boolean isRuleBasedFormat) {
     if (switchBlock instanceof PsiSwitchExpression) {
       String value = TypeUtils.getDefaultValue(((PsiSwitchExpression)switchBlock).getType());
       if (isRuleBasedFormat) {
@@ -204,9 +207,9 @@ public class CreateSwitchBranchesUtil {
    * @param element any element from the document
    * @return an editor, or null if not found.
    */
-  @Nullable
-  public static Editor prepareForTemplateAndObtainEditor(@NotNull PsiElement element) {
+  public static @Nullable Editor prepareForTemplateAndObtainEditor(@NotNull PsiElement element) {
     PsiFile file = element.getContainingFile();
+    if (!file.isPhysical()) return null;
     Project project = file.getProject();
     Editor editor = FileEditorManager.getInstance(project).getSelectedTextEditor();
     if (editor == null) return null;

@@ -1,8 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.introduceParameter;
 
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.TransactionGuard;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.editor.Editor;
@@ -25,6 +24,7 @@ import com.intellij.refactoring.ui.TypeSelectorManagerImpl;
 import com.intellij.ui.JBColor;
 import com.intellij.util.ui.JBInsets;
 import gnu.trove.TIntArrayList;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -52,7 +52,7 @@ public class InplaceIntroduceParameterPopup extends AbstractJavaInplaceIntroduce
                                  final PsiExpression[] occurrences,
                                  final TIntArrayList parametersToRemove,
                                  final boolean mustBeFinal) {
-    super(project, editor, expr, localVar, occurrences, typeSelectorManager, IntroduceParameterHandler.REFACTORING_NAME
+    super(project, editor, expr, localVar, occurrences, typeSelectorManager, IntroduceParameterHandler.getRefactoringName()
     );
     myMethod = method;
     myMethodToSearchFor = methodToSearchFor;
@@ -196,7 +196,7 @@ public class InplaceIntroduceParameterPopup extends AbstractJavaInplaceIntroduce
       if (ApplicationManager.getApplication().isUnitTestMode()) {
         performRefactoring.run();
       } else {
-        TransactionGuard.getInstance().submitTransactionLater(myProject, performRefactoring);
+        ApplicationManager.getApplication().invokeLater(performRefactoring, myProject.getDisposed());
       }
     };
     CommandProcessor.getInstance().executeCommand(myProject, runnable, getCommandName(), null);
@@ -217,7 +217,7 @@ public class InplaceIntroduceParameterPopup extends AbstractJavaInplaceIntroduce
     final PsiElement declarationScope = variable != null ? ((PsiParameter)variable).getDeclarationScope() : null;
     if (declarationScope instanceof PsiMethod) {
       final PsiMethod psiMethod = (PsiMethod)declarationScope;
-      final StringBuilder buf = new StringBuilder();
+      final @NonNls StringBuilder buf = new StringBuilder();
       buf.append(psiMethod.getName()).append(" (");
       boolean frst = true;
       final List<TextRange> ranges2Remove = new ArrayList<>();

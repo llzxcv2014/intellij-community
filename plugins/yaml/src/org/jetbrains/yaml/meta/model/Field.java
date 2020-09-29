@@ -7,10 +7,7 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.icons.AllIcons;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiReference;
-import org.jetbrains.annotations.ApiStatus;
-import org.jetbrains.annotations.Contract;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.*;
 import org.jetbrains.yaml.psi.YAMLKeyValue;
 
 import javax.swing.*;
@@ -31,7 +28,10 @@ public class Field {
   }
 
   private final String myName;
-  private final YamlMetaType myMainType;
+  private final MetaTypeSupplier myMetaTypeSupplier;
+  // must be accessed with getMainType()
+  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
+  private YamlMetaType myMainType;
   private boolean myIsRequired;
   private boolean myEditable = true;
   private boolean myDeprecated = false;
@@ -42,9 +42,25 @@ public class Field {
 
   private final Map<Relation, YamlMetaType> myPerRelationTypes = new HashMap<>();
 
-  public Field(@NotNull String name, @NotNull YamlMetaType mainType) {
+  /**
+   * Used in {@link Field#Field(String, MetaTypeSupplier)}.
+   * Invoked only once
+   */
+  public interface MetaTypeSupplier {
+    @NotNull YamlMetaType getMainType();
+  }
+
+  public Field(@NonNls @NotNull String name, @NotNull YamlMetaType mainType) {
+    this(name, () -> mainType);
+  }
+
+  /**
+   * Used for late initialization of the field metatype.
+   * Useful when the type isn't fully constructed at the moment of the field initialization (e.g. for cyclic dependencies)
+   */
+  public Field(@NonNls @NotNull String name, @NotNull MetaTypeSupplier supplier) {
     myName = name;
-    myMainType = mainType;
+    myMetaTypeSupplier = supplier;
   }
 
   @NotNull
@@ -131,7 +147,7 @@ public class Field {
   @Contract(pure = true)
   @NotNull
   public YamlMetaType getType(@NotNull Relation relation) {
-    return myPerRelationTypes.getOrDefault(relation, myMainType);
+    return myPerRelationTypes.getOrDefault(relation, getMainType());
   }
 
   @Contract(pure = true)
@@ -141,7 +157,7 @@ public class Field {
   }
 
   /**
-   * Returns the default relation between the field and its value. For mots normal fields it can be computed based on type and multiplicity
+   * Returns the default relation between the field and its value. For most normal fields it can be computed based on type and multiplicity
    * but for polymorphic fields the main relation should be assigned explicitly.
    */
   @NotNull
@@ -152,7 +168,7 @@ public class Field {
     if (myIsMany) {
       return Relation.SEQUENCE_ITEM;
     }
-    return myMainType instanceof YamlScalarType ? Relation.SCALAR_VALUE : Relation.OBJECT_CONTENTS;
+    return getMainType() instanceof YamlScalarType ? Relation.SCALAR_VALUE : Relation.OBJECT_CONTENTS;
   }
 
   @NotNull
@@ -186,10 +202,10 @@ public class Field {
     result.append("[").append(getName()).append("]@");
     result.append(Integer.toHexString(hashCode()));
     result.append(" : ");
-    result.append(myMainType.getTypeName());
+    result.append(getMainType().getTypeName());
 
     List<String> nonDefaultTypes = myPerRelationTypes.entrySet().stream()
-      .filter(e -> e.getValue() == myMainType)
+      .filter(e -> e.getValue() == getMainType())
       .map(e -> e.getKey() + ":" + e.getValue())
       .collect(Collectors.toList());
 
@@ -208,7 +224,7 @@ public class Field {
 
     LookupElementBuilder lookup = LookupElementBuilder
       .create(new TypeFieldPair(ownerClass, this), getName())
-      .withTypeText(myMainType.getDisplayName(), true)
+      .withTypeText(getMainType().getDisplayName(), true)
       .withIcon(getLookupIcon())
       .withStrikeoutness(isDeprecated());
 
@@ -229,6 +245,24 @@ public class Field {
 
   @Nullable
   public Icon getLookupIcon() {
-    return myIsMany ? AllIcons.Json.Array : myMainType.getIcon();
+    return myIsMany ? AllIcons.Json.Array : getMainType().getIcon();
+  }
+  
+  @NotNull
+  private YamlMetaType getMainType() {
+    if(myMainType != null)
+      return myMainType;
+    
+    synchronized (myMetaTypeSupplier) {
+      if(myMainType == null) {
+        try {
+          myMainType = myMetaTypeSupplier.getMainType();
+        }
+        catch (Exception e) {
+          throw new RuntimeException("Supplier failed to return a metatype for field: " + this, e);
+        }
+      }
+      return myMainType;
+    }
   }
 }

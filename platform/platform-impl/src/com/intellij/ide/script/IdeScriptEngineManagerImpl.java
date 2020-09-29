@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.script;
 
 import com.intellij.ide.plugins.IdeaPluginDescriptor;
@@ -12,7 +12,6 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.util.ClassLoaderUtil;
 import com.intellij.openapi.util.text.StringHash;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.JBIterable;
@@ -28,6 +27,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Future;
 
@@ -45,39 +45,34 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
     }
   });
 
-  @NotNull
   @Override
-  public List<EngineInfo> getEngineInfos() {
+  public @NotNull List<EngineInfo> getEngineInfos() {
     return new ArrayList<>(getFactories().keySet());
   }
 
-  @Nullable
   @Override
-  public IdeScriptEngine getEngine(@NotNull EngineInfo engineInfo, @Nullable ClassLoader loader) {
-    ClassLoader l = ObjectUtils.notNull(loader, AllPluginsLoader.INSTANCE);
+  public @Nullable IdeScriptEngine getEngine(@NotNull EngineInfo engineInfo, @Nullable ClassLoader loader) {
     ScriptEngineFactory engineFactory = getFactories().get(engineInfo);
     if (engineFactory == null) return null;
-    return ClassLoaderUtil.computeWithClassLoader(l, () -> createIdeScriptEngine(engineFactory));
+    return createIdeScriptEngine(engineFactory, loader);
   }
 
-  @Nullable
   @Override
-  public IdeScriptEngine getEngineByName(@NotNull String engineName, @Nullable ClassLoader loader) {
+  public @Nullable IdeScriptEngine getEngineByName(@NotNull String engineName, @Nullable ClassLoader loader) {
     Map<EngineInfo, ScriptEngineFactory> state = getFactories();
     for (EngineInfo info : state.keySet()) {
       if (!info.engineName.equals(engineName)) continue;
-      return ClassLoaderUtil.computeWithClassLoader(loader, () -> createIdeScriptEngine(state.get(info)));
+      return createIdeScriptEngine(state.get(info), loader);
     }
     return null;
   }
 
-  @Nullable
   @Override
-  public IdeScriptEngine getEngineByFileExtension(@NotNull String extension, @Nullable ClassLoader loader) {
+  public @Nullable IdeScriptEngine getEngineByFileExtension(@NotNull String extension, @Nullable ClassLoader loader) {
     Map<EngineInfo, ScriptEngineFactory> state = getFactories();
     for (EngineInfo info : state.keySet()) {
       if (!info.fileExtensions.contains(extension)) continue;
-      return ClassLoaderUtil.computeWithClassLoader(loader, () -> createIdeScriptEngine(state.get(info)));
+      return createIdeScriptEngine(state.get(info), loader);
     }
     return null;
   }
@@ -87,8 +82,7 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
     return myStateFuture.isDone();
   }
 
-  @NotNull
-  private Map<EngineInfo, ScriptEngineFactory> getFactories() {
+  private @NotNull Map<EngineInfo, ScriptEngineFactory> getFactories() {
     Map<EngineInfo, ScriptEngineFactory> state = null;
     try {
       state = myStateFuture.get();
@@ -99,8 +93,7 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
     return state != null ? state : Collections.emptyMap();
   }
 
-  @NotNull
-  private static Map<EngineInfo, ScriptEngineFactory> calcFactories() {
+  private static @NotNull Map<EngineInfo, ScriptEngineFactory> calcFactories() {
     return JBIterable.<ScriptEngineFactory>empty()
       .append(new ScriptEngineManager().getEngineFactories()) // bundled factories from java modules (Nashorn)
       .append(new ScriptEngineManager(AllPluginsLoader.INSTANCE).getEngineFactories()) // from plugins (Kotlin)
@@ -108,7 +101,7 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
       .toMap(factory -> {
         Class<? extends ScriptEngineFactory> aClass = factory.getClass();
         ClassLoader classLoader = aClass.getClassLoader();
-        IdeaPluginDescriptor plugin = classLoader instanceof PluginClassLoader ? ((PluginClassLoader)classLoader).getPluginDescriptor() : null;
+        PluginDescriptor plugin = classLoader instanceof PluginClassLoader ? ((PluginClassLoader)classLoader).getPluginDescriptor() : null;
         return new EngineInfo(factory.getEngineName(),
                               factory.getEngineVersion(),
                               factory.getLanguageName(),
@@ -119,43 +112,59 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
       }, o -> o);
   }
 
-  @Nullable
-  private static IdeScriptEngine createIdeScriptEngine(@Nullable ScriptEngineFactory scriptEngineFactory) {
-    if (scriptEngineFactory == null) return null;
-    EngineImpl wrapper = new EngineImpl(scriptEngineFactory.getScriptEngine());
-    redirectOutputToLog(wrapper);
+  private static @Nullable IdeScriptEngine createIdeScriptEngine(@Nullable ScriptEngineFactory scriptEngineFactory,
+                                                                 @Nullable ClassLoader loader) {
+    if (scriptEngineFactory == null) {
+      return null;
+    }
+    IdeScriptEngine engine = new EngineImpl(scriptEngineFactory, loader == null ? AllPluginsLoader.INSTANCE : loader);
+    redirectOutputToLog(engine);
 
     PluginInfo pluginInfo = PluginInfoDetectorKt.getPluginInfo(scriptEngineFactory.getClass());
     String factoryClass = pluginInfo.isSafeToReport() ? scriptEngineFactory.getClass().getName() : "third.party";
     FeatureUsageData data = new FeatureUsageData().addData("factory", factoryClass).addPluginInfo(pluginInfo);
     FUCounterUsageLogger.getInstance().logEvent("ide.script.engine", "used", data);
-    return wrapper;
+    return engine;
   }
 
   private static void redirectOutputToLog(@NotNull IdeScriptEngine engine) {
-    class Log extends Writer {
-      final boolean error;
-      Log(boolean error) {this.error = error;}
-      @Override public void flush() throws IOException { }
-      @Override public void close() throws IOException { }
-      @Override public void write(char[] cbuf, int off, int len) throws IOException {
-        while (len > 0 && Character.isWhitespace(cbuf[off + len - 1])) len --;
+    final class Log extends Writer {
+      private final boolean error;
+
+      private Log(boolean error) {
+        this.error = error;
+      }
+
+      @Override
+      public void flush() { }
+
+      @Override
+      public void close() { }
+
+      @Override
+      public void write(char[] cbuf, int off, int len) {
+        while (len > 0 && Character.isWhitespace(cbuf[off + len - 1])) len--;
         if (len == 0) return;
         String s = new String(cbuf, off, len);
-        if (error) LOG.warn(s); else LOG.info(s);
+        if (error) {
+          LOG.warn(s);
+        }
+        else {
+          LOG.info(s);
+        }
       }
     }
     engine.setStdOut(new Log(false));
     engine.setStdErr(new Log(true));
   }
 
-  static class EngineImpl implements IdeScriptEngine {
+  static final class EngineImpl implements IdeScriptEngine {
     private final ScriptEngine myEngine;
     private final ClassLoader myLoader;
 
-    EngineImpl(ScriptEngine engine) {
-      myEngine = engine;
-      myLoader = Thread.currentThread().getContextClassLoader();
+    EngineImpl(@NotNull ScriptEngineFactory factory, @Nullable ClassLoader loader) {
+      myLoader = loader;
+      myEngine = ClassLoaderUtil.computeWithClassLoader(myLoader, () -> factory.getScriptEngine());
     }
 
     @Override
@@ -168,9 +177,8 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
       myEngine.put(name, value);
     }
 
-    @NotNull
     @Override
-    public Writer getStdOut() {
+    public @NotNull Writer getStdOut() {
       return myEngine.getContext().getWriter();
     }
 
@@ -179,9 +187,8 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
       myEngine.getContext().setWriter(writer);
     }
 
-    @NotNull
     @Override
-    public Writer getStdErr() {
+    public @NotNull Writer getStdErr() {
       return myEngine.getContext().getErrorWriter();
     }
 
@@ -190,9 +197,8 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
       myEngine.getContext().setErrorWriter(writer);
     }
 
-    @NotNull
     @Override
-    public Reader getStdIn() {
+    public @NotNull Reader getStdIn() {
       return myEngine.getContext().getReader();
     }
 
@@ -201,15 +207,13 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
       myEngine.getContext().setReader(reader);
     }
 
-    @NotNull
     @Override
-    public String getLanguage() {
+    public @NotNull String getLanguage() {
       return myEngine.getFactory().getLanguageName();
     }
 
-    @NotNull
     @Override
-    public List<String> getFileExtensions() {
+    public @NotNull List<String> getFileExtensions() {
       return myEngine.getFactory().getExtensions();
     }
 
@@ -231,7 +235,7 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
   static class AllPluginsLoader extends ClassLoader {
     static final AllPluginsLoader INSTANCE = new AllPluginsLoader();
 
-    final ConcurrentMap<Long, ClassLoader> myLuckyGuess = ContainerUtil.newConcurrentMap();
+    final ConcurrentMap<Long, ClassLoader> myLuckyGuess = new ConcurrentHashMap<>();
 
     AllPluginsLoader() {
       // Groovy performance: do not specify parent loader to enable our luckyGuesser
@@ -333,8 +337,7 @@ final class IdeScriptEngineManagerImpl extends IdeScriptEngineManager {
     }
 
     // used by kotlin engine
-    @NotNull
-    public List<URL> getUrls() {
+    public @NotNull List<URL> getUrls() {
       return JBIterable.of(PluginManagerCore.getPlugins())
         .map(PluginDescriptor::getPluginClassLoader)
         .unique()

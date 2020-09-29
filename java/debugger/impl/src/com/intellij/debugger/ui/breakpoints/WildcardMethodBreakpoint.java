@@ -15,7 +15,7 @@
  */
 package com.intellij.debugger.ui.breakpoints;
 
-import com.intellij.debugger.DebuggerBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.DebuggerManagerEx;
 import com.intellij.debugger.engine.DebugProcess;
 import com.intellij.debugger.engine.DebugProcessImpl;
@@ -31,6 +31,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.JDOMExternalizerUtil;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
@@ -80,7 +81,7 @@ public class WildcardMethodBreakpoint extends Breakpoint<JavaMethodBreakpointPro
     return getClassName();
   }
 
-  public String getMethodName() {
+  public @NlsSafe String getMethodName() {
     return getProperties().myMethodName;
   }
 
@@ -97,7 +98,7 @@ public class WildcardMethodBreakpoint extends Breakpoint<JavaMethodBreakpointPro
   @Override
   public String getDisplayName() {
     if (!isValid()) {
-      return DebuggerBundle.message("status.breakpoint.invalid");
+      return JavaDebuggerBundle.message("status.breakpoint.invalid");
     }
     return getClassPattern() + "." + getMethodName() + "()";
   }
@@ -273,7 +274,7 @@ public class WildcardMethodBreakpoint extends Breakpoint<JavaMethodBreakpointPro
     return getProperties().WATCH_EXIT;
   }
 
-  private String getClassPattern() {
+  private @NlsSafe String getClassPattern() {
     return getProperties().myClassPattern;
   }
 

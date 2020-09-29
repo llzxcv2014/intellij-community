@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actions.runAnything;
 
 import com.intellij.ide.IdeBundle;
@@ -12,6 +12,7 @@ import com.intellij.openapi.keymap.KeymapUtil;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.Gray;
@@ -19,9 +20,9 @@ import com.intellij.ui.JBColor;
 import com.intellij.ui.ScrollingUtil;
 import com.intellij.ui.SeparatorComponent;
 import com.intellij.ui.components.JBList;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,21 +31,18 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
-public class RunAnythingUtil {
+public final class RunAnythingUtil {
   public static final Logger LOG = Logger.getInstance(RunAnythingUtil.class);
   public static final String SHIFT_SHORTCUT_TEXT = KeymapUtil.getShortcutText(KeyboardShortcut.fromString(("SHIFT")));
-  public static final String AD_DEBUG_TEXT = IdeBundle.message("run.anything.ad.run.with.debug", SHIFT_SHORTCUT_TEXT);
-  public static final String AD_DELETE_COMMAND_TEXT = IdeBundle.message("run.anything.ad.command.delete", KeymapUtil.getShortcutText(KeyboardShortcut.fromString("shift BACK_SPACE")));
-  public static final String AD_CONTEXT_TEXT =
-    IdeBundle.message("run.anything.ad.run.in.context", KeymapUtil.getShortcutText(KeyboardShortcut.fromString("pressed ALT")));
   private static final Key<Collection<Pair<String, String>>> RUN_ANYTHING_WRAPPED_COMMANDS = Key.create("RUN_ANYTHING_WRAPPED_COMMANDS");
 
   static Font getTitleFont() {
     return UIUtil.getLabelFont().deriveFont(UIUtil.getFontSize(UIUtil.FontSize.SMALL));
   }
 
-  static JComponent createTitle(@NotNull String titleText, @NotNull Color background) {
+  static JComponent createTitle(@NlsContexts.PopupTitle @NotNull String titleText, @NotNull Color background) {
     JLabel titleLabel = new JLabel(StringUtil.capitalizeWords(titleText, true));
     titleLabel.setFont(getTitleFont());
     titleLabel.setForeground(UIUtil.getLabelDisabledForeground());
@@ -90,7 +88,7 @@ public class RunAnythingUtil {
 
   @NotNull
   public static Project fetchProject(@NotNull DataContext dataContext) {
-    return ObjectUtils.assertNotNull(CommonDataKeys.PROJECT.getData(dataContext));
+    return Objects.requireNonNull(CommonDataKeys.PROJECT.getData(dataContext));
   }
 
   public static void executeMatched(@NotNull DataContext dataContext, @NotNull String pattern) {
@@ -117,5 +115,17 @@ public class RunAnythingUtil {
   public static RunAnythingSearchListModel getSearchingModel(@NotNull JBList list) {
     ListModel model = list.getModel();
     return model instanceof RunAnythingSearchListModel ? (RunAnythingSearchListModel)model : null;
+  }
+
+  public static @Nls String getAdDebugText() {
+    return IdeBundle.message("run.anything.ad.run.with.debug", SHIFT_SHORTCUT_TEXT);
+  }
+
+  public static @Nls String getAdDeleteCommandText() {
+    return IdeBundle.message("run.anything.ad.command.delete", KeymapUtil.getShortcutText(KeyboardShortcut.fromString("shift BACK_SPACE")));
+  }
+
+  public static @Nls String getAdContextText() {
+    return IdeBundle.message("run.anything.ad.run.in.context", KeymapUtil.getShortcutText(KeyboardShortcut.fromString("pressed ALT")));
   }
 }

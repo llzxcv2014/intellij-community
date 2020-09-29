@@ -1,7 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.introduceparameterobject;
 
 import com.intellij.ide.util.TreeJavaClassChooserDialog;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
@@ -186,7 +187,8 @@ public class IntroduceParameterObjectDialog extends AbstractIntroduceParameterOb
     final List<ParameterInfoImpl> parameters = new ArrayList<>();
     for (VariableData data : myParameterTablePanel.getVariableData()) {
       if (data.passAsParameter) {
-        parameters.add(new ParameterInfoImpl(parameterList.getParameterIndex((PsiParameter)data.variable), data.name, data.type));
+        int oldParameterIndex = parameterList.getParameterIndex((PsiParameter)data.variable);
+        parameters.add(ParameterInfoImpl.create(oldParameterIndex).withName(data.name).withType(data.type));
       }
     }
     final ParameterInfoImpl[] infos = parameters.toArray(new ParameterInfoImpl[0]);
@@ -202,26 +204,31 @@ public class IntroduceParameterObjectDialog extends AbstractIntroduceParameterOb
     final PsiNameHelper nameHelper = PsiNameHelper.getInstance(project);
     if (myCreateInnerClassRadioButton.isSelected()) {
       final String innerClassName = getInnerClassName();
-      if (!nameHelper.isIdentifier(innerClassName)) throw new ConfigurationException("\'" + innerClassName + "\' is invalid inner class name");
-      if (mySourceMethod.getContainingClass().findInnerClassByName(innerClassName, false) != null) throw new ConfigurationException("Inner class with name \'" + innerClassName + "\' already exist");
+      if (!nameHelper.isIdentifier(innerClassName)) throw new ConfigurationException(
+        JavaRefactoringBundle.message("introduce.parameter.object.error.invalid.inner.class.name", innerClassName));
+      if (mySourceMethod.getContainingClass().findInnerClassByName(innerClassName, false) != null) throw new ConfigurationException(
+        JavaRefactoringBundle.message("introduce.parameter.object.error.inner.class.already.exist", innerClassName));
     } else if (!useExistingClass()) {
       final String className = getClassName();
       if (className.length() == 0 || !nameHelper.isIdentifier(className)) {
-        throw new ConfigurationException("\'" + className + "\' is invalid parameter class name");
+        throw new ConfigurationException(
+          JavaRefactoringBundle.message("introduce.parameter.object.error.invalid.parameter.class.name", className));
       }
       final String packageName = getPackageName();
 
       if (packageName.length() == 0 || !nameHelper.isQualifiedName(packageName)) {
-        throw new ConfigurationException("\'" + packageName + "\' is invalid parameter class package name");
+        throw new ConfigurationException(
+          JavaRefactoringBundle.message("introduce.parameter.object.error.invalid.parameter.class.package.name", packageName));
       }
     }
     else {
       final String className = getExistingClassName();
       if (className.length() == 0 || !nameHelper.isQualifiedName(className)) {
-        throw new ConfigurationException("\'" + className + "\' is invalid qualified parameter class name");
+        throw new ConfigurationException(
+          JavaRefactoringBundle.message("introduce.parameter.object.error.invalid.qualified.parameter.class.name", className));
       }
       if (JavaPsiFacade.getInstance(getProject()).findClass(className, GlobalSearchScope.allScope(getProject())) == null) {
-        throw new ConfigurationException("\'" + className + "\' does not exist");
+        throw new ConfigurationException(JavaRefactoringBundle.message("introduce.parameter.object.error.class.does.not.exist", className));
       }
     }
   }

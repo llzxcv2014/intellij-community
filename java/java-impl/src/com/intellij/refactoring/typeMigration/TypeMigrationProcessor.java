@@ -1,6 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.typeMigration;
 
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
@@ -15,6 +16,7 @@ import com.intellij.refactoring.BaseRefactoringProcessor;
 import com.intellij.refactoring.typeMigration.ui.FailedConversionsDialog;
 import com.intellij.refactoring.typeMigration.ui.MigrationPanel;
 import com.intellij.refactoring.typeMigration.usageInfo.TypeMigrationUsageInfo;
+import com.intellij.refactoring.util.RefactoringUIUtil;
 import com.intellij.refactoring.util.RefactoringUtil;
 import com.intellij.ui.content.Content;
 import com.intellij.usageView.UsageInfo;
@@ -28,26 +30,21 @@ import com.intellij.util.containers.ContainerUtil;
 import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-
-import static com.intellij.util.ObjectUtils.assertNotNull;
+import java.util.*;
 
 public class TypeMigrationProcessor extends BaseRefactoringProcessor {
   public volatile static boolean ourSkipFailedConversionInTestMode;
   private final static int MAX_ROOT_IN_PREVIEW_PRESENTATION = 3;
 
   private PsiElement[] myRoots;
-  private final Function<PsiElement, PsiType> myRootTypes;
+  private final Function<? super PsiElement, ? extends PsiType> myRootTypes;
   private final boolean myAllowDependentRoots;
   private final TypeMigrationRules myRules;
   private TypeMigrationLabeler myLabeler;
 
   public TypeMigrationProcessor(final Project project,
                                 final PsiElement[] roots,
-                                final Function<PsiElement, PsiType> rootTypes,
+                                final Function<? super PsiElement, ? extends PsiType> rootTypes,
                                 final TypeMigrationRules rules,
                                 final boolean allowDependentRoots) {
     super(project);
@@ -80,13 +77,13 @@ public class TypeMigrationProcessor extends BaseRefactoringProcessor {
                                                   final Editor editor,
                                                   final TypeMigrationRules rules,
                                                   final PsiElement[] roots,
-                                                  final Function<PsiElement, PsiType> migrationTypeFunction,
+                                                  final Function<? super PsiElement, ? extends PsiType> migrationTypeFunction,
                                                   final boolean optimizeImports,
                                                   boolean allowDependentRoots) {
     final Set<PsiFile> containingFiles = ContainerUtil.map2Set(roots, PsiElement::getContainingFile);
     final TypeMigrationProcessor processor = new TypeMigrationProcessor(project, roots, migrationTypeFunction, rules, allowDependentRoots) {
       @Override
-      public void performRefactoring(@NotNull final UsageInfo[] usages) {
+      public void performRefactoring(final UsageInfo @NotNull [] usages) {
         super.performRefactoring(usages);
         if (editor != null) {
           ApplicationManager.getApplication().invokeLater(() -> {
@@ -129,7 +126,7 @@ public class TypeMigrationProcessor extends BaseRefactoringProcessor {
 
   @NotNull
   @Override
-  protected UsageViewDescriptor createUsageViewDescriptor(@NotNull UsageInfo[] usages) {
+  protected UsageViewDescriptor createUsageViewDescriptor(UsageInfo @NotNull [] usages) {
     return new TypeMigrationViewDescriptor(myRoots[0]);
   }
 
@@ -162,24 +159,24 @@ public class TypeMigrationProcessor extends BaseRefactoringProcessor {
   }
 
   @Override
-  protected void previewRefactoring(@NotNull final UsageInfo[] usages) {
+  protected void previewRefactoring(final UsageInfo @NotNull [] usages) {
     MigrationPanel panel = new MigrationPanel(myRoots, myLabeler, myProject, isPreviewUsages());
     String name;
     if (myRoots.length == 1) {
-      String fromType = assertNotNull(TypeMigrationLabeler.getElementType(myRoots[0])).getPresentableText();
+      String fromType = Objects.requireNonNull(TypeMigrationLabeler.getElementType(myRoots[0])).getPresentableText();
       String toType = myRootTypes.fun(myRoots[0]).getPresentableText();
       String text;
       text = getPresentation(myRoots[0]);
-      name = "Migrate Type of " + text + " from \'" + fromType + "\' to \'" + toType + "\'";
+      name = JavaBundle.message("type.migration.single.root.toolwindow.title", text, fromType, toType);
     } else {
-      final int rootsInPresentationCount = myRoots.length > MAX_ROOT_IN_PREVIEW_PRESENTATION ? MAX_ROOT_IN_PREVIEW_PRESENTATION : myRoots.length;
+      final int rootsInPresentationCount = Math.min(myRoots.length, MAX_ROOT_IN_PREVIEW_PRESENTATION);
       String[] rootsPresentation = new String[rootsInPresentationCount];
       for (int i = 0; i < rootsInPresentationCount; i++) {
         final PsiElement root = myRoots[i];
         rootsPresentation[i] = root instanceof PsiNamedElement ? ((PsiNamedElement)root).getName() : root.getText();
       }
-      rootsPresentation = StringUtil.surround(rootsPresentation, "\'", "\'");
-      name = "Migrate Type of " + StringUtil.join(rootsPresentation, ", ");
+      rootsPresentation = StringUtil.surround(rootsPresentation, "'", "'");
+      name = JavaBundle.message("type.migration.multi.root.toolwindow.title", StringUtil.join(rootsPresentation, ", "));
       if (myRoots.length > MAX_ROOT_IN_PREVIEW_PRESENTATION) {
         name += "...";
       }
@@ -190,28 +187,11 @@ public class TypeMigrationProcessor extends BaseRefactoringProcessor {
   }
 
   public static String getPresentation(PsiElement element) {
-    String text;
-    if (element instanceof PsiField) {
-      text = "field \'" + ((PsiField)element).getName() + "\'";
-    }
-    else if (element instanceof PsiParameter) {
-      text = "parameter \'" + ((PsiParameter)element).getName() + "\'";
-    }
-    else if (element instanceof PsiLocalVariable) {
-      text = "variable \'" + ((PsiLocalVariable)element).getName() + "\'";
-    }
-    else if (element instanceof PsiMethod) {
-      text = "method \'" + ((PsiMethod)element).getName() + "\' return";
-    }
-    else {
-      text = element.getText();
-    }
-    return text;
+    return RefactoringUIUtil.getDescription(element, false);
   }
 
-  @NotNull
   @Override
-  public UsageInfo[] findUsages() {
+  public UsageInfo @NotNull [] findUsages() {
     myLabeler = new TypeMigrationLabeler(myRules, myRootTypes, myAllowDependentRoots ? null : myRoots, myProject);
 
     try {
@@ -225,12 +205,12 @@ public class TypeMigrationProcessor extends BaseRefactoringProcessor {
   }
 
   @Override
-  protected void refreshElements(@NotNull PsiElement[] elements) {
+  protected void refreshElements(PsiElement @NotNull [] elements) {
     myRoots = elements;
   }
 
   @Override
-  public void performRefactoring(@NotNull UsageInfo[] usages) {
+  public void performRefactoring(UsageInfo @NotNull [] usages) {
     change(usages, myLabeler, myProject);
   }
 
@@ -289,6 +269,6 @@ public class TypeMigrationProcessor extends BaseRefactoringProcessor {
   @NotNull
   @Override
   protected String getCommandName() {
-    return "TypeMigration";
+    return JavaBundle.message("type.migration.command.name");
   }
 }

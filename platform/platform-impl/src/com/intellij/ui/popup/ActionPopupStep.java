@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.popup;
 
 import com.intellij.openapi.actionSystem.*;
@@ -6,6 +6,8 @@ import com.intellij.openapi.actionSystem.ex.ActionUtil;
 import com.intellij.openapi.actionSystem.impl.PresentationFactory;
 import com.intellij.openapi.ui.popup.*;
 import com.intellij.openapi.util.Condition;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsContexts.PopupTitle;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.ui.StatusText;
 import com.intellij.util.ui.UIUtil;
@@ -21,7 +23,7 @@ public class ActionPopupStep implements ListPopupStepEx<PopupFactoryImpl.ActionI
                                         MnemonicNavigationFilter<PopupFactoryImpl.ActionItem>,
                                         SpeedSearchFilter<PopupFactoryImpl.ActionItem> {
   private final List<PopupFactoryImpl.ActionItem> myItems;
-  private final String myTitle;
+  private final @NlsContexts.PopupTitle String myTitle;
   private final Supplier<? extends DataContext> myContext;
   private final String myActionPlace;
   private final boolean myEnableMnemonics;
@@ -33,7 +35,7 @@ public class ActionPopupStep implements ListPopupStepEx<PopupFactoryImpl.ActionI
   private final Condition<? super AnAction> myPreselectActionCondition;
 
   public ActionPopupStep(@NotNull List<PopupFactoryImpl.ActionItem> items,
-                         String title,
+                         @PopupTitle String title,
                          @NotNull Supplier<? extends DataContext> context,
                          @Nullable String actionPlace,
                          boolean enableMnemonics,
@@ -44,7 +46,7 @@ public class ActionPopupStep implements ListPopupStepEx<PopupFactoryImpl.ActionI
     myItems = items;
     myTitle = title;
     myContext = context;
-    myActionPlace = ObjectUtils.notNull(actionPlace, ActionPlaces.UNKNOWN);
+    myActionPlace = ObjectUtils.notNull(actionPlace, ActionPlaces.POPUP);
     myEnableMnemonics = enableMnemonics;
     myPresentationFactory = presentationFactory;
     myDefaultOptionIndex = getDefaultOptionIndexFromSelectCondition(preselectActionCondition, items);
@@ -74,7 +76,7 @@ public class ActionPopupStep implements ListPopupStepEx<PopupFactoryImpl.ActionI
                                                                              boolean showNumbers,
                                                                              boolean useAlphaAsNumbers,
                                                                              boolean showDisabledActions,
-                                                                             String title,
+                                                                             @PopupTitle String title,
                                                                              boolean honorActionMnemonics,
                                                                              boolean autoSelectionEnabled,
                                                                              Supplier<? extends DataContext> contextSupplier,
@@ -125,14 +127,10 @@ public class ActionPopupStep implements ListPopupStepEx<PopupFactoryImpl.ActionI
 
   @Override
   public int getMnemonicPos(final PopupFactoryImpl.ActionItem value) {
-    final String text = getTextFor(value);
+    String text = getTextFor(value);
     int i = text.indexOf(UIUtil.MNEMONIC);
-    if (i < 0) {
-      i = text.indexOf('&');
-    }
-    if (i < 0) {
-      i = text.indexOf('_');
-    }
+    if (i < 0) i = text.indexOf('&');
+    if (i < 0) i = text.indexOf('_');
     return i;
   }
 
@@ -159,7 +157,11 @@ public class ActionPopupStep implements ListPopupStepEx<PopupFactoryImpl.ActionI
   }
 
   @Override
-  public void setEmptyText(@NotNull StatusText emptyText) {
+  public void setEmptyText(@NotNull StatusText emptyText) { }
+
+  @Override
+  public @Nullable String getValueFor(PopupFactoryImpl.ActionItem item) {
+    return item.getValue();
   }
 
   @Override
@@ -178,14 +180,12 @@ public class ActionPopupStep implements ListPopupStepEx<PopupFactoryImpl.ActionI
   }
 
   @Override
-  public PopupStep onChosen(final PopupFactoryImpl.ActionItem actionChoice, final boolean finalChoice) {
+  public PopupStep<?> onChosen(final PopupFactoryImpl.ActionItem actionChoice, final boolean finalChoice) {
     return onChosen(actionChoice, finalChoice, 0);
   }
 
   @Override
-  public PopupStep<PopupFactoryImpl.ActionItem> onChosen(PopupFactoryImpl.ActionItem actionChoice,
-                                                         boolean finalChoice,
-                                                         int eventModifiers) {
+  public PopupStep<?> onChosen(PopupFactoryImpl.ActionItem actionChoice, boolean finalChoice, int eventModifiers) {
     if (!actionChoice.isEnabled()) return FINAL_CHOICE;
     final AnAction action = actionChoice.getAction();
     final DataContext dataContext = myContext.get();

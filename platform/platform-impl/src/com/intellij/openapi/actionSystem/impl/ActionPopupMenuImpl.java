@@ -3,6 +3,7 @@ package com.intellij.openapi.actionSystem.impl;
 
 import com.intellij.ide.DataManager;
 import com.intellij.ide.ui.UISettings;
+import com.intellij.internal.inspector.UiInspectorUtil;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.ActionPopupMenu;
 import com.intellij.openapi.actionSystem.DataContext;
@@ -18,7 +19,6 @@ import com.intellij.openapi.wm.impl.InternalDecorator;
 import com.intellij.ui.ComponentUtil;
 import com.intellij.util.ReflectionUtil;
 import com.intellij.util.messages.MessageBusConnection;
-import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,6 +26,8 @@ import javax.swing.*;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 import java.awt.*;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 
 /**
  * @author Anton Katilin
@@ -76,8 +78,7 @@ final class ActionPopupMenuImpl implements ActionPopupMenu, ApplicationActivatio
   @Override
   public void setTargetComponent(@NotNull JComponent component) {
     myDataContextProvider = () -> DataManager.getInstance().getDataContext(component);
-    myIsToolWindowContextMenu = ComponentUtil
-                                  .getParentOfType((Class<? extends InternalDecorator>)InternalDecorator.class, (Component)component) != null;
+    myIsToolWindowContextMenu = ComponentUtil.getParentOfType(InternalDecorator.class, component) != null;
   }
 
   boolean isToolWindowContextMenu() {
@@ -97,10 +98,21 @@ final class ActionPopupMenuImpl implements ActionPopupMenu, ApplicationActivatio
       myGroup = group;
       myPresentationFactory = factory != null ? factory : new MenuItemPresentationFactory();
       addPopupMenuListener(new MyPopupMenuListener());
+      // This fake event might be sent from BegMenuItemUI
+      // to update items in case of multiple choice when there are dependencies between items like:
+      // 1. Selected A means unselected B and vise versa
+      // 2. Selected/unselected A means enabled/disabled B
+      addPropertyChangeListener("updateChildren", new PropertyChangeListener() {
+        @Override
+        public void propertyChange(PropertyChangeEvent evt) {
+          updateChildren();
+        }
+      });
+      UiInspectorUtil.registerProvider(this, () -> UiInspectorUtil.collectActionGroupInfo("Menu", myGroup, myPlace));
     }
 
     @Override
-    public void show(final Component component, int x, int y) {
+    public void show(@NotNull Component component, int x, int y) {
       if (!component.isShowing()) {
         throw new IllegalArgumentException("component must be shown on the screen (" + component + ")");
       }
@@ -114,7 +126,7 @@ final class ActionPopupMenuImpl implements ActionPopupMenu, ApplicationActivatio
 
       myContext = myDataContextProvider != null ? myDataContextProvider.get() : DataManager.getInstance().getDataContext(component, x2, y2);
       long time = -System.currentTimeMillis();
-      Utils.fillMenu(myGroup, this, true, myPresentationFactory, myContext, myPlace, false, LaterInvocator.isInModalContext(), false);
+      Utils.fillMenu(myGroup, this, !UISettings.getInstance().getDisableMnemonics(), myPresentationFactory, myContext, myPlace, false, LaterInvocator.isInModalContext(), false);
       time += System.currentTimeMillis();
       if (time > 1000) LOG.warn(time + "ms to fill popup menu " + myPlace);
       if (getComponentCount() == 0) {
@@ -123,7 +135,7 @@ final class ActionPopupMenuImpl implements ActionPopupMenu, ApplicationActivatio
       }
       if (myApp != null) {
         if (myApp.isActive()) {
-          Component frame = UIUtil.findUltimateParent(component);
+          Component frame = ComponentUtil.findUltimateParent(component);
           if (frame instanceof IdeFrame) {
             myFrame = (IdeFrame)frame;
           }
@@ -139,6 +151,12 @@ final class ActionPopupMenuImpl implements ActionPopupMenu, ApplicationActivatio
     public void setVisible(boolean b) {
       super.setVisible(b);
       if (!b) ReflectionUtil.resetField(this, "invoker");
+    }
+
+    private void updateChildren() {
+      removeAll();
+      Utils.fillMenu(myGroup, this, !UISettings.getInstance().getDisableMnemonics(), myPresentationFactory, myContext, myPlace, false,
+                     LaterInvocator.isInModalContext(), false);
     }
 
     private class MyPopupMenuListener implements PopupMenuListener {
@@ -162,9 +180,7 @@ final class ActionPopupMenuImpl implements ActionPopupMenu, ApplicationActivatio
 
       @Override
       public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
-        removeAll();
-        Utils.fillMenu(myGroup, MyMenu.this, !UISettings.getInstance().getDisableMnemonics(), myPresentationFactory, myContext, myPlace, false,
-                       LaterInvocator.isInModalContext(), false);
+        updateChildren();
         myManager.addActionPopup(ActionPopupMenuImpl.this);
       }
     }

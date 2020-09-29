@@ -15,18 +15,14 @@
  */
 package com.jetbrains.python.parsing.console;
 
-import com.google.common.collect.Sets;
-
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * @author traff
- */
 public class PythonConsoleData {
   private boolean myIPythonEnabled;
   private boolean myIPythonAutomagic = true;
-  private final Set<String> myIPythonMagicCommands = Sets.newHashSet();
+  private final Set<String> myIPythonMagicCommands = new HashSet<String>();
   private int myIndentSize = -1;
 
   public boolean isIPythonEnabled() {
@@ -49,7 +45,7 @@ public class PythonConsoleData {
     myIPythonMagicCommands.clear();
     myIPythonMagicCommands.addAll(IPythonMagicCommands);
   }
-  
+
   public boolean isMagicCommand(String command) {
     return myIPythonMagicCommands.contains(command);
   }

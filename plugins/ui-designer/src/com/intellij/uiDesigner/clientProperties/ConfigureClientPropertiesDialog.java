@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.uiDesigner.clientProperties;
 
@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.ActionToolbarPosition;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.ui.*;
 import com.intellij.ui.table.JBTable;
@@ -85,7 +86,8 @@ public class ConfigureClientPropertiesDialog extends DialogWrapper {
         if (node.getUserObject() instanceof Class) {
           Class cls = (Class)node.getUserObject();
           if (cls != null) {
-            append(cls.getName(), SimpleTextAttributes.REGULAR_ATTRIBUTES);
+            @NlsSafe String name = cls.getName();
+            append(name, SimpleTextAttributes.REGULAR_ATTRIBUTES);
           }
         }
       }
@@ -188,15 +190,15 @@ public class ConfigureClientPropertiesDialog extends DialogWrapper {
   }
 
   private void fillClassTree() {
-    List<Class> configuredClasses = myManager.getConfiguredClasses(myProject);
-    Collections.sort(configuredClasses, Comparator.comparingInt(ConfigureClientPropertiesDialog::getInheritanceLevel));
+    List<Class<?>> configuredClasses = myManager.getConfiguredClasses(myProject);
+    configuredClasses.sort(Comparator.comparingInt(ConfigureClientPropertiesDialog::getInheritanceLevel));
 
     DefaultMutableTreeNode root = new DefaultMutableTreeNode();
     DefaultTreeModel treeModel = new DefaultTreeModel(root);
-    Map<Class, DefaultMutableTreeNode> classToNodeMap = new HashMap<>();
-    for (Class cls : configuredClasses) {
+    Map<Class<?>, DefaultMutableTreeNode> classToNodeMap = new HashMap<>();
+    for (Class<?> cls : configuredClasses) {
       DefaultMutableTreeNode parentNode = root;
-      Class superClass = cls.getSuperclass();
+      Class<?> superClass = cls.getSuperclass();
       while (superClass != null) {
         if (classToNodeMap.containsKey(superClass)) {
           parentNode = classToNodeMap.get(superClass);

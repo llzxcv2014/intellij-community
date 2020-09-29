@@ -29,12 +29,6 @@ import org.jetbrains.annotations.NotNull;
 public class UnusedLabelInspection extends BaseInspection {
 
   @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("unused.label.display.name");
-  }
-
-  @Override
   public boolean isEnabledByDefault() {
     return true;
   }
@@ -101,7 +95,7 @@ public class UnusedLabelInspection extends BaseInspection {
     }
   }
 
-  private static class LabelFinder extends JavaRecursiveElementWalkingVisitor {
+  private static final class LabelFinder extends JavaRecursiveElementWalkingVisitor {
 
     private boolean found;
     private final String label;

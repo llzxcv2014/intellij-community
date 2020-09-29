@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.application.options.editor
 
 import com.intellij.ide.ui.UISettings
@@ -9,17 +9,23 @@ import com.intellij.openapi.application.ApplicationBundle
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.layout.*
+import org.jetbrains.annotations.Nls
+import javax.swing.ComboBoxModel
 import javax.swing.DefaultComboBoxModel
 import javax.swing.SwingConstants.*
 
-private val tabPlacements = arrayOf(TOP, LEFT, BOTTOM, RIGHT, TABS_NONE)
+internal val TAB_PLACEMENTS = arrayOf(TOP, LEFT, BOTTOM, RIGHT, TABS_NONE)
 
 internal val TAB_PLACEMENT = ApplicationBundle.message("combobox.editor.tab.placement")
 
-internal val tabPlacementsOptionDescriptors = tabPlacements.map<Int, BooleanOptionDescription> { i -> asOptionDescriptor(i) }
+internal val tabPlacementsOptionDescriptors = TAB_PLACEMENTS.map<Int, BooleanOptionDescription> { i -> asOptionDescriptor(i) }
 
 internal fun Cell.tabPlacementComboBox(): CellBuilder<ComboBox<Int>> {
-  return comboBox(DefaultComboBoxModel<Int>(tabPlacements),
+  return tabPlacementComboBox(DefaultComboBoxModel<Int>(TAB_PLACEMENTS))
+}
+
+internal fun Cell.tabPlacementComboBox(model: ComboBoxModel<Int>): CellBuilder<ComboBox<Int>> {
+  return comboBox(model,
                   ui::editorTabPlacement,
                   renderer = SimpleListCellRenderer.create<Int> { label, value, _ ->
                     label.text = value.asTabPlacement()
@@ -41,6 +47,7 @@ private fun asOptionDescriptor(i: Int) = object : NotABooleanOptionDescription(T
   }
 }
 
+@Nls
 private fun Int.asTabPlacement(): String {
   return when (this) {
     TABS_NONE -> ApplicationBundle.message("combobox.tab.placement.none")

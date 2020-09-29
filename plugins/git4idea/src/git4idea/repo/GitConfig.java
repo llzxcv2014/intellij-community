@@ -1,4 +1,4 @@
-  // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+  // Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.repo;
 
   import com.intellij.openapi.diagnostic.Logger;
@@ -34,8 +34,7 @@ package git4idea.repo;
  *
  * TODO: note, that other git configuration files (such as ~/.gitconfig) are not handled yet.
  */
-public class GitConfig {
-
+public final class GitConfig {
   private static final Logger LOG = Logger.getInstance(GitConfig.class);
 
   private static final Pattern REMOTE_SECTION = Pattern.compile("(?:svn-)?remote \"(.*)\"", Pattern.CASE_INSENSITIVE);
@@ -304,7 +303,7 @@ public class GitConfig {
     return new UrlsAndPushUrls(urls, pushUrls);
   }
 
-  private static class UrlsAndPushUrls {
+  private static final class UrlsAndPushUrls {
     final List<String> myUrls;
     final Collection<String> myPushUrls;
 
@@ -352,7 +351,7 @@ public class GitConfig {
     return null;
   }
 
-  private static class Remote {
+  private static final class Remote {
 
     @NotNull private final String myName;
     @NotNull List<String> myFetchSpecs;
@@ -393,7 +392,7 @@ public class GitConfig {
     }
   }
 
-  private static class Url {
+  private static final class Url {
     private final String myName;
     @Nullable private final String myInsteadof;
     @Nullable private final String myPushInsteadof;
@@ -417,7 +416,7 @@ public class GitConfig {
     }
   }
 
-  private static class BranchConfig {
+  private static final class BranchConfig {
     private final String myName;
     @Nullable private final String myRemote;
     @Nullable private final String myMerge;

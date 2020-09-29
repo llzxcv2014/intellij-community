@@ -1,38 +1,38 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide;
 
 import com.intellij.idea.Main;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.ClassLoaderUtil;
-import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.util.SystemInfoRt;
 import com.intellij.openapi.util.io.FileUtilRt;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.lang.UrlClassLoader;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.ProtectionDomain;
 import java.util.*;
 import java.util.regex.Pattern;
 
-/**
- * @author max
- */
 public final class BootstrapClassLoaderUtil {
-  public static final String CLASSPATH_ORDER_FILE = "classpath-order.txt";
+  public static final @NonNls String CLASSPATH_ORDER_FILE = "classpath-order.txt";
 
   private static final String PROPERTY_IGNORE_CLASSPATH = "ignore.classpath";
   private static final String PROPERTY_ALLOW_BOOTSTRAP_RESOURCES = "idea.allow.bootstrap.resources";
   private static final String PROPERTY_ADDITIONAL_CLASSPATH = "idea.additional.classpath";
-  private static final String MARKETPLACE_PLUGIN_DIR = "marketplace";
+  private static final @NonNls String MARKETPLACE_PLUGIN_DIR = "marketplace";
 
   private BootstrapClassLoaderUtil() { }
 
@@ -40,8 +40,7 @@ public final class BootstrapClassLoaderUtil {
     return Logger.getInstance(BootstrapClassLoaderUtil.class);
   }
 
-  @NotNull
-  public static ClassLoader initClassLoader() throws MalformedURLException {
+  public static @NotNull ClassLoader initClassLoader() throws MalformedURLException {
     List<String> jarOrder = loadJarOrder();
 
     Collection<URL> classpath = new LinkedHashSet<>();
@@ -51,7 +50,7 @@ public final class BootstrapClassLoaderUtil {
     addParentClasspath(classpath, true);
 
     File mpBoot = new File(PathManager.getPluginsPath(), MARKETPLACE_PLUGIN_DIR + "/lib/boot/marketplace-bootstrap.jar");
-    boolean installMarketplace = mpBoot.exists();
+    boolean installMarketplace = shouldInstallMarketplace(mpBoot);
     if (installMarketplace) {
       File marketplaceImpl = new File(PathManager.getPluginsPath(), MARKETPLACE_PLUGIN_DIR + "/lib/boot/marketplace-impl.jar");
       if (marketplaceImpl.exists()) {
@@ -87,17 +86,50 @@ public final class BootstrapClassLoaderUtil {
         // at this point logging is not initialized yet, so reporting the error directly
         String path = new File(PathManager.getPluginsPath(), MARKETPLACE_PLUGIN_DIR).getAbsolutePath();
         String message = "As a workaround, you may uninstall or update JetBrains Marketplace Support plugin at " + path;
-        Main.showMessage("JetBrains Marketplace boot failure", new Exception(message, e));
+        Main.showMessage(BootstrapBundle.message("bootstrap.error.title.jetbrains.marketplace.boot.failure"), new Exception(message, e));
       }
     }
 
     return builder.get();
   }
 
-  private static void addParentClasspath(@NotNull Collection<? super URL> classpath, boolean ext) throws MalformedURLException {
-    if (SystemInfo.IS_AT_LEAST_JAVA9) {
+  private static boolean shouldInstallMarketplace(File mpBoot) {
+    if (!mpBoot.exists()) {
+      return false;
+    }
+    try {
+      Path homePath = Paths.get(PathManager.getHomePath());
+      SimpleVersion ideVersion = null;
+      try (BufferedReader reader = Files.newBufferedReader(homePath.resolve("build.txt"))) {
+        ideVersion = SimpleVersion.parse(reader.readLine());
+      }
+      catch (IOException ignored){
+      }
+      if (ideVersion == null && SystemInfoRt.isMac) {
+        try (BufferedReader reader = Files.newBufferedReader(homePath.resolve("Resources/build.txt"))) {
+          ideVersion = SimpleVersion.parse(reader.readLine());
+        }
+      }
+      if (ideVersion != null) {
+        SimpleVersion sinceVersion = null;
+        SimpleVersion untilVersion = null;
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(PathManager.getPluginsPath()).resolve(MARKETPLACE_PLUGIN_DIR).resolve("platform-build.txt"))) {
+          sinceVersion = SimpleVersion.parse(reader.readLine());
+          untilVersion = SimpleVersion.parse(reader.readLine());
+        }
+        catch (IOException ignored) {
+        }
+        return ideVersion.isCompatible(sinceVersion, untilVersion);
+      }
+    }
+    catch (Throwable ignored) {
+    }
+    return true;
+  }
+
+  private static void addParentClasspath(Collection<URL> classpath, boolean ext) throws MalformedURLException {
+    if (SystemInfoRt.IS_AT_LEAST_JAVA9) {
       if (!ext) {
-        // ManagementFactory.getRuntimeMXBean().getClassPath() = System.getProperty("java.class.path"), but 100 times faster
         parseClassPathString(System.getProperty("java.class.path"), classpath);
       }
     }
@@ -150,8 +182,7 @@ public final class BootstrapClassLoaderUtil {
     }
   }
 
-  private static void addIdeaLibraries(@NotNull Collection<? super URL> classpath,
-                                       @NotNull Collection<String> jarOrder) throws MalformedURLException {
+  private static void addIdeaLibraries(Collection<URL> classpath, Collection<String> jarOrder) throws MalformedURLException {
     Class<BootstrapClassLoaderUtil> aClass = BootstrapClassLoaderUtil.class;
     String selfRoot = PathManager.getResourceRoot(aClass, "/" + aClass.getName().replace('.', '/') + ".class");
     assert selfRoot != null;
@@ -174,20 +205,18 @@ public final class BootstrapClassLoaderUtil {
     addLibraries(classpath, new File(libFolder, "ant/lib"), selfRootUrl);
   }
 
-  @NotNull
   private static List<String> loadJarOrder() {
-    try {
-      try (BufferedReader stream = new BufferedReader(new InputStreamReader(BootstrapClassLoaderUtil.class.getResourceAsStream(CLASSPATH_ORDER_FILE), StandardCharsets.UTF_8))) {
+    @SuppressWarnings("IOResourceOpenedButNotSafelyClosed") InputStream resource = BootstrapClassLoaderUtil.class.getResourceAsStream(CLASSPATH_ORDER_FILE);
+    if (resource != null) {
+      try (BufferedReader stream = new BufferedReader(new InputStreamReader(resource, StandardCharsets.UTF_8))) {
         return FileUtilRt.loadLines(stream);
       }
-    }
-    catch (Exception ignored) {
-      // skip, we can load the app
+      catch (Exception ignored) { }  // skip, we can load the app
     }
     return Collections.emptyList();
   }
 
-  private static void addLibraries(Collection<? super URL> classPath, File fromDir, URL selfRootUrl) throws MalformedURLException {
+  private static void addLibraries(Collection<URL> classPath, File fromDir, URL selfRootUrl) throws MalformedURLException {
     File[] files = fromDir.listFiles();
     if (files == null) return;
 
@@ -201,11 +230,11 @@ public final class BootstrapClassLoaderUtil {
     }
   }
 
-  private static void addAdditionalClassPath(Collection<? super URL> classpath) {
+  private static void addAdditionalClassPath(Collection<URL> classpath) {
     parseClassPathString(System.getProperty(PROPERTY_ADDITIONAL_CLASSPATH), classpath);
   }
 
-  private static void parseClassPathString(String pathString, Collection<? super URL> classpath) {
+  private static void parseClassPathString(String pathString, Collection<URL> classpath) {
     if (pathString == null || pathString.isEmpty()) {
       return;
     }
@@ -243,7 +272,7 @@ public final class BootstrapClassLoaderUtil {
   private static class TransformingLoader extends UrlClassLoader {
     private final List<BytecodeTransformer> myTransformers;
 
-    TransformingLoader(@NotNull Builder builder, List<BytecodeTransformer> transformers) {
+    TransformingLoader(Builder builder, List<BytecodeTransformer> transformers) {
       super(builder);
       myTransformers = Collections.unmodifiableList(transformers);
     }
@@ -267,6 +296,72 @@ public final class BootstrapClassLoaderUtil {
         }
       }
       return b;
+    }
+  }
+
+  private static final class SimpleVersion implements Comparable<SimpleVersion>{
+    private final int myMajor;
+    private final int myMinor;
+
+    SimpleVersion(int major, int minor) {
+      myMajor = major;
+      myMinor = minor;
+    }
+
+    public boolean isAtLeast(@NotNull SimpleVersion ver) {
+      return ver.compareTo(this) <= 0;
+    }
+
+    public boolean isCompatible(@Nullable SimpleVersion since, @Nullable SimpleVersion until) {
+      if (since != null && until != null) {
+        return compareTo(since) >= 0 && compareTo(until) <= 0;
+      }
+      if (since != null) {
+        return isAtLeast(since);
+      }
+      if (until != null) {
+        return until.isAtLeast(this);
+      }
+      return true; // assume compatible of nothing is specified
+    }
+
+    @Override
+    public int compareTo(@NotNull SimpleVersion ver) {
+      return myMajor != ver.myMajor? Integer.compare(myMajor, ver.myMajor) : Integer.compare(myMinor, ver.myMinor);
+    }
+
+    @Nullable
+    public static SimpleVersion parse(@Nullable String text) {
+      if (!StringUtil.isEmpty(text)) {
+        try {
+          text = text.trim();
+          int dash = text.lastIndexOf('-');
+          if (dash >= 0) {
+            text = text.substring(dash + 1); // strip product code
+          }
+          int dot = text.indexOf('.');
+          if (dot >= 0) {
+            return new SimpleVersion(Integer.parseInt(text.substring(0, dot)), parseMinor(text.substring(dot + 1)));
+          }
+          return new SimpleVersion(Integer.parseInt(text), 0);
+        }
+        catch (NumberFormatException ignored) {
+        }
+      }
+      return null;
+    }
+
+    private static int parseMinor(String text) {
+      try {
+        if ("*".equals(text) || "SNAPSHOT".equals(text)) {
+          return Integer.MAX_VALUE;
+        }
+        final int dot = text.indexOf('.');
+        return Integer.parseInt(dot >= 0 ? text.substring(0, dot) : text);
+      }
+      catch (NumberFormatException e) {
+      }
+      return 0;
     }
   }
 }

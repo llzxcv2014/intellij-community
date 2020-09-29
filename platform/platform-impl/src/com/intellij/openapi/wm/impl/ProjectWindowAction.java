@@ -1,16 +1,21 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.wm.impl;
 
+import com.intellij.ide.IdeBundle;
+import com.intellij.ide.lightEdit.LightEditService;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.ToggleAction;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
+import com.intellij.openapi.util.NlsActions;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.util.BitUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,7 +35,7 @@ public class ProjectWindowAction extends ToggleAction implements DumbAware {
   @NotNull private final String myProjectName;
   @NotNull private final String myProjectLocation;
 
-  public ProjectWindowAction(@NotNull String projectName, @NotNull String projectLocation, ProjectWindowAction previous) {
+  public ProjectWindowAction(@NlsSafe @NotNull String projectName, @NotNull String projectLocation, ProjectWindowAction previous) {
     myProjectName = projectName;
     myProjectLocation = projectLocation;
     if (previous != null) {
@@ -78,6 +83,9 @@ public class ProjectWindowAction extends ToggleAction implements DumbAware {
 
   @Nullable
   private Project findProject() {
+    if (LightEditService.WINDOW_NAME.equals(myProjectName)) {
+      return LightEditService.getInstance().getProject();
+    }
     final Project[] projects = ProjectManager.getInstance().getOpenProjects();
     for (Project project : projects) {
       if (myProjectLocation.equals(project.getPresentableUrl())) {
@@ -131,15 +139,17 @@ public class ProjectWindowAction extends ToggleAction implements DumbAware {
   }
 
   @Override
+  @NonNls
   public String toString() {
     return getTemplatePresentation().getText()
            + " previous: " + myPrevious.getTemplatePresentation().getText()
            + " next: " + myNext.getTemplatePresentation().getText();
   }
 
+  @NlsActions.ActionText
   @Nullable
   @Override
   public String getTemplateText() {
-    return "Switch Project";
+    return IdeBundle.message("action.switch.project.text");
   }
 }

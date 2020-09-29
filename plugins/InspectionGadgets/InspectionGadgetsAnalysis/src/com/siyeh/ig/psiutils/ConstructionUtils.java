@@ -7,6 +7,7 @@ import com.intellij.psi.util.PsiUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.siyeh.ig.callMatcher.CallMatcher;
 import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
@@ -78,7 +79,7 @@ public class ConstructionUtils {
     }
     if (expression instanceof PsiMethodCallExpression) {
       PsiMethodCallExpression call = (PsiMethodCallExpression)expression;
-      String name = call.getMethodExpression().getReferenceName();
+      @NonNls String name = call.getMethodExpression().getReferenceName();
       PsiExpressionList argumentList = call.getArgumentList();
       if(name != null && name.startsWith("new") && argumentList.isEmpty()) {
         PsiMethod method = call.resolveMethod();
@@ -120,7 +121,7 @@ public class ConstructionUtils {
     }
     if (expression instanceof PsiMethodCallExpression) {
       PsiMethodCallExpression call = (PsiMethodCallExpression)expression;
-      String name = call.getMethodExpression().getReferenceName();
+      @NonNls String name = call.getMethodExpression().getReferenceName();
       PsiExpressionList argumentList = call.getArgumentList();
       if(name != null && name.startsWith("new") && !argumentList.isEmpty()) {
         PsiMethod method = call.resolveMethod();
@@ -158,7 +159,7 @@ public class ConstructionUtils {
     expression = PsiUtil.skipParenthesizedExprDown(expression);
     if (expression instanceof PsiNewExpression) {
       PsiExpressionList argumentList = ((PsiNewExpression)expression).getArgumentList();
-      if (argumentList == null || argumentList.isEmpty()) return false;
+      if (argumentList == null || argumentList.isEmpty() || ((PsiNewExpression)expression).getAnonymousClass() != null) return false;
       PsiMethod constructor = ((PsiNewExpression)expression).resolveConstructor();
       if (constructor == null) return false;
       PsiClass aClass = constructor.getContainingClass();
@@ -174,7 +175,7 @@ public class ConstructionUtils {
     if (expression instanceof PsiMethodCallExpression) {
       PsiMethodCallExpression call = (PsiMethodCallExpression)expression;
       if (ENUM_SET_NONE_OF.test(call)) return true;
-      String name = call.getMethodExpression().getReferenceName();
+      @NonNls String name = call.getMethodExpression().getReferenceName();
       PsiExpressionList argumentList = call.getArgumentList();
       if (name != null && name.startsWith("new") && !argumentList.isEmpty()) {
         PsiMethod method = call.resolveMethod();

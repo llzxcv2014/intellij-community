@@ -4,6 +4,7 @@ package com.intellij.ui;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.StartupUiUtil;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 
 import javax.swing.*;
@@ -145,12 +146,12 @@ public class CollapsiblePanel extends JPanel {
     }
   }
 
-  private String getToggleButtonToolTipText() {
+  private @Nls String getToggleButtonToolTipText() {
     if (myIsCollapsed) {
-      return UIBundle.message("collapsible.panel.collapsed.state.tooltip.text");
+      return UtilUiBundle.message("collapsible.panel.collapsed.state.tooltip.text");
     }
     else {
-      return UIBundle.message("collapsible.panel.expanded.state.tooltip.text");
+      return UtilUiBundle.message("collapsible.panel.expanded.state.tooltip.text");
     }
   }
 

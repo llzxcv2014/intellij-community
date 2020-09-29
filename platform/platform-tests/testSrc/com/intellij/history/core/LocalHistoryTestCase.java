@@ -48,7 +48,7 @@ public abstract class LocalHistoryTestCase extends Assert {
   }
 
   @BeforeClass
-  public static void setupFSRecords() {
+  public static void setupFSRecords() throws Exception {
     EdtTestUtil.runInEdtAndWait(() -> {
       fixture = IdeaTestFixtureFactory.getFixtureFactory().createFixtureBuilder("ddd").getFixture();
       fixture.setUp();
@@ -164,12 +164,12 @@ public abstract class LocalHistoryTestCase extends Assert {
   }
 
   @SafeVarargs
-  public static <T> T[] array(@NotNull T... objects) {
+  public static <T> T[] array(T @NotNull ... objects) {
     return objects;
   }
 
   @SafeVarargs
-  public static <T> List<T> list(@NotNull T... objects) {
+  public static <T> List<T> list(T @NotNull ... objects) {
     return Arrays.asList(objects);
   }
 

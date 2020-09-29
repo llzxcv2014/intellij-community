@@ -1,6 +1,4 @@
-/*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.util;
 
 import com.intellij.openapi.util.text.StringUtil;
@@ -33,14 +31,14 @@ public class MinusculeMatcherPerformanceTest extends TestCase {
       nonMatching.add(NameUtil.buildMatcher(s, NameUtil.MatchingCaseSensitivity.NONE));
     }
 
-    PlatformTestUtil.startPerformanceTest("Matching", 5_500, () -> {
+    PlatformTestUtil.startPerformanceTest("Matching", 4_000, () -> {
       for (int i = 0; i < 100_000; i++) {
         for (MinusculeMatcher matcher : matching) {
-          Assert.assertTrue(matcher.toString(), matcher.matches(longName));
+          Assert.assertTrue(matcher.matches(longName));
           matcher.matchingDegree(longName);
         }
         for (MinusculeMatcher matcher : nonMatching) {
-          Assert.assertFalse(matcher.toString(), matcher.matches(longName));
+          Assert.assertFalse(matcher.matches(longName));
         }
       }
     }).assertTiming();
@@ -75,9 +73,19 @@ public class MinusculeMatcherPerformanceTest extends TestCase {
   public void testMatchingLongStringWithAnotherLongStringWhereOnlyEndsDiffer() {
     String pattern = "*Then the large string is '{asdbsfafds adsfadasdfasdfasdfasdfasdfasdfsfasf adsfasdf sfasdfasdfasdfasdfasdfasdfd adsfadsfsafd adsfafdadsfsdfasdf sdf asdfasdfasfadsfasdfasfd asdfafd fasdfasdfasdfdsfas dadsfasfadsfafdsafddf  dsf dsasdfasdfsdafsdfsdfsdfasdffafdadfafafasdfasdf asdfasdfasdfasdfasdfasdfasdfasdfaasdfsdfasdfds adfafddfas aa afds}' is sent into the abyss\nThen";
     String name =     "Then the large string is '{asdbsfafds adsfadasdfasdfasdfasdfasdfasdfsfasf adsfasdf sfasdfasdfasdfasdfasdfasdfd adsfadsfsafd adsfafdadsfsdfasdf sdf asdfasdfasfadsfasdfasfd asdfafd fasdfasdfasdfdsfas dadsfasfadsfafdsafddf  dsf dsasdfasdfsdafsdfsdfsdfasdffafdadfafafasdfasdf asdfasdfasdfasdfasdfasdfasdfasdfaasdfsdfasdfds adfafddfas aa afds}' is sent into the abyss\nTh' is sent into the abyss";
-    PlatformTestUtil.startPerformanceTest(getName(), 30, () -> {
-      assertDoesntMatch(pattern, name);
-    }).assertTiming();
+    assertDoesntMatchFast(pattern, name);
+
+    pattern = "findFirstAdjLoanPlanTemplateByAdjLoanPlan_AdjLoanProgram_AdjLoanProgramCodeAndTemplateVersions";
+    name =    "findFirstAdjLoanPlanTemplateByAdjLoanPlan_AdjLoanProgram_AdjLoanProgramCodeAndTemplateVersion_TemplateVersionCode";
+    assertDoesntMatchFast(pattern, name);
+
+    pattern = "tip.how.to.select.a.thing.and.that.selected.things.are.shown.as.bold";
+    name    = "tip.how.to.select.a.thing.and.that.selected.things.are.shown.as.bolid";
+    assertDoesntMatchFast(pattern, name);
+  }
+
+  private void assertDoesntMatchFast(String pattern, String name) {
+    PlatformTestUtil.startPerformanceTest(getName(), 30, () -> assertDoesntMatch(pattern, name)).assertTiming();
   }
 
   public void testMatchingLongRuby() {
@@ -99,4 +107,5 @@ public class MinusculeMatcherPerformanceTest extends TestCase {
       assertPreference("*" + s, s.substring(0, 10), s);
     }).assertTiming();
   }
+
 }

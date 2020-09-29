@@ -1,32 +1,41 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.ui.configuration.projectRoot;
 
 import com.google.common.collect.Sets;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.application.TransactionGuard;
 import com.intellij.openapi.application.WriteAction;
+import com.intellij.openapi.diagnostic.ControlFlowException;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.progress.PerformInBackgroundOption;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.Task;
+import com.intellij.openapi.progress.*;
 import com.intellij.openapi.progress.util.ProgressIndicatorBase;
+import com.intellij.openapi.progress.util.ProgressIndicatorListenerAdapter;
+import com.intellij.openapi.progress.util.RelayUiToDelegateIndicator;
 import com.intellij.openapi.project.ProjectBundle;
 import com.intellij.openapi.projectRoots.ProjectJdkTable;
 import com.intellij.openapi.projectRoots.Sdk;
+import com.intellij.openapi.projectRoots.SdkModificator;
 import com.intellij.openapi.projectRoots.SdkType;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.wm.ex.ProgressIndicatorEx;
+import com.intellij.util.Consumer;
+import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.io.File;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class SdkDownloadTracker implements Disposable {
+public class SdkDownloadTracker {
   private static final Logger LOG = Logger.getInstance(SdkDownloadTracker.class);
 
   @NotNull
@@ -34,26 +43,20 @@ public class SdkDownloadTracker implements Disposable {
     return ApplicationManager.getApplication().getService(SdkDownloadTracker.class);
   }
 
-  private final List<PendingDownload> myPendingTasks = new ArrayList<>();
+  private final List<PendingDownload> myPendingTasks = new CopyOnWriteArrayList<>();
 
   public SdkDownloadTracker() {
-    ApplicationManager.getApplication().getMessageBus()
-      .connect(this)
-      .subscribe(ProjectJdkTable.JDK_TABLE_TOPIC,
-                 new ProjectJdkTable.Adapter() {
-                   @Override
-                   public void jdkRemoved(@NotNull Sdk jdk) {
-                     onSdkRemoved(jdk);
-                   }
-                 });
-  }
-
-  @Override
-  public void dispose() {
+    ApplicationManager.getApplication().getMessageBus().simpleConnect()
+      .subscribe(ProjectJdkTable.JDK_TABLE_TOPIC, new ProjectJdkTable.Listener() {
+        @Override
+        public void jdkRemoved(@NotNull Sdk jdk) {
+          onSdkRemoved(jdk);
+        }
+      });
   }
 
   public void onSdkRemoved(@NotNull Sdk sdk) {
-    ApplicationManager.getApplication().assertIsDispatchThread();
+    //can be executed in any thread too, JMM safe
 
     PendingDownload task = findTask(sdk);
     if (task == null) return;
@@ -67,10 +70,8 @@ public class SdkDownloadTracker implements Disposable {
 
   @Nullable
   private PendingDownload findTask(@NotNull Sdk sdk) {
-    ApplicationManager.getApplication().assertIsDispatchThread();
-
     for (PendingDownload task : myPendingTasks) {
-      if (task.myEditableSdks.contains(sdk)) {
+      if (task.containsSdk(sdk)) {
         return task;
       }
     }
@@ -79,27 +80,69 @@ public class SdkDownloadTracker implements Disposable {
 
   public void registerEditableSdk(@NotNull Sdk original,
                                   @NotNull Sdk editable) {
+    // This may happen in the background thread on a project open (JMM safe)
     PendingDownload task = findTask(original);
     if (task == null) return;
 
-    LOG.assertTrue(findTask(editable) == null, "Download is already running for the Sdk " + editable);
+    LOG.assertTrue(findTask(editable) == null, "Download is already running for the SDK " + editable);
     task.registerEditableSdk(editable);
   }
 
   public void registerSdkDownload(@NotNull Sdk originalSdk,
                                   @NotNull SdkDownloadTask item) {
     ApplicationManager.getApplication().assertIsDispatchThread();
-    LOG.assertTrue(findTask(originalSdk) == null, "Download is already running for the Sdk " + originalSdk);
+    LOG.assertTrue(findTask(originalSdk) == null, "Download is already running for the SDK " + originalSdk);
 
-    PendingDownload pd = new PendingDownload(originalSdk, item);
+    PendingDownload pd = new PendingDownload(originalSdk, item, new SmartPendingDownloadModalityTracker());
+    configureSdk(originalSdk, item);
     myPendingTasks.add(pd);
   }
 
+  /**
+   * Allows to register a callback to cleanup the created SDK object, in a case it was failed to download
+   */
+  public void tryRegisterSdkDownloadFailureHandler(@NotNull Sdk originalSdk,
+                                                   @NotNull Runnable onSdkFailed) {
+    PendingDownload task = findTask(originalSdk);
+    if (task == null) return;
+    task.mySdkFailedHandlers.add(onSdkFailed);
+  }
+
   public void startSdkDownloadIfNeeded(@NotNull Sdk sdkFromTable) {
+    ApplicationManager.getApplication().assertIsDispatchThread();
+
     PendingDownload task = findTask(sdkFromTable);
     if (task == null) return;
 
     task.startDownloadIfNeeded(sdkFromTable);
+  }
+
+  /**
+   * Looks into the currently downloading SDK instances
+   * and returns one with matching name
+   */
+  @NotNull
+  public List<Sdk> findDownloadingSdks(@Nullable String sdkName) {
+    if (sdkName == null) return Collections.emptyList();
+
+    List<Sdk> result = new ArrayList<>();
+    for (PendingDownload task : myPendingTasks) {
+      for (Sdk sdk : task.myEditableSdks.copy()) {
+        if (Objects.equals(sdkName, sdk.getName())) {
+          result.add(sdk);
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Checks if there is an activity for a given Sdk
+   * @return true is there is an activity
+   */
+  public boolean isDownloading(@NotNull Sdk sdk) {
+    return findTask(sdk) != null;
   }
 
   /**
@@ -108,13 +151,14 @@ public class SdkDownloadTracker implements Disposable {
    * @param sdk                        the Sdk instance that to check (it could be it's #clone())
    * @param lifetime                   unsubscribe callback
    * @param indicator                  progress indicator to deliver progress
-   * @param onDownloadCompleteCallback called once download is completed from ETD to update the UI
+   * @param onDownloadCompleteCallback called once download is completed from EDT thread,
+   *                                   with {@code true} to indicate success and {@code false} for a failure
    * @return true if the given Sdk is downloading right now
    */
   public boolean tryRegisterDownloadingListener(@NotNull Sdk sdk,
                                                 @NotNull Disposable lifetime,
                                                 @NotNull ProgressIndicator indicator,
-                                                @NotNull Runnable onDownloadCompleteCallback) {
+                                                @NotNull Consumer<? super Boolean> onDownloadCompleteCallback) {
     ApplicationManager.getApplication().assertIsDispatchThread();
     PendingDownload pd = findTask(sdk);
     if (pd == null) return false;
@@ -123,23 +167,80 @@ public class SdkDownloadTracker implements Disposable {
     return true;
   }
 
+  /**
+   * Performs synchronous SDK download. Must not run on EDT thread.
+   */
+  public void downloadSdk(@NotNull SdkDownloadTask task,
+                          @NotNull List<Sdk> sdks,
+                          @NotNull ProgressIndicator indicator) {
+    ApplicationManager.getApplication().assertIsNonDispatchThread();
+
+    if (sdks.isEmpty()) throw new IllegalArgumentException("There must be at least one SDK in the list for " + task);
+    @NotNull Sdk sdk = Objects.requireNonNull(ContainerUtil.getFirstItem(sdks));
+
+    var tracker = new PendingDownloadModalityTracker() {
+      @Override
+      public void updateModality() { }
+
+      @Override
+      public void invokeLater(@NotNull Runnable r) {
+        //we need to make sure our tasks are executed in-place for the blocking mode
+        ApplicationManager.getApplication().invokeAndWait(r);
+      }
+    };
+
+    PendingDownload pd = new PendingDownload(sdk, task, tracker) {
+      @Override
+      protected void runTask(@NotNull @NlsContexts.ProgressTitle String title, @NotNull Progressive progressive) {
+        indicator.pushState();
+        try {
+          progressive.run(indicator);
+        } finally {
+          indicator.popState();
+        }
+      }
+
+      @Override
+      protected void handleDownloadError(@NotNull SdkType type, @NotNull @Nls String title, @NotNull Throwable exception) {
+        throw new RuntimeException("Failed to download and configure " + type.getPresentableName() + " for "
+                         + myEditableSdks.copy() + ". " + exception.getMessage(), exception);
+      }
+    };
+    myPendingTasks.add(pd);
+    tracker.invokeLater(() -> sdks.forEach(pd::configureSdk));
+
+    for (Sdk otherSdk : sdks) {
+      if (otherSdk == sdk) continue;
+      pd.registerEditableSdk(otherSdk);
+    }
+
+    pd.startDownloadIfNeeded(sdk);
+  }
+
   // we need to track the "best" modality state to trigger SDK update on completion,
   // while the current Project Structure dialog is shown. The ModalityState from our
   // background task (ProgressManager.run) does not suite if the Project Structure dialog
   // is re-open once again.
-  //
+  private interface PendingDownloadModalityTracker {
+    void updateModality();
+    void invokeLater(@NotNull Runnable r);
+  }
+
   // We grab the modalityState from the {@link #tryRegisterDownloadingListener} call and
   // see if that {@link ModalityState#dominates} the current modality state. In fact,
   // it does call the method from the dialog setup, with NON_MODAL modality, which
   // we would like to ignore.
-  private static class PendingDownloadModalityTracker {
+  private static class SmartPendingDownloadModalityTracker implements PendingDownloadModalityTracker{
     @NotNull
-    private static ModalityState modality() {
-      return ApplicationManager.getApplication().getCurrentModalityState();
+    static ModalityState modality() {
+      ModalityState state = ApplicationManager.getApplication().getCurrentModalityState();
+      TransactionGuard.getInstance().assertWriteSafeContext(state);
+      return state;
     }
 
-    private ModalityState myModalityState = modality();
+    ModalityState myModalityState = modality();
 
+    @Override
     public synchronized void updateModality() {
       ModalityState newModality = modality();
       if (newModality != myModalityState && newModality.dominates(myModalityState)) {
@@ -147,32 +248,60 @@ public class SdkDownloadTracker implements Disposable {
       }
     }
 
+    @Override
     public synchronized void invokeLater(@NotNull Runnable r) {
       ApplicationManager.getApplication().invokeLater(r, myModalityState);
     }
+  }
 
-    public synchronized void invokeAndWait(@NotNull Runnable r) {
-      ApplicationManager.getApplication().invokeAndWait(r, myModalityState);
+  // synchronized newIdentityHashSet (Collections.synchronizedSet does not help the iterator)
+  private static class SynchronizedIdentityHashSet<T> {
+    private final Set<T> myCollection = Sets.newIdentityHashSet();
+
+    synchronized boolean add(@NotNull T sdk) {
+      return myCollection.add(sdk);
+    }
+
+    synchronized void remove(@NotNull T sdk) {
+      myCollection.remove(sdk);
+    }
+
+    synchronized boolean contains(@NotNull T sdk) {
+      return myCollection.contains(sdk);
+    }
+
+    @NotNull
+    synchronized List<T> copy() {
+      return new ArrayList<>(myCollection);
     }
   }
 
   private static class PendingDownload {
-    private final SdkDownloadTask myTask;
-    private final Set<Sdk> myEditableSdks = Sets.newIdentityHashSet();
-    private final ProgressIndicatorBase myProgressIndicator = new ProgressIndicatorBase();
-    private final Set<Runnable> myCompleteListeners = Sets.newIdentityHashSet();
-    private final Set<Disposable> myDisposables = Sets.newIdentityHashSet();
-    private final PendingDownloadModalityTracker myModalityTracker = new PendingDownloadModalityTracker();
+    final SdkDownloadTask myTask;
+    final ProgressIndicatorBase myProgressIndicator = new ProgressIndicatorBase();
+    final PendingDownloadModalityTracker myModalityTracker;
 
-    private boolean myIsDownloading = false;
+    final SynchronizedIdentityHashSet<Sdk> myEditableSdks = new SynchronizedIdentityHashSet<>();
+    final SynchronizedIdentityHashSet<Runnable> mySdkFailedHandlers = new SynchronizedIdentityHashSet<>();
+    final SynchronizedIdentityHashSet<Consumer<? super Boolean>> myCompleteListeners = new SynchronizedIdentityHashSet<>();
+    final SynchronizedIdentityHashSet<Disposable> myDisposables = new SynchronizedIdentityHashSet<>();
 
-    private PendingDownload(@NotNull Sdk sdk,
-                            @NotNull SdkDownloadTask task) {
+    final AtomicBoolean myIsDownloading = new AtomicBoolean(false);
+
+    PendingDownload(@NotNull Sdk sdk, @NotNull SdkDownloadTask task, @NotNull PendingDownloadModalityTracker tracker) {
       myEditableSdks.add(sdk);
       myTask = task;
+      myModalityTracker = tracker;
     }
 
-    public void registerEditableSdk(@NotNull Sdk editable) {
+    boolean containsSdk(@NotNull Sdk sdk) {
+      // called from any thread
+      return myEditableSdks.contains(sdk);
+    }
+
+    void registerEditableSdk(@NotNull Sdk editable) {
+      // called from any thread
+      //
       // there are many Sdk clones that are created
       // along with the Project Structure model.
       // Our goal is to keep track of all such objects to make
@@ -184,54 +313,84 @@ public class SdkDownloadTracker implements Disposable {
       myEditableSdks.add(editable);
     }
 
-    public void startDownloadIfNeeded(@NotNull Sdk sdkFromTable) {
-      ApplicationManager.getApplication().assertIsDispatchThread();
+    protected void runTask(@NotNull @NlsContexts.ProgressTitle String title, @NotNull Progressive progressive) {
+      var task = new Task.Backgroundable(null,
+                                         title,
+                                         true,
+                                         PerformInBackgroundOption.ALWAYS_BACKGROUND) {
+        @Override
+        public void run(@NotNull ProgressIndicator indicator) {
+          progressive.run(indicator);
+        }
+      };
+      ProgressManager.getInstance().run(task);
+    }
 
-      if (myIsDownloading || myProgressIndicator.isCanceled()) return;
-      myIsDownloading = true;
+    void startDownloadIfNeeded(@NotNull Sdk sdkFromTable) {
+      if (!myIsDownloading.compareAndSet(false, true)) return;
+      if (myProgressIndicator.isCanceled()) return;
 
       myModalityTracker.updateModality();
       SdkType type = (SdkType)sdkFromTable.getSdkType();
-      String message = ProjectBundle.message("sdk.configure.downloading", type.getPresentableName());
+      String title = ProjectBundle.message("sdk.configure.downloading", type.getPresentableName());
 
-      Task.Backgroundable task = new Task.Backgroundable(null,
-                                                         message,
-                                                         true,
-                                                         PerformInBackgroundOption.ALWAYS_BACKGROUND) {
+      //noinspection Convert2Lambda
+      Progressive taskAction = new Progressive() {
         @Override
         public void run(@NotNull ProgressIndicator indicator) {
+          boolean failed = false;
           try {
-            // we need a progress indicator from the outside, to avoid race condition
-            // (progress may start with a delay, but UI would need a PI)
-            myProgressIndicator.addStateDelegate((ProgressIndicatorEx)indicator);
+            new ProgressIndicatorListenerAdapter() {
+              @Override
+              public void cancelled() {
+                myProgressIndicator.cancel();
+              }
+            }.installToProgressIfPossible(indicator);
+
+            ProgressIndicatorEx relayToVisibleIndicator = new RelayUiToDelegateIndicator(indicator);
+
+            myProgressIndicator.addStateDelegate(relayToVisibleIndicator);
             try {
+              myProgressIndicator.checkCanceled();
               myTask.doDownload(myProgressIndicator);
             }
             finally {
-              myProgressIndicator.removeStateDelegate((ProgressIndicatorEx)indicator);
+              myProgressIndicator.removeStateDelegate(relayToVisibleIndicator);
             }
 
-            onSdkDownloadCompleted(false);
+            // make sure VFS has the right image of our SDK to avoid empty SDK from being created
+            VfsUtil.markDirtyAndRefresh(false, true, true, new File(myTask.getPlannedHomeDir()));
+
+            //update the pending SDKs
+            onSdkDownloadCompletedSuccessfully();
           }
-          catch (Exception e) {
-            if (!myProgressIndicator.isCanceled()) {
-              LOG.warn("SDK Download failed. " + e.getMessage(), e);
-              myModalityTracker.invokeAndWait(() -> {
-                Messages.showErrorDialog(e.getMessage(), getTitle());
-              });
+          catch (Throwable e) {
+            failed = true;
+            if (!myProgressIndicator.isCanceled() && !(e instanceof ControlFlowException)) {
+              handleDownloadError(type, title, e);
             }
-            onSdkDownloadCompleted(true);
+          }
+          finally {
+            // dispose our own state
+            disposeNow(!failed);
           }
         }
       };
 
-      ProgressManager.getInstance().run(task);
+      runTask(title, taskAction);
     }
 
-    public void registerListener(@NotNull Disposable lifetime,
-                                 @NotNull ProgressIndicator uiIndicator,
-                                 @NotNull Runnable completedCallback) {
-      ApplicationManager.getApplication().assertIsDispatchThread();
+    protected void handleDownloadError(@NotNull SdkType type, @NotNull @Nls String title, @NotNull Throwable exception) {
+      LOG.warn("SDK Download failed. " + exception.getMessage(), exception);
+      if (ApplicationManager.getApplication().isUnitTestMode()) return;
+      myModalityTracker.invokeLater(() -> {
+        Messages.showErrorDialog(ProjectBundle.message("error.message.sdk.download.failed", type.getPresentableName()), title);
+      });
+    }
+
+    void registerListener(@NotNull Disposable lifetime,
+                          @NotNull ProgressIndicator uiIndicator,
+                          @NotNull Consumer<? super Boolean> completedCallback) {
       myModalityTracker.updateModality();
 
       //there is no need to add yet another copy of the same component
@@ -243,8 +402,6 @@ public class SdkDownloadTracker implements Disposable {
       Disposable unsubscribe = new Disposable() {
         @Override
         public void dispose() {
-          ApplicationManager.getApplication().assertIsDispatchThread();
-
           myProgressIndicator.removeStateDelegate((ProgressIndicatorEx)uiIndicator);
           myCompleteListeners.remove(completedCallback);
           myDisposables.remove(this);
@@ -254,50 +411,69 @@ public class SdkDownloadTracker implements Disposable {
       myDisposables.add(unsubscribe);
     }
 
-    public void onSdkDownloadCompleted(boolean failed) {
-      Runnable task = failed
-                      ? () -> disposeNow()
-                      : () -> {
-                        WriteAction.run(() -> {
-                          for (Sdk sdk : myEditableSdks) {
-                            try {
-                              ((SdkType)sdk.getSdkType()).setupSdkPaths(sdk);
-                            }
-                            catch (Exception e) {
-                              LOG.warn("Failed to setup Sdk " + sdk + ". " + e.getMessage(), e);
-                            }
-                          }
-                          disposeLater();
-                        });
-                      };
+    void onSdkDownloadCompletedSuccessfully() {
+        // we handle ModalityState explicitly to handle the case,
+        // when the next ProjectSettings dialog is shown, and we still want to
+        // notify all current viewers to reflect our SDK changes, thus we need
+        // it's newer ModalityState to invoke. Using ModalityState.any is not
+        // an option as we do update Sdk instances in the call
+        myModalityTracker.invokeLater(() -> WriteAction.run(() -> {
+          for (Sdk sdk : myEditableSdks.copy()) {
+            try {
+              SdkType sdkType = (SdkType)sdk.getSdkType();
+              configureSdk(sdk);
 
-      // we handle ModalityState explicitly to handle the case,
-      // when the next ProjectSettings dialog is shown, and we still want to
-      // notify all current viewers to reflect our SDK changes, thus we need
-      // it's newer ModalityState to invoke. Using ModalityState.any is not
-      // an option as we do update Sdk instances in the call
-      myModalityTracker.invokeLater(task);
+              String actualVersion = null;
+              try {
+                actualVersion = sdkType.getVersionString(sdk);
+                if (actualVersion != null) {
+                  SdkModificator modificator = sdk.getSdkModificator();
+                  modificator.setVersionString(actualVersion);
+                  modificator.commitChanges();
+                }
+              } catch (Exception e) {
+                LOG.warn("Failed to configure a version " + actualVersion + " for downloaded SDK. " + e.getMessage(), e);
+              }
+
+              sdkType.setupSdkPaths(sdk);
+            }
+            catch (Exception e) {
+              LOG.warn("Failed to set up SDK " + sdk + ". " + e.getMessage(), e);
+            }
+          }
+        }));
     }
 
-    private void disposeLater() {
-      //free the WriteAction, thus non-blocking
-      myModalityTracker.invokeLater(() -> disposeNow());
+    void disposeNow(boolean succeeded) {
+      myModalityTracker.invokeLater(() -> {
+        getInstance().removeTask(this);
+        //collections may change from the callbacks
+        myCompleteListeners.copy().forEach(it -> it.consume(succeeded));
+        myDisposables.copy().forEach(it -> Disposer.dispose(it));
+        if (!succeeded) {
+          mySdkFailedHandlers.copy().forEach(Runnable::run);
+        }
+      });
     }
 
-    private void disposeNow() {
-      ApplicationManager.getApplication().assertIsDispatchThread();
-      getInstance().removeTask(this);
-      //collections may change from the callbacks
-      new ArrayList<>(myCompleteListeners).forEach(Runnable::run);
-      new ArrayList<>(myDisposables).forEach(Disposable::dispose);
-    }
-
-    public void cancel() {
-      ApplicationManager.getApplication().assertIsDispatchThread();
+    void cancel() {
       myProgressIndicator.cancel();
-      if (!myIsDownloading) {
-        disposeNow();
-      }
+      disposeNow(false);
     }
+
+    void configureSdk(@NotNull Sdk sdk) {
+      getInstance().configureSdk(sdk, myTask);
+    }
+  }
+
+  /**
+   * Applies configuration for the SDK from the expectations of
+   * the given {@link SdkDownloadTask}
+   */
+  public void configureSdk(@NotNull Sdk sdk, @NotNull SdkDownloadTask task) {
+    SdkModificator mod = sdk.getSdkModificator();
+    mod.setHomePath(FileUtil.toSystemIndependentName(task.getPlannedHomeDir()));
+    mod.setVersionString(task.getPlannedVersion());
+    mod.commitChanges();
   }
 }

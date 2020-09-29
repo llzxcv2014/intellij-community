@@ -34,7 +34,7 @@ public abstract class CoverageEnabledConfiguration implements JDOMExternalizable
   @NonNls protected static final String TRACK_TEST_FOLDERS = "track_test_folders";
 
   private final Project myProject;
-  private final RunConfigurationBase myConfiguration;
+  private final RunConfigurationBase<?> myConfiguration;
 
   private boolean myIsCoverageEnabled = false;
   private String myRunnerId;
@@ -46,12 +46,12 @@ public abstract class CoverageEnabledConfiguration implements JDOMExternalizable
   @NonNls protected String myCoverageFilePath;
   private CoverageSuite myCurrentCoverageSuite;
 
-  public CoverageEnabledConfiguration(RunConfigurationBase configuration) {
+  public CoverageEnabledConfiguration(@NotNull RunConfigurationBase<?> configuration) {
     myConfiguration = configuration;
     myProject = configuration.getProject();
   }
 
-  public RunConfigurationBase getConfiguration() {
+  public @NotNull RunConfigurationBase<?> getConfiguration() {
     return myConfiguration;
   }
 
@@ -84,6 +84,13 @@ public abstract class CoverageEnabledConfiguration implements JDOMExternalizable
     myCoverageRunner = coverageRunner;
     myRunnerId = coverageRunner != null ? coverageRunner.getId() : null;
     myCoverageFilePath = null;
+  }
+
+  public void coverageRunnerExtensionRemoved(@NotNull CoverageRunner runner) {
+    if (runner.getId().equals(myRunnerId)) {
+      myCoverageRunner = null;
+      myCoverageFilePath = null;
+    }
   }
 
   public boolean isTrackPerTestCoverage() {

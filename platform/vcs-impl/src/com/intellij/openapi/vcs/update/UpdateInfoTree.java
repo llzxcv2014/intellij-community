@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.update;
 
 import com.intellij.history.Label;
@@ -37,6 +37,7 @@ import com.intellij.util.PlatformIcons;
 import com.intellij.util.ui.StatusText;
 import com.intellij.util.ui.tree.TreeUtil;
 import com.intellij.vcsUtil.VcsUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -61,7 +62,7 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton {
   private DefaultTreeModel myTreeModel;
   private FileStatusListener myFileStatusListener;
   private final FileStatusManager myFileStatusManager;
-  private final String myRootName;
+  private final @Nls String myRootName;
   private final ActionInfo myActionInfo;
   private boolean myCanGroupByChangeList = false;
   private boolean myGroupByChangeList = false;
@@ -80,7 +81,7 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton {
   public UpdateInfoTree(@NotNull ContentManager contentManager,
                         @NotNull Project project,
                         UpdatedFiles updatedFiles,
-                        String rootName,
+                        @Nls String rootName,
                         ActionInfo actionInfo) {
     super(contentManager, "reference.versionControl.toolwindow.update");
     myActionInfo = actionInfo;
@@ -103,7 +104,7 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton {
 
     myVcsConfiguration = VcsConfiguration.getInstance(myProject);
     myFileStatusManager = FileStatusManager.getInstance(myProject);
-    myFileStatusManager.addFileStatusListener(myFileStatusListener);
+    myFileStatusManager.addFileStatusListener(myFileStatusListener, this);
     createTree();
     init();
     myTreeExpander = new DefaultTreeExpander(myTree);
@@ -113,10 +114,6 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton {
   @Override
   public void dispose() {
     Disposer.dispose(myRoot);
-    if (myFileStatusListener != null) {
-      myFileStatusManager.removeFileStatusListener(myFileStatusListener);
-      myFileStatusListener = null;
-    }
   }
 
   public void setCanGroupByChangeList(final boolean canGroupByChangeList) {
@@ -240,7 +237,7 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton {
     return super.getData(dataId);
   }
 
-  private class MyTreeIterator implements Iterator<Pair<FilePath, FileStatus>> {
+  private final class MyTreeIterator implements Iterator<Pair<FilePath, FileStatus>> {
     private final Enumeration myEnum;
     private FilePath myNext;
     private FileStatus myStatus;
@@ -334,8 +331,7 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton {
     return VfsUtil.toVirtualFileArray(result);
   }
 
-  @Nullable
-  private File[] getFileArray() {
+  private File @Nullable [] getFileArray() {
     ArrayList<File> result = new ArrayList<>();
     TreePath[] selectionPaths = myTree.getSelectionPaths();
     if (selectionPaths != null) {
@@ -384,21 +380,22 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton {
       if (hasEmptyCaches) {
         final StatusText statusText = myTreeBrowser.getEmptyText();
         statusText.clear();
-        statusText.appendText("Click ")
-          .appendText("Refresh", SimpleTextAttributes.LINK_ATTRIBUTES, new ActionListener() {
+        //noinspection DialogTitleCapitalization
+        statusText.appendText(VcsBundle.message("update.info.click.status.text.prefix")).appendText(" ")
+          .appendText(VcsBundle.message("update.info.refresh.link.status.text"), SimpleTextAttributes.LINK_ATTRIBUTES, new ActionListener() {
             @Override
             public void actionPerformed(final ActionEvent e) {
               RefreshIncomingChangesAction.doRefresh(myProject);
             }
           })
-          .appendText(" to initialize repository changes cache");
+          .appendText(" ").appendText(VcsBundle.message("update.info.to.initialize.status.text.suffix"));
       }
     }, myProject.getDisposed());
   }
 
   private class MyGroupByPackagesAction extends ToggleAction implements DumbAware {
     MyGroupByPackagesAction() {
-      super(VcsBundle.message("action.name.group.by.packages"), null, PlatformIcons.GROUP_BY_PACKAGES);
+      super(VcsBundle.messagePointer("action.name.group.by.packages"), PlatformIcons.GROUP_BY_PACKAGES);
     }
 
     @Override
@@ -421,7 +418,7 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton {
 
   private class GroupByChangeListAction extends ToggleAction implements DumbAware {
     GroupByChangeListAction() {
-      super(VcsBundle.message("update.info.group.by.changelist"), null, AllIcons.Actions.ShowAsTree);
+      super(VcsBundle.messagePointer("update.info.group.by.changelist"), AllIcons.Actions.ShowAsTree);
     }
 
     @Override
@@ -487,7 +484,8 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton {
 
   private class FilterAction extends ToggleAction implements DumbAware {
     FilterAction() {
-      super("Scope Filter", VcsBundle.getString("settings.filter.update.project.info.by.scope"), AllIcons.General.Filter);
+      super(VcsBundle.messagePointer("action.ToggleAction.text.scope.filter"),
+            VcsBundle.messagePointer("settings.filter.update.project.info.by.scope"), AllIcons.General.Filter);
     }
 
     @Override

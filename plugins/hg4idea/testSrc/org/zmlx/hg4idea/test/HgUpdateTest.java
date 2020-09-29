@@ -28,6 +28,7 @@ import org.zmlx.hg4idea.command.*;
 import org.zmlx.hg4idea.provider.update.HgRegularUpdater;
 import org.zmlx.hg4idea.provider.update.HgUpdateConfigurationSettings;
 import org.zmlx.hg4idea.provider.update.HgUpdateType;
+import org.zmlx.hg4idea.repo.HgRepository;
 import org.zmlx.hg4idea.util.HgUtil;
 
 import java.io.File;
@@ -62,8 +63,8 @@ public class HgUpdateTest extends HgCollaborativeTest {
 
   @Before
   @Override
-  public void setUp() throws Exception {
-    super.setUp();
+  public void before() throws Exception {
+    super.before();
     projectRepoVirtualFile = myRepo.getDir();
     registerMockVcsHelper();
   }
@@ -75,7 +76,10 @@ public class HgUpdateTest extends HgCollaborativeTest {
 
     //do a simple pull without an update
     HgPullCommand pull = new HgPullCommand(myProject, projectRepoVirtualFile);
-    pull.setSource(HgUtil.getRepositoryDefaultPath(myProject, projectRepoVirtualFile));
+    HgRepository hgRepository = HgUtil.getRepositoryManager(myProject).getRepositoryForRoot(projectRepoVirtualFile);
+    assertNotNull(hgRepository);
+    hgRepository.updateConfig();
+    pull.setSource(hgRepository.getRepositoryConfig().getDefaultPath());
     pull.executeInCurrentThread();
 
     assertEquals("The update operation should have pulled the incoming changes from the default repository.", 0,

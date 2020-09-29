@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.compiled;
 
 import com.intellij.navigation.ItemPresentation;
@@ -15,6 +15,7 @@ import com.intellij.psi.impl.PsiImplUtil;
 import com.intellij.psi.impl.PsiSuperMethodImplUtil;
 import com.intellij.psi.impl.java.stubs.JavaStubElementTypes;
 import com.intellij.psi.impl.java.stubs.PsiClassStub;
+import com.intellij.psi.impl.java.stubs.PsiRecordHeaderStub;
 import com.intellij.psi.impl.java.stubs.impl.PsiClassStubImpl;
 import com.intellij.psi.impl.source.*;
 import com.intellij.psi.impl.source.tree.TreeElement;
@@ -31,7 +32,6 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.util.*;
 
-import static com.intellij.util.ObjectUtils.assertNotNull;
 import static java.util.Arrays.asList;
 
 public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiExtensibleClass, Queryable {
@@ -44,8 +44,7 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
   }
 
   @Override
-  @NotNull
-  public PsiElement[] getChildren() {
+  public PsiElement @NotNull [] getChildren() {
     List<PsiElement> children = new ArrayList<>();
     ContainerUtil.addAll(children, getChildren(getDocComment(), getModifierListInternal(), getNameIdentifier(), getExtendsList(), getImplementsList()));
     children.addAll(getOwnFields());
@@ -57,7 +56,7 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
   @Override
   @NotNull
   public PsiTypeParameterList getTypeParameterList() {
-    return assertNotNull(getStub().findChildStubByType(JavaStubElementTypes.TYPE_PARAMETER_LIST)).getPsi();
+    return Objects.requireNonNull(getStub().findChildStubByType(JavaStubElementTypes.TYPE_PARAMETER_LIST)).getPsi();
   }
 
   @Override
@@ -74,28 +73,21 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
   private boolean isLocalClass() {
     PsiClassStub<?> stub = getStub();
     return stub instanceof PsiClassStubImpl &&
-           ((PsiClassStubImpl)stub).isLocalClassInner();
-  }
-
-  private boolean isAnonymousClass() {
-    PsiClassStub<?> stub = getStub();
-    return stub instanceof PsiClassStubImpl &&
-           ((PsiClassStubImpl)stub).isAnonymousInner();
+           ((PsiClassStubImpl<?>)stub).isLocalClassInner();
   }
 
   private boolean isAnonymousOrLocalClass() {
-    return isAnonymousClass() || isLocalClass();
+    return this instanceof PsiAnonymousClass || isLocalClass();
   }
 
   @Override
   @Nullable
   public PsiModifierList getModifierList() {
-    if (isAnonymousClass()) return null;
     return getModifierListInternal();
   }
 
   private PsiModifierList getModifierListInternal() {
-    return assertNotNull(getStub().findChildStubByType(JavaStubElementTypes.MODIFIER_LIST)).getPsi();
+    return Objects.requireNonNull(getStub().findChildStubByType(JavaStubElementTypes.MODIFIER_LIST)).getPsi();
   }
 
   @Override
@@ -106,24 +98,22 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
   @Override
   @NotNull
   public PsiReferenceList getExtendsList() {
-    return assertNotNull(getStub().findChildStubByType(JavaStubElementTypes.EXTENDS_LIST)).getPsi();
+    return Objects.requireNonNull(getStub().findChildStubByType(JavaStubElementTypes.EXTENDS_LIST)).getPsi();
   }
 
   @Override
   @NotNull
   public PsiReferenceList getImplementsList() {
-    return assertNotNull(getStub().findChildStubByType(JavaStubElementTypes.IMPLEMENTS_LIST)).getPsi();
+    return Objects.requireNonNull(getStub().findChildStubByType(JavaStubElementTypes.IMPLEMENTS_LIST)).getPsi();
   }
 
   @Override
-  @NotNull
-  public PsiClassType[] getExtendsListTypes() {
+  public PsiClassType @NotNull [] getExtendsListTypes() {
     return PsiClassImplUtil.getExtendsListTypes(this);
   }
 
   @Override
-  @NotNull
-  public PsiClassType[] getImplementsListTypes() {
+  public PsiClassType @NotNull [] getImplementsListTypes() {
     return PsiClassImplUtil.getImplementsListTypes(this);
   }
 
@@ -132,15 +122,13 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
     return PsiClassImplUtil.getSuperClass(this);
   }
 
-  @NotNull
   @Override
-  public PsiClass[] getInterfaces() {
+  public PsiClass @NotNull [] getInterfaces() {
     return PsiClassImplUtil.getInterfaces(this);
   }
 
   @Override
-  @NotNull
-  public PsiClass[] getSupers() {
+  public PsiClass @NotNull [] getSupers() {
     if (CommonClassNames.JAVA_LANG_OBJECT.equals(getQualifiedName())) {
       return PsiClass.EMPTY_ARRAY;
     }
@@ -148,8 +136,7 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
   }
 
   @Override
-  @NotNull
-  public PsiClassType[] getSuperTypes() {
+  public PsiClassType @NotNull [] getSuperTypes() {
     if (CommonClassNames.JAVA_LANG_OBJECT.equals(getQualifiedName())) {
       return PsiClassType.EMPTY_ARRAY;
     }
@@ -169,26 +156,22 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
   }
 
   @Override
-  @NotNull
-  public PsiField[] getFields() {
+  public PsiField @NotNull [] getFields() {
     return myInnersCache.getFields();
   }
 
   @Override
-  @NotNull
-  public PsiMethod[] getMethods() {
+  public PsiMethod @NotNull [] getMethods() {
     return myInnersCache.getMethods();
   }
 
   @Override
-  @NotNull
-  public PsiMethod[] getConstructors() {
+  public PsiMethod @NotNull [] getConstructors() {
     return myInnersCache.getConstructors();
   }
 
   @Override
-  @NotNull
-  public PsiClass[] getInnerClasses() {
+  public PsiClass @NotNull [] getInnerClasses() {
     return myInnersCache.getInnerClasses();
   }
 
@@ -228,32 +211,39 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
   }
 
   @Override
-  @NotNull
-  public PsiClassInitializer[] getInitializers() {
+  public PsiRecordComponent @NotNull [] getRecordComponents() {
+    PsiRecordHeader header = getRecordHeader();
+    return header == null ? PsiRecordComponent.EMPTY_ARRAY : header.getRecordComponents();
+  }
+
+  @Override
+  public @Nullable PsiRecordHeader getRecordHeader() {
+    PsiRecordHeaderStub headerStub = getStub().findChildStubByType(JavaStubElementTypes.RECORD_HEADER);
+    return headerStub == null ? null : headerStub.getPsi();
+  }
+
+  @Override
+  public PsiClassInitializer @NotNull [] getInitializers() {
     return PsiClassInitializer.EMPTY_ARRAY;
   }
 
   @Override
-  @NotNull
-  public PsiTypeParameter[] getTypeParameters() {
+  public PsiTypeParameter @NotNull [] getTypeParameters() {
     return PsiImplUtil.getTypeParameters(this);
   }
 
   @Override
-  @NotNull
-  public PsiField[] getAllFields() {
+  public PsiField @NotNull [] getAllFields() {
     return PsiClassImplUtil.getAllFields(this);
   }
 
   @Override
-  @NotNull
-  public PsiMethod[] getAllMethods() {
+  public PsiMethod @NotNull [] getAllMethods() {
     return PsiClassImplUtil.getAllMethods(this);
   }
 
   @Override
-  @NotNull
-  public PsiClass[] getAllInnerClasses() {
+  public PsiClass @NotNull [] getAllInnerClasses() {
     return PsiClassImplUtil.getAllInnerClasses(this);
   }
 
@@ -268,14 +258,12 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
   }
 
   @Override
-  @NotNull
-  public PsiMethod[] findMethodsBySignature(PsiMethod patternMethod, boolean checkBases) {
+  public PsiMethod @NotNull [] findMethodsBySignature(PsiMethod patternMethod, boolean checkBases) {
     return PsiClassImplUtil.findMethodsBySignature(this, patternMethod, checkBases);
   }
 
   @Override
-  @NotNull
-  public PsiMethod[] findMethodsByName(String name, boolean checkBases) {
+  public PsiMethod @NotNull [] findMethodsByName(String name, boolean checkBases) {
     return myInnersCache.findMethodsByName(name, checkBases);
   }
 
@@ -345,12 +333,27 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
   }
 
   @Override
+  public boolean isRecord() {
+    return getStub().isRecord();
+  }
+
+  @Override
   public void appendMirrorText(final int indentLevel, @NotNull @NonNls final StringBuilder buffer) {
     appendText(getDocComment(), indentLevel, buffer, NEXT_LINE);
 
     appendText(getModifierListInternal(), indentLevel, buffer);
-    buffer.append(isEnum() ? "enum " : isAnnotationType() ? "@interface " : isInterface() ? "interface " : "class ");
-    appendText(getNameIdentifier(), indentLevel, buffer, " ");
+    buffer.append(isEnum() ? "enum " : 
+                  isAnnotationType() ? "@interface " : 
+                  isInterface() ? "interface " :
+                  isRecord() ? "record " :
+                  "class ");
+    PsiRecordHeader header = getRecordHeader();
+    if (header != null) {
+      appendText(getNameIdentifier(), indentLevel, buffer, "");
+      appendText(header, indentLevel, buffer, " ");
+    } else {
+      appendText(getNameIdentifier(), indentLevel, buffer, " ");
+    }
     appendText(getTypeParameterList(), indentLevel, buffer, " ");
     appendText(getExtendsList(), indentLevel, buffer, " ");
     appendText(getImplementsList(), indentLevel, buffer, " ");
@@ -476,10 +479,6 @@ public class ClsClassImpl extends ClsMemberImpl<PsiClassStub<?>> implements PsiE
                                      @NotNull ResolveState state,
                                      PsiElement lastParent,
                                      @NotNull PsiElement place) {
-    if (isEnum()) {
-      if (!PsiClassImplUtil.processDeclarationsInEnum(processor, state, myInnersCache)) return false;
-    }
-
     LanguageLevel level = processor instanceof MethodsProcessor ? ((MethodsProcessor)processor).getLanguageLevel() : PsiUtil.getLanguageLevel(place);
     return PsiClassImplUtil.processDeclarationsInClass(this, processor, state, null, lastParent, place, level, false);
   }

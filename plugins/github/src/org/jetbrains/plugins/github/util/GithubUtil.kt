@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.github.util
 
 import com.intellij.concurrency.JobScheduler
@@ -6,13 +6,16 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Couple
+import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.util.Pair
 import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.util.EventDispatcher
 import git4idea.repo.GitRemote
 import git4idea.repo.GitRepository
 import org.jetbrains.plugins.github.authentication.GithubAuthenticationManager
+import org.jetbrains.plugins.github.pullrequest.ui.SimpleEventListener
 import java.io.IOException
 import java.net.UnknownHostException
 import java.util.concurrent.ScheduledFuture
@@ -27,7 +30,12 @@ object GithubUtil {
 
   @JvmField
   val LOG: Logger = Logger.getInstance("github")
+
+  @NlsSafe
   const val SERVICE_DISPLAY_NAME: String = "GitHub"
+
+  @NlsSafe
+  const val ENTERPRISE_SERVICE_DISPLAY_NAME: String = "GitHub Enterprise"
   const val GIT_AUTH_PASSWORD_SUBSTITUTE: String = "x-oauth-basic"
 
   @JvmStatic
@@ -104,6 +112,12 @@ object GithubUtil {
         override fun beforeChange(property: KProperty<*>, oldValue: T, newValue: T) = newValue == null || oldValue != newValue
         override fun afterChange(property: KProperty<*>, oldValue: T, newValue: T) = onChange(newValue)
       }
+
+    fun <T> observableField(initialValue: T, dispatcher: EventDispatcher<SimpleEventListener>): ObservableProperty<T> {
+      return object : ObservableProperty<T>(initialValue) {
+        override fun afterChange(property: KProperty<*>, oldValue: T, newValue: T) = dispatcher.multicaster.eventOccurred()
+      }
+    }
   }
 
   @JvmStatic

@@ -1,18 +1,23 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.components.panels.NonOpaquePanel;
 import com.intellij.ui.components.panels.OpaquePanel;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.accessibility.AccessibleContextUtil;
 
+import javax.accessibility.Accessible;
+import javax.accessibility.AccessibleContext;
 import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.tree.TreeCellRenderer;
 import java.awt.*;
 
-public abstract class GroupedElementsRenderer {
+import static com.intellij.ui.RelativeFont.BOLD;
+
+public abstract class GroupedElementsRenderer implements Accessible {
   protected SeparatorWithText mySeparatorComponent = createSeparator();
 
   protected abstract JComponent createItemComponent();
@@ -36,7 +41,7 @@ public abstract class GroupedElementsRenderer {
     return new SeparatorWithText();
   }
 
-  protected final JComponent configureComponent(String text, String tooltip, Icon icon, Icon disabledIcon, boolean isSelected, boolean hasSeparatorAbove, String separatorTextAbove, int preferredForcedWidth) {
+  protected final JComponent configureComponent(@NlsContexts.ListItem String text, @NlsContexts.Tooltip String tooltip, Icon icon, Icon disabledIcon, boolean isSelected, boolean hasSeparatorAbove, @NlsContexts.Separator String separatorTextAbove, int preferredForcedWidth) {
     mySeparatorComponent.setVisible(hasSeparatorAbove);
     mySeparatorComponent.setCaption(separatorTextAbove);
     mySeparatorComponent.setMinimumWidth(preferredForcedWidth);
@@ -68,6 +73,10 @@ public abstract class GroupedElementsRenderer {
   protected final void setSelected(JComponent aComponent, boolean selected) {
     UIUtil.setBackgroundRecursively(aComponent, selected ? getSelectionBackground() : getBackground());
     aComponent.setForeground(selected ? getSelectionForeground() : getForeground());
+  }
+
+  protected void setSeparatorFont(Font font) {
+    mySeparatorComponent.setFont(BOLD.derive(font));
   }
 
   protected abstract Color getSelectionBackground();
@@ -171,4 +180,8 @@ public abstract class GroupedElementsRenderer {
     }
   }
 
+  @Override
+  public AccessibleContext getAccessibleContext() {
+    return myRendererComponent.getAccessibleContext();
+  }
 }

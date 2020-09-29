@@ -5,6 +5,7 @@ package com.intellij.openapi.vcs.changes.ui;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vcs.FilePath;
+import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vcs.changes.ChangeListManager;
 import com.intellij.openapi.vcs.changes.ChangesUtil;
@@ -66,24 +67,28 @@ public class ChangesBrowserChangeNode extends ChangesBrowserNode<Change> impleme
       appendCount(renderer);
     }
 
-    Icon additionalIcon = change.getAdditionalIcon();
-    if (additionalIcon != null) {
-      renderer.setIcon(additionalIcon);
-    }
-    else {
-      renderer.setIcon(filePath.getFileType(), filePath.isDirectory() || !isLeaf());
-    }
+    setIcon(change, filePath, renderer);
 
     if (myDecorator != null) {
       myDecorator.decorate(change, renderer, renderer.isShowFlatten());
     }
   }
 
+  private void setIcon(@NotNull Change change, @NotNull FilePath filePath, @NotNull ChangesBrowserNodeRenderer renderer) {
+    Icon additionalIcon = change.getAdditionalIcon();
+    if (additionalIcon != null) {
+      renderer.setIcon(additionalIcon);
+      return;
+    }
+    renderer.setIcon(filePath, filePath.isDirectory() || !isLeaf());
+  }
+
   private void appendSwitched(@NotNull ChangesBrowserNodeRenderer renderer, @Nullable VirtualFile file) {
     if (file != null && myProject != null && !myProject.isDefault() && !myProject.isDisposed()) {
       String branch = ChangeListManager.getInstance(myProject).getSwitchedBranch(file);
       if (branch != null) {
-        renderer.append(spaceAndThinSpace() + "[switched to " + branch + "]", SimpleTextAttributes.REGULAR_ATTRIBUTES);
+        String switchedToBranch = "[" + VcsBundle.message("changes.switched.to.branch.name", branch) + "]";
+        renderer.append(spaceAndThinSpace() + switchedToBranch, SimpleTextAttributes.REGULAR_ATTRIBUTES);
       }
     }
   }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.javadoc;
 
 import com.intellij.analysis.AnalysisScope;
@@ -14,6 +14,7 @@ import com.intellij.execution.process.ProcessEvent;
 import com.intellij.execution.process.ProcessTerminatedListener;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.ide.BrowserUtil;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.progress.ProgressManager;
@@ -46,9 +47,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- * @author nik
- */
 public class JavadocGeneratorRunProfile implements ModuleRunProfile {
   private final Project myProject;
   private final AnalysisScope myGenerationScope;
@@ -72,7 +70,7 @@ public class JavadocGeneratorRunProfile implements ModuleRunProfile {
   @NotNull
   @Override
   public String getName() {
-    return JavadocBundle.message("javadoc.settings.title");
+    return JavaBundle.message("javadoc.settings.title");
   }
 
   @Override
@@ -102,7 +100,7 @@ public class JavadocGeneratorRunProfile implements ModuleRunProfile {
     @NotNull
     protected OSProcessHandler startProcess() throws ExecutionException {
       OSProcessHandler handler = JavaCommandLineStateUtil.startProcess(createCommandLine());
-      ProcessTerminatedListener.attach(handler, myProject, JavadocBundle.message("javadoc.generate.exited"));
+      ProcessTerminatedListener.attach(handler, myProject, JavaBundle.message("javadoc.generate.exited"));
       handler.addProcessListener(new ProcessAdapter() {
         @Override
         public void processTerminated(@NotNull ProcessEvent event) {
@@ -128,7 +126,7 @@ public class JavadocGeneratorRunProfile implements ModuleRunProfile {
     private void setExecutable(Sdk jdk, GeneralCommandLine cmdLine) throws ExecutionException {
       String binPath = jdk != null && jdk.getSdkType() instanceof JavaSdkType ? ((JavaSdkType)jdk.getSdkType()).getBinPath(jdk) : null;
       if (binPath == null) {
-        throw new CantRunException(JavadocBundle.message("javadoc.generate.no.jdk.path"));
+        throw new CantRunException(JavaBundle.message("javadoc.generate.no.jdk"));
       }
 
       cmdLine.setWorkDirectory((File)null);
@@ -138,9 +136,10 @@ public class JavadocGeneratorRunProfile implements ModuleRunProfile {
       if (!tool.exists()) {
         tool = new File(new File(binPath).getParent(), toolName);
         if (!tool.exists()) {
-          tool = new File(new File(System.getProperty("java.home")).getParent(), "bin/" + toolName);
+          File javaHomeBinPath = new File(new File(System.getProperty("java.home")).getParent(), "bin");
+          tool = new File(javaHomeBinPath, toolName);
           if (!tool.exists()) {
-            throw new CantRunException(JavadocBundle.message("javadoc.generate.no.jdk.path"));
+            throw new CantRunException(JavaBundle.message("javadoc.generate.no.javadoc.tool", binPath, javaHomeBinPath));
           }
         }
       }
@@ -221,18 +220,17 @@ public class JavadocGeneratorRunProfile implements ModuleRunProfile {
           Set<Module> modules = new LinkedHashSet<>();
           Set<VirtualFile> sources = new HashSet<>();
           Runnable r = () -> myGenerationOptions.accept(new MyContentIterator(myProject, modules, sources));
-          String title = JavadocBundle.message("javadoc.generate.sources.progress");
+          String title = JavaBundle.message("javadoc.generate.sources.progress");
           if (!ProgressManager.getInstance().runProcessWithProgressSynchronously(r, title, true, myProject)) {
             return;
           }
           if (sources.isEmpty()) {
-            throw new CantRunException(JavadocBundle.message("javadoc.generate.no.classes.in.selected.packages.error"));
+            throw new CantRunException(JavaBundle.message("javadoc.generate.no.classes.in.selected.packages.error"));
           }
 
           boolean hasJavaModules = sources.stream().anyMatch(f -> PsiJavaModule.MODULE_INFO_FILE.equals(f.getName()));
           if (hasJavaModules && modules.size() > 1) {
-            throw new CantRunException("At the moment, IDEA cannot generate Javadoc for multiple modules" +
-                                       " with module-info.java files in them. Sorry. We're working on this.");
+            throw new CantRunException(JavaBundle.message("javadoc.gen.error.multiple.modules.with.module.info"));
           }
 
           OrderEnumerator sourcePathEnumerator = ProjectRootManager.getInstance(myProject).orderEntries(modules);
@@ -287,7 +285,7 @@ public class JavadocGeneratorRunProfile implements ModuleRunProfile {
         cmdLine.setCharset(cs);
       }
       catch (IOException e) {
-        throw new CantRunException(JavadocBundle.message("javadoc.generate.temp.file.error"), e);
+        throw new CantRunException(JavaBundle.message("javadoc.generate.temp.file.error"), e);
       }
     }
 
@@ -309,7 +307,7 @@ public class JavadocGeneratorRunProfile implements ModuleRunProfile {
     }
 
     @Override
-    public void visitFile(PsiFile file) {
+    public void visitFile(@NotNull PsiFile file) {
       if (file instanceof PsiJavaFile && !(file instanceof ServerPageFile)) {
         VirtualFile vFile = file.getVirtualFile();
         if (vFile != null && vFile.isInLocalFileSystem()) {

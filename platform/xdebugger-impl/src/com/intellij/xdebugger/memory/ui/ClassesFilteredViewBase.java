@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xdebugger.memory.ui;
 
 import com.intellij.icons.AllIcons;
@@ -15,6 +15,7 @@ import com.intellij.util.ui.JBDimension;
 import com.intellij.util.ui.components.BorderLayoutPanel;
 import com.intellij.xdebugger.XDebugSession;
 import com.intellij.xdebugger.XDebugSessionListener;
+import com.intellij.xdebugger.XDebuggerBundle;
 import com.intellij.xdebugger.XDebuggerManager;
 import com.intellij.xdebugger.frame.XSuspendContext;
 import com.intellij.xdebugger.impl.XDebugSessionImpl;
@@ -41,8 +42,6 @@ public abstract class ClassesFilteredViewBase extends BorderLayoutPanel implemen
   protected static final double DELAY_BEFORE_INSTANCES_QUERY_COEFFICIENT = 0.5;
   protected static final double MAX_DELAY_MILLIS = TimeUnit.SECONDS.toMillis(2);
   protected static final int DEFAULT_BATCH_SIZE = Integer.MAX_VALUE;
-  private static final String EMPTY_TABLE_CONTENT_WHEN_RUNNING = "Stop at a breakpoint to load the list of classes";
-  private static final String EMPTY_TABLE_CONTENT_WHEN_STOPPED = "Classes are not available";
   private static final int INITIAL_TIME = 0;
 
   protected final Project myProject;
@@ -75,7 +74,7 @@ public abstract class ClassesFilteredViewBase extends BorderLayoutPanel implemen
     final MemoryViewManagerState memoryViewManagerState = MemoryViewManager.getInstance().getState();
 
     myTable = createClassesTable(memoryViewManagerState);
-    myTable.getEmptyText().setText(EMPTY_TABLE_CONTENT_WHEN_RUNNING);
+    myTable.getEmptyText().setText(XDebuggerBundle.message("memory.view.empty.running"));
     Disposer.register(this, myTable);
 
 
@@ -159,7 +158,7 @@ public abstract class ClassesFilteredViewBase extends BorderLayoutPanel implemen
     final JScrollPane scroll = ScrollPaneFactory.createScrollPane(myTable, SideBorder.TOP);
     final DefaultActionGroup group = (DefaultActionGroup)ActionManager.getInstance().getAction("MemoryView.SettingsPopupActionGroup");
     group.setPopup(true);
-    final Presentation actionsPresentation = new Presentation("Memory View Settings");
+    final Presentation actionsPresentation = new Presentation(XDebuggerBundle.messagePointer("action.memory.view.settings.text"));
     actionsPresentation.setIcon(AllIcons.General.GearPlain);
 
     final ActionButton button = new ActionButton(group, actionsPresentation, ActionPlaces.UNKNOWN, new JBDimension(25, 25));
@@ -194,8 +193,8 @@ public abstract class ClassesFilteredViewBase extends BorderLayoutPanel implemen
     if (ref != null && debugSession != null && debugSession.isSuspended()) {
       if (!ref.canGetInstanceInfo()) {
         XDebuggerManagerImpl.NOTIFICATION_GROUP
-          .createNotification("Unable to get instances of class " + ref.name(),
-            NotificationType.INFORMATION).notify(debugSession.getProject());
+          .createNotification(XDebuggerBundle.message("memory.unable.to.get.instances.of.class", ref.name()),
+                              NotificationType.INFORMATION).notify(debugSession.getProject());
         return;
       }
 
@@ -308,7 +307,8 @@ public abstract class ClassesFilteredViewBase extends BorderLayoutPanel implemen
         XDebugSessionListener additionalSessionListener = getAdditionalSessionListener();
         if (additionalSessionListener != null)
           additionalSessionListener.sessionResumed();
-        ApplicationManager.getApplication().invokeLater(() -> myTable.hideContent(EMPTY_TABLE_CONTENT_WHEN_RUNNING));
+        ApplicationManager.getApplication().invokeLater(
+          () -> myTable.hideContent(XDebuggerBundle.message("memory.view.empty.running")));
 
         mySingleAlarm.cancelAllRequests();
       }
@@ -320,7 +320,7 @@ public abstract class ClassesFilteredViewBase extends BorderLayoutPanel implemen
       if (additionalSessionListener != null)
         additionalSessionListener.sessionStopped();
       mySingleAlarm.cancelAllRequests();
-      ApplicationManager.getApplication().invokeLater(() -> myTable.clean(EMPTY_TABLE_CONTENT_WHEN_STOPPED));
+      ApplicationManager.getApplication().invokeLater(() -> myTable.clean(XDebuggerBundle.message("memory.view.empty.stopped")));
     }
 
     @Override

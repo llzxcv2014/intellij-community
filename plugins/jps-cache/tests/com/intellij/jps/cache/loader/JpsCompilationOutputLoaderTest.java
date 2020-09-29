@@ -3,11 +3,12 @@ package com.intellij.jps.cache.loader;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.intellij.jps.cache.client.ArtifactoryJpsServerClient;
+import com.intellij.jps.cache.client.JpsServerClient;
 import com.intellij.jps.cache.model.AffectedModule;
 import com.intellij.jps.cache.model.BuildTargetState;
 import com.intellij.openapi.application.PluginPathManager;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import com.intellij.util.ConcurrencyUtil;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,7 +30,7 @@ public class JpsCompilationOutputLoaderTest extends BasePlatformTestCase {
   @Override
   public void setUp() throws Exception {
     super.setUp();
-    compilationOutputLoader = new JpsCompilationOutputLoader(ArtifactoryJpsServerClient.INSTANCE, getProject());
+    compilationOutputLoader = new JpsCompilationOutputLoader(JpsServerClient.getServerClient(), "/intellij/out/classes");
     myGson = new Gson();
     myTokenType = new TypeToken<Map<String, Map<String, BuildTargetState>>>() {}.getType();
   }

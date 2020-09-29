@@ -1,19 +1,22 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.deadCode;
 
+import com.intellij.analysis.AnalysisBundle;
+import com.intellij.codeHighlighting.HighlightDisplayLevel;
 import com.intellij.codeInspection.GlobalJavaInspectionContext;
-import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.codeInspection.ex.*;
 import com.intellij.codeInspection.reference.RefElement;
 import com.intellij.codeInspection.reference.RefEntity;
 import com.intellij.codeInspection.reference.RefJavaElement;
 import com.intellij.codeInspection.ui.InspectionResultsView;
+import com.intellij.codeInspection.ui.InspectionTreeModel;
 import com.intellij.codeInspection.ui.InspectionTreeNode;
+import com.intellij.codeInspection.ui.RefElementNode;
 import com.intellij.codeInspection.util.RefFilter;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import gnu.trove.TObjectIntHashMap;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class DummyEntryPointsPresentation extends UnusedDeclarationPresentation {
   private static final RefEntryPointFilter myFilter = new RefEntryPointFilter();
@@ -29,9 +32,8 @@ public class DummyEntryPointsPresentation extends UnusedDeclarationPresentation 
     return myFilter;
   }
 
-  @NotNull
   @Override
-  public QuickFixAction[] getQuickFixes(@NotNull RefEntity... refElements) {
+  public QuickFixAction @NotNull [] getQuickFixes(RefEntity @NotNull ... refElements) {
     if (myQuickFixActions == null) {
       myQuickFixActions = new QuickFixAction[]{new MoveEntriesToSuspicious(getToolWrapper())};
     }
@@ -39,13 +41,25 @@ public class DummyEntryPointsPresentation extends UnusedDeclarationPresentation 
   }
 
   @Override
+  public @NotNull RefElementNode createRefNode(@Nullable RefEntity entity,
+                                               @NotNull InspectionTreeModel model,
+                                               @NotNull InspectionTreeNode parent) {
+    return new UnusedDeclarationRefElementNode(entity, this, parent) {
+      @Override
+      protected void visitProblemSeverities(@NotNull TObjectIntHashMap<HighlightDisplayLevel> counter) {
+        // do nothing
+      }
+    };
+  }
+
+  @Override
   protected String getSeverityDelegateName() {
     return UnusedDeclarationInspectionBase.SHORT_NAME;
   }
 
-  private class MoveEntriesToSuspicious extends QuickFixAction {
+  private final class MoveEntriesToSuspicious extends QuickFixAction {
     private MoveEntriesToSuspicious(@NotNull InspectionToolWrapper toolWrapper) {
-      super(InspectionsBundle.message("inspection.dead.code.remove.user.defined.entry.point.quickfix"), null, null, toolWrapper);
+      super(AnalysisBundle.message("inspection.dead.code.remove.user.defined.entry.point.quickfix"), null, null, toolWrapper);
     }
 
     @Override
@@ -70,7 +84,7 @@ public class DummyEntryPointsPresentation extends UnusedDeclarationPresentation 
     }
 
     @Override
-    protected boolean applyFix(@NotNull RefEntity[] refElements) {
+    protected boolean applyFix(RefEntity @NotNull [] refElements) {
       final EntryPointsManager entryPointsManager =
         getContext().getExtension(GlobalJavaInspectionContext.CONTEXT).getEntryPointsManager(getContext().getRefManager());
       for (RefEntity refElement : refElements) {

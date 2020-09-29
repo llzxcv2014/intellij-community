@@ -7,12 +7,15 @@ import com.intellij.codeInsight.daemon.impl.analysis.HighlightControlFlowUtil;
 import com.intellij.codeInsight.navigation.NavigationUtil;
 import com.intellij.codeInspection.AnonymousCanBeLambdaInspection;
 import com.intellij.ide.util.PsiClassListCellRenderer;
+import com.intellij.java.JavaBundle;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pass;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
@@ -41,21 +44,23 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
 
   @Override
   public void invoke(@NotNull final Project project, final Editor editor, final PsiFile file, DataContext dataContext) {
-    ExtractMethodHandler.selectAndPass(project, editor, file, new Pass<PsiElement[]>() {
+    ExtractMethodHandler.selectAndPass(project, editor, file, new Pass<>() {
       @Override
       public void pass(PsiElement[] elements) {
         if (elements.length == 0) {
-          String message = RefactoringBundle.getCannotRefactorMessage(RefactoringBundle.message("selected.block.should.represent.a.set.of.statements.or.an.expression"));
-          showErrorMessage(project , editor, message);
+          String message = RefactoringBundle
+            .getCannotRefactorMessage(RefactoringBundle.message("selected.block.should.represent.a.set.of.statements.or.an.expression"));
+          showErrorMessage(project, editor, message);
           return;
         }
-        PsiElement anchorStatement = elements[0] instanceof PsiComment ? elements[0] : RefactoringUtil.getParentStatement(elements[0], false);
+        PsiElement anchorStatement =
+          elements[0] instanceof PsiComment ? elements[0] : RefactoringUtil.getParentStatement(elements[0], false);
         PsiElement tempContainer = checkAnchorStatement(project, editor, anchorStatement);
         if (tempContainer == null) return;
 
         PsiElement[] elementsInCopy = IntroduceParameterHandler.getElementsInCopy(project, file, elements);
         MyExtractMethodProcessor processor =
-          new MyExtractMethodProcessor(project, editor, elementsInCopy, null, IntroduceFunctionalVariableAction.REFACTORING_NAME, null,
+          new MyExtractMethodProcessor(project, editor, elementsInCopy, null, IntroduceFunctionalVariableAction.getRefactoringName(), null,
                                        HelpID.INTRODUCE_VARIABLE);
         processor.setShowErrorDialogs(false);
         try {
@@ -78,7 +83,7 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
         }
 
         if (types.isEmpty()) {
-          showErrorMessage(project, editor, "No applicable functional interfaces found");
+          showErrorMessage(project, editor, JavaBundle.message("introduce.functional.variable.nothing.found.message"));
           return;
         }
         if (types.size() == 1 || ApplicationManager.getApplication().isUnitTestMode()) {
@@ -94,7 +99,8 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
             PsiFormatUtil.formatMethod(emptyMethod, PsiSubstitutor.EMPTY, PsiFormatUtilBase.SHOW_PARAMETERS, PsiFormatUtilBase.SHOW_TYPE);
           final PsiType returnType = emptyMethod.getReturnType();
           assert returnType != null;
-          final String title = "Choose Applicable Functional Interface: " + methodSignature + " -> " + returnType.getPresentableText();
+          final String title =
+            JavaBundle.message("introduce.functional.variable.interface.chooser.title", methodSignature, returnType.getPresentableText());
           NavigationUtil.getPsiElementPopup(psiClasses, new PsiClassListCellRenderer(), title,
                                             psiClass -> {
                                               functionalInterfaceSelected(classes.get(psiClass), project, editor, processor, elements);
@@ -113,8 +119,8 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
     if (!elements[0].isValid()) return;
     if (!CommonRefactoringUtil.checkReadOnlyStatus(project, elements[0])) return;
     MyExtractMethodProcessor physicalProcessor =
-      new MyExtractMethodProcessor(project, editor, elements, 
-                                   null, IntroduceFunctionalVariableAction.REFACTORING_NAME, null, HelpID.INTRODUCE_VARIABLE);
+      new MyExtractMethodProcessor(project, editor, elements,
+                                   null, IntroduceFunctionalVariableAction.getRefactoringName(), null, HelpID.INTRODUCE_VARIABLE);
     try {
       physicalProcessor.prepare();
     }
@@ -127,7 +133,7 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
     CommandProcessor.getInstance().executeCommand(project, () -> {
       PsiMethodCallExpression expression = WriteAction.compute(() -> createReplacement(project, type, physicalProcessor));
       invokeImpl(project, expression.getMethodExpression().getQualifierExpression(), editor);
-    }, IntroduceFunctionalVariableAction.REFACTORING_NAME, null);
+    }, IntroduceFunctionalVariableAction.getRefactoringName(), null);
   }
 
   private static PsiMethodCallExpression createReplacement(Project project,
@@ -182,15 +188,15 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
 
 
   @Override
-  protected void showErrorMessage(Project project, Editor editor, String message) {
+  protected void showErrorMessage(Project project, Editor editor, @NlsContexts.DialogMessage String message) {
     CommonRefactoringUtil
-      .showErrorHint(project, editor, message, IntroduceFunctionalVariableAction.REFACTORING_NAME, HelpID.INTRODUCE_VARIABLE);
+      .showErrorHint(project, editor, message, IntroduceFunctionalVariableAction.getRefactoringName(), HelpID.INTRODUCE_VARIABLE);
   }
 
   private void showErrorMessage(@NotNull Project project, Editor editor) {
     final String message = RefactoringBundle
       .getCannotRefactorMessage(
-        RefactoringBundle.message("is.not.supported.in.the.current.context", IntroduceFunctionalVariableAction.REFACTORING_NAME));
+        RefactoringBundle.message("is.not.supported.in.the.current.context", IntroduceFunctionalVariableAction.getRefactoringName()));
     showErrorMessage(project, editor, message);
   }
 
@@ -202,10 +208,10 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
   private class MyExtractMethodProcessor extends ExtractMethodProcessor {
 
     MyExtractMethodProcessor(Project project,
-                                    Editor editor,
-                                    PsiElement[] elements,
-                                    PsiType forcedReturnType,
-                                    String refactoringName, String initialMethodName, String helpId) {
+                             Editor editor,
+                             PsiElement[] elements,
+                             PsiType forcedReturnType,
+                             @NlsContexts.DialogTitle String refactoringName, String initialMethodName, String helpId) {
       super(project, editor, elements, forcedReturnType, refactoringName, initialMethodName, helpId);
     }
 
@@ -229,14 +235,14 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
       setDataFromInputVariables();
       return new ExtractMethodDialog(myProject, myTargetClass, myInputVariables, null, getTypeParameterList(),
                                      getThrownExceptions(), isStatic(), isCanBeStatic(), false,
-                                     IntroduceFunctionalVariableAction.REFACTORING_NAME, HelpID.INTRODUCE_VARIABLE, null, myElements, null) {
+                                     IntroduceFunctionalVariableAction.getRefactoringName(), HelpID.INTRODUCE_VARIABLE, null, myElements, null) {
         @Override
         protected JComponent createNorthPanel() {
           if (!myInputVariables.hasInstanceFields()) {
             return null;
           }
           JPanel optionsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 5));
-          createStaticOptions(optionsPanel, RefactoringBundle.message("introduce.functional.variable.pass.fields.checkbox"));
+          createStaticOptions(optionsPanel, JavaRefactoringBundle.message("introduce.functional.variable.pass.fields.checkbox"));
           return optionsPanel;
         }
 
@@ -267,7 +273,7 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
               if (PsiUtil.isLanguageLevel8OrHigher(data.variable) 
                   ? scope != null && !HighlightControlFlowUtil.isEffectivelyFinal(data.variable, scope, null) 
                   : data.variable.hasModifierProperty(PsiModifier.FINAL)) {
-                conflicts.putValue(null, "Variable " + data.name + " is not effectively final and won't be accessible inside functional expression");
+                conflicts.putValue(null, JavaBundle.message("introduce.functional.variable.accessibility.conflict", data.name));
               }
             }
           }
@@ -316,10 +322,7 @@ public class IntroduceFunctionalVariableHandler extends IntroduceVariableHandler
         String variableName = data.variable.getName();
         assert variableName != null;
         VariableData dataByVName =
-          myInputVariables.getInputVariables()
-            .stream()
-            .filter(vData -> variableName.equals(vData.variable.getName())).findFirst()
-            .orElse(null);
+          ContainerUtil.find(myInputVariables.getInputVariables(), vData -> variableName.equals(vData.variable.getName()));
         if (dataByVName != null) {
           dataByVName.passAsParameter = data.passAsParameter;
           dataByVName.name = data.name;

@@ -1,13 +1,13 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes.ignore.psi.util
 
-import com.intellij.openapi.application.invokeAndWaitIfNeeded
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runUndoTransparentWriteAction
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
-import com.intellij.openapi.vcs.AbstractVcs
+import com.intellij.openapi.vcs.VcsKey
 import com.intellij.openapi.vcs.changes.IgnoredFileContentProvider
 import com.intellij.openapi.vcs.changes.IgnoredFileDescriptor
 import com.intellij.openapi.vcs.changes.ignore.lang.IgnoreFileConstants
@@ -32,7 +32,15 @@ fun addNewElementsToIgnoreBlock(project: Project,
                                 ignoreFile: VirtualFile,
                                 ignoredGroupDescription: String,
                                 vararg newEntries: IgnoredFileDescriptor) {
-  changeIgnoreFile(project, ignoreFile) { provider ->
+  addNewElementsToIgnoreBlock(project, ignoreFile, ignoredGroupDescription, null, *newEntries)
+}
+
+fun addNewElementsToIgnoreBlock(project: Project,
+                                ignoreFile: VirtualFile,
+                                ignoredGroupDescription: String,
+                                vcs: VcsKey? = null,
+                                vararg newEntries: IgnoredFileDescriptor) {
+  changeIgnoreFile(project, ignoreFile, vcs) { provider ->
     addNewElementsToIgnoreBlock(ignoredGroupDescription, ignoreFile, newEntries, provider)
   }
 }
@@ -40,7 +48,7 @@ fun addNewElementsToIgnoreBlock(project: Project,
 fun addNewElements(project: Project,
                    ignoreFile: VirtualFile,
                    newEntries: List<IgnoredFileDescriptor>,
-                   vcs: AbstractVcs? = null,
+                   vcs: VcsKey? = null,
                    ignoreEntryRoot: VirtualFile? = null) {
   changeIgnoreFile(project, ignoreFile, vcs) { provider ->
     val document = FileDocumentManager.getInstance().getDocument(ignoreFile) ?: return@changeIgnoreFile
@@ -58,12 +66,13 @@ fun addNewElements(project: Project,
 
 private fun changeIgnoreFile(project: Project,
                              ignoreFile: VirtualFile,
-                             vcs: AbstractVcs? = null,
+                             vcs: VcsKey? = null,
                              action: (IgnoredFileContentProvider) -> Unit) {
-  val determinedVcs = (vcs ?: VcsUtil.getVcsFor(project, ignoreFile)) ?: return
-  val ignoredFileContentProvider = VcsImplUtil.findIgnoredFileContentProvider(determinedVcs) ?: return
-  invokeAndWaitIfNeeded {
+  val determinedVcs = (vcs ?: VcsUtil.getVcsFor(project, ignoreFile)?.keyInstanceMethod) ?: return
+  val ignoredFileContentProvider = VcsImplUtil.findIgnoredFileContentProvider(project, determinedVcs) ?: return
+  ApplicationManager.getApplication().invokeAndWait {
     runUndoTransparentWriteAction {
+      if (project.isDisposed) return@runUndoTransparentWriteAction
       if (PsiManager.getInstance(project).findFile(ignoreFile)?.language !is IgnoreLanguage) return@runUndoTransparentWriteAction
       action(ignoredFileContentProvider)
       ignoreFile.save()
@@ -154,12 +163,12 @@ private fun IgnoredFileDescriptor.toText(ignoredFileContentProvider: IgnoredFile
   val ignorePath = path
   val ignoreMask = mask
   return if (ignorePath != null) {
-    val ignoreFileContainingDir = ignoreEntryRoot ?: ignoreFile.parent ?: throw IllegalStateException(
-      "Cannot determine ignore file path for $ignoreFile")
+    val ignoreFileContainingDir = ignoreEntryRoot ?: ignoreFile.parent
+                                  ?: throw IllegalStateException("Cannot determine ignore file path for ${ignoreFile}")
     ignoredFileContentProvider.buildIgnoreEntryContent(ignoreFileContainingDir, this)
   }
   else {
-    ignoreMask ?: throw IllegalStateException("IgnoredFileBean: path and mask cannot be null at the same time")
+    ignoreMask ?: throw IllegalStateException("IgnoredFileBean: path and mask cannot be null at the same time") // NON-NLS
   }
 }
 
@@ -170,6 +179,9 @@ private fun VirtualFile.save() {
   }
   val documentManager = FileDocumentManager.getInstance()
   if (documentManager.isFileModified(this)) {
-    documentManager.getDocument(this)?.let(documentManager::saveDocumentAsIs)
+    val document = documentManager.getDocument(this)
+    if (document != null) {
+      ApplicationManager.getApplication().invokeLaterOnWriteThread { documentManager.saveDocumentAsIs(document) }
+    }
   }
 }

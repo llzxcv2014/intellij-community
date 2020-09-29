@@ -15,6 +15,7 @@
  */
 package com.intellij.refactoring.safeDelete;
 
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
@@ -44,13 +45,11 @@ import java.util.Set;
 
 abstract class SafeDeleteJavaCallerChooser extends JavaCallerChooser {
   private final PsiMethod myMethod;
-  private final Project myProject;
   private final ArrayList<? super UsageInfo> myResult;
 
   SafeDeleteJavaCallerChooser(PsiMethod method, Project project, ArrayList<? super UsageInfo> result) {
-    super(method, project, "Select Methods To Propagate Parameter Deletion", null, EmptyConsumer.getInstance());
+    super(method, project, JavaRefactoringBundle.message("safe.delete.select.methods.to.propagate.delete.parameters.dialog.title"), null, EmptyConsumer.getInstance());
     myMethod = method;
-    myProject = project;
     myResult = result;
   }
 
@@ -103,7 +102,9 @@ abstract class SafeDeleteJavaCallerChooser extends JavaCallerChooser {
       }
     };
 
-    if (ProgressManager.getInstance().runProcessWithProgressSynchronously(() -> ApplicationManager.getApplication().runReadAction(runnable), "Search for Caller Method Usages...", true, myProject)) {
+    if (ProgressManager.getInstance().runProcessWithProgressSynchronously(() -> ApplicationManager.getApplication().runReadAction(runnable),
+                                                                          JavaRefactoringBundle.message(
+                                                                            "safe.delete.search.for.caller.method.usages.progress"), true, myProject)) {
       myResult.addAll(foreignMethodUsages);
     }
     super.doOKAction();
@@ -139,7 +140,7 @@ abstract class SafeDeleteJavaCallerChooser extends JavaCallerChooser {
                   OverridingMethodsSearch.search((PsiMethod)scope).findFirst() == null) {
                 final int scopeParamIdx = ((PsiMethod)scope).getParameterList().getParameterIndex(parameter);
                 final Ref<Boolean> ref = new Ref<>(false);
-                if (ReferencesSearch.search(parameter, new LocalSearchScope(scope)).forEach(new Processor<PsiReference>() {
+                if (ReferencesSearch.search(parameter, new LocalSearchScope(scope)).forEach(new Processor<>() {
                   @Override
                   public boolean process(PsiReference reference) {
                     final PsiElement element = reference.getElement();

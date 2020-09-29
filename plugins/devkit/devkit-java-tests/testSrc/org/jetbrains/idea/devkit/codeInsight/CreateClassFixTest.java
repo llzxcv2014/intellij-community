@@ -1,12 +1,13 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.codeInsight;
 
-import com.intellij.codeInsight.daemon.QuickFixBundle;
 import com.intellij.codeInsight.intention.IntentionAction;
+import com.intellij.codeInspection.CommonQuickFixBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.util.JavaElementKind;
 import com.intellij.testFramework.EdtTestUtil;
 import com.intellij.testFramework.UsefulTestCase;
 import com.intellij.testFramework.builders.JavaModuleFixtureBuilder;
@@ -33,11 +34,8 @@ public class CreateClassFixTest extends UsefulTestCase {
   @org.junit.runners.Parameterized.Parameter(0) public String myTestName;
   @org.junit.runners.Parameterized.Parameter(1) public boolean myCreateClass;
 
-  @Override
   @Before
-  public void setUp() throws Exception {
-    super.setUp();
-
+  public void before() throws Exception {
     JavaTestFixtureFactory fixtureFactory = JavaTestFixtureFactory.getFixtureFactory();
     TestFixtureBuilder<IdeaProjectTestFixture> testFixtureBuilder = JavaTestFixtureFactory.createFixtureBuilder(getClass().getSimpleName());
     myFixture = fixtureFactory.createCodeInsightFixture(testFixtureBuilder.getFixture());
@@ -48,19 +46,10 @@ public class CreateClassFixTest extends UsefulTestCase {
     myFixture.enableInspections(new RegistrationProblemsInspection());
   }
 
-  @Override
   @After
-  public void tearDown() throws Exception {
-    try {
-      myFixture.tearDown();
-      myFixture = null;
-    }
-    catch (Throwable e) {
-      addSuppressedException(e);
-    }
-    finally {
-      super.tearDown();
-    }
+  public void after() throws Exception {
+    myFixture.tearDown();
+    myFixture = null;
   }
 
   @NotNull
@@ -81,7 +70,8 @@ public class CreateClassFixTest extends UsefulTestCase {
   public void runSingle() {
     EdtTestUtil.runInEdtAndWait(() -> {
       IntentionAction resultAction = null;
-      final String createAction = QuickFixBundle.message(myCreateClass ? "create.class.text" : "create.interface.text", myTestName);
+      final String createAction = CommonQuickFixBundle.message(
+        "fix.create.title.x", (myCreateClass ? JavaElementKind.CLASS : JavaElementKind.INTERFACE).object(), myTestName);
       final List<IntentionAction> actions = myFixture.getAvailableIntentions(getSourceRoot() + "/plugin" + myTestName + ".xml");
       for (IntentionAction action : actions) {
         if (Comparing.strEqual(action.getText(), createAction)) {

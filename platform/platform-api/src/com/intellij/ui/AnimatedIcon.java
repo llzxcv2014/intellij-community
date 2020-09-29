@@ -1,13 +1,13 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.util.Key;
 import com.intellij.util.concurrency.EdtScheduledExecutorService;
-import com.intellij.util.containers.SmartHashSet;
 import com.intellij.util.ui.UIUtil;
-import gnu.trove.TObjectIdentityHashingStrategy;
+import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -21,10 +21,8 @@ import static com.intellij.util.containers.ContainerUtil.immutableList;
 import static java.awt.AlphaComposite.SrcAtop;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-/**
- * @author Sergey.Malenkov
- */
 public class AnimatedIcon implements Icon {
+  private static final Logger LOG = Logger.getInstance(AnimatedIcon.class);
   /**
    * This key is used to allow animated icons in lists, tables and trees.
    * If the corresponding client property is set to {@code true} the corresponding component
@@ -35,6 +33,8 @@ public class AnimatedIcon implements Icon {
    */
   @ApiStatus.Internal
   public static final Key<Boolean> ANIMATION_IN_RENDERER_ALLOWED = Key.create("ANIMATION_IN_RENDERER_ALLOWED");
+  @ApiStatus.Internal
+  public static final Key<Runnable> REFRESH_DELEGATE = Key.create("REFRESH_DELEGATE");
 
   public interface Frame {
     @NotNull
@@ -179,22 +179,22 @@ public class AnimatedIcon implements Icon {
 
 
   private final Frame[] frames;
-  private final Set<Component> requested = new SmartHashSet<>(new TObjectIdentityHashingStrategy<>());
+  private final Set<Component> requested = new ReferenceOpenHashSet<>();
   private long time;
   private int index;
 
-  public AnimatedIcon(int delay, @NotNull Icon... icons) {
+  public AnimatedIcon(int delay, Icon @NotNull ... icons) {
     this(getFrames(delay, icons));
   }
 
-  public AnimatedIcon(@NotNull Frame... frames) {
+  public AnimatedIcon(Frame @NotNull ... frames) {
     this.frames = frames;
     assert frames.length > 0 : "empty array";
     for (Frame frame : frames) assert frame != null : "null animation frame";
     time = System.currentTimeMillis();
   }
 
-  private static Frame[] getFrames(int delay, @NotNull Icon... icons) {
+  private static Frame[] getFrames(int delay, Icon @NotNull ... icons) {
     int length = icons.length;
     assert length > 0 : "empty array";
     Frame[] frames = new Frame[length];
@@ -258,8 +258,13 @@ public class AnimatedIcon implements Icon {
   @Override
   public final void paintIcon(Component c, Graphics g, int x, int y) {
     Icon icon = getUpdatedIcon();
-    CellRendererPane pane = ComponentUtil.getParentOfType((Class<? extends CellRendererPane>)CellRendererPane.class, c);
-    requestRefresh(pane == null ? c : getRendererOwner(pane.getParent()));
+    if (EventQueue.isDispatchThread()) {
+      CellRendererPane pane = ComponentUtil.getParentOfType((Class<? extends CellRendererPane>)CellRendererPane.class, c);
+      requestRefresh(pane == null ? c : getRendererOwner(pane.getParent()));
+    }
+    else if (LOG.isDebugEnabled()) {
+      LOG.debug(new IllegalStateException("Unexpected thread " + Thread.currentThread().getName()));
+    }
     icon.paintIcon(c, g, x, y);
   }
 
@@ -278,7 +283,13 @@ public class AnimatedIcon implements Icon {
   }
 
   protected void doRefresh(@NotNull Component component) {
-    component.repaint();
+    Runnable delegate = UIUtil.getClientProperty(component, REFRESH_DELEGATE);
+    if (delegate != null) {
+      delegate.run();
+    }
+    else {
+      component.repaint();
+    }
   }
 
   @Nullable

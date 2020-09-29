@@ -1,23 +1,12 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.rename.naming;
 
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.usages.RenameableUsage;
 import com.intellij.util.IncorrectOperationException;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,7 +26,7 @@ public abstract class AutomaticUsageRenamer<T> {
     myOldName = oldName;
     myNewName = newName;
     List<T> elements = new ArrayList<>(renamedElements);
-    Collections.sort(elements, (o1, o2) -> {
+    elements.sort((o1, o2) -> {
       int i = StringUtil.compare(getSourceName(o1), getSourceName(o2), false);
       if (i != 0) return i;
       return getName(o1).compareTo(getName(o2));
@@ -79,7 +68,7 @@ public abstract class AutomaticUsageRenamer<T> {
   }
 
   protected boolean isNameAlreadySuggested(String newName) {
-    return myRenames.values().contains(newName);
+    return myRenames.containsValue(newName);
   }
 
   public List<? extends T> getElements() {
@@ -90,6 +79,7 @@ public abstract class AutomaticUsageRenamer<T> {
    * Element source, path. For example, package. Taken into account while sorting.
    */
   @Nullable
+  @NlsSafe
   public String getSourceName(T element) {
     return null;
   }
@@ -111,7 +101,7 @@ public abstract class AutomaticUsageRenamer<T> {
   }
 
   @Nullable
-  public String getErrorText(T element) {
+  public @NlsContexts.Tooltip String getErrorText(T element) {
     return null;
   }
 
@@ -130,11 +120,11 @@ public abstract class AutomaticUsageRenamer<T> {
 
   protected abstract String suggestName(T element);
 
-  protected abstract String getName(T element);
+  protected abstract @NlsSafe String getName(T element);
 
-  public abstract String getDialogTitle();
+  public abstract @NlsContexts.DialogTitle String getDialogTitle();
 
-  public abstract String getDialogDescription();
+  public abstract @Nls String getDialogDescription();
 
   public abstract String getEntityName();
 }

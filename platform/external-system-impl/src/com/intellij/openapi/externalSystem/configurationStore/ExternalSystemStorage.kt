@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.externalSystem.configurationStore
 
 import com.intellij.configurationStore.*
@@ -13,10 +13,7 @@ import org.jetbrains.jps.model.serialization.SerializationConstants
 
 internal class ExternalModuleStorage(private val module: Module,
                                      storageManager: StateStorageManager) : XmlElementStorage(StoragePathMacros.MODULE_FILE, "module", storageManager.macroSubstitutor, RoamingType.DISABLED) {
-  override val isUseVfsForWrite: Boolean
-    get() = false
-
-  private val manager = StreamProviderFactory.EP_NAME.getExtensionList(module.project).first { it is ExternalSystemStreamProviderFactory } as ExternalSystemStreamProviderFactory
+  private val manager = StreamProviderFactory.EP_NAME.getExtensions(module.project).first { it is ExternalSystemStreamProviderFactory } as ExternalSystemStreamProviderFactory
 
   override fun loadLocalData() = manager.readModuleData(module.name)
 
@@ -34,10 +31,7 @@ internal open class ExternalProjectStorage @JvmOverloads constructor(fileSpec: S
                                                                                                                                                                                                 rootElementName,
                                                                                                                                                                                                 storageManager.macroSubstitutor,
                                                                                                                                                                                                 RoamingType.DISABLED) {
-  override val isUseVfsForWrite: Boolean
-    get() = false
-
-  protected val manager = StreamProviderFactory.EP_NAME.getExtensionList(project).first { it is ExternalSystemStreamProviderFactory } as ExternalSystemStreamProviderFactory
+  protected val manager = StreamProviderFactory.EP_NAME.getExtensions(project).first { it is ExternalSystemStreamProviderFactory } as ExternalSystemStreamProviderFactory
 
   override fun loadLocalData() = manager.fileStorage.read(fileSpec)
 
@@ -45,6 +39,10 @@ internal open class ExternalProjectStorage @JvmOverloads constructor(fileSpec: S
     override fun saveLocally(dataWriter: DataWriter?) {
       manager.fileStorage.write(fileSpec, dataWriter)
     }
+  }
+
+  override fun toString(): String {
+    return "ExternalProjectStorage(fileSpec=$fileSpec)"
   }
 }
 

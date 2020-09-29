@@ -1,8 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.ui.impl.watch;
 
 import com.intellij.codeInsight.ChangeContextUtil;
-import com.intellij.debugger.DebuggerBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.codeinsight.RuntimeTypeEvaluator;
 import com.intellij.debugger.engine.evaluation.EvaluateException;
 import com.intellij.openapi.project.Project;
@@ -20,7 +20,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Set;
 
-public class DebuggerTreeNodeExpression {
+public final class DebuggerTreeNodeExpression {
   @Nullable
   public static PsiExpression substituteThis(@Nullable PsiElement expressionWithThis, PsiExpression howToEvaluateThis, Value howToEvaluateThisValue)
     throws EvaluateException {
@@ -57,7 +57,7 @@ public class DebuggerTreeNodeExpression {
     }
     catch (IncorrectOperationException e) {
       throw new EvaluateException(
-        DebuggerBundle.message("evaluation.error.invalid.this.expression", result.getText(), howToEvaluateThis.getText()), null);
+        JavaDebuggerBundle.message("evaluation.error.invalid.this.expression", result.getText(), howToEvaluateThis.getText()), null);
     }
 
     try {
@@ -77,12 +77,12 @@ public class DebuggerTreeNodeExpression {
     if (!(value instanceof ObjectReference)) {
       return expression;
     }
-    
+
     ReferenceType valueType = ((ObjectReference)value).referenceType();
     if (valueType == null) {
       return expression;
     }
-    
+
     Project project = expression.getProject();
 
     PsiType type = RuntimeTypeEvaluator.getCastableRuntimeType(project, value);
@@ -106,7 +106,7 @@ public class DebuggerTreeNodeExpression {
       return parenthExpression;
     }
     catch (IncorrectOperationException e) {
-      throw new EvaluateException(DebuggerBundle.message("error.invalid.type.name", typeName), e);
+      throw new EvaluateException(JavaDebuggerBundle.message("error.invalid.type.name", typeName), e);
     }
   }
 

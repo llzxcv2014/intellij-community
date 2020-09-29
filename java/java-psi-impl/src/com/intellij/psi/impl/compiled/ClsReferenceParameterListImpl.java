@@ -35,7 +35,9 @@ public class ClsReferenceParameterListImpl extends ClsElementImpl implements Psi
   private final ClsTypeElementImpl[] myTypeParameters;
   private volatile PsiType[] myTypeParametersCachedTypes;
 
-  public ClsReferenceParameterListImpl(PsiElement parent, String[] classParameters) {
+  public ClsReferenceParameterListImpl(PsiElement parent,
+                                       @NotNull String @NotNull [] classParameters,
+                                       @NotNull TypeAnnotationContainer annotations) {
     myParent = parent;
 
     int length = classParameters.length;
@@ -61,7 +63,7 @@ public class ClsReferenceParameterListImpl extends ClsElementImpl implements Psi
         }
       }
 
-      myTypeParameters[i] = new ClsTypeElementImpl(this, s, variance);
+      myTypeParameters[i] = new ClsTypeElementImpl(this, s, variance, annotations.forTypeArgument(length - i - 1));
     }
   }
 
@@ -71,15 +73,13 @@ public class ClsReferenceParameterListImpl extends ClsElementImpl implements Psi
   @Override
   public void setMirror(@NotNull TreeElement element) throws InvalidMirrorException { }
 
-  @NotNull
   @Override
-  public PsiTypeElement[] getTypeParameterElements() {
+  public PsiTypeElement @NotNull [] getTypeParameterElements() {
     return myTypeParameters;
   }
 
-  @NotNull
   @Override
-  public PsiType[] getTypeArguments() {
+  public PsiType @NotNull [] getTypeArguments() {
     PsiType[] cachedTypes = myTypeParametersCachedTypes;
     if (cachedTypes == null) {
       cachedTypes = PsiType.createArray(myTypeParameters.length);
@@ -91,9 +91,8 @@ public class ClsReferenceParameterListImpl extends ClsElementImpl implements Psi
     return cachedTypes;
   }
 
-  @NotNull
   @Override
-  public PsiElement[] getChildren() {
+  public PsiElement @NotNull [] getChildren() {
     return myTypeParameters;
   }
 

@@ -1,8 +1,12 @@
-// Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.intermediaryVariable;
 
 import com.intellij.codeInsight.daemon.impl.analysis.HighlightControlFlowUtil;
-import com.intellij.codeInspection.*;
+import com.intellij.codeInspection.AbstractBaseJavaLocalInspectionTool;
+import com.intellij.codeInspection.LocalQuickFix;
+import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.codeInspection.ProblemsHolder;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
@@ -65,7 +69,12 @@ public class ReturnSeparatedFromComputationInspection extends AbstractBaseJavaLo
                 final PsiVariable returnedVariable = (PsiVariable)resolved;
                 final PsiCodeBlock variableScope = getVariableScopeBlock(returnedVariable);
                 if (variableScope != null) {
-                  return new ReturnContext(returnStatement, returnScope, returnType, refactoredStatement, returnedVariable, variableScope);
+                  PsiElement variableMethod = PsiTreeUtil.getParentOfType(variableScope, PsiMethod.class, PsiLambdaExpression.class);
+                  PsiElement returnMethod = PsiTreeUtil.getParentOfType(returnScope, PsiMethod.class, PsiLambdaExpression.class);
+                  if (variableMethod == returnMethod) {
+                    return new ReturnContext(returnStatement, returnScope, returnType, refactoredStatement, returnedVariable,
+                                             variableScope);
+                  }
                 }
               }
             }
@@ -300,7 +309,7 @@ public class ReturnSeparatedFromComputationInspection extends AbstractBaseJavaLo
     new CommentTracker().deleteAndRestoreComments(removedElement);
   }
 
-  private static class Mover {
+  private static final class Mover {
     final ControlFlow flow;
     final PsiStatement enclosingStatement;
     final PsiVariable resultVariable;
@@ -547,7 +556,7 @@ public class ReturnSeparatedFromComputationInspection extends AbstractBaseJavaLo
                                       @NotNull PsiVariable variable, boolean isOnTheFly) {
     String name = variable.getName();
     holder.registerProblem(returnStatement,
-                           InspectionsBundle.message("inspection.return.separated.from.computation.descriptor", name),
+                           JavaBundle.message("inspection.return.separated.from.computation.descriptor", name),
                            new VariableFix(name, isOnTheFly));
   }
 
@@ -564,14 +573,14 @@ public class ReturnSeparatedFromComputationInspection extends AbstractBaseJavaLo
     @NotNull
     @Override
     public String getName() {
-      return InspectionsBundle.message("inspection.return.separated.from.computation.quickfix", myName);
+      return JavaBundle.message("inspection.return.separated.from.computation.quickfix", myName);
     }
 
     @Nls
     @NotNull
     @Override
     public String getFamilyName() {
-      return InspectionsBundle.message("inspection.return.separated.from.computation.family.quickfix");
+      return JavaBundle.message("inspection.return.separated.from.computation.family.quickfix");
     }
 
     @Override
@@ -583,7 +592,7 @@ public class ReturnSeparatedFromComputationInspection extends AbstractBaseJavaLo
     }
   }
 
-  private static class ReturnContext {
+  private static final class ReturnContext {
     final PsiReturnStatement returnStatement;
     final PsiCodeBlock returnScope;
     final PsiType returnType;

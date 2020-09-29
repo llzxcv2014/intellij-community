@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.impl.jrt;
 
 import com.intellij.openapi.application.Application;
@@ -8,6 +8,7 @@ import com.intellij.openapi.projectRoots.JdkUtil;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.impl.ArchiveHandler;
@@ -19,15 +20,16 @@ import com.intellij.openapi.vfs.newvfs.VfsImplUtil;
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent;
 import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
-import gnu.trove.THashMap;
+import com.intellij.util.containers.CollectionFactory;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.TestOnly;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class JrtFileSystemImpl extends JrtFileSystem {
-  private final Map<String, ArchiveHandler> myHandlers =
-    Collections.synchronizedMap(new THashMap<>(FileUtil.PATH_HASHING_STRATEGY));
+public final class JrtFileSystemImpl extends JrtFileSystem {
+  private final Map<String, ArchiveHandler> myHandlers = Collections.synchronizedMap(CollectionFactory.createFilePathMap());
   private final AtomicBoolean mySubscribed = new AtomicBoolean(false);
 
   @NotNull
@@ -36,11 +38,11 @@ public class JrtFileSystemImpl extends JrtFileSystem {
     return PROTOCOL;
   }
 
-  @NotNull
+  @Nullable
   @Override
   protected String normalize(@NotNull String path) {
-    int p = path.indexOf(SEPARATOR);
-    return p > 0 ? FileUtil.normalize(path.substring(0, p)) + path.substring(p) : super.normalize(path);
+    int separatorIndex = path.indexOf(SEPARATOR);
+    return separatorIndex > 0 ? FileUtil.normalize(path.substring(0, separatorIndex)) + path.substring(separatorIndex) : null;
   }
 
   @NotNull
@@ -57,10 +59,9 @@ public class JrtFileSystemImpl extends JrtFileSystem {
 
   @NotNull
   @Override
-  protected String extractRootPath(@NotNull String entryPath) {
-    int separatorIndex = entryPath.indexOf(SEPARATOR);
-    assert separatorIndex >= 0 : "Path passed to JrtFileSystem must have a separator '!/' but got: " + entryPath;
-    return entryPath.substring(0, separatorIndex + SEPARATOR.length());
+  protected String extractRootPath(@NotNull String normalizedPath) {
+    int separatorIndex = normalizedPath.indexOf(SEPARATOR);
+    return separatorIndex > 0 ? normalizedPath.substring(0, separatorIndex + SEPARATOR.length()) : "";
   }
 
   @NotNull
@@ -68,7 +69,7 @@ public class JrtFileSystemImpl extends JrtFileSystem {
   protected ArchiveHandler getHandler(@NotNull VirtualFile entryFile) {
     checkSubscription();
 
-    String homePath = extractLocalPath(extractRootPath(entryFile.getPath()));
+    String homePath = extractLocalPath(VfsUtilCore.getRootFile(entryFile).getPath());
     return myHandlers.computeIfAbsent(homePath, key -> {
       JrtHandler handler = new JrtHandler(key);
       ApplicationManager.getApplication().invokeLater(
@@ -82,7 +83,7 @@ public class JrtFileSystemImpl extends JrtFileSystem {
     if (mySubscribed.getAndSet(true)) return;
 
     Application app = ApplicationManager.getApplication();
-    if (app.isDisposeInProgress()) return;  // we might perform a shutdown activity that includes visiting archives (IDEA-181620)
+    if (app.isDisposed()) return;  // we might perform a shutdown activity that includes visiting archives (IDEA-181620)
     app.getMessageBus().connect(app).subscribe(VirtualFileManager.VFS_CHANGES, new BulkFileListener() {
       @Override
       public void after(@NotNull List<? extends VFileEvent> events) {
@@ -149,5 +150,13 @@ public class JrtFileSystemImpl extends JrtFileSystem {
   protected boolean isCorrectFileType(@NotNull VirtualFile local) {
     String path = local.getPath();
     return JdkUtil.isModularRuntime(path) && !JdkUtil.isExplodedModularRuntime(path);
+  }
+
+  @TestOnly
+  public void release(@NotNull String localPath) {
+    if (!ApplicationManager.getApplication().isUnitTestMode()) throw new IllegalStateException();
+    ArchiveHandler handler = myHandlers.remove(localPath);
+    if (handler == null) throw new IllegalArgumentException(localPath + " not in " + myHandlers.keySet());
+    handler.dispose();
   }
 }

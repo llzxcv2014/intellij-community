@@ -1,10 +1,10 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.daemon.impl;
 
+import com.intellij.analysis.AnalysisBundle;
 import com.intellij.codeInsight.daemon.HighlightDisplayKey;
 import com.intellij.codeInspection.DeprecationUtil;
 import com.intellij.codeInspection.InspectionProfile;
-import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.colors.CodeInsightColors;
@@ -17,6 +17,7 @@ import com.intellij.profile.codeInspection.InspectionProjectProfileManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.containers.ContainerUtil;
 import org.jdom.Element;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -24,9 +25,10 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.util.Set;
 
+import static org.jetbrains.annotations.Nls.Capitalization.Sentence;
+
 public interface HighlightInfoType {
   @NonNls String UNUSED_SYMBOL_SHORT_NAME = "unused";
-  @NonNls String UNUSED_SYMBOL_DISPLAY_NAME = InspectionsBundle.message("inspection.dead.code.display.name");
 
   HighlightInfoType ERROR = new HighlightInfoTypeImpl(HighlightSeverity.ERROR, CodeInsightColors.ERRORS_ATTRIBUTES);
   HighlightInfoType WARNING = new HighlightInfoTypeImpl(HighlightSeverity.WARNING, CodeInsightColors.WARNINGS_ATTRIBUTES);
@@ -42,17 +44,17 @@ public interface HighlightInfoType {
   HighlightInfoType DUPLICATE_FROM_SERVER = new HighlightInfoTypeImpl(HighlightSeverity.INFORMATION, CodeInsightColors.DUPLICATE_FROM_SERVER);
 
   HighlightInfoType UNUSED_SYMBOL = new HighlightInfoTypeSeverityByKey(
-    HighlightDisplayKey.findOrRegister(UNUSED_SYMBOL_SHORT_NAME, UNUSED_SYMBOL_DISPLAY_NAME, UNUSED_SYMBOL_SHORT_NAME),
+    HighlightDisplayKey.findOrRegister(UNUSED_SYMBOL_SHORT_NAME, getUnusedSymbolDisplayName(), UNUSED_SYMBOL_SHORT_NAME),
     CodeInsightColors.NOT_USED_ELEMENT_ATTRIBUTES);
 
   HighlightInfoType DEPRECATED = new HighlightInfoTypeSeverityByKey(
     HighlightDisplayKey.findOrRegister(
-      DeprecationUtil.DEPRECATION_SHORT_NAME, DeprecationUtil.DEPRECATION_DISPLAY_NAME, DeprecationUtil.DEPRECATION_ID),
+      DeprecationUtil.DEPRECATION_SHORT_NAME, DeprecationUtil.getDeprecationDisplayName(), DeprecationUtil.DEPRECATION_ID),
     CodeInsightColors.DEPRECATED_ATTRIBUTES);
 
   HighlightInfoType MARKED_FOR_REMOVAL = new HighlightInfoTypeSeverityByKey(
     HighlightDisplayKey.findOrRegister(
-      DeprecationUtil.FOR_REMOVAL_SHORT_NAME, DeprecationUtil.FOR_REMOVAL_DISPLAY_NAME, DeprecationUtil.FOR_REMOVAL_ID),
+      DeprecationUtil.FOR_REMOVAL_SHORT_NAME, DeprecationUtil.getForRemovalDisplayName(), DeprecationUtil.FOR_REMOVAL_ID),
     CodeInsightColors.MARKED_FOR_REMOVAL_ATTRIBUTES);
 
   HighlightSeverity SYMBOL_TYPE_SEVERITY = new HighlightSeverity("SYMBOL_TYPE_SEVERITY", HighlightSeverity.INFORMATION.myVal-2);
@@ -95,6 +97,8 @@ public interface HighlightInfoType {
   HighlightInfoType ELEMENT_UNDER_CARET_WRITE = new HighlightInfoType.HighlightInfoTypeImpl(ELEMENT_UNDER_CARET_SEVERITY, EditorColors.WRITE_IDENTIFIER_UNDER_CARET_ATTRIBUTES);
   HighlightInfoType ELEMENT_UNDER_CARET_STRUCTURAL =
     new HighlightInfoType.HighlightInfoTypeImpl(ELEMENT_UNDER_CARET_SEVERITY, CodeInsightColors.MATCHED_BRACE_ATTRIBUTES);
+
+  HighlightSeverity HIGHLIGHTED_REFERENCE_SEVERITY = new HighlightSeverity("HIGHLIGHTED_REFERENCE", SYMBOL_TYPE_SEVERITY.myVal - 1);
 
   /**
    * @see com.intellij.openapi.editor.impl.RangeHighlighterImpl#VISIBLE_IF_FOLDED
@@ -163,11 +167,11 @@ public interface HighlightInfoType {
     }
 
     @Override
-    public boolean equals(final Object o) {
+    public boolean equals(Object o) {
       if (this == o) return true;
       if (!(o instanceof HighlightInfoTypeImpl)) return false;
 
-      final HighlightInfoTypeImpl that = (HighlightInfoTypeImpl)o;
+      HighlightInfoTypeImpl that = (HighlightInfoTypeImpl)o;
 
       if (!Comparing.equal(myAttributesKey, that.myAttributesKey)) return false;
       if (!mySeverity.equals(that.mySeverity)) return false;
@@ -202,7 +206,7 @@ public interface HighlightInfoType {
 
     @Override
     @NotNull
-    public HighlightSeverity getSeverity(final PsiElement psiElement) {
+    public HighlightSeverity getSeverity(PsiElement psiElement) {
       InspectionProfile profile = psiElement == null
                                   ? InspectionProfileManager.getInstance().getCurrentProfile()
                                   : InspectionProjectProfileManager.getInstance(psiElement.getProject()).getCurrentProfile();
@@ -234,5 +238,9 @@ public interface HighlightInfoType {
   @FunctionalInterface
   interface UpdateOnTypingSuppressible {
     boolean needsUpdateOnTyping();
+  }
+
+  static @Nls(capitalization = Sentence) String getUnusedSymbolDisplayName() {
+    return AnalysisBundle.message("inspection.dead.code.display.name");
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.diff.util;
 
 import com.intellij.application.options.CodeStyle;
@@ -52,6 +52,7 @@ import com.intellij.openapi.editor.ex.util.EmptyEditorHighlighter;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.editor.highlighter.EditorHighlighterFactory;
 import com.intellij.openapi.editor.impl.EditorImpl;
+import com.intellij.openapi.editor.impl.LineNumberConverterAdapter;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.impl.text.TextEditorImpl;
@@ -67,6 +68,8 @@ import com.intellij.openapi.ui.popup.Balloon;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.registry.Registry;
+import com.intellij.openapi.util.text.HtmlBuilder;
+import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.ReadonlyStatusHandler;
 import com.intellij.openapi.vfs.VfsUtil;
@@ -82,26 +85,24 @@ import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings;
 import com.intellij.testFramework.LightVirtualFile;
-import com.intellij.ui.ColorUtil;
-import com.intellij.ui.HyperlinkAdapter;
-import com.intellij.ui.JBColor;
-import com.intellij.ui.ScreenUtil;
+import com.intellij.ui.*;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.*;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.Convertor;
-import com.intellij.util.ui.JBInsets;
 import com.intellij.util.ui.JBUI;
+import com.intellij.util.ui.SingleComponentCenteringLayout;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.components.BorderLayoutPanel;
 import gnu.trove.Equality;
 import gnu.trove.TIntFunction;
+import icons.PlatformDiffImplIcons;
 import org.jetbrains.annotations.*;
 
 import javax.swing.*;
-import javax.swing.border.Border;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
 import java.awt.*;
@@ -115,21 +116,23 @@ import java.util.*;
 
 import static com.intellij.diff.util.DiffUserDataKeysEx.EDITORS_TITLE_CUSTOMIZER;
 
-public class DiffUtil {
+public final class DiffUtil {
   private static final Logger LOG = Logger.getInstance(DiffUtil.class);
 
   public static final Key<Boolean> TEMP_FILE_KEY = Key.create("Diff.TempFile");
-  @NotNull public static final String DIFF_CONFIG = "diff.xml";
+  @NotNull @NonNls public static final String DIFF_CONFIG = "diff.xml";
   public static final int TITLE_GAP = JBUIScale.scale(2);
 
-  public static class Lazy {
-    public static final List<Image> DIFF_FRAME_ICONS = loadDiffFrameImages();
-  }
+  public static final NotNullLazyValue<List<Image>> DIFF_FRAME_ICONS = NotNullLazyValue.createValue(() -> {
+    return Arrays.asList(
+      iconToImage(PlatformDiffImplIcons.Diff_frame32),
+      iconToImage(PlatformDiffImplIcons.Diff_frame64),
+      iconToImage(PlatformDiffImplIcons.Diff_frame128)
+    );
+  });
 
-  @NotNull
-  private static List<Image> loadDiffFrameImages() {
-    return Arrays.asList(ImageLoader.loadFromResource("/diff_frame32.png"), ImageLoader.loadFromResource("/diff_frame64.png"),
-                         ImageLoader.loadFromResource("/diff_frame128.png"));
+  private static Image iconToImage(@NotNull Icon icon) {
+    return ((IconLoader.CachedImageIcon)icon).getRealIcon().getImage();
   }
 
   //
@@ -249,7 +252,7 @@ public class DiffUtil {
 
   public static void configureEditor(@NotNull EditorEx editor, @NotNull DocumentContent content, @Nullable Project project) {
     VirtualFile virtualFile = FileDocumentManager.getInstance().getFile(content.getDocument());
-    if (virtualFile != null && Registry.is("diff.enable.psi.highlighting")) {
+    if (virtualFile != null) {
       editor.setFile(virtualFile);
     }
 
@@ -277,19 +280,21 @@ public class DiffUtil {
   public static void installLineConvertor(@NotNull EditorEx editor, @NotNull FoldingModelSupport foldingSupport) {
     assert foldingSupport.getCount() == 1;
     TIntFunction foldingLineConvertor = foldingSupport.getLineConvertor(0);
-    editor.getGutterComponentEx().setLineNumberConvertor(foldingLineConvertor);
+    editor.getGutter().setLineNumberConverter(new LineNumberConverterAdapter(foldingLineConvertor));
   }
 
   public static void installLineConvertor(@NotNull EditorEx editor, @NotNull DocumentContent content) {
     TIntFunction contentLineConvertor = getContentLineConvertor(content);
-    editor.getGutterComponentEx().setLineNumberConvertor(contentLineConvertor);
+    editor.getGutter().setLineNumberConverter(contentLineConvertor == null ? LineNumberConverter.DEFAULT
+                                                                           : new LineNumberConverterAdapter(contentLineConvertor));
   }
 
   public static void installLineConvertor(@NotNull EditorEx editor, @NotNull DocumentContent content,
                                           @NotNull FoldingModelSupport foldingSupport, int editorIndex) {
     TIntFunction contentLineConvertor = getContentLineConvertor(content);
     TIntFunction foldingLineConvertor = foldingSupport.getLineConvertor(editorIndex);
-    editor.getGutterComponentEx().setLineNumberConvertor(mergeLineConverters(contentLineConvertor, foldingLineConvertor));
+    TIntFunction merged = mergeLineConverters(contentLineConvertor, foldingLineConvertor);
+    editor.getGutter().setLineNumberConverter(merged == null ? LineNumberConverter.DEFAULT : new LineNumberConverterAdapter(merged));
   }
 
   @Nullable
@@ -397,8 +402,8 @@ public class DiffUtil {
   }
 
   @NotNull
-  public static JPanel createMessagePanel(@NotNull String message) {
-    String text = StringUtil.replace(message, "\n", "<br>");
+  public static JPanel createMessagePanel(@NotNull @Nls String message) {
+    String text = StringUtil.replace(message, "\n", UIUtil.BR);
     JLabel label = new JBLabel(text) {
       @Override
       public Dimension getMinimumSize() {
@@ -426,8 +431,10 @@ public class DiffUtil {
     });
     label.setForeground(commentFg);
 
-    CenteredPanel panel = new CenteredPanel(label, JBUI.Borders.empty(5));
+    JPanel panel = new JPanel(new SingleComponentCenteringLayout());
+    panel.setBorder(JBUI.Borders.empty(5));
     panel.setBackground(new JBColor(() -> EditorColorsManager.getInstance().getGlobalScheme().getDefaultBackground()));
+    panel.add(label);
     return panel;
   }
 
@@ -448,43 +455,38 @@ public class DiffUtil {
     }
   }
 
+  @Nls
   @NotNull
   public static String getSettingsConfigurablePath() {
-    if (SystemInfo.isMac) {
-      return "Preferences | Tools | Diff & Merge";
-    }
-    return "Settings | Tools | Diff & Merge";
+    return SystemInfo.isMac ? DiffBundle.message("label.diff.settings.path.macos")
+                            : DiffBundle.message("label.diff.settings.path");
   }
 
+  @NlsContexts.Tooltip
   @NotNull
-  public static String createTooltipText(@NotNull String text, @Nullable String appendix) {
-    StringBuilder result = new StringBuilder();
-    result.append("<html><body>");
+  public static String createTooltipText(@NotNull @NlsContexts.Tooltip String text, @Nullable @Nls String appendix) {
+    HtmlBuilder result = new HtmlBuilder();
     result.append(text);
     if (appendix != null) {
-      result.append("<br><div style='margin-top: 5px'><font size='2'>");
-      result.append(appendix);
-      result.append("</font></div>");
+      result.br();
+      result.append(HtmlChunk.div("margin-top:5px; font-size:small").addText(appendix));
     }
-    result.append("</body></html>");
-    return result.toString();
+    return result.wrapWithHtmlBody().toString();
   }
 
+  @Nls
   @NotNull
-  public static String createNotificationText(@NotNull String text, @Nullable String appendix) {
-    StringBuilder result = new StringBuilder();
-    result.append("<html><body>");
+  public static String createNotificationText(@NotNull @Nls String text, @Nullable @Nls String appendix) {
+    HtmlBuilder result = new HtmlBuilder();
     result.append(text);
     if (appendix != null) {
-      result.append("<br><span style='color:#").append(ColorUtil.toHex(JBColor.gray)).append("'><small>");
-      result.append(appendix);
-      result.append("</small></span>");
+      result.br();
+      result.append(HtmlChunk.span("color:#" + ColorUtil.toHex(JBColor.gray) + "; font-size:small").addText(appendix));
     }
-    result.append("</body></html>");
-    return result.toString();
+    return result.wrapWithHtmlBody().toString();
   }
 
-  public static void showSuccessPopup(@NotNull String message,
+  public static void showSuccessPopup(@NotNull @NlsContexts.PopupContent String message,
                                       @NotNull RelativePoint point,
                                       @NotNull Disposable disposable,
                                       @Nullable Runnable hyperlinkHandler) {
@@ -515,7 +517,7 @@ public class DiffUtil {
   @NotNull
   public static List<JComponent> createSimpleTitles(@NotNull ContentDiffRequest request) {
     List<DiffContent> contents = request.getContents();
-    List<String> titles = request.getContentTitles();
+    List<@Nls String> titles = request.getContentTitles();
 
     if (!ContainerUtil.exists(titles, Conditions.notNull())) {
       return Collections.nCopies(titles.size(), null);
@@ -524,7 +526,7 @@ public class DiffUtil {
     List<JComponent> components = new ArrayList<>(titles.size());
     List<DiffEditorTitleCustomizer> diffTitleCustomizers = request.getUserData(EDITORS_TITLE_CUSTOMIZER);
     for (int i = 0; i < contents.size(); i++) {
-      JComponent title = createTitle(StringUtil.notNullize(titles.get(i)),
+      JComponent title = createTitle(titles.get(i),
                                      diffTitleCustomizers != null ? diffTitleCustomizers.get(i) : null);
       title = createTitleWithNotifications(title, contents.get(i));
       components.add(title);
@@ -536,7 +538,7 @@ public class DiffUtil {
   @NotNull
   public static List<JComponent> createTextTitles(@NotNull ContentDiffRequest request, @NotNull List<? extends Editor> editors) {
     List<DiffContent> contents = request.getContents();
-    List<String> titles = request.getContentTitles();
+    List<@Nls String> titles = request.getContentTitles();
 
     boolean equalCharsets = TextDiffViewerUtil.areEqualCharsets(contents);
     boolean equalSeparators = TextDiffViewerUtil.areEqualLineSeparators(contents);
@@ -548,7 +550,7 @@ public class DiffUtil {
     }
     List<DiffEditorTitleCustomizer> diffTitleCustomizers = request.getUserData(EDITORS_TITLE_CUSTOMIZER);
     for (int i = 0; i < contents.size(); i++) {
-      JComponent title = createTitle(StringUtil.notNullize(titles.get(i)),
+      JComponent title = createTitle(titles.get(i),
                                      contents.get(i),
                                      equalCharsets,
                                      equalSeparators,
@@ -569,7 +571,7 @@ public class DiffUtil {
     if (content instanceof DocumentContent) {
       Document document = ((DocumentContent)content).getDocument();
       if (FileDocumentManager.getInstance().isPartialPreviewOfALargeFile(document)) {
-        notifications.add(DiffNotifications.createNotification("File is too large. Only preview is loaded."));
+        notifications.add(DiffNotifications.createNotification(DiffBundle.message("error.file.is.too.large.only.preview.is.loaded")));
       }
     }
 
@@ -582,7 +584,7 @@ public class DiffUtil {
   }
 
   @Nullable
-  private static JComponent createTitle(@NotNull String title,
+  private static JComponent createTitle(@Nullable @NlsContexts.Label String title,
                                         @NotNull DiffContent content,
                                         boolean equalCharsets,
                                         boolean equalSeparators,
@@ -600,17 +602,17 @@ public class DiffUtil {
   }
 
   @NotNull
-  public static JComponent createTitle(@NotNull String title) {
+  public static JComponent createTitle(@Nullable @NlsContexts.Label String title) {
     return createTitle(title, null, null, null, false, null);
   }
 
   @NotNull
-  public static JComponent createTitle(@NotNull String title, @Nullable DiffEditorTitleCustomizer titleCustomizer) {
+  public static JComponent createTitle(@Nullable @NlsContexts.Label String title, @Nullable DiffEditorTitleCustomizer titleCustomizer) {
     return createTitle(title, null, null, null, false, titleCustomizer);
   }
 
   @NotNull
-  public static JComponent createTitle(@NotNull String title,
+  public static JComponent createTitle(@Nullable @NlsContexts.Label String title,
                                        @Nullable LineSeparator separator,
                                        @Nullable Charset charset,
                                        @Nullable Boolean bom,
@@ -619,25 +621,25 @@ public class DiffUtil {
     JPanel panel = new JPanel(new BorderLayout());
     panel.setBorder(JBUI.Borders.empty(0, 4));
     BorderLayoutPanel labelWithIcon = new BorderLayoutPanel();
-    JComponent titleLabel = titleCustomizer == null ? new JBLabel(title).setCopyable(true) : titleCustomizer.getLabel();
+    JComponent titleLabel = titleCustomizer != null ? titleCustomizer.getLabel()
+                                                    : new JBLabel(StringUtil.notNullize(title)).setCopyable(true);
     labelWithIcon.addToCenter(titleLabel);
     if (readOnly) {
       labelWithIcon.addToLeft(new JBLabel(AllIcons.Ide.Readonly));
     }
     panel.add(labelWithIcon, BorderLayout.CENTER);
-    if (charset != null && separator != null) {
+    if (charset != null || separator != null) {
       JPanel panel2 = new JPanel();
       panel2.setLayout(new BoxLayout(panel2, BoxLayout.X_AXIS));
-      panel2.add(createCharsetPanel(charset, bom));
-      panel2.add(Box.createRigidArea(JBUI.size(4, 0)));
-      panel2.add(createSeparatorPanel(separator));
+      if (charset != null) {
+        panel2.add(Box.createRigidArea(JBUI.size(4, 0)));
+        panel2.add(createCharsetPanel(charset, bom));
+      }
+      if (separator != null) {
+        panel2.add(Box.createRigidArea(JBUI.size(4, 0)));
+        panel2.add(createSeparatorPanel(separator));
+      }
       panel.add(panel2, BorderLayout.EAST);
-    }
-    else if (charset != null) {
-      panel.add(createCharsetPanel(charset, bom), BorderLayout.EAST);
-    }
-    else if (separator != null) {
-      panel.add(createSeparatorPanel(separator), BorderLayout.EAST);
     }
     return panel;
   }
@@ -646,7 +648,7 @@ public class DiffUtil {
   private static JComponent createCharsetPanel(@NotNull Charset charset, @Nullable Boolean bom) {
     String text = charset.displayName();
     if (bom != null && bom) {
-      text += " BOM";
+      text = DiffBundle.message("diff.utf.charset.name.bom.suffix", text);
     }
 
     JLabel label = new JLabel(text);
@@ -665,7 +667,7 @@ public class DiffUtil {
 
   @NotNull
   private static JComponent createSeparatorPanel(@NotNull LineSeparator separator) {
-    JLabel label = new JLabel(separator.name());
+    JLabel label = new JLabel(separator.toString());
     Color color;
     if (separator == LineSeparator.CRLF) {
       color = JBColor.RED;
@@ -706,6 +708,7 @@ public class DiffUtil {
     return panel;
   }
 
+  @Nls
   @NotNull
   public static String getStatusText(int totalCount, int excludedCount, @NotNull ThreeState isContentsEqual) {
     if (totalCount == 0 && isContentsEqual == ThreeState.NO) {
@@ -742,7 +745,7 @@ public class DiffUtil {
 
   public static boolean isFocusedComponentInWindow(@Nullable Component component) {
     if (component == null) return false;
-    Window window = UIUtil.getWindow(component);
+    Window window = ComponentUtil.getWindow(component);
     if (window == null) return false;
     Component windowFocusOwner = window.getMostRecentFocusOwner();
     return windowFocusOwner != null && SwingUtilities.isDescendingFrom(windowFocusOwner, component);
@@ -863,8 +866,7 @@ public class DiffUtil {
     return ComparisonUtil.isEquals(chunk1, chunk2, comparisonPolicy);
   }
 
-  @NotNull
-  public static <T> int[] getSortedIndexes(@NotNull List<? extends T> values, @NotNull Comparator<? super T> comparator) {
+  public static <T> int @NotNull [] getSortedIndexes(@NotNull List<? extends T> values, @NotNull Comparator<? super T> comparator) {
     final List<Integer> indexes = new ArrayList<>(values.size());
     for (int i = 0; i < values.size(); i++) {
       indexes.add(i);
@@ -879,8 +881,7 @@ public class DiffUtil {
     return ArrayUtil.toIntArray(indexes);
   }
 
-  @NotNull
-  public static int[] invertIndexes(@NotNull int[] indexes) {
+  public static int @NotNull [] invertIndexes(int @NotNull [] indexes) {
     int[] inverted = new int[indexes.length];
     for (int i = 0; i < indexes.length; i++) {
       inverted[indexes[i]] = i;
@@ -1196,7 +1197,7 @@ public class DiffUtil {
 
   public static int bound(int value, int lowerBound, int upperBound) {
     assert lowerBound <= upperBound : String.format("%s - [%s, %s]", value, lowerBound, upperBound);
-    return Math.max(Math.min(value, upperBound), lowerBound);
+    return MathUtil.clamp(value, lowerBound, upperBound);
   }
 
   //
@@ -1237,16 +1238,17 @@ public class DiffUtil {
     int newChangeEnd = changeEnd + shift;
 
     if (start >= changeStart && end <= changeEnd) { // fully inside change
-      return greedy ? new UpdatedLineRange(changeStart, newChangeEnd, true) :
-                      new UpdatedLineRange(newChangeEnd, newChangeEnd, true);
+      return greedy ? new UpdatedLineRange(changeStart, newChangeEnd, true)
+                    : new UpdatedLineRange(newChangeEnd, newChangeEnd, true);
     }
 
     if (start < changeStart) { // bottom boundary damaged
-      return greedy ? new UpdatedLineRange(start, newChangeEnd, true) :
-                      new UpdatedLineRange(start, changeStart, true);
-    } else { // top boundary damaged
-      return greedy ? new UpdatedLineRange(changeStart, end + shift, true) :
-                      new UpdatedLineRange(newChangeEnd, end + shift, true);
+      return greedy ? new UpdatedLineRange(start, newChangeEnd, true)
+                    : new UpdatedLineRange(start, changeStart, true);
+    }
+    else { // top boundary damaged
+      return greedy ? new UpdatedLineRange(changeStart, end + shift, true)
+                    : new UpdatedLineRange(newChangeEnd, end + shift, true);
     }
   }
 
@@ -1450,14 +1452,64 @@ public class DiffUtil {
     return fragment.getStartOffset(side) == fragment.getEndOffset(side);
   }
 
+  @NotNull
+  public static MergeConflictType getLineLeftToRightThreeSideDiffType(@NotNull MergeLineFragment fragment,
+                                                                      @NotNull List<? extends CharSequence> sequences,
+                                                                      @NotNull List<? extends LineOffsets> lineOffsets,
+                                                                      @NotNull ComparisonPolicy policy) {
+    return getLeftToRightDiffType((side) -> isLineMergeIntervalEmpty(fragment, side),
+                                  (side1, side2) -> compareLineMergeContents(fragment, sequences, lineOffsets, policy, side1, side2));
+  }
+
+  @NotNull
+  private static MergeConflictType getLeftToRightDiffType(@NotNull Condition<? super ThreeSide> emptiness,
+                                                          @NotNull Equality<? super ThreeSide> equality) {
+    boolean isLeftEmpty = emptiness.value(ThreeSide.LEFT);
+    boolean isBaseEmpty = emptiness.value(ThreeSide.BASE);
+    boolean isRightEmpty = emptiness.value(ThreeSide.RIGHT);
+    assert !isLeftEmpty || !isBaseEmpty || !isRightEmpty;
+
+    if (isBaseEmpty) {
+      if (isLeftEmpty) { // --=
+        return new MergeConflictType(TextDiffType.INSERTED, false, true);
+      }
+      else if (isRightEmpty) { // =--
+        return new MergeConflictType(TextDiffType.DELETED, true, false);
+      }
+      else { // =-=
+        return new MergeConflictType(TextDiffType.MODIFIED, true, true);
+      }
+    }
+    else {
+      if (isLeftEmpty && isRightEmpty) { // -=-
+        return new MergeConflictType(TextDiffType.MODIFIED, true, true);
+      }
+      else { // -==, ==-, ===
+        boolean unchangedLeft = equality.equals(ThreeSide.BASE, ThreeSide.LEFT);
+        boolean unchangedRight = equality.equals(ThreeSide.BASE, ThreeSide.RIGHT);
+        assert !unchangedLeft || !unchangedRight;
+
+        if (unchangedLeft) {
+          return new MergeConflictType(isRightEmpty ? TextDiffType.DELETED : TextDiffType.MODIFIED, false, true);
+        }
+        if (unchangedRight) {
+          return new MergeConflictType(isLeftEmpty ? TextDiffType.INSERTED : TextDiffType.MODIFIED, true, false);
+        }
+
+        return new MergeConflictType(TextDiffType.MODIFIED, true, true);
+      }
+    }
+  }
+
+
   //
   // Writable
   //
 
-  @CalledInAwt
+  @RequiresEdt
   public static boolean executeWriteCommand(@Nullable Project project,
                                             @NotNull Document document,
-                                            @Nullable String commandName,
+                                            @Nullable @NlsContexts.Command String commandName,
                                             @Nullable String commandGroupId,
                                             @NotNull UndoConfirmationPolicy confirmationPolicy,
                                             boolean underBulkUpdate,
@@ -1479,10 +1531,10 @@ public class DiffUtil {
     return true;
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public static boolean executeWriteCommand(@NotNull final Document document,
                                             @Nullable final Project project,
-                                            @Nullable final String commandName,
+                                            @Nullable @Nls final String commandName,
                                             @NotNull final Runnable task) {
     return executeWriteCommand(project, document, commandName, null, UndoConfirmationPolicy.DEFAULT, false, task);
   }
@@ -1504,7 +1556,7 @@ public class DiffUtil {
     return false;
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public static boolean makeWritable(@Nullable Project project, @NotNull Document document) {
     VirtualFile file = FileDocumentManager.getInstance().getFile(document);
     if (file == null) return document.isWritable();
@@ -1512,7 +1564,7 @@ public class DiffUtil {
     return makeWritable(project, file) && document.isWritable();
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public static boolean makeWritable(@Nullable Project project, @NotNull VirtualFile file) {
     if (project == null) project = ProjectManager.getInstance().getDefaultProject();
     return !ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(Collections.singletonList(file)).hasReadonlyFiles();
@@ -1529,7 +1581,7 @@ public class DiffUtil {
   /**
    * Difference with {@link VfsUtil#markDirtyAndRefresh} is that refresh from VfsUtil will be performed with ModalityState.NON_MODAL.
    */
-  public static void markDirtyAndRefresh(boolean async, boolean recursive, boolean reloadChildren, @NotNull VirtualFile... files) {
+  public static void markDirtyAndRefresh(boolean async, boolean recursive, boolean reloadChildren, VirtualFile @NotNull ... files) {
     ModalityState modalityState = ApplicationManager.getApplication().getDefaultModalityState();
     VfsUtil.markDirty(recursive, reloadChildren, files);
     RefreshQueue.getInstance().refresh(async, recursive, null, modalityState, files);
@@ -1750,7 +1802,6 @@ public class DiffUtil {
   // Helpers
   //
 
-
   private static class SyncHeightComponent extends JPanel {
     @NotNull private final List<? extends JComponent> myComponents;
 
@@ -1762,69 +1813,27 @@ public class DiffUtil {
     }
 
     @Override
-    public Dimension getPreferredSize() {
-      Dimension size = super.getPreferredSize();
-      size.height = getPreferredHeight();
+    public Dimension getMinimumSize() {
+      Dimension size = super.getMinimumSize();
+      size.height = getMaximumHeight(JComponent::getMinimumSize);
       return size;
     }
 
-    private int getPreferredHeight() {
-      int height = 0;
-      for (JComponent component : myComponents) {
-        if (component == null) continue;
-        height = Math.max(height, component.getPreferredSize().height);
-      }
-      return height;
-    }
-  }
-
-  public static class CenteredPanel extends JPanel {
-    private final JComponent myComponent;
-
-    public CenteredPanel(@NotNull JComponent component) {
-      myComponent = component;
-      add(component);
-    }
-
-    public CenteredPanel(@NotNull JComponent component, @NotNull Border border) {
-      this(component);
-      setBorder(border);
-    }
-
-    @Override
-    public void doLayout() {
-      final Dimension size = getSize();
-      final Dimension preferredSize = myComponent.getPreferredSize();
-
-      Insets insets = getInsets();
-      JBInsets.removeFrom(size, insets);
-
-      int width = Math.min(size.width, preferredSize.width);
-      int height = Math.min(size.height, preferredSize.height);
-      int x = Math.max(0, (size.width - preferredSize.width) / 2);
-      int y = Math.max(0, (size.height - preferredSize.height) / 2);
-
-      myComponent.setBounds(insets.left + x, insets.top + y, width, height);
-    }
-
     @Override
     public Dimension getPreferredSize() {
-      return addInsets(myComponent.getPreferredSize());
+      Dimension size = super.getPreferredSize();
+      size.height = getMaximumHeight(JComponent::getPreferredSize);
+      return size;
     }
 
-    @Override
-    public Dimension getMinimumSize() {
-      return addInsets(myComponent.getMinimumSize());
-    }
-
-    @Override
-    public Dimension getMaximumSize() {
-      return addInsets(myComponent.getMaximumSize());
-    }
-
-    private Dimension addInsets(Dimension dimension) {
-      JBInsets.addTo(dimension, getInsets());
-      return dimension;
+    private int getMaximumHeight(@NotNull Function<? super JComponent, ? extends Dimension> getter) {
+      int height = 0;
+      for (JComponent component : myComponents) {
+        if (component != null) {
+          height = Math.max(height, getter.fun(component).height);
+        }
+      }
+      return height;
     }
   }
 }

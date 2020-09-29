@@ -1,15 +1,18 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.ui.configuration.libraryEditor;
 
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationGroup;
 import com.intellij.notification.NotificationType;
-import com.intellij.openapi.application.ApplicationBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
+import com.intellij.openapi.ui.MessageDialogBuilder;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -37,23 +40,23 @@ import java.util.stream.Stream;
  * Implementation note: UserDefinedFileAttributeView is not supported on macOS (https://bugs.openjdk.java.net/browse/JDK-8030048),
  * so the class resorts to JNA.
  */
-public class JavadocQuarantineStatusCleaner {
+public final class JavadocQuarantineStatusCleaner {
   private static final Logger LOG = Logger.getInstance(JavadocQuarantineStatusCleaner.class);
 
   private static final String QUARANTINE_ATTRIBUTE = "com.apple.quarantine";
 
-  public static void cleanIfNeeded(@NotNull VirtualFile... docFolders) {
+  public static void cleanIfNeeded(VirtualFile @NotNull ... docFolders) {
     if (docFolders.length > 0 && SystemInfo.isMac) {
       ApplicationManager.getApplication().executeOnPooledThread(() -> {
-        List<String> quarantined = Stream.of(docFolders)
+        List<@NlsSafe String> quarantined = Stream.of(docFolders)
           .filter(f -> f.isInLocalFileSystem() && f.isDirectory() && XAttrUtil.getXAttr(f.getPath(), QUARANTINE_ATTRIBUTE) != null)
           .map(VirtualFile::getPath)
           .collect(Collectors.toList());
         if (!quarantined.isEmpty()) {
           ApplicationManager.getApplication().invokeLater(() -> {
-            String title = ApplicationBundle.message("quarantine.cleaner");
-            String message = ApplicationBundle.message("quarantine.dialog.message", StringUtil.join(quarantined, "\n"));
-            if (Messages.showYesNoDialog(message, title, null) == Messages.YES) {
+            String title = JavaUiBundle.message("quarantine.cleaner");
+            String message = JavaUiBundle.message("quarantine.dialog.message", StringUtil.join(quarantined, "\n"));
+            if (MessageDialogBuilder.yesNo(title, message).show() == Messages.YES) {
               cleanQuarantineStatusInBackground(quarantined);
             }
           }, ModalityState.any());
@@ -62,11 +65,11 @@ public class JavadocQuarantineStatusCleaner {
     }
   }
 
-  private static void cleanQuarantineStatusInBackground(List<String> paths) {
-    new Task.Backgroundable(null, ApplicationBundle.message("quarantine.clean.progress"), true) {
+  private static void cleanQuarantineStatusInBackground(List<@NlsSafe String> paths) {
+    new Task.Backgroundable(null, JavaUiBundle.message("quarantine.clean.progress"), true) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
-        for (String path : paths) {
+        for (@NlsSafe String path : paths) {
           indicator.checkCanceled();
           indicator.setText2(path);
           try (Stream<Path> s = Files.walk(Paths.get(path))) {
@@ -84,9 +87,10 @@ public class JavadocQuarantineStatusCleaner {
       @Override
       public void onThrowable(@NotNull Throwable error) {
         LOG.warn(error);
-        String title = ApplicationBundle.message("quarantine.cleaner");
-        String message = ApplicationBundle.message("quarantine.error.message", error.getMessage());
-        new Notification(title, title, message, NotificationType.WARNING).notify(null);
+        String title = JavaUiBundle.message("quarantine.cleaner");
+        String message = JavaUiBundle.message("quarantine.error.message", error.getMessage());
+        new Notification(NotificationGroup.createIdWithTitle("Quarantine Cleaner", title), title, message, NotificationType.WARNING)
+          .notify(null);
       }
     }.queue();
   }

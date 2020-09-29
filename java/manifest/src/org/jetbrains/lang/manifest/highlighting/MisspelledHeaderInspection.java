@@ -74,7 +74,7 @@ public class MisspelledHeaderInspection extends LocalInspectionTool {
   public PsiElementVisitor buildVisitor(@NotNull final ProblemsHolder holder, boolean isOnTheFly) {
     return new PsiElementVisitor() {
       @Override
-      public void visitElement(PsiElement element) {
+      public void visitElement(@NotNull PsiElement element) {
         if (element instanceof Header) {
           Header header = (Header)element;
           String headerName = header.getName();
@@ -146,7 +146,7 @@ public class MisspelledHeaderInspection extends LocalInspectionTool {
     }
   }
 
-  private static class HeaderRenameQuickFix extends AbstractManifestQuickFix {
+  private static final class HeaderRenameQuickFix extends AbstractManifestQuickFix {
     private final String myNewName;
 
     private HeaderRenameQuickFix(Header header, String newName) {
@@ -166,7 +166,7 @@ public class MisspelledHeaderInspection extends LocalInspectionTool {
     }
   }
 
-  private static class CustomHeaderQuickFix extends AbstractManifestQuickFix {
+  private static final class CustomHeaderQuickFix extends AbstractManifestQuickFix {
     private final String myHeaderName;
     private final Collection<? super String> myHeaders;
 

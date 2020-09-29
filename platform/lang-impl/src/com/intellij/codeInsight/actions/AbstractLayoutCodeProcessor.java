@@ -1,55 +1,51 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInsight.actions;
 
 import com.intellij.codeInsight.CodeInsightBundle;
+import com.intellij.core.CoreBundle;
 import com.intellij.lang.LanguageFormatting;
 import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationGroup;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.application.ApplicationBundle;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
-import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.progress.ProcessCanceledException;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.ProgressIndicatorProvider;
-import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.util.ProgressWindow;
+import com.intellij.openapi.progress.*;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.roots.GeneratedSourcesFilter;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.ui.ex.MessagesEx;
-import com.intellij.openapi.util.Ref;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileFilter;
-import com.intellij.psi.PsiBundle;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.ExceptionUtil;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.SequentialTask;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.diff.FilesTooBigForDiffException;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 
@@ -65,8 +61,8 @@ public abstract class AbstractLayoutCodeProcessor {
   private List<PsiFile> myFiles;
   private boolean myIncludeSubdirs;
 
-  private final String myProgressText;
-  private final String myCommandName;
+  private final @NlsContexts.ProgressText String myProgressText;
+  private final @NlsContexts.Command String myCommandName;
   private Runnable myPostRunnable;
   private boolean myProcessChangedTextOnly;
 
@@ -75,13 +71,13 @@ public abstract class AbstractLayoutCodeProcessor {
 
   private LayoutCodeInfoCollector myInfoCollector;
 
-  protected AbstractLayoutCodeProcessor(@NotNull Project project, String commandName, String progressText, boolean processChangedTextOnly) {
+  protected AbstractLayoutCodeProcessor(@NotNull Project project, @NlsContexts.Command String commandName, @NlsContexts.ProgressText String progressText, boolean processChangedTextOnly) {
     this(project, (Module)null, commandName, progressText, processChangedTextOnly);
   }
 
   protected AbstractLayoutCodeProcessor(@NotNull AbstractLayoutCodeProcessor previous,
-                                        @NotNull String commandName,
-                                        @NotNull String progressText) {
+                                        @NotNull @NlsContexts.Command String commandName,
+                                        @NotNull @NlsContexts.ProgressText String progressText) {
     myProject = previous.myProject;
     myModule = previous.myModule;
     myDirectory = previous.myDirectory;
@@ -100,8 +96,8 @@ public abstract class AbstractLayoutCodeProcessor {
 
   protected AbstractLayoutCodeProcessor(@NotNull Project project,
                                         @Nullable Module module,
-                                        String commandName,
-                                        String progressText,
+                                        @NlsContexts.Command String commandName,
+                                        @NlsContexts.ProgressText String progressText,
                                         boolean processChangedTextOnly) {
     myProject = project;
     myModule = module;
@@ -114,10 +110,10 @@ public abstract class AbstractLayoutCodeProcessor {
   }
 
   protected AbstractLayoutCodeProcessor(@NotNull Project project,
-                                        PsiDirectory directory,
+                                        @NotNull PsiDirectory directory,
                                         boolean includeSubdirs,
-                                        String progressText,
-                                        String commandName,
+                                        @NlsContexts.ProgressText String progressText,
+                                        @NlsContexts.Command String commandName,
                                         boolean processChangedTextOnly) {
     myProject = project;
     myModule = null;
@@ -130,9 +126,9 @@ public abstract class AbstractLayoutCodeProcessor {
   }
 
   protected AbstractLayoutCodeProcessor(@NotNull Project project,
-                                        PsiFile file,
-                                        String progressText,
-                                        String commandName,
+                                        @NotNull PsiFile file,
+                                        @NlsContexts.ProgressText String progressText,
+                                        @NlsContexts.Command String commandName,
                                         boolean processChangedTextOnly) {
     myProject = project;
     myModule = null;
@@ -144,9 +140,9 @@ public abstract class AbstractLayoutCodeProcessor {
   }
 
   protected AbstractLayoutCodeProcessor(@NotNull Project project,
-                                        PsiFile[] files,
-                                        String progressText,
-                                        String commandName,
+                                        PsiFile @NotNull [] files,
+                                        @NlsContexts.ProgressText String progressText,
+                                        @NlsContexts.Command String commandName,
                                         @Nullable Runnable postRunnable,
                                         boolean processChangedTextOnly) {
     myProject = project;
@@ -160,12 +156,6 @@ public abstract class AbstractLayoutCodeProcessor {
 
   public void setPostRunnable(Runnable postRunnable) {
     myPostRunnable = postRunnable;
-  }
-
-  @Nullable
-  private FutureTask<Boolean> getPreviousProcessorTask(@NotNull PsiFile file, boolean processChangedTextOnly) {
-    return myPreviousCodeProcessor != null ? myPreviousCodeProcessor.preprocessFile(file, processChangedTextOnly)
-                                           : null;
   }
 
   public void setCollectInfo(boolean isCollectInfo) {
@@ -198,8 +188,17 @@ public abstract class AbstractLayoutCodeProcessor {
   @NotNull
   protected abstract FutureTask<Boolean> prepareTask(@NotNull PsiFile file, boolean processChangedTextOnly) throws IncorrectOperationException;
 
+  /**
+   * @deprecated This method incorrectly combines several {@link #prepareTask} results,
+   * so that some of them might get outdated after previous results are executed in write action.
+   * Use {@link #run()} or {@link #runWithoutProgress()} instead.
+   */
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2020.2")
   public FutureTask<Boolean> preprocessFile(@NotNull PsiFile file, boolean processChangedTextOnly) throws IncorrectOperationException {
-    final FutureTask<Boolean> previousTask = getPreviousProcessorTask(file, processChangedTextOnly);
+    final FutureTask<Boolean> previousTask =
+      myPreviousCodeProcessor != null ? myPreviousCodeProcessor.preprocessFile(file, processChangedTextOnly)
+                                      : null;
     final FutureTask<Boolean> currentTask = prepareTask(file, processChangedTextOnly);
 
     return new FutureTask<>(() -> {
@@ -255,7 +254,7 @@ public abstract class AbstractLayoutCodeProcessor {
   @NotNull
   private List<PsiFile> getChangedFilesFromContext() {
     List<PsiDirectory> dirs = getAllSearchableDirsFromContext();
-    return FormatChangedTextUtil.getChangedFilesFromDirs(myProject, dirs);
+    return VcsFacade.getInstance().getChangedFilesFromDirs(myProject, dirs);
   }
 
   private List<PsiDirectory> getAllSearchableDirsFromContext() {
@@ -276,7 +275,7 @@ public abstract class AbstractLayoutCodeProcessor {
 
 
   private void runProcessFile(@NotNull final PsiFile file) {
-    assert file.isValid() : "Invalid " + file.getLanguage() + " PSI file " + file.getName();
+    PsiUtilCore.ensureValid(file);
 
     Document document = PsiDocumentManager.getInstance(myProject).getDocument(file);
 
@@ -285,75 +284,56 @@ public abstract class AbstractLayoutCodeProcessor {
     }
 
     if (!FileDocumentManager.getInstance().requestWriting(document, myProject)) {
-      Messages.showMessageDialog(myProject, PsiBundle.message("cannot.modify.a.read.only.file", file.getName()),
+      Messages.showMessageDialog(myProject, CoreBundle.message("cannot.modify.a.read.only.file", file.getName()),
                                  CodeInsightBundle.message("error.dialog.readonly.file.title"),
                                  Messages.getErrorIcon()
       );
       return;
     }
 
-    final Ref<FutureTask<Boolean>> writeActionRunnable = new Ref<>();
-    Runnable readAction = () -> {
-      if (!file.isValid() || !checkFileWritable(file)) return;
-      try{
-        FutureTask<Boolean> writeTask = preprocessFile(file, myProcessChangedTextOnly);
-        writeActionRunnable.set(writeTask);
-      }
-      catch(IncorrectOperationException e){
-        LOG.error(e);
-      }
-    };
-    Runnable writeAction = () -> {
-      if (writeActionRunnable.isNull()) return;
-      FutureTask<Boolean> task = writeActionRunnable.get();
-      task.run();
-      try {
-        task.get();
-      }
-      catch (CancellationException ignored) {
-      }
-      catch (Exception e) {
-        Throwable cause = e.getCause();
-        if (cause != null) {
-          if (cause instanceof IndexNotReadyException) {
-            throw (IndexNotReadyException)e.getCause();
-          }
-          LOG.error(getClass().getSimpleName() + " failure, see the stack trace", cause);
+    ProgressManager.getInstance().run(new Task.Backgroundable(myProject, getProgressTitle(), true) {
+      @Override
+      public void run(@NotNull ProgressIndicator indicator) {
+        indicator.setText(myProgressText);
+        try {
+          new ProcessingTask(indicator).performFileProcessing(file);
         }
-        else {
-          LOG.error(e);
+        catch(IndexNotReadyException e) {
+          LOG.warn(e);
+          return;
+        }
+        if (myPostRunnable != null) {
+          ApplicationManager.getApplication().invokeLater(myPostRunnable);
         }
       }
-    };
-    runLayoutCodeProcess(readAction, writeAction);
-  }
-
-  private boolean checkFileWritable(final PsiFile file){
-    if (!file.isWritable()){
-      MessagesEx.fileIsReadOnly(myProject, file.getVirtualFile())
-          .setTitle(CodeInsightBundle.message("error.dialog.readonly.file.title"))
-          .showLater();
-      return false;
-    }
-    else{
-      return true;
-    }
+    });
   }
 
   private void runProcessFiles() {
     boolean isSuccess = ProgressManager.getInstance().runProcessWithProgressSynchronously(() -> {
       ProgressIndicator indicator = ProgressManager.getInstance().getProgressIndicator();
-      indicator.setIndeterminate(false);
-      ReformatFilesTask task = new ReformatFilesTask(indicator);
-      return task.process();
-    }, myCommandName, true, myProject);
+      return processFilesUnderProgress(indicator);
+    }, getProgressTitle(), true, myProject);
 
     if (isSuccess && myPostRunnable != null) {
       myPostRunnable.run();
     }
   }
 
-  private static boolean canBeFormatted(PsiFile file) {
+  private @NotNull @NlsContexts.ProgressTitle String getProgressTitle() {
+    AbstractLayoutCodeProcessor processor = getInitialProcessor();
+    return processor.myCommandName;
+  }
+
+  private @NotNull AbstractLayoutCodeProcessor getInitialProcessor() {
+    AbstractLayoutCodeProcessor current = this;
+    while (current.myPreviousCodeProcessor != null) {
+      current = current.myPreviousCodeProcessor;
+    }
+    return current;
+  }
+
+  private static boolean canBeFormatted(@NotNull PsiFile file) {
     if (!file.isValid()) return false;
     if (LanguageFormatting.INSTANCE.forContext(file) == null) {
       return false;
@@ -366,62 +346,17 @@ public abstract class AbstractLayoutCodeProcessor {
     return !GeneratedSourcesFilter.isGeneratedSourceByAnyFilter(virtualFile, file.getProject());
   }
 
-  private void runLayoutCodeProcess(final Runnable readAction, final Runnable writeAction) {
-    final ProgressWindow progressWindow = new ProgressWindow(true, myProject);
-    progressWindow.setTitle(myCommandName);
-    progressWindow.setText(myProgressText);
-
-    final ModalityState modalityState = ModalityState.current();
-
-    final Runnable process = () -> ApplicationManager.getApplication().runReadAction(readAction);
-
-    Runnable runnable = () -> {
-      try {
-        ProgressManager.getInstance().runProcess(process, progressWindow);
-      }
-      catch(ProcessCanceledException e) {
-        return;
-      }
-      catch(IndexNotReadyException e) {
-        LOG.warn(e);
-        return;
-      }
-
-      final Runnable writeRunnable = () -> CommandProcessor.getInstance().executeCommand(myProject, () -> {
-        try {
-          writeAction.run();
-
-          if (myPostRunnable != null) {
-            ApplicationManager.getApplication().invokeLater(myPostRunnable);
-          }
-        }
-        catch (IndexNotReadyException e) {
-          LOG.warn(e);
-        }
-      }, myCommandName, null);
-
-      if (ApplicationManager.getApplication().isUnitTestMode()) {
-        writeRunnable.run();
-      }
-      else {
-        ApplicationManager.getApplication().invokeLater(writeRunnable, modalityState, myProject.getDisposed());
-      }
-    };
-
-    if (ApplicationManager.getApplication().isUnitTestMode()) {
-      runnable.run();
-    }
-    else {
-      ApplicationManager.getApplication().executeOnPooledThread(runnable);
-    }
-  }
-
   public void runWithoutProgress() throws IncorrectOperationException {
-    final Runnable runnable = preprocessFile(myFile, myProcessChangedTextOnly);
-    runnable.run();
+    new ProcessingTask(new EmptyProgressIndicator()).performFileProcessing(myFile);
   }
 
-  private List<AbstractLayoutCodeProcessor> getAllProcessors() {
+  public boolean processFilesUnderProgress(@NotNull ProgressIndicator indicator) {
+    indicator.setIndeterminate(false);
+    ProcessingTask task = new ProcessingTask(indicator);
+    return task.process();
+  }
+
+  private @NotNull List<AbstractLayoutCodeProcessor> getAllProcessors() {
     AbstractLayoutCodeProcessor current = this;
     List<AbstractLayoutCodeProcessor> all = new ArrayList<>();
     while (current != null) {
@@ -432,7 +367,7 @@ public abstract class AbstractLayoutCodeProcessor {
     return all;
   }
 
-  private class ReformatFilesTask implements SequentialTask {
+  private class ProcessingTask implements SequentialTask {
     private final List<AbstractLayoutCodeProcessor> myProcessors;
 
     private final FileRecursiveIterator myFileTreeIterator;
@@ -445,7 +380,7 @@ public abstract class AbstractLayoutCodeProcessor {
     private boolean myStopFormatting;
     private PsiFile next;
 
-    ReformatFilesTask(@NotNull ProgressIndicator indicator) {
+    ProcessingTask(@NotNull ProgressIndicator indicator) {
       myFileTreeIterator = ReadAction.compute(() -> build());
       myCountingIterator = ReadAction.compute(() -> build());
       myProcessors = getAllProcessors();
@@ -487,12 +422,14 @@ public abstract class AbstractLayoutCodeProcessor {
     }
 
     private void performFileProcessing(@NotNull PsiFile file) {
+      String groupId = AbstractLayoutCodeProcessor.this.toString();
       for (AbstractLayoutCodeProcessor processor : myProcessors) {
         FutureTask<Boolean> writeTask = ReadAction.compute(() -> processor.prepareTask(file, myProcessChangedTextOnly));
 
         ProgressIndicatorProvider.checkCanceled();
 
-        ApplicationManager.getApplication().invokeAndWait(() -> WriteCommandAction.runWriteCommandAction(myProject, myCommandName, null, writeTask));
+        ApplicationManager.getApplication().invokeAndWait(
+          () -> WriteCommandAction.runWriteCommandAction(myProject, myCommandName, groupId, writeTask));
 
         checkStop(writeTask, file);
       }
@@ -514,12 +451,12 @@ public abstract class AbstractLayoutCodeProcessor {
       }
     }
 
-    private void updateIndicatorText(@NotNull String upperLabel, @NotNull String downLabel) {
+    private void updateIndicatorText(@NotNull @NlsContexts.ProgressText String upperLabel, @NotNull @NlsContexts.ProgressDetails String downLabel) {
       myProgressIndicator.setText(upperLabel);
       myProgressIndicator.setText2(downLabel);
     }
 
-    private String getPresentablePath(@NotNull PsiFile file) {
+    private @NlsSafe String getPresentablePath(@NotNull PsiFile file) {
       VirtualFile vFile = file.getVirtualFile();
       return vFile != null ? ProjectUtil.calcRelativeToProjectPath(vFile, myProject) : file.getName();
     }
@@ -533,7 +470,7 @@ public abstract class AbstractLayoutCodeProcessor {
       myStopFormatting = true;
     }
 
-    public boolean process() {
+    private boolean process() {
       myCountingIterator.processAll(file -> {
         updateIndicatorText(ApplicationBundle.message("bulk.reformat.prepare.progress.text"), "");
         countingIteration();
@@ -575,7 +512,7 @@ public abstract class AbstractLayoutCodeProcessor {
   void handleFileTooBigException(Logger logger, FilesTooBigForDiffException e, @NotNull PsiFile file) {
     logger.info("Error while calculating changed ranges for: " + file.getVirtualFile(), e);
     if (!ApplicationManager.getApplication().isUnitTestMode()) {
-      Notification notification = new Notification(ApplicationBundle.message("reformat.changed.text.file.too.big.notification.groupId"),
+      Notification notification = new Notification(NotificationGroup.createIdWithTitle("Reformat changed text", ApplicationBundle.message("reformat.changed.text.file.too.big.notification.groupId")),
                                                    ApplicationBundle.message("reformat.changed.text.file.too.big.notification.title"),
                                                    ApplicationBundle.message("reformat.changed.text.file.too.big.notification.text", file.getName()),
                                                    NotificationType.INFORMATION);

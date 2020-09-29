@@ -16,6 +16,7 @@
 package com.intellij.packaging.impl.artifacts;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.packaging.artifacts.ArtifactType;
 import com.intellij.packaging.elements.CompositePackagingElement;
@@ -25,9 +26,6 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 
-/**
- * @author nik
- */
 public class InvalidArtifactType extends ArtifactType {
 
   public static InvalidArtifactType getInstance() {
@@ -35,7 +33,7 @@ public class InvalidArtifactType extends ArtifactType {
   }
 
   public InvalidArtifactType() {
-    super("invalid", "Invalid");
+    super("invalid", IdeBundle.messagePointer("invalid.node.text"));
   }
 
   @NotNull

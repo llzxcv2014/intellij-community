@@ -1,7 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.openapi.vcs.changes.committed;
 
+import com.intellij.CommonBundle;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionPlaces;
@@ -18,6 +19,7 @@ import com.intellij.ui.table.TableView;
 import com.intellij.util.ui.JBDimension;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
@@ -29,9 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * @author max
- */
 public class CommittedChangesBrowserDialogPanel extends JPanel {
   private final Project myProject;
   // left view
@@ -81,7 +80,7 @@ public class CommittedChangesBrowserDialogPanel extends JPanel {
     commitPanel.add(separator, BorderLayout.NORTH);
 
     myLeftPanel = new JPanel(new GridBagLayout());
-    final JLabel loadingLabel = new JLabel("Loading...");
+    final JLabel loadingLabel = new JLabel(CommonBundle.getLoadingTreeNodeText());
 
     myLoadingLabelPanel = new JPanel(new BorderLayout()) {
       @Override
@@ -114,8 +113,8 @@ public class CommittedChangesBrowserDialogPanel extends JPanel {
     if (tableModel instanceof CommittedChangesNavigation) {
       final CommittedChangesNavigation navigation = (CommittedChangesNavigation) tableModel;
 
-      final JButton backButton = new JButton("< Older");
-      final JButton forwardButton = new JButton("Newer >");
+      final JButton backButton = new JButton(VcsBundle.message("changes.button.older"));
+      final JButton forwardButton = new JButton(VcsBundle.message("changes.button.newer"));
 
       backButton.addActionListener(new ActionListener() {
         @Override
@@ -195,6 +194,7 @@ public class CommittedChangesBrowserDialogPanel extends JPanel {
     }
   }
 
+  @Nls
   private String formatText(final CommittedChangeList list) {
     return IssueLinkHtmlRenderer.formatTextIntoHtml(myProject, list.getComment());
   }

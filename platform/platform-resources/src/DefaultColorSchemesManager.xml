@@ -1,5 +1,9 @@
 <component name="DefaultColorSchemesManager">
   <scheme name="Default" default_scheme="true" version="1">
+    <metaInfo>
+      <property name="lcNameBundle">messages.EditorBundle</property>
+      <property name="lcNameKey">default.color.scheme.name</property>
+    </metaInfo>
     <colors>
 
       <option name="SELECTION_BACKGROUND" value="5974ab"/>
@@ -24,6 +28,11 @@
       <option name="VISUAL_INDENT_GUIDE" value="eeeeee"/>
       <option name="FOLDED_TEXT_BORDER_COLOR" value="add9c7"/>
       <option name="RECENT_LOCATIONS_SELECTION" value="e9eef5"/>
+      <option name="DOC_COMMENT_GUIDE" value="e8e8e8"/>
+      <option name="DOC_COMMENT_LINK" value="4585be"/>
+      <option name="INLINE_REFACTORING_SETTINGS_DEFAULT" value="d8d8d88c"/>
+      <option name="INLINE_REFACTORING_SETTINGS_FOCUSED" value="cccccc8c" />
+      <option name="INLINE_REFACTORING_SETTINGS_HOVERED" value="cccccc8c" />
 
       <option name="ADDED_LINES_COLOR" value="c9dec1" deuteranopia="99ca90" protanopia="99ca90"/>
       <option name="MODIFIED_LINES_COLOR" value="c3d6e8" deuteranopia="9ca9bf" protanopia="9ca9bf"/>
@@ -32,9 +41,11 @@
       <option name="IGNORED_ADDED_LINES_BORDER_COLOR" value="a0c495"/>
       <option name="IGNORED_MODIFIED_LINES_BORDER_COLOR" value="95b2ce"/>
       <option name="IGNORED_DELETED_LINES_BORDER_COLOR" value="9f9f9f"/>
-      <option name="CONSOLE_BACKGROUND_KEY" value="ffffff" />
+      <option name="CONSOLE_BACKGROUND_KEY" value="ffffff"/>
       <option name="DIFF_SEPARATORS_BACKGROUND" value="D9D9D9"/>
       <option name="STRING_CONTENT_INDENT_GUIDE" value="afd5b5"/>
+
+      <option name="MODIFIED_TAB_ICON" value="4083C9"/>
 
       <option name="FILESTATUS_ADDED" value="0a7700"/>
       <option name="FILESTATUS_COPIED" value="0a7700"/>
@@ -90,6 +101,9 @@
       <option name="ScrollBar.Mac.Transparent.hoverTrackColor" value="8080801A"/>
       <option name="ScrollBar.Mac.Transparent.hoverThumbColor" value="00000080"/>
       <option name="ScrollBar.Mac.Transparent.hoverThumbBorderColor" value="00000080"/>
+      <option name="ActionButton.hoverBackground" value="dfdfdf"/>
+      <option name="ActionButton.pressedBackground" value="cfcfcf"/>
+      <option name="ActionButton.iconTextForeground" value="6e6e6e"/>
     </colors>
 
     <attributes>
@@ -281,6 +295,12 @@
         <value>
           <option name="FOREGROUND" value="ff" deuteranopia="55ff" protanopia="55ff"/>
           <option name="FONT_TYPE" value="1"/>
+        </value>
+      </option>
+      <option name="DEFAULT_HIGHLIGHTED_REFERENCE">
+        <value>/>
+          <option name="EFFECT_COLOR" value="808080"/>
+          <option name="EFFECT_TYPE" value="1"/>
         </value>
       </option>
 
@@ -579,13 +599,27 @@
           <option name="FOREGROUND"/>
           <option name="BACKGROUND" value="ccccff" deuteranopia="BACEFF" protanopia="BACEFF"/>
           <option name="EFFECT_COLOR"/>
+          <option name="ERROR_STRIPE_COLOR" value="8e8eb2" deuteranopia="8290b2" protanopia="8290b2"/>
+        </value>
+      </option>
+      <option name="REGEXP_MATCHED_GROUPS">
+        <value>
+          <option name="BACKGROUND" value="d8d8d8"/>
         </value>
       </option>
       <option name="LIVE_TEMPLATE_ATTRIBUTES">
         <value>
           <option name="FOREGROUND"/>
           <option name="BACKGROUND"/>
-          <option name="EFFECT_COLOR" value="ff0000"/>
+          <option name="EFFECT_COLOR" value="0055ff"/>
+          <option name="EFFECT_TYPE" value="0"/>
+        </value>
+      </option>
+      <option name="LIVE_TEMPLATE_INACTIVE_SEGMENT">
+        <value>
+          <option name="FOREGROUND"/>
+          <option name="BACKGROUND"/>
+          <option name="EFFECT_COLOR" value="bfbfbf"/>
           <option name="EFFECT_TYPE" value="0"/>
         </value>
       </option>
@@ -595,6 +629,7 @@
           <option name="FOREGROUND"/>
           <option name="BACKGROUND" value="ffcdff" deuteranopia="D4CFB4" protanopia="D4CFB4"/>
           <option name="EFFECT_COLOR"/>
+          <option name="ERROR_STRIPE_COLOR" value="b28fb2" deuteranopia="94907d" protanopia="94907d"/>
         </value>
       </option>
 
@@ -1187,11 +1222,33 @@
             <option name="EFFECT_TYPE" value="0"/>
           </value>
         </option>
+      <option name="XPATH.KEYWORD">
+        <value>
+          <option name="FOREGROUND" value="0000FF" />
+          <option name="FONT_TYPE" value="1"/>
+        </value>
+      </option>
+      <option name="XPATH.XPATH_NAME">
+        <value>
+          <option name="FOREGROUND" value="80" />
+          <option name="FONT_TYPE" value="1"/>
+        </value>
+      </option>
+      <option name="XPATH.FUNCTION">
+        <value>
+          <option name="FOREGROUND" value="0000FF" />
+          <option name="FONT_TYPE" value="1"/>
+        </value>
+      </option>
     </attributes>
 
   </scheme>
 
   <scheme name="Darcula" version="1" parent_scheme="Default" default_scheme="true">
+    <metaInfo>
+      <property name="lcNameBundle">messages.EditorBundle</property>
+      <property name="lcNameKey">darcula.color.scheme.name</property>
+    </metaInfo>
     <colors>
       <option name="ADDED_LINES_COLOR" value="384C38" deuteranopia="355237" protanopia="355237"/>
       <option name="MODIFIED_LINES_COLOR" value="374752" deuteranopia="345a67" protanopia="345a67"/>
@@ -1245,6 +1302,13 @@
       <option name="VISUAL_INDENT_GUIDE" value="3c3c3c"/>
       <option name="FOLDED_TEXT_BORDER_COLOR" value="43474a"/>
       <option name="RECENT_LOCATIONS_SELECTION" value="383838"/>
+      <option name="DOC_COMMENT_GUIDE" value="3b4b38"/>
+      <option name="DOC_COMMENT_LINK" value="4f86cd"/>
+      <option name="INLINE_REFACTORING_SETTINGS_DEFAULT" value="5959598c"/>
+      <option name="INLINE_REFACTORING_SETTINGS_FOCUSED" value="6969698c"/>
+      <option name="INLINE_REFACTORING_SETTINGS_HOVERED" value="6969698c"/>
+
+      <option name="MODIFIED_TAB_ICON" value="4083C9"/>
 
       <option name="VCS_ANNOTATIONS_COLOR_1" value="464c43"/>
       <option name="VCS_ANNOTATIONS_COLOR_2" value="444342"/>
@@ -1277,11 +1341,14 @@
       <option name="ScrollBar.Mac.Transparent.hoverTrackColor" value="8080801A"/>
       <option name="ScrollBar.Mac.Transparent.hoverThumbColor" value="8080808C"/>
       <option name="ScrollBar.Mac.Transparent.hoverThumbBorderColor" value="2626268C"/>
+      <option name="ActionButton.hoverBackground" value="4c5052"/>
+      <option name="ActionButton.pressedBackground" value="5c6164"/>
+      <option name="ActionButton.iconTextForeground" value="bbbbbb"/>
     </colors>
     <attributes>
       <option name="ANNOTATION_ATTRIBUTE_NAME_ATTRIBUTES">
         <value>
-          <option name="FOREGROUND" value="d0d0ff" />
+          <option name="FOREGROUND" value="a9b7c6" />
         </value>
       </option>
       <option name="ANNOTATION_NAME_ATTRIBUTES">
@@ -1439,16 +1506,6 @@
         <value>
           <option name="FOREGROUND" value="cc7832" deuteranopia="597cc2" protanopia="597cc2"/>
           <option name="FONT_TYPE" value="1" />
-        </value>
-      </option>
-      <option name="CSS.KEYWORD">
-        <value>
-          <option name="FOREGROUND" value="cc7832" deuteranopia="597cc2" protanopia="597cc2"/>
-        </value>
-      </option>
-      <option name="CSS.TAG_NAME">
-        <value>
-          <option name="FOREGROUND" value="cc7832" deuteranopia="597cc2" protanopia="597cc2"/>
         </value>
       </option>
       <option name="CSS.URL">
@@ -1672,6 +1729,12 @@
         </value>
       </option>
       <option name="DEFAULT_REASSIGNED_LOCAL_VARIABLE">
+        <value>
+          <option name="EFFECT_COLOR" value="707d95" />
+          <option name="EFFECT_TYPE" value="1" />
+        </value>
+      </option>
+      <option name="DEFAULT_HIGHLIGHTED_REFERENCE">
         <value>
           <option name="EFFECT_COLOR" value="707d95" />
           <option name="EFFECT_TYPE" value="1" />
@@ -1918,16 +1981,6 @@
           <option name="BACKGROUND" value="364135" deuteranopia="1f2433" protanopia="1f2433"/>
         </value>
       </option>
-      <option name="JAVA_KEYWORD">
-        <value>
-          <option name="FOREGROUND" value="cc7832" deuteranopia="597cc2" protanopia="597cc2"/>
-        </value>
-      </option>
-      <option name="JAVA_VALID_STRING_ESCAPE">
-        <value>
-          <option name="FOREGROUND" value="cc7832" deuteranopia="597cc2" protanopia="597cc2"/>
-        </value>
-      </option>
       <option name="JSP_DIRECTIVE_NAME">
         <value>
           <option name="FOREGROUND" value="cc7832" deuteranopia="597cc2" protanopia="597cc2"/>
@@ -1961,7 +2014,15 @@
         <value>
           <option name="FOREGROUND"/>
           <option name="BACKGROUND"/>
-          <option name="EFFECT_COLOR" value="ff0000"/>
+          <option name="EFFECT_COLOR" value="80bfff"/>
+          <option name="EFFECT_TYPE" value="0"/>
+        </value>
+      </option>
+      <option name="LIVE_TEMPLATE_INACTIVE_SEGMENT">
+        <value>
+          <option name="FOREGROUND"/>
+          <option name="BACKGROUND"/>
+          <option name="EFFECT_COLOR" value="737373"/>
           <option name="EFFECT_TYPE" value="0"/>
         </value>
       </option>
@@ -2120,6 +2181,11 @@
         <value>
           <option name="BACKGROUND" value="155221" deuteranopia="404861" protanopia="404861"/>
           <option name="ERROR_STRIPE_COLOR" value="00530d" deuteranopia="4b6f99" protanopia="4b6f99"/>
+        </value>
+      </option>
+      <option name="REGEXP_MATCHED_GROUPS">
+        <value>
+          <option name="BACKGROUND" value="6b6b6b"/>
         </value>
       </option>
       <option name="SPY-JS.FUNCTION_SCOPE">
@@ -2328,13 +2394,17 @@
       </option>
       <option name="XPATH.KEYWORD">
         <value>
-          <option name="FOREGROUND" value="cc7832" deuteranopia="597cc2" protanopia="597cc2"/>
-          <option name="FONT_TYPE" value="1" />
+          <option name="FOREGROUND" value="e8bf6a" deuteranopia="597cc2" protanopia="597cc2"/>
         </value>
       </option>
       <option name="XPATH.XPATH_NAME">
         <value>
-          <option name="FOREGROUND" value="da4939" />
+          <option name="FOREGROUND" value="cc7832" />
+        </value>
+      </option>
+      <option name="XPATH.FUNCTION">
+        <value>
+          <option name="FOREGROUND" value="e8bf6a" deuteranopia="597cc2" protanopia="597cc2"/>
         </value>
       </option>
       <option name="XPATH.XPATH_VARIABLE">

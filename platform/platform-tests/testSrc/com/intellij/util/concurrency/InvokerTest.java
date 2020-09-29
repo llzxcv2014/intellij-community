@@ -1,11 +1,11 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.concurrency;
 
-import com.intellij.idea.IdeaTestApplication;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.testFramework.TestApplicationManager;
 import com.intellij.util.ThreeState;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.concurrency.AsyncPromise;
@@ -26,16 +26,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static com.intellij.openapi.application.ApplicationManager.getApplication;
 import static javax.swing.SwingUtilities.isEventDispatchThread;
 
-/**
- * @author Sergey.Malenkov
- */
 public class InvokerTest {
   @SuppressWarnings("unused")
-  private static final IdeaTestApplication application = IdeaTestApplication.getInstance();
+  private static final TestApplicationManager application = TestApplicationManager.getInstance();
   private final List<Promise<?>> futures = Collections.synchronizedList(new ArrayList<>());
   private final Disposable parent = Disposer.newDisposable();
 
@@ -377,9 +375,18 @@ public class InvokerTest {
   private void testThreadChanging(Invoker foreground, Invoker background, Boolean equal) {
     CountDownLatch latch = new CountDownLatch(1);
     test(foreground, latch, error
-      -> new Command.Processor(foreground, background).process(Thread::currentThread, thread
+      -> process(background, foreground, Thread::currentThread, thread
       -> countDown(latch, 0, error, "unexpected thread", ()
       -> isExpected(thread, equal))));
+  }
+
+  /**
+   * Lets the specified supplier to produce a value on the background thread
+   * and the specified consumer to accept this value on the foreground thread.
+   */
+  private static <T> void process(@NotNull Invoker background, @NotNull Invoker foreground, @NotNull Supplier<? extends T> supplier,
+                                  @NotNull Consumer<? super T> consumer) {
+    background.compute(supplier).onSuccess(value -> foreground.invoke(() -> consumer.accept(value)));
   }
 
   private static boolean isExpected(Thread thread, Boolean equal) {

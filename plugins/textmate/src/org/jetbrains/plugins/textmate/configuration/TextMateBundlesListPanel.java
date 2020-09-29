@@ -1,10 +1,12 @@
 package org.jetbrains.plugins.textmate.configuration;
 
+import com.intellij.CommonBundle;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.fileChooser.FileChooserDialog;
 import com.intellij.openapi.fileChooser.FileChooserFactory;
 import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.ui.MessageDialogBuilder;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.ThrowableComputable;
 import com.intellij.openapi.util.io.FileUtil;
@@ -12,11 +14,12 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.*;
-import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.textmate.TextMateBundle;
 import org.jetbrains.plugins.textmate.TextMateService;
 import org.jetbrains.plugins.textmate.bundles.Bundle;
 
@@ -34,7 +37,7 @@ public class TextMateBundlesListPanel implements Disposable {
   private Collection<TextMateBundlesChangeStateListener> myListeners = new ArrayList<>();
 
   public TextMateBundlesListPanel() {
-    myBundlesList = new CheckBoxList<BundleConfigBean>(new CheckBoxListListener() {
+    myBundlesList = new CheckBoxList<>(new CheckBoxListListener() {
       @Override
       public void checkBoxSelectionChanged(int index, boolean value) {
         BundleConfigBean itemAt = myBundlesList.getItemAt(index);
@@ -48,13 +51,13 @@ public class TextMateBundlesListPanel implements Disposable {
       protected String getSecondaryText(int index) {
         BundleConfigBean bean = myBundlesList.getItemAt(index);
         if (isBuiltin(bean)) {
-          return "Built-in";
+          return TextMateBundle.message("title.built.in");
         }
-        return bean != null ? bean.getPath() : null;
+        return bean != null ? FileUtil.toSystemDependentName(bean.getPath()) : null;
       }
     };
     myBundlesList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
-    new ListSpeedSearch<>(myBundlesList, (Function<JCheckBox, String>)box -> box.getText());
+    new ListSpeedSearch<>(myBundlesList, box -> box.getText());
   }
 
   private static boolean isBuiltin(BundleConfigBean bean) {
@@ -86,9 +89,12 @@ public class TextMateBundlesListPanel implements Disposable {
         if (bundlesToDelete.isEmpty()) {
           return;
         }
-        String title = bundlesToDelete.size() > 1 ? "Remove Bundles?" : "Remove Bundle?";
         String message = StringUtil.join(bundlesToDelete, JCheckBox::getText, "\n");
-        if (Messages.showYesNoDialog(message, title, "Remove", "Cancel", null) != Messages.YES) {
+        if (MessageDialogBuilder.yesNo(TextMateBundle.message("textmate.remove.title", bundlesToDelete.size()), message)
+              .yesText(CommonBundle.message("button.remove"))
+              .noText(CommonBundle.getCancelButtonText())
+              .icon(null)
+              .show() != Messages.YES) {
           return;
         }
         ListUtil.removeSelectedItems(myBundlesList);
@@ -111,13 +117,14 @@ public class TextMateBundlesListPanel implements Disposable {
 
         final VirtualFile[] bundleDirectories = fileChooser.choose(null, fileToSelect);
         if (bundleDirectories.length > 0) {
+          @Nls
           StringBuilder errorMessage = new StringBuilder();
           for (final VirtualFile bundleDirectory : bundleDirectories) {
             PropertiesComponent.getInstance().setValue(TEXTMATE_LAST_ADDED_BUNDLE, bundleDirectory.getPath());
             ThrowableComputable<Bundle, Exception> readBundleProcess = () -> TextMateService.getInstance().createBundle(bundleDirectory);
             Bundle bundle = null;
             try {
-              bundle = ProgressManager.getInstance().runProcessWithProgressSynchronously(readBundleProcess, "Add Bundle", true, null);
+              bundle = ProgressManager.getInstance().runProcessWithProgressSynchronously(readBundleProcess, TextMateBundle.message("button.add.bundle"), true, null);
             }
             catch (Exception ignore) {
             }
@@ -148,7 +155,7 @@ public class TextMateBundlesListPanel implements Disposable {
             }
           }
           if (errorMessage.length() > 0) {
-            Messages.showErrorDialog(errorMessage.toString(), "TextMate Bundle Error");
+            Messages.showErrorDialog(errorMessage.toString(), TextMateBundle.message("title.textmate.bundle.error"));
           }
         }
       }

@@ -1,6 +1,7 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actions;
 
+import com.intellij.ide.lightEdit.LightEditCompatible;
 import com.intellij.idea.ActionsBundle;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.command.undo.DocumentReference;
@@ -13,6 +14,7 @@ import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.util.Pair;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
@@ -22,7 +24,7 @@ import javax.swing.*;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
 
-public abstract class UndoRedoAction extends DumbAwareAction {
+public abstract class UndoRedoAction extends DumbAwareAction implements LightEditCompatible {
   private static final Logger LOG = Logger.getInstance(UndoRedoAction.class);
   public static final Key<Boolean> IGNORE_SWING_UNDO_MANAGER = new Key<>("IGNORE_SWING_UNDO_MANAGER");
 
@@ -59,7 +61,7 @@ public abstract class UndoRedoAction extends DumbAwareAction {
     }
     presentation.setEnabled(isAvailable(editor, undoManager));
 
-    Pair<String, String> pair = getActionNameAndDescription(editor, undoManager);
+    Pair<@NlsActions.ActionText String, @NlsActions.ActionDescription String> pair = getActionNameAndDescription(editor, undoManager);
 
     presentation.setText(pair.first);
     presentation.setDescription(pair.second);
@@ -88,7 +90,7 @@ public abstract class UndoRedoAction extends DumbAwareAction {
     }
 
     Project project = getProject(editor, dataContext);
-    return project != null ? UndoManager.getInstance(project) : UndoManager.getGlobalInstance();
+    return project != null && !project.isDefault() ? UndoManager.getInstance(project) : UndoManager.getGlobalInstance();
   }
 
   private static Project getProject(FileEditor editor, DataContext dataContext) {
@@ -106,7 +108,7 @@ public abstract class UndoRedoAction extends DumbAwareAction {
 
   protected abstract boolean isAvailable(FileEditor editor, UndoManager undoManager);
 
-  protected abstract Pair<String, String> getActionNameAndDescription(FileEditor editor, UndoManager undoManager);
+  protected abstract Pair<@NlsActions.ActionText String, @NlsActions.ActionDescription String> getActionNameAndDescription(FileEditor editor, UndoManager undoManager);
 
   private static class SwingUndoManagerWrapper extends UndoManager{
     private final javax.swing.undo.UndoManager mySwingUndoManager;
@@ -173,11 +175,18 @@ public abstract class UndoRedoAction extends DumbAwareAction {
 
     @NotNull
     private static Pair<String, String> getUndoOrRedoActionNameAndDescription(boolean undo) {
-      String command = undo ? "undo" : "redo";
-      return Pair.create(
-        ActionsBundle.message("action." + command + ".text", "").trim(),
-        ActionsBundle.message("action." + command + ".description",
-                              ActionsBundle.message("action." + command + ".description.empty")).trim());
+      if (undo) {
+        return Pair.create(
+          ActionsBundle.message("action.undo.text", "").trim(),
+          ActionsBundle.message("action.undo.description",
+                                ActionsBundle.message("action.undo.description.empty")).trim());
+      }
+      else {
+        return Pair.create(
+          ActionsBundle.message("action.redo.text", "").trim(),
+          ActionsBundle.message("action.redo.description",
+                                ActionsBundle.message("action.redo.description.empty")).trim());
+      }
     }
   }
 }

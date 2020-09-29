@@ -1,10 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.psi.controlFlow.impl;
 
 import com.intellij.openapi.diagnostic.Attachment;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
@@ -12,6 +11,7 @@ import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.containers.FList;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.codeInspection.utils.ControlFlowUtils;
@@ -84,11 +84,11 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
   private int myInstructionNumber;
   private final GrControlFlowPolicy myPolicy;
 
-  public ControlFlowBuilder(Project project) {
-    this(project, GrResolverPolicy.getInstance());
+  public ControlFlowBuilder() {
+    this(GrResolverPolicy.getInstance());
   }
 
-  public ControlFlowBuilder(Project project, GrControlFlowPolicy policy) {
+  public ControlFlowBuilder(GrControlFlowPolicy policy) {
     myPolicy = policy;
   }
 
@@ -98,7 +98,6 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
     final PsiElement lbrace = block.getLBrace();
     if (lbrace != null && parent instanceof GrMethod) {
       for (GrParameter parameter : ((GrMethod)parent).getParameters()) {
-        String parameterName = parameter.getName();
         if (myPolicy.isVariableInitialized(parameter)) {
           addNode(new ReadWriteVariableInstruction(createDescriptor(parameter), parameter, ReadWriteVariableInstruction.WRITE));
         }
@@ -167,17 +166,7 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
     checkPending(end); //collect return edges
 
 
-    return assertValidPsi(myInstructions.toArray(Instruction.EMPTY_ARRAY));
-  }
-
-  public static Instruction[] assertValidPsi(Instruction[] instructions) {
-    /*for (Instruction instruction : instructions) {
-      PsiElement element = instruction.getElement();
-      if (element != null && !element.isValid()) {
-        throw new AssertionError("invalid element in dfa: " + element);
-      }
-    }*/
-    return instructions;
+    return myInstructions.toArray(Instruction.EMPTY_ARRAY);
   }
 
   private void addControlFlowInstructions(final GrStatementOwner owner) {
@@ -197,7 +186,6 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
 
   private void addFunctionalExpressionParameters(GrFunctionalExpression expression) {
     for (GrParameter parameter : expression.getAllParameters()) {
-      String parameterName = parameter.getName();
       if (myPolicy.isVariableInitialized(parameter)) {
         addNode(new ReadWriteVariableInstruction(createDescriptor(parameter), parameter, ReadWriteVariableInstruction.WRITE));
       }
@@ -251,7 +239,7 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
     addReadFromNestedControlFlow(closure, reads);
   }
 
-  private void addReadFromNestedControlFlow(@NotNull PsiElement anchor, @NotNull ReadWriteVariableInstruction[] reads) {
+  private void addReadFromNestedControlFlow(@NotNull PsiElement anchor, ReadWriteVariableInstruction @NotNull [] reads) {
     for (ReadWriteVariableInstruction read : reads) {
       PsiElement element = read.getElement();
       if (!(element instanceof GrReferenceExpression) || myPolicy.isReferenceAccepted((GrReferenceExpression)element)) {
@@ -1027,6 +1015,7 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
 
     //infer 'may be return' position
     int i;
+    //noinspection StatementWithEmptyBody
     for (i = statements.length - 1; i >= 0 && statements[i] instanceof GrBreakStatement; i--) {
     }
 
@@ -1158,13 +1147,13 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
     error("broken control flow for a scope");
   }
 
-  private void error(@NotNull String descr) {
+  private void error(@NonNls @NotNull String descr) {
     PsiFile file = myScope.getContainingFile();
     String fileText = file != null ? file.getText() : null;
     VirtualFile virtualFile = PsiUtilCore.getVirtualFile(file);
     String path = virtualFile == null ? null : virtualFile.getPresentableUrl();
 
-    LOG.error(descr+ myScope.getText(), new Attachment(path+"", fileText+""));
+    LOG.error(descr + myScope.getText(), new Attachment(String.valueOf(path), String.valueOf(fileText)));
   }
 
   private AfterCallInstruction addCallNode(InstructionImpl finallyInstruction, GroovyPsiElement scopeWhenAdded, InstructionImpl src) {
@@ -1241,7 +1230,7 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
       public void visitField(@NotNull GrField field) {
         GrExpression initializer = field.getInitializerGroovy();
         if (initializer != null) {
-          Instruction[] flow = new ControlFlowBuilder(field.getProject()).buildControlFlow(initializer);
+          Instruction[] flow = new ControlFlowBuilder().buildControlFlow(initializer);
           collectVars(flow);
         }
       }
@@ -1288,7 +1277,7 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
     super.visitElement(element);
   }
 
-  private static class ExceptionInfo {
+  private static final class ExceptionInfo {
     final GrCatchClause myClause;
 
     /**

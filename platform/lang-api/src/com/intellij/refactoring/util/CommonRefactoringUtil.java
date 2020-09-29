@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.util;
 
 import com.intellij.codeInsight.hint.HintManager;
@@ -6,6 +6,7 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.ReadonlyStatusHandler;
 import com.intellij.openapi.vfs.VfsUtilCore;
@@ -20,7 +21,7 @@ import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.usageView.UsageInfo;
 import com.intellij.util.containers.ContainerUtil;
 import gnu.trove.THashSet;
-import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,13 +29,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static com.intellij.openapi.util.NlsContexts.DialogMessage;
+import static com.intellij.openapi.util.NlsContexts.DialogTitle;
+
 /**
  * @author ven
  */
-public class CommonRefactoringUtil {
+public final class CommonRefactoringUtil {
   private CommonRefactoringUtil() { }
 
-  public static void showErrorMessage(String title, String message, @Nullable String helpId, @NotNull Project project) {
+  public static void showErrorMessage(@DialogTitle String title,
+                                      @DialogMessage String message,
+                                      @NonNls @Nullable String helpId,
+                                      @NotNull Project project) {
     if (ApplicationManager.getApplication().isUnitTestMode()) throw new RuntimeException(message);
     RefactoringMessageDialog dialog = new RefactoringMessageDialog(title, message, helpId, "OptionPane.errorIcon", false, project);
     dialog.show();
@@ -62,10 +69,12 @@ public class CommonRefactoringUtil {
 
   public static void showErrorHint(@NotNull Project project,
                                    @Nullable Editor editor,
-                                   @NotNull @Nls String message,
-                                   @NotNull @Nls String title,
+                                   @NotNull @DialogMessage String message,
+                                   @NotNull @DialogTitle String title,
                                    @Nullable String helpId) {
-    if (ApplicationManager.getApplication().isUnitTestMode()) throw new RefactoringErrorHintException(message);
+    if (ApplicationManager.getApplication().isUnitTestMode()) {
+      throw new RefactoringErrorHintException(message);
+    }
 
     ApplicationManager.getApplication().invokeLater(() -> {
       if (editor == null || editor.getComponent().getRootPane() == null) {
@@ -90,7 +99,7 @@ public class CommonRefactoringUtil {
     return checkReadOnlyStatus(element, project, RefactoringBundle.message("refactoring.cannot.be.performed"));
   }
 
-  public static boolean checkReadOnlyStatus(@NotNull Project project, @NotNull PsiElement... elements) {
+  public static boolean checkReadOnlyStatus(@NotNull Project project, PsiElement @NotNull ... elements) {
     return checkReadOnlyStatus(project, Collections.emptySet(), Arrays.asList(elements), RefactoringBundle.message("refactoring.cannot.be.performed"), true);
   }
 
@@ -132,7 +141,7 @@ public class CommonRefactoringUtil {
     ContainerUtil.addAll(failed, status.getReadonlyFiles());
 
     if (notifyOnFail && (!failed.isEmpty() || seenNonWritablePsiFilesWithoutVirtualFile && readonly.isEmpty())) {
-      StringBuilder message = new StringBuilder(messagePrefix).append('\n');
+      @NlsSafe StringBuilder message = new StringBuilder(messagePrefix).append('\n');
       int i = 0;
       for (VirtualFile virtualFile : failed) {
         String subj = RefactoringBundle.message(virtualFile.isDirectory() ? "directory.description" : "file.description", virtualFile.getPresentableUrl());
@@ -231,6 +240,10 @@ public class CommonRefactoringUtil {
     });
   }
 
+  /**
+   * @deprecated use {@link StringUtil#capitalize(String)}
+   */
+  @Deprecated
   public static String capitalize(@NotNull String text) {
     return StringUtil.capitalize(text);
   }

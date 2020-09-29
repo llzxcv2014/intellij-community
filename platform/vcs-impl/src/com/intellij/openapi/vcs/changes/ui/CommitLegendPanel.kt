@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.openapi.vcs.changes.ui
 
@@ -7,10 +7,13 @@ import com.intellij.openapi.vcs.VcsBundle.message
 import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.SimpleTextAttributes
+import org.jetbrains.annotations.Nls
 import kotlin.math.max
 import kotlin.properties.Delegates.observable
 
 private val FileStatus.attributes get() = SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, JBColor { color })
+
+private fun Int.formatInt(): String = "%,d".format(this) // NON-NLS
 
 open class CommitLegendPanel(private val myInfoCalculator: InfoCalculator) {
   private val myRootPanel = SimpleColoredComponent()
@@ -40,7 +43,7 @@ open class CommitLegendPanel(private val myInfoCalculator: InfoCalculator) {
       if (!isPanelEmpty) {
         appendSpace()
       }
-      myRootPanel.append(format(included, label, compactLabel), fileStatus.attributes)
+      myRootPanel.append(format(included.formatInt(), label, compactLabel), fileStatus.attributes)
     }
   }
 
@@ -49,7 +52,7 @@ open class CommitLegendPanel(private val myInfoCalculator: InfoCalculator) {
       if (!isPanelEmpty) {
         appendSpace()
       }
-      val value = if (new > 0 && unversioned > 0) "$new+$unversioned" else "${max(new, unversioned)}"
+      val value = if (new > 0 && unversioned > 0) "${new.formatInt()}+${unversioned.formatInt()}" else max(new, unversioned).formatInt()
       myRootPanel.append(format(value, message("commit.legend.new"), "+"), FileStatus.ADDED.attributes)
     }
   }
@@ -58,6 +61,7 @@ open class CommitLegendPanel(private val myInfoCalculator: InfoCalculator) {
     myRootPanel.append("   ")
   }
 
+  @Nls
   private fun format(value: Any, label: String, compactLabel: String?): String =
     if (isCompact && compactLabel != null) "$compactLabel$value" else "$value $label"
 

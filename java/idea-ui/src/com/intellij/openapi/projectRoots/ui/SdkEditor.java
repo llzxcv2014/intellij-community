@@ -1,8 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.projectRoots.ui;
 
-import com.google.common.collect.Lists;
-import com.intellij.ide.plugins.newui.OneLineProgressIndicator;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.ide.plugins.newui.TwoLineProgressIndicator;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.SdkEditorAdditionalOptionsProvider;
@@ -17,19 +16,24 @@ import com.intellij.openapi.projectRoots.impl.ProjectJdkImpl;
 import com.intellij.openapi.projectRoots.impl.SdkConfigurationUtil;
 import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.ui.OrderRootTypeUIFactory;
+import com.intellij.openapi.roots.ui.configuration.SdkPopupFactory;
+import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.SdkDownloadTracker;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.util.ActionCallback;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.impl.status.InlineProgressIndicator;
 import com.intellij.ui.TabbedPaneWrapper;
 import com.intellij.ui.navigation.History;
 import com.intellij.ui.navigation.Place;
+import com.intellij.util.Consumer;
 import com.intellij.util.ObjectUtils;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
@@ -64,7 +68,7 @@ public class SdkEditor implements Configurable, Place.Navigator {
   private JPanel myMainPanel;
   private TabbedPaneWrapper myTabbedPane;
   private final Project myProject;
-  private final SdkModel mySdkModel;
+  private final ProjectSdksModel mySdkModel;
   private JLabel myHomeFieldLabel;
   private String myVersionString;
 
@@ -76,12 +80,12 @@ public class SdkEditor implements Configurable, Place.Navigator {
   private final Disposable myDisposable = Disposer.newDisposable();
 
   private boolean myIsDisposed = false;
-  private final Runnable myResetCallback = () -> {
+  private final Consumer<Boolean> myResetCallback = __ -> {
     if (!myIsDisposed) reset();
   };
 
   public SdkEditor(@NotNull Project project,
-                   @NotNull SdkModel sdkModel,
+                   @NotNull ProjectSdksModel sdkModel,
                    @NotNull History history,
                    @NotNull ProjectJdkImpl sdk) {
     myProject = project;
@@ -99,7 +103,7 @@ public class SdkEditor implements Configurable, Place.Navigator {
 
   @Override
   public String getDisplayName() {
-    return ProjectBundle.message("sdk.configure.editor.title");
+    return JavaUiBundle.message("sdk.configure.editor.title");
   }
 
   @Override
@@ -132,6 +136,7 @@ public class SdkEditor implements Configurable, Place.Navigator {
     myHomeComponent = createHomeComponent();
     myHomeComponent.getTextField().setEditable(false);
     myHomeFieldLabel = new JLabel(getHomeFieldLabelValue());
+    myHomeFieldLabel.setLabelFor(myHomeComponent.getTextField());
     myMainPanel.add(myHomeFieldLabel, new GridBagConstraints(
       0, GridBagConstraints.RELATIVE, 1, 1, 0.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.NONE, JBUI.insets(2, 10, 2, 2), 0, 0));
     myMainPanel.add(myHomeComponent, new GridBagConstraints(
@@ -146,10 +151,10 @@ public class SdkEditor implements Configurable, Place.Navigator {
 
     myDownloadingPanel = new JPanel(new BorderLayout());
     //myDownloadingPanel.add(new JBLabel("Downloading JDK..."), BorderLayout.NORTH);
-    myDownloadProgressIndicator = new TwoLineProgressIndicator(false);
+    myDownloadProgressIndicator = new TwoLineProgressIndicator(true);
     myDownloadProgressIndicator.setIndeterminate(true);
     myDownloadingPanel.add(myDownloadProgressIndicator.getComponent(), BorderLayout.NORTH);
-    myDownloadProgressIndicator.getComponent().setMaximumSize(JBUI.size(200, 200));
+    myDownloadProgressIndicator.getComponent().setMaximumSize(JBUI.size(300, 200));
 
     myMainPanel.add(myDownloadingPanel, new GridBagConstraints(
       0, GridBagConstraints.RELATIVE, 2, 1, 0, 1.0, GridBagConstraints.SOUTH, GridBagConstraints.BOTH, JBUI.insets(8, 10, 0, 10), 0, 0));
@@ -163,17 +168,17 @@ public class SdkEditor implements Configurable, Place.Navigator {
     return ((SdkType)mySdk.getSdkType()).isRootTypeApplicable(type);
   }
 
-  private String getHomeFieldLabelValue() {
+  private @NlsContexts.Label String getHomeFieldLabelValue() {
     return ((SdkType)mySdk.getSdkType()).getHomeFieldLabel();
   }
 
   @Override
   public boolean isModified() {
-    boolean isModified = !Comparing.equal(mySdk.getName(), myInitialName);
+    boolean isModified = !Objects.equals(mySdk.getName(), myInitialName);
     if (myIsDownloading) return isModified;
 
     isModified =
-      isModified || !Comparing.equal(FileUtil.toSystemIndependentName(getHomeValue()), FileUtil.toSystemIndependentName(myInitialPath));
+      isModified || !Objects.equals(FileUtil.toSystemIndependentName(getHomeValue()), FileUtil.toSystemIndependentName(myInitialPath));
     for (PathEditor pathEditor : myPathEditors.values()) {
       isModified = isModified || pathEditor.isModified();
     }
@@ -187,7 +192,7 @@ public class SdkEditor implements Configurable, Place.Navigator {
   public void apply() throws ConfigurationException {
     if (myIsDownloading) return;
 
-    if (!Comparing.equal(myInitialName, mySdk.getName())) {
+    if (!Objects.equals(myInitialName, mySdk.getName())) {
       if (mySdk.getName().isEmpty()) {
         throw new ConfigurationException(ProjectBundle.message("sdk.list.name.required.error"));
       }
@@ -264,7 +269,7 @@ public class SdkEditor implements Configurable, Place.Navigator {
     }
   }
 
-  private void setHomePathValue(String absolutePath) {
+  private void setHomePathValue(@NlsSafe String absolutePath) {
     myHomeComponent.setText(absolutePath);
     final Color fg;
     if (absolutePath != null && !absolutePath.isEmpty() && mySdk.getSdkType().isLocalSdk(mySdk)) {
@@ -282,7 +287,35 @@ public class SdkEditor implements Configurable, Place.Navigator {
 
   private void doSelectHomePath() {
     final SdkType sdkType = (SdkType)mySdk.getSdkType();
-    SdkConfigurationUtil.selectSdkHome(sdkType, path -> doSetHomePath(path, sdkType));
+
+    //handle tests behaviour
+    if (SdkConfigurationUtil.selectSdkHomeForTests(sdkType, path -> doSetHomePath(path, sdkType))) {
+      return;
+    }
+
+    SdkPopupFactory
+      .newBuilder()
+      .withSdkType(sdkType)
+      .onSdkSelected(sdk -> {
+        SdkDownloadTracker tracker = SdkDownloadTracker.getInstance();
+        if (tracker.isDownloading(sdk)) {
+          //make sure the current SDK is registered as downloading one
+          tracker.registerEditableSdk(sdk, mySdk);
+
+          //we need to bind with the original Sdk too
+          var originalSdkEntry = ContainerUtil.find(mySdkModel.getProjectSdks().entrySet(), p -> p.getValue().equals(mySdk));
+          if (originalSdkEntry != null) {
+            tracker.registerEditableSdk(sdk, originalSdkEntry.getKey());
+          }
+
+          //reset the view to make it bind to the downloading JDK
+          reset();
+        } else {
+          doSetHomePath(sdk.getHomePath(), sdkType);
+        }
+      })
+      .buildPopup()
+      .showUnderneathToTheRightOf(myHomeComponent);
   }
 
   private void doSetHomePath(final String homePath, final SdkType sdkType) {
@@ -290,9 +323,6 @@ public class SdkEditor implements Configurable, Place.Navigator {
       return;
     }
     setHomePathValue(homePath.replace('/', File.separatorChar));
-
-    final String newSdkName = suggestSdkName(homePath);
-    ((ProjectJdkImpl)mySdk).setName(newSdkName);
 
     try {
       final Sdk dummySdk = (Sdk)mySdk.clone();
@@ -320,23 +350,6 @@ public class SdkEditor implements Configurable, Place.Navigator {
     catch (CloneNotSupportedException e) {
       LOG.error(e); // should not happen in normal program
     }
-  }
-
-  private String suggestSdkName(final String homePath) {
-    final String currentName = mySdk.getName();
-    final String suggestedName = ((SdkType)mySdk.getSdkType()).suggestSdkName(currentName, homePath);
-    if (Comparing.equal(currentName, suggestedName)) return currentName;
-    String newSdkName = suggestedName;
-    final Set<String> allNames = new HashSet<>();
-    Sdk[] sdks = mySdkModel.getSdks();
-    for (Sdk sdk : sdks) {
-      allNames.add(sdk.getName());
-    }
-    int i = 0;
-    while (allNames.contains(newSdkName)) {
-      newSdkName = suggestedName + " (" + ++i + ")";
-    }
-    return newSdkName;
   }
 
   private void updateAdditionalDataComponent() {
@@ -373,7 +386,7 @@ public class SdkEditor implements Configurable, Place.Navigator {
     final SdkType sdkType = (SdkType)sdk.getSdkType();
     List<AdditionalDataConfigurable> configurables = myAdditionalDataConfigurables.get(sdkType);
     if (configurables == null) {
-      configurables = Lists.newArrayList();
+      configurables = new ArrayList<>();
       myAdditionalDataConfigurables.put(sdkType, configurables);
 
 
@@ -435,9 +448,8 @@ public class SdkEditor implements Configurable, Place.Navigator {
       throw new UnsupportedOperationException(); // not supported for this editor
     }
 
-    @NotNull
     @Override
-    public VirtualFile[] getRoots(@NotNull OrderRootType rootType) {
+    public VirtualFile @NotNull [] getRoots(@NotNull OrderRootType rootType) {
       final PathEditor editor = myPathEditors.get(rootType);
       if (editor == null) throw new IllegalStateException("no editor for root type " + rootType);
       return editor.getRoots();

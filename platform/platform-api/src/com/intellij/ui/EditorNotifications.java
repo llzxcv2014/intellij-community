@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
+import com.intellij.ide.lightEdit.LightEditService;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
@@ -13,6 +14,24 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 
 public abstract class EditorNotifications {
+  private static final EditorNotifications NULL_IMPL = new EditorNotifications() {
+    @Override
+    public void updateNotifications(@NotNull VirtualFile file) {
+    }
+
+    @Override
+    public void updateNotifications(@NotNull Provider<?> provider) {
+    }
+
+    @Override
+    public void updateAllNotifications() {
+    }
+
+    @Override
+    public void logNotificationActionInvocation(@Nullable Key<?> providerKey, @Nullable Class<?> runnableClass) {
+    }
+  };
+
   /**
    * An extension allowing to add custom notifications to the top of file editors.
    *
@@ -39,21 +58,27 @@ public abstract class EditorNotifications {
     }
   }
 
-  public static EditorNotifications getInstance(Project project) {
-    return project.getComponent(EditorNotifications.class);
+  public static @NotNull EditorNotifications getInstance(@NotNull Project project) {
+    return project.isDefault() ? NULL_IMPL : project.getService(EditorNotifications.class);
   }
 
   public abstract void updateNotifications(@NotNull VirtualFile file);
 
+  public abstract void updateNotifications(@NotNull Provider<?> provider);
+
   public abstract void updateAllNotifications();
 
   @ApiStatus.Internal
-  public abstract void logNotificationActionInvocation(Key<?> providerKey, Class<?> runnableClass);
+  public abstract void logNotificationActionInvocation(@Nullable Key<?> providerKey, @Nullable Class<?> runnableClass);
 
   public static void updateAll() {
     Project[] projects = ProjectManager.getInstance().getOpenProjects();
     for (Project project : projects) {
       getInstance(project).updateAllNotifications();
+    }
+    Project lightEditProject = LightEditService.getInstance().getProject();
+    if (lightEditProject != null) {
+      getInstance(lightEditProject).updateAllNotifications();
     }
   }
 }

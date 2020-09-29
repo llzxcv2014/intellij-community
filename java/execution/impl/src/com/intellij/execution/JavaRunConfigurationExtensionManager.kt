@@ -2,16 +2,18 @@
 package com.intellij.execution
 
 import com.intellij.execution.configuration.RunConfigurationExtensionsManager
+import com.intellij.execution.configurations.JavaParameters
 import com.intellij.execution.configurations.RunConfigurationBase
+import com.intellij.execution.configurations.RunnerSettings
 import com.intellij.openapi.components.service
 import com.intellij.openapi.components.serviceOrNull
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.diagnostic.runAndLogException
 
-private val LOG = logger<RunConfigurationExtension>()
 
 class JavaRunConfigurationExtensionManager : RunConfigurationExtensionsManager<RunConfigurationBase<*>, RunConfigurationExtension>(RunConfigurationExtension.EP_NAME) {
   companion object {
+    private val LOG = logger<RunConfigurationExtension>()
     @JvmStatic
     val instance: JavaRunConfigurationExtensionManager
       get() = service()
@@ -25,6 +27,18 @@ class JavaRunConfigurationExtensionManager : RunConfigurationExtensionsManager<R
       LOG.runAndLogException {
         instance.validateConfiguration(configuration, false)
       }
+    }
+  }
+
+
+  @Throws(ExecutionException::class)
+  fun <T : RunConfigurationBase<*>> updateJavaParameters(configuration: T,
+                                                         params: JavaParameters,
+                                                         runnerSettings: RunnerSettings?,
+                                                         executor: Executor) {
+    // only for enabled extensions
+    processEnabledExtensions(configuration, runnerSettings) {
+      it.updateJavaParameters(configuration, params, runnerSettings, executor)
     }
   }
 

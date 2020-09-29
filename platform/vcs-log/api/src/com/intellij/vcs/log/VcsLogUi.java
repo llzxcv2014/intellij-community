@@ -15,11 +15,14 @@
  */
 package com.intellij.vcs.log;
 
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 public interface VcsLogUi {
 
   @NotNull
+  @NonNls
   String getId();
 
   @NotNull
@@ -32,5 +35,12 @@ public interface VcsLogUi {
 
   void removeLogListener(@NotNull VcsLogListener listener);
 
-  boolean isHighlighterEnabled(@NotNull String id);
+  /**
+   * @deprecated highlighter state is checked by the {@link VcsLogUi} implementation, and does not need to be checked by the plugins
+   */
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2021.1")
+  default boolean isHighlighterEnabled(@NotNull String id) {
+    return true;
+  }
 }

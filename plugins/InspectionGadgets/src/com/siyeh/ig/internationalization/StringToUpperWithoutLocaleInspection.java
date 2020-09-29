@@ -47,28 +47,19 @@ public class StringToUpperWithoutLocaleInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "string.touppercase.tolowercase.without.locale.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message(
       "string.touppercase.tolowercase.without.locale.problem.descriptor");
   }
 
-  @NotNull
   @Override
-  protected InspectionGadgetsFix[] buildFixes(Object... infos) {
+  protected InspectionGadgetsFix @NotNull [] buildFixes(Object... infos) {
     final PsiReferenceExpression methodExpression = (PsiReferenceExpression)infos[0];
     List<InspectionGadgetsFix> fixes = new ArrayList<>(2);
     final PsiModifierListOwner annotatableQualifier = NonNlsUtils.getAnnotatableQualifier(methodExpression);
     fixes.add(new AddArgumentFix("java.util.Locale.ENGLISH", "Locale.ENGLISH"));
     if (annotatableQualifier != null) {
-      fixes.add(new DelegatingFix(new AddAnnotationPsiFix(
-        AnnotationUtil.NON_NLS, annotatableQualifier,PsiNameValuePair.EMPTY_ARRAY)));
+      fixes.add(new DelegatingFix(new AddAnnotationPsiFix(AnnotationUtil.NON_NLS, annotatableQualifier)));
     }
     return fixes.toArray(InspectionGadgetsFix.EMPTY_ARRAY);
   }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.ref;
 
 import com.intellij.openapi.util.LowMemoryWatcher;
@@ -10,21 +10,22 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.TestOnly;
 
-import java.io.File;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
 
 /**
  * A utility to garbage-collect specified objects in tests. Create a GCWatcher using {@link #tracking} or {@link #fromClearedRef}
- * and then call {@link #tryGc()}. Please ensure that your test doesn't hold references to objects passed to {@link #tracking},
- * so, if you pass fields or local variables there, nullify them before calling {@link #tryGc()}.
+ * and then call {@link #ensureCollected()}. Please ensure that your test doesn't hold references to objects passed to {@link #tracking},
+ * so, if you pass fields or local variables there, nullify them before calling {@link #ensureCollected()}.
  *
  */
-public class GCWatcher {
+public final class GCWatcher {
   private final ReferenceQueue<Object> myQueue = new ReferenceQueue<>();
   private final Set<Reference<?>> myReferences = ContainerUtil.newConcurrentSet();
 
@@ -68,10 +69,10 @@ public class GCWatcher {
     }
   }
 
-  public boolean tryCollect() {
+  public boolean tryCollect(int timeoutMs) {
     return LowMemoryWatcher.runWithNotificationsSuppressed(() -> {
       long startTime = System.currentTimeMillis();
-      GCUtil.allocateTonsOfMemory(new StringBuilder(), () -> isEverythingCollected() || System.currentTimeMillis() - startTime > 5000);
+      GCUtil.allocateTonsOfMemory(new StringBuilder(), () -> isEverythingCollected() || System.currentTimeMillis() - startTime > timeoutMs);
       return isEverythingCollected();
     });
   }
@@ -81,28 +82,29 @@ public class GCWatcher {
    * this method gives up after some time.
    */
   @TestOnly
-  public void tryGc() {
+  public void ensureCollected() {
     StringBuilder log = new StringBuilder();
-    if (!GCUtil.allocateTonsOfMemory(log, this::isEverythingCollected)) {
-      String message = "Couldn't garbage-collect some objects, they might still be reachable from GC roots: " +
-                       ContainerUtil.mapNotNull(myReferences, SoftReference::dereference);
-
-      try {
-        File file = new File(System.getProperty("teamcity.build.tempDir", System.getProperty("java.io.tmpdir")), "GCWatcher.hprof.zip");
-        MemoryDumpHelper.captureMemoryDumpZipped(file);
-
-        //noinspection UseOfSystemOutOrSystemErr
-        System.out.println("##teamcity[publishArtifacts '" + file.getPath() + "']");
-      }
-      catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-      if (isEverythingCollected()) {
-        message += "\nEverything is collected after taking the heap dump.";
-      }
-      message += "Log:\n" + log;
-      throw new IllegalStateException(message);
+    if (GCUtil.allocateTonsOfMemory(log, this::isEverythingCollected)) {
+      return;
     }
-  }
 
+    String message = "Couldn't garbage-collect some objects, they might still be reachable from GC roots: " +
+                     ContainerUtil.mapNotNull(myReferences, SoftReference::dereference);
+
+    try {
+      Path file = Paths.get(System.getProperty("teamcity.build.tempDir", System.getProperty("java.io.tmpdir")), "GCWatcher.hprof.zip");
+      MemoryDumpHelper.captureMemoryDumpZipped(file);
+
+      //noinspection UseOfSystemOutOrSystemErr
+      System.out.println("##teamcity[publishArtifacts '" + file + "']");
+    }
+    catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    if (isEverythingCollected()) {
+      message += "\nEverything is collected after taking the heap dump.";
+    }
+    message += "Log:\n" + log;
+    throw new IllegalStateException(message);
+  }
 }

@@ -15,18 +15,21 @@
  */
 package com.intellij.diff.tools.util;
 
+import com.intellij.CommonBundle;
 import com.intellij.diff.DiffContext;
 import com.intellij.diff.tools.util.base.DiffPanelBase;
 import com.intellij.diff.util.DiffUtil;
 import com.intellij.openapi.actionSystem.DataProvider;
 import com.intellij.util.ui.JBUI;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 
 public class SimpleDiffPanel extends DiffPanelBase {
-  private static final String GOOD_CONTENT = "GoodContent";
-  private static final String ERROR_CONTENT = "ErrorContent";
+  private static final @NonNls String GOOD_CONTENT = "GoodContent";
+  private static final @NonNls String ERROR_CONTENT = "ErrorContent";
 
   public SimpleDiffPanel(@NotNull JComponent editorPanel,
                          @NotNull DataProvider dataProvider,
@@ -48,10 +51,10 @@ public class SimpleDiffPanel extends DiffPanelBase {
   }
 
   public void setErrorContent() {
-    setErrorContent("Error");
+    setErrorContent(CommonBundle.message("title.error"));
   }
 
-  public void setErrorContent(@NotNull String message) {
+  public void setErrorContent(@NotNull @Nls String message) {
     myContentPanel.add(DiffUtil.createMessagePanel(message), ERROR_CONTENT);
     setCurrentCard(ERROR_CONTENT);
   }

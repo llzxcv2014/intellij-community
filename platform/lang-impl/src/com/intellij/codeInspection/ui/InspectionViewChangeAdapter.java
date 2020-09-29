@@ -1,6 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.ui;
 
 import com.intellij.codeInspection.reference.RefElement;
@@ -105,7 +103,7 @@ class InspectionViewChangeAdapter extends PsiTreeChangeAdapter {
     myUpdateQueue.cancelAllRequests();
     myUpdateQueue.addRequest(() -> {
       boolean[] needUpdateUI = {false};
-      Processor<InspectionTreeNode> nodeProcessor = null;
+      Processor<? super InspectionTreeNode> nodeProcessor = null;
 
       if (myNeedReValidate.compareAndSet(true, false)) {
         nodeProcessor = (node) -> {
@@ -181,7 +179,7 @@ class InspectionViewChangeAdapter extends PsiTreeChangeAdapter {
     }, 200);
   }
 
-  private static class CompositeProcessor<X> implements Processor<X> {
+  private static final class CompositeProcessor<X> implements Processor<X> {
     private final Processor<? super X> myFirstProcessor;
     private boolean myFirstFinished;
     private final Processor<? super X> mySecondProcessor;
@@ -204,7 +202,7 @@ class InspectionViewChangeAdapter extends PsiTreeChangeAdapter {
     }
 
     @NotNull
-    public static <X> Processor<X> combine(@NotNull Processor<X> processor1, @Nullable Processor<? super X> processor2) {
+    public static <X> Processor<? super X> combine(@NotNull Processor<? super X> processor1, @Nullable Processor<? super X> processor2) {
       return processor2 == null ? processor1 : new CompositeProcessor<>(processor1, processor2);
     }
   }

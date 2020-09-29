@@ -1,29 +1,25 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.diff.merge;
 
+import com.intellij.CommonBundle;
+import com.intellij.DynamicBundle;
 import com.intellij.configurationStore.StoreReloadManager;
 import com.intellij.diff.DiffContext;
-import com.intellij.diff.contents.DiffContent;
 import com.intellij.diff.merge.MergeTool.MergeViewer;
-import com.intellij.diff.requests.ContentDiffRequest;
-import com.intellij.diff.requests.DiffRequest;
 import com.intellij.diff.util.DiffUserDataKeysEx;
 import com.intellij.diff.util.DiffUtil;
 import com.intellij.diff.util.ThreeSide;
 import com.intellij.openapi.diff.DiffBundle;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.ui.MessageDialogBuilder;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Couple;
 import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vcs.FilePath;
-import com.intellij.openapi.vcs.history.VcsRevisionNumber;
-import com.intellij.openapi.vcs.merge.MergeData;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.projectImport.ProjectOpenProcessor;
 import com.intellij.util.Function;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,11 +27,10 @@ import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 import static com.intellij.openapi.project.ProjectUtil.isProjectOrWorkspaceFile;
 
-public class MergeUtil {
+public final class MergeUtil {
   @NotNull
   public static Action createSimpleResolveAction(@NotNull MergeResult result,
                                                  @NotNull MergeRequest request,
@@ -54,21 +49,22 @@ public class MergeUtil {
     };
   }
 
+  @Nls
   @NotNull
   public static String getResolveActionTitle(@NotNull MergeResult result, @Nullable MergeRequest request, @Nullable MergeContext context) {
-    Function<MergeResult, String> getter = DiffUtil.getUserData(request, context, DiffUserDataKeysEx.MERGE_ACTION_CAPTIONS);
+    Function<MergeResult, @Nls String> getter = DiffUtil.getUserData(request, context, DiffUserDataKeysEx.MERGE_ACTION_CAPTIONS);
     String message = getter != null ? getter.fun(result) : null;
     if (message != null) return message;
 
     switch (result) {
       case CANCEL:
-        return "Cancel";
+        return DiffBundle.message("button.merge.resolve.cancel");
       case LEFT:
-        return "Accept Left";
+        return DiffBundle.message("button.merge.resolve.accept.left");
       case RIGHT:
-        return "Accept Right";
+        return DiffBundle.message("button.merge.resolve.accept.right");
       case RESOLVED:
-        return "Apply";
+        return DiffBundle.message("button.merge.resolve.apply");
       default:
         throw new IllegalArgumentException(result.toString());
     }
@@ -137,60 +133,40 @@ public class MergeUtil {
   public static boolean showExitWithoutApplyingChangesDialog(@NotNull JComponent component,
                                                              @NotNull MergeRequest request,
                                                              @NotNull MergeContext context) {
-    Couple<String> customMessage = DiffUtil.getUserData(request, context, DiffUserDataKeysEx.MERGE_CANCEL_MESSAGE);
+    Couple<@Nls String> customMessage = DiffUtil.getUserData(request, context, DiffUserDataKeysEx.MERGE_CANCEL_MESSAGE);
     if (customMessage != null) {
       String title = customMessage.first;
       String message = customMessage.second;
-      return Messages.showConfirmationDialog(component, message, title, "Yes", "No") == Messages.YES;
+      return MessageDialogBuilder.yesNo(title, message).ask(component);
     }
 
-    return showConfirmDiscardChangesDialog(component, "Cancel Merge", true);
+    return showConfirmDiscardChangesDialog(component, DiffBundle.message("button.cancel.merge"), true);
   }
 
   public static boolean showConfirmDiscardChangesDialog(@NotNull JComponent parent,
-                                                        @NotNull String actionName,
+                                                        @NotNull @Nls String actionName,
                                                         boolean contentWasModified) {
-    if (!contentWasModified) return true;
-    String message = "There are unsaved changes in the result file. Discard changes and " + actionName.toLowerCase(Locale.ENGLISH) + " anyway?";
-    String yesText = "Discard Changes and " + actionName;
-    String noText = "Continue Merge";
-
-    return Messages.showConfirmationDialog(parent, message, actionName, yesText, noText) == Messages.YES;
+    if (!contentWasModified) {
+      return true;
+    }
+    return MessageDialogBuilder
+      .yesNo(actionName, DiffBundle.message("label.merge.unsaved.changes.discard.and.do.anyway",
+                                            actionName.toLowerCase(DynamicBundle.getLocale())))
+      .yesText(DiffBundle.message("button.discard.changes.and.do", actionName))
+      .noText(DiffBundle.message("button.continue.merge"))
+      .ask(parent);
   }
 
   public static boolean shouldRestoreOriginalContentOnCancel(@NotNull MergeRequest request) {
     MergeCallback callback = MergeCallback.getCallback(request);
-    if (callback.checkIsValid()) return true;
-    return Messages.showYesNoDialog("Merge conflict is outdated. Restore file content prior to conflict resolve start?",
-                                    DiffBundle.message("cancel.visual.merge.dialog.title"), "Restore", "Do nothing",
-                                    Messages.getQuestionIcon()) == Messages.YES;
-  }
-
-  public static void putRevisionInfos(@NotNull MergeRequest request, @NotNull MergeData data) {
-    if (request instanceof ThreesideMergeRequest) {
-      List<? extends DiffContent> contents = ((ThreesideMergeRequest)request).getContents();
-      putRevisionInfo(contents, data);
+    if (callback.checkIsValid()) {
+      return true;
     }
-  }
-
-  public static void putRevisionInfos(@NotNull DiffRequest request, @NotNull MergeData data) {
-    if (request instanceof ContentDiffRequest) {
-      List<? extends DiffContent> contents = ((ContentDiffRequest)request).getContents();
-      if (contents.size() == 3) {
-        putRevisionInfo(contents, data);
-      }
-    }
-  }
-
-  private static void putRevisionInfo(@NotNull List<? extends DiffContent> contents, @NotNull MergeData data) {
-    for (ThreeSide side : ThreeSide.values()) {
-      DiffContent content = side.select(contents);
-      FilePath filePath = side.select(data.CURRENT_FILE_PATH, data.ORIGINAL_FILE_PATH, data.LAST_FILE_PATH);
-      VcsRevisionNumber revision = side.select(data.CURRENT_REVISION_NUMBER, data.ORIGINAL_REVISION_NUMBER, data.LAST_REVISION_NUMBER);
-      if (filePath != null && revision != null) {
-        content.putUserData(DiffUserDataKeysEx.REVISION_INFO, Pair.create(filePath, revision));
-      }
-    }
+    return MessageDialogBuilder
+             .yesNo(DiffBundle.message("cancel.visual.merge.dialog.title"), DiffBundle.message("merge.conflict.is.outdated"))
+             .yesText(CommonBundle.message("button.without.mnemonic.restore"))
+             .noText(CommonBundle.message("button.without.mnemonic.do.nothing"))
+             .guessWindowAndAsk();
   }
 
   public static void reportProjectFileChangeIfNeeded(@Nullable Project project, @Nullable VirtualFile file) {

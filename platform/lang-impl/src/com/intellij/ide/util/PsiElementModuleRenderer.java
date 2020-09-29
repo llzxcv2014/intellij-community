@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ide.util;
 
@@ -18,6 +18,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.ui.UIUtil;
 import one.util.streamex.StreamEx;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,7 +28,7 @@ import java.io.File;
 import java.util.Set;
 
 public class PsiElementModuleRenderer extends DefaultListCellRenderer{
-  private String myText;
+  private @Nls String myText;
 
   @Override
   public Component getListCellRendererComponent(
@@ -82,7 +83,7 @@ public class PsiElementModuleRenderer extends DefaultListCellRenderer{
       myText = module.getName();
     }
     if (inTestSource) {
-      setIcon(AllIcons.Modules.TestSourceFolder);
+      setIcon(AllIcons.Nodes.TestSourceFolder);
     }
     else {
       setIcon(ModuleType.get(module).getIcon());
@@ -117,6 +118,7 @@ public class PsiElementModuleRenderer extends DefaultListCellRenderer{
     }
   }
 
+  @Nls
   protected String getPresentableName(final OrderEntry order, final VirtualFile vFile) {
     return order.getPresentableName();
   }

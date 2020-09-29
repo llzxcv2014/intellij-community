@@ -1,9 +1,6 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.env;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
@@ -12,6 +9,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ObjectUtils;
+import com.intellij.util.containers.ContainerUtil;
 import com.jetbrains.LoggingRule;
 import com.jetbrains.python.psi.LanguageLevel;
 import com.jetbrains.python.sdk.PythonSdkType;
@@ -23,14 +21,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.net.URL;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-/**
- * @author traff
- */
 public class PyEnvTaskRunner {
   private static final Logger LOG = Logger.getInstance(PyEnvTaskRunner.class);
   private final List<String> myRoots;
@@ -56,15 +48,13 @@ public class PyEnvTaskRunner {
    */
   public void runTask(@NotNull final PyTestTask testTask,
                       @NotNull final String testName,
-                      @Nullable final Class<? extends PythonSdkFlavor>[] skipOnFlavors,
-                      @NotNull final String... tagsRequiredByTest) {
+                      final Class<? extends PythonSdkFlavor> @Nullable [] skipOnFlavors,
+                      final String @NotNull ... tagsRequiredByTest) {
     boolean wasExecuted = false;
 
-    List<String> passedRoots = Lists.newArrayList();
+    List<String> passedRoots = new ArrayList<>();
 
     final Set<String> requiredTags = Sets.union(testTask.getTags(), Sets.newHashSet(tagsRequiredByTest));
-
-    final Set<String> tagsToCover = null;
 
     for (String root : myRoots) {
 
@@ -74,15 +64,6 @@ public class PyEnvTaskRunner {
       if (!suitableForTask || !shouldRun) {
         LOG.warn(String.format("Skipping %s (compatible with tags: %s, should run:%s)", root, suitableForTask, shouldRun));
         continue;
-      }
-
-      if (tagsToCover != null && envTags.size() > 0 && !isNeededToRun(tagsToCover, envTags)) {
-        LOG.warn(String.format("Skipping %s (test already was executed on a similar environment)", root));
-        continue;
-      }
-
-      if (tagsToCover != null) {
-        tagsToCover.removeAll(envTags);
       }
 
       LOG.warn(String.format("Running on root %s", root));
@@ -102,7 +83,7 @@ public class PyEnvTaskRunner {
         final Sdk sdk = getSdk(executable, testTask);
         if (skipOnFlavors != null) {
           final PythonSdkFlavor flavor = PythonSdkFlavor.getFlavor(sdk);
-          if (Arrays.stream(skipOnFlavors).anyMatch((o) -> o.isInstance(flavor))) {
+          if (ContainerUtil.exists(skipOnFlavors, o -> o.isInstance(flavor))) {
             LOG.warn("Skipping flavor " + flavor.toString());
             continue;
           }

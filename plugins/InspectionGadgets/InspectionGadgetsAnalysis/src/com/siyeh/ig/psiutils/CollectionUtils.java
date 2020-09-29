@@ -32,7 +32,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class CollectionUtils {
+public final class CollectionUtils {
   private static final CallMatcher COLLECTION_MAP_SIZE =
     CallMatcher.anyOf(
       CallMatcher.instanceCall(CommonClassNames.JAVA_UTIL_COLLECTION, "size").parameterCount(0),
@@ -57,7 +57,7 @@ public class CollectionUtils {
     new HashMap<>();
 
   static {
-    s_allCollectionClassesAndInterfaces = ContainerUtil.immutableSet(
+    s_allCollectionClassesAndInterfaces = Set.of(
     "java.util.AbstractCollection",
     "java.util.AbstractList",
     "java.util.AbstractMap",
@@ -74,16 +74,16 @@ public class CollectionUtils {
     "java.util.Hashtable",
     "java.util.IdentityHashMap",
     "java.util.LinkedHashMap",
-    "java.util.LinkedHashSet",
-    "java.util.LinkedList",
+    CommonClassNames.JAVA_UTIL_LINKED_HASH_SET,
+    CommonClassNames.JAVA_UTIL_LINKED_LIST,
     CommonClassNames.JAVA_UTIL_LIST,
     CommonClassNames.JAVA_UTIL_MAP,
     "java.util.PriorityQueue",
-    "java.util.Queue",
+    CommonClassNames.JAVA_UTIL_QUEUE,
     CommonClassNames.JAVA_UTIL_SET,
     "java.util.SortedMap",
-    "java.util.SortedSet",
-    "java.util.Stack",
+    CommonClassNames.JAVA_UTIL_SORTED_SET,
+    CommonClassNames.JAVA_UTIL_STACK,
     "java.util.TreeMap",
     "java.util.TreeSet",
     "java.util.Vector",
@@ -144,9 +144,9 @@ public class CollectionUtils {
     s_interfaceForCollection.put("java.util.Hashtable", CommonClassNames.JAVA_UTIL_MAP);
     s_interfaceForCollection.put("java.util.IdentityHashMap", CommonClassNames.JAVA_UTIL_MAP);
     s_interfaceForCollection.put("java.util.LinkedHashMap", CommonClassNames.JAVA_UTIL_MAP);
-    s_interfaceForCollection.put("java.util.LinkedHashSet", CommonClassNames.JAVA_UTIL_SET);
-    s_interfaceForCollection.put("java.util.LinkedList", CommonClassNames.JAVA_UTIL_LIST);
-    s_interfaceForCollection.put("java.util.PriorityQueue", "java.util.Queue");
+    s_interfaceForCollection.put(CommonClassNames.JAVA_UTIL_LINKED_HASH_SET, CommonClassNames.JAVA_UTIL_SET);
+    s_interfaceForCollection.put(CommonClassNames.JAVA_UTIL_LINKED_LIST, CommonClassNames.JAVA_UTIL_LIST);
+    s_interfaceForCollection.put("java.util.PriorityQueue", CommonClassNames.JAVA_UTIL_QUEUE);
     s_interfaceForCollection.put("java.util.TreeMap", CommonClassNames.JAVA_UTIL_MAP);
     s_interfaceForCollection.put("java.util.TreeSet", CommonClassNames.JAVA_UTIL_SET);
     s_interfaceForCollection.put("java.util.Vector", CommonClassNames.JAVA_UTIL_LIST);
@@ -252,7 +252,7 @@ public class CollectionUtils {
   }
 
   public static String getInterfaceForClass(String name) {
-    final int parameterStart = name.indexOf((int)'<');
+    final int parameterStart = name.indexOf('<');
     final String baseName;
     if (parameterStart >= 0) {
       baseName = name.substring(0, parameterStart).trim();

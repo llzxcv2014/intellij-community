@@ -21,6 +21,7 @@ import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.TitledSeparator
 import com.intellij.util.ui.JBUI
+import org.jetbrains.annotations.Nls
 import java.awt.Component
 import javax.swing.JList
 
@@ -28,7 +29,7 @@ import javax.swing.JList
  * @author vlan
  */
 open class PySdkListCellRenderer @JvmOverloads constructor(private val sdkModifiers: Map<Sdk, SdkModificator>?,
-                                                           private val nullSdkName: String = noInterpreterMarker,
+                                                           @Nls private val nullSdkName: String = noInterpreterMarker,
                                                            private val nullSdkValue: Sdk? = null) : ColoredListCellRenderer<Any>() {
 
   override fun getListCellRendererComponent(list: JList<out Any>?, value: Any?, index: Int, selected: Boolean,
@@ -42,6 +43,9 @@ open class PySdkListCellRenderer @JvmOverloads constructor(private val sdkModifi
 
   override fun customizeCellRenderer(list: JList<out Any>, value: Any?, index: Int, selected: Boolean, hasFocus: Boolean) {
     when (value) {
+      is PySdkToInstall -> {
+        value.renderInList(this)
+      }
       is Sdk -> {
         val sdkModificator = sdkModifiers?.get(value)
         appendName(value, name(value, sdkModificator), sdkModificator)

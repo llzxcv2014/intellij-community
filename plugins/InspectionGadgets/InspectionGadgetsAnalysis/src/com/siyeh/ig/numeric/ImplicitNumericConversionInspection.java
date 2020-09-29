@@ -15,8 +15,10 @@
  */
 package com.siyeh.ig.numeric;
 
+import com.intellij.codeInspection.CommonQuickFixBundle;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ui.MultipleCheckboxOptionsPanel;
+import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.tree.IElementType;
@@ -47,12 +49,6 @@ public class ImplicitNumericConversionInspection extends BaseInspection {
 
   @SuppressWarnings({"PublicField"})
   public boolean ignoreConstantConversions = false;
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("implicit.numeric.conversion.display.name");
-  }
 
   @Override
   public JComponent createOptionsPanel() {
@@ -89,12 +85,12 @@ public class ImplicitNumericConversionInspection extends BaseInspection {
 
   private class ImplicitNumericConversionFix extends InspectionGadgetsFix {
 
-    private final String m_name;
+    private final @IntentionName String m_name;
 
     ImplicitNumericConversionFix(PsiExpression expression, PsiType expectedType) {
       final String convertedExpression = convertExpression(expression, expectedType);
       if (convertedExpression != null) {
-        m_name = InspectionGadgetsBundle.message("implicit.numeric.conversion.convert.quickfix", convertedExpression);
+        m_name = CommonQuickFixBundle.message("fix.convert.to.x", convertedExpression);
       }
       else {
         m_name = InspectionGadgetsBundle.message("implicit.numeric.conversion.make.explicit.quickfix");

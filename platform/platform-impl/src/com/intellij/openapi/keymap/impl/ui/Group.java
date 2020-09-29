@@ -4,6 +4,7 @@ package com.intellij.openapi.keymap.impl.ui;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.ex.QuickList;
 import com.intellij.openapi.keymap.KeymapGroup;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.util.text.StringUtil;
 import org.jetbrains.annotations.Nullable;
 
@@ -14,8 +15,8 @@ import java.util.Set;
 
 public class Group implements KeymapGroup {
   private Group myParent;
-  private final String myName;
-  private String myId;
+  private final @NlsActions.ActionText String myName;
+  private final String myId;
   private final Icon myIcon;
   /**
    * Group or action id (String) or Separator or QuickList or Hyperlink
@@ -24,20 +25,18 @@ public class Group implements KeymapGroup {
 
   private final Set<String> myIds = new HashSet<>();
 
-  public Group(String name, String id, Icon icon) {
+  public Group(@NlsActions.ActionText String name, String id, Icon icon) {
     myName = name;
     myId = id;
     myIcon = icon;
     myChildren = new ArrayList<>();
   }
 
-  public Group(final String name, final Icon icon) {
-    myChildren = new ArrayList<>();
-    myIcon = icon;
-    myName = name;
+  public Group(final @NlsActions.ActionText String name, final Icon icon) {
+    this(name, null, icon);
   }
 
-  public String getName() {
+  public @NlsActions.ActionText String getName() {
     return myName;
   }
 

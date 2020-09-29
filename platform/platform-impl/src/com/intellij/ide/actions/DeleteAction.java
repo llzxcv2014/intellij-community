@@ -4,9 +4,11 @@ package com.intellij.ide.actions;
 import com.intellij.ide.DeleteProvider;
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.TitledHandler;
+import com.intellij.ide.lightEdit.LightEditCompatible;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.DumbAware;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.speedSearch.SpeedSearchSupply;
 import com.intellij.util.IconUtil;
@@ -17,12 +19,12 @@ import javax.swing.*;
 import javax.swing.text.JTextComponent;
 import java.awt.event.KeyEvent;
 
-public class DeleteAction extends AnAction implements DumbAware {
+public class DeleteAction extends AnAction implements DumbAware, LightEditCompatible {
   private static final Logger LOG = Logger.getInstance(DeleteAction.class);
 
   public DeleteAction() { }
 
-  public DeleteAction(String text, String description, Icon icon) {
+  public DeleteAction(@NlsActions.ActionText String text, @NlsActions.ActionDescription String description, Icon icon) {
     super(text, description, icon);
   }
 
@@ -49,10 +51,10 @@ public class DeleteAction extends AnAction implements DumbAware {
     Presentation presentation = e.getPresentation();
 
     if (ActionPlaces.isPopupPlace(e.getPlace())) {
-      presentation.setText(IdeBundle.message("action.delete.ellipsis"));
+      presentation.setText(IdeBundle.messagePointer("action.delete.ellipsis"));
     }
     else {
-      presentation.setText(IdeBundle.message("action.delete"));
+      presentation.setText(IdeBundle.messagePointer("action.delete"));
     }
     if (e.isFromActionToolbar() && e.getPresentation().getIcon() == null) {
       e.getPresentation().setIcon(IconUtil.getRemoveIcon());

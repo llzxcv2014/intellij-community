@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
 
 import static com.intellij.psi.JavaTokenType.*;
 
-public class BinopInstruction extends BranchingInstruction implements ExpressionPushingInstruction {
+public class BinopInstruction extends ExpressionPushingInstruction<PsiExpression> implements BranchingInstruction {
   private static final TokenSet ourSignificantOperations =
     TokenSet.create(EQ, EQEQ, NE, LT, GT, LE, GE, INSTANCEOF_KEYWORD, PLUS, MINUS, AND, OR, XOR, PERC, DIV, ASTERISK, GTGT, GTGTGT, LTLT);
 
@@ -46,30 +46,33 @@ public class BinopInstruction extends BranchingInstruction implements Expression
   private final boolean myUnrolledLoop;
   private boolean myWidened;
 
-  public BinopInstruction(IElementType opSign, @Nullable PsiExpression psiAnchor, @Nullable PsiType resultType) {
-    this(opSign, psiAnchor, resultType, -1);
+  public BinopInstruction(IElementType opSign, @Nullable PsiExpression expression, @Nullable PsiType resultType) {
+    this(opSign, expression, resultType, -1);
   }
 
-  public BinopInstruction(IElementType opSign, @Nullable PsiExpression psiAnchor, @Nullable PsiType resultType, int lastOperand) {
-    this(opSign, psiAnchor, resultType, lastOperand, false);
+  public BinopInstruction(IElementType opSign, @Nullable PsiExpression expression, @Nullable PsiType resultType, int lastOperand) {
+    this(opSign, expression, resultType, lastOperand, false);
   }
 
   /**
    * @param opSign sign of the operation
-   * @param psiAnchor PSI element to bind the instruction to
+   * @param expression PSI element to bind the instruction to
    * @param resultType result of the operation
    * @param lastOperand number of last operand if anchor is a {@link PsiPolyadicExpression} and this instruction is the result of
    *                    part of that expression; -1 if not applicable
    * @param unrolledLoop true means that this instruction is executed inside an unrolled loop; in this case it will never be widened
    */
   public BinopInstruction(IElementType opSign,
-                          @Nullable PsiExpression psiAnchor,
+                          @Nullable PsiExpression expression,
                           @Nullable PsiType resultType,
                           int lastOperand,
                           boolean unrolledLoop) {
-    super(psiAnchor);
+    super(expression);
+    assert lastOperand == -1 || expression instanceof PsiPolyadicExpression;
     myResultType = resultType;
-    myOperationSign = ourSignificantOperations.contains(opSign) ? opSign : null;
+    myOperationSign =
+      opSign == XOR && PsiType.BOOLEAN.equals(resultType) ? NE : // XOR for boolean is equivalent to NE 
+      ourSignificantOperations.contains(opSign) ? opSign : null;
     myLastOperand = lastOperand;
     myUnrolledLoop = unrolledLoop;
   }
@@ -109,20 +112,14 @@ public class BinopInstruction extends BranchingInstruction implements Expression
   @Override
   @Nullable
   public TextRange getExpressionRange() {
-    if (myLastOperand != -1 && getPsiAnchor() instanceof PsiPolyadicExpression) {
-      PsiPolyadicExpression anchor = (PsiPolyadicExpression)getPsiAnchor();
+    if (myLastOperand != -1 && getExpression() instanceof PsiPolyadicExpression) {
+      PsiPolyadicExpression anchor = (PsiPolyadicExpression)getExpression();
       PsiExpression[] operands = anchor.getOperands();
       if (operands.length > myLastOperand + 1) {
         return new TextRange(0, operands[myLastOperand].getStartOffsetInParent()+operands[myLastOperand].getTextLength());
       }
     }
     return null;
-  }
-
-  @Nullable
-  @Override
-  public PsiExpression getExpression() {
-    return (PsiExpression)getPsiAnchor();
   }
 
   @Override

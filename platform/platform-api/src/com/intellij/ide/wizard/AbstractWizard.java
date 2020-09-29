@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.wizard;
 
 import com.intellij.CommonBundle;
@@ -15,6 +15,7 @@ import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.ui.JBCardLayout;
 import com.intellij.ui.components.panels.OpaquePanel;
 import com.intellij.ui.mac.TouchbarDataKeys;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.util.ui.ImageUtil;
 import com.intellij.util.ui.StartupUiUtil;
 import com.intellij.util.ui.UIUtil;
@@ -55,19 +56,19 @@ public abstract class AbstractWizard<T extends Step> extends DialogWrapper {
     }
   };
 
-  public AbstractWizard(final String title, final Component dialogParent) {
+  public AbstractWizard(@NlsContexts.DialogTitle String title, final Component dialogParent) {
     super(dialogParent, true);
     mySteps = new ArrayList<>();
     initWizard(title);
   }
 
-  public AbstractWizard(final String title, @Nullable final Project project) {
+  public AbstractWizard(@NlsContexts.DialogTitle String title, @Nullable final Project project) {
     super(project, true);
     mySteps = new ArrayList<>();
     initWizard(title);
   }
 
-  private void initWizard(final String title) {
+  private void initWizard(final @NlsContexts.DialogTitle String title) {
     setTitle(title);
     myCurrentStep = 0;
     myPreviousButton = new JButton(IdeBundle.message("button.wizard.previous"));
@@ -173,24 +174,7 @@ public abstract class AbstractWizard<T extends Step> extends DialogWrapper {
     myNextButton.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(final ActionEvent e) {
-        if (isLastStep()) {
-          // Commit data of current step and perform OK action
-          final Step currentStep = mySteps.get(myCurrentStep);
-          LOG.assertTrue(currentStep != null);
-          try {
-            currentStep._commit(true);
-            doOKAction();
-          }
-          catch (final CommitStepException exc) {
-            String message = exc.getMessage();
-            if (message != null) {
-              Messages.showErrorDialog(myContentPanel, message);
-            }
-          }
-        }
-        else {
-          doNextAction();
-        }
+        proceedToNextStep();
       }
     });
 
@@ -212,6 +196,31 @@ public abstract class AbstractWizard<T extends Step> extends DialogWrapper {
     return panel;
   }
 
+  /**
+   * Validates the current step. If the current step is valid commits it and moves the wizard to the next step.
+   * Usually, should be used from UI event handlers or after deferred user interaction, e.g. validation in background thread.
+   */
+  public void proceedToNextStep() {
+    if (isLastStep()) {
+      // Commit data of current step and perform OK action
+      Step currentStep = mySteps.get(myCurrentStep);
+      LOG.assertTrue(currentStep != null);
+      try {
+        currentStep._commit(true);
+        doOKAction();
+      }
+      catch (CommitStepException exc) {
+        String message = exc.getMessage();
+        if (message != null) {
+          Messages.showErrorDialog(myContentPanel, message);
+        }
+      }
+    }
+    else {
+      doNextAction();
+    }
+  }
+
   public JPanel getContentComponent() {
     return myContentPanel;
   }
@@ -227,7 +236,7 @@ public abstract class AbstractWizard<T extends Step> extends DialogWrapper {
     }
   }
 
-  public static class TallImageComponent extends OpaquePanel {
+  public static final class TallImageComponent extends OpaquePanel {
     private Icon myIcon;
 
     private TallImageComponent(Icon icon) {

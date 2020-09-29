@@ -1,22 +1,8 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.reflectiveAccess;
 
-import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.codeInspection.ProblemsHolder;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Pair;
 import com.intellij.psi.*;
@@ -39,7 +25,7 @@ import static com.intellij.psi.impl.source.resolve.reference.impl.JavaReflection
 /**
  * @author Pavel.Dolgov
  */
-class JavaLangReflectHandleInvocationChecker {
+final class JavaLangReflectHandleInvocationChecker {
   private static final Logger LOG = Logger.getInstance(JavaLangReflectHandleInvocationChecker.class);
 
   private static final String INVOKE = "invoke";
@@ -142,19 +128,19 @@ class JavaLangReflectHandleInvocationChecker {
     LOG.assertTrue(receiverArgument != null);
     final PsiExpression receiverDefinition = findDefinition(receiverArgument);
     if (ExpressionUtils.isNullLiteral(receiverDefinition)) {
-      holder.registerProblem(receiverArgument, InspectionsBundle.message("inspection.reflect.handle.invocation.receiver.null"));
+      holder.registerProblem(receiverArgument, JavaBundle.message("inspection.reflect.handle.invocation.receiver.null"));
       return;
     }
 
     if (expectedType != null) {
       if (!isCompatible(expectedType.getType(), receiverArgument.getType())) {
         holder.registerProblem(receiverArgument,
-                               InspectionsBundle.message("inspection.reflect.handle.invocation.receiver.incompatible",
+                               JavaBundle.message("inspection.reflect.handle.invocation.receiver.incompatible",
                                                          expectedType.getQualifiedName()));
       }
       else if (receiverArgument != receiverDefinition && receiverDefinition != null) {
         if (!isCompatible(expectedType.getType(), receiverDefinition.getType())) {
-          holder.registerProblem(receiverArgument, InspectionsBundle.message("inspection.reflect.handle.invocation.receiver.incompatible",
+          holder.registerProblem(receiverArgument, JavaBundle.message("inspection.reflect.handle.invocation.receiver.incompatible",
                                                                              expectedType.getQualifiedName()));
         }
       }
@@ -204,7 +190,7 @@ class JavaLangReflectHandleInvocationChecker {
         if (!isCompatible(requiredType, actualType, isExact)) {
           if (PsiTreeUtil.isAncestor(argumentList, argument, false)) {
             holder.registerProblem(argument,
-                                   InspectionsBundle.message(isExact
+                                   JavaBundle.message(isExact
                                                              ? "inspection.reflect.handle.invocation.argument.not.exact"
                                                              : "inspection.reflection.invocation.argument.not.assignable",
                                                              requiredType.getQualifiedName()));
@@ -215,7 +201,7 @@ class JavaLangReflectHandleInvocationChecker {
           if (definition != null && PsiType.NULL.equals(definition.getType())) {
             if (PsiTreeUtil.isAncestor(argumentList, argument, false)) {
               holder.registerProblem(argument,
-                                     InspectionsBundle.message("inspection.reflect.handle.invocation.primitive.argument.null",
+                                     JavaBundle.message("inspection.reflect.handle.invocation.primitive.argument.null",
                                                                requiredType.getQualifiedName()));
             }
           }
@@ -250,7 +236,7 @@ class JavaLangReflectHandleInvocationChecker {
       if (problemElement == null) {
         problemElement = invokeCall.getMethodExpression();
       }
-      holder.registerProblem(problemElement, InspectionsBundle.message(isExact || requiredType.isPrimitive()
+      holder.registerProblem(problemElement, JavaBundle.message(isExact || requiredType.isPrimitive()
                                                                        ? "inspection.reflect.handle.invocation.result.not.exact"
                                                                        : "inspection.reflect.handle.invocation.result.not.assignable",
                                                                        requiredType.getQualifiedName()));
@@ -325,21 +311,21 @@ class JavaLangReflectHandleInvocationChecker {
     final PsiElement invokeParent = invokeCall.getParent();
     if (!(invokeParent instanceof PsiStatement)) {
       holder.registerProblem(invokeCall.getMethodExpression(),
-                             InspectionsBundle.message(isExact
+                             JavaBundle.message(isExact
                                                        ? "inspection.reflect.handle.invocation.result.void"
                                                        : "inspection.reflect.handle.invocation.result.null"));
     }
     return true;
   }
 
-  static boolean checkArgumentCount(@NotNull PsiExpression[] arguments,
+  static boolean checkArgumentCount(PsiExpression @NotNull [] arguments,
                                     int requiredArgumentCount,
                                     int argumentOffset,
                                     @NotNull PsiElement problemElement,
                                     @NotNull ProblemsHolder holder) {
     if (requiredArgumentCount < 0) return false;
     if (arguments.length != requiredArgumentCount) {
-      holder.registerProblem(problemElement, InspectionsBundle.message(
+      holder.registerProblem(problemElement, JavaBundle.message(
         "inspection.reflection.invocation.argument.count", requiredArgumentCount + argumentOffset));
       return false;
     }

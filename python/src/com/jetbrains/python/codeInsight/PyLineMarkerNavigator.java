@@ -6,6 +6,7 @@ import com.intellij.codeInsight.daemon.impl.PsiElementListNavigator;
 import com.intellij.ide.util.DefaultPsiElementCellRenderer;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts.PopupTitle;
 import com.intellij.openapi.util.UserDataHolder;
 import com.intellij.psi.NavigatablePsiElement;
 import com.intellij.psi.PsiElement;
@@ -58,12 +59,11 @@ abstract class PyLineMarkerNavigator<T extends PsiElement> implements GutterIcon
    * @see #MARKERS
    */
   @TestOnly
-  @Nullable
-  static NavigatablePsiElement[] getNavigationTargets(@NotNull final UserDataHolder holder) {
+  static NavigatablePsiElement @Nullable [] getNavigationTargets(@NotNull final UserDataHolder holder) {
     return holder.getUserData(MARKERS);
   }
 
-  protected abstract String getTitle(T elt);
+  protected abstract @PopupTitle String getTitle(T elt);
 
   @Nullable
   protected abstract Query<? extends PsiElement> search(T elt, @NotNull TypeEvalContext context);

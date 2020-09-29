@@ -1,9 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.i18n.folding;
 
 import com.intellij.codeInsight.folding.impl.EditorFoldingInfo;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.DataManager;
+import com.intellij.java.i18n.JavaI18nBundle;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.ex.ActionButtonLook;
 import com.intellij.openapi.actionSystem.impl.ActionButton;
@@ -28,6 +29,7 @@ import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.JBPopupListener;
 import com.intellij.openapi.ui.popup.LightweightWindowEvent;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.text.StringUtil;
@@ -64,7 +66,7 @@ public class EditPropertyValueAction extends BaseRefactoringAction {
   }
 
   @Override
-  protected boolean isEnabledOnElements(@NotNull PsiElement[] elements) {
+  protected boolean isEnabledOnElements(PsiElement @NotNull [] elements) {
     return false;
   }
 
@@ -89,7 +91,7 @@ public class EditPropertyValueAction extends BaseRefactoringAction {
     }
 
     @Override
-    public void invoke(@NotNull Project project, @NotNull PsiElement[] elements, DataContext dataContext) {}
+    public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext dataContext) {}
   }
 
   public static boolean isEnabled(@NotNull Editor editor) {
@@ -288,7 +290,7 @@ public class EditPropertyValueAction extends BaseRefactoringAction {
     return button;
   }
 
-  private static LightweightHint showTooltip(@NotNull Editor editor, @Nullable VirtualFile file, @Nullable String key) {
+  private static LightweightHint showTooltip(@NotNull Editor editor, @Nullable VirtualFile file, @Nullable @NlsSafe String key) {
     if (file == null && key == null) return null;
     JPanel panel = new JPanel();
     panel.setLayout(new FlowLayout(FlowLayout.CENTER, 0, 0));
@@ -312,7 +314,7 @@ public class EditPropertyValueAction extends BaseRefactoringAction {
     return !Experiments.getInstance().isFeatureEnabled("property.value.inplace.editing");
   }
 
-  private static class MyEnterAction extends AnAction {
+  private static final class MyEnterAction extends AnAction {
     private final EditorTextField field;
     private final FoldRegion foldRegion;
     private final JBPopup popup;
@@ -340,7 +342,7 @@ public class EditPropertyValueAction extends BaseRefactoringAction {
       Editor editor = foldRegion.getEditor();
       JComponent editorComponent = editor.getContentComponent();
       focusAndRun(editorComponent, () -> {
-        WriteCommandAction.runWriteCommandAction(project, "Edit property value", null, () -> {
+        WriteCommandAction.runWriteCommandAction(project, JavaI18nBundle.message("command.name.edit.property.value"), null, () -> {
           handler.setValue(newValue.replace("\n", "\\n"));
           String oldPlaceholder = foldRegion.getPlaceholderText();
           String newPlaceholder = handler.getPlaceholder();
@@ -367,9 +369,8 @@ public class EditPropertyValueAction extends BaseRefactoringAction {
               }
             }
 
-            @Nullable
             @Override
-            public DocumentReference[] getAffectedDocuments() {
+            public DocumentReference @Nullable [] getAffectedDocuments() {
               return null;
             }
 
@@ -401,11 +402,11 @@ public class EditPropertyValueAction extends BaseRefactoringAction {
     }
   }
 
-  private static class MyShiftEnterAction extends EditorAction {
+  private static final class MyShiftEnterAction extends EditorAction {
     private MyShiftEnterAction() {
       super(new Handler());
       Presentation presentation = getTemplatePresentation();
-      presentation.setDescription("New line (" + KeymapUtil.getKeystrokeText(SHIFT_ENTER) + ")");
+      presentation.setDescription(JavaI18nBundle.message("action.description.new.line.0", KeymapUtil.getKeystrokeText(SHIFT_ENTER)));
       presentation.setIcon(AllIcons.Actions.SearchNewLine);
       presentation.setHoveredIcon(AllIcons.Actions.SearchNewLineHover);
     }

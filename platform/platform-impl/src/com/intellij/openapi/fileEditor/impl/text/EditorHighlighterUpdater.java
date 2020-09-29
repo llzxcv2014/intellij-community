@@ -1,6 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.fileEditor.impl.text;
 
+import com.intellij.ide.plugins.DynamicPluginListener;
+import com.intellij.ide.plugins.IdeaPluginDescriptor;
+import com.intellij.ide.plugins.PluginManagerCore;
+import com.intellij.ide.plugins.cl.PluginClassLoader;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
@@ -14,6 +18,7 @@ import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.editor.highlighter.EditorHighlighterFactory;
 import com.intellij.openapi.extensions.ExtensionPointListener;
 import com.intellij.openapi.extensions.ExtensionPointName;
+import com.intellij.openapi.extensions.KeyedFactoryEPBean;
 import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.fileTypes.*;
 import com.intellij.openapi.fileTypes.impl.AbstractFileType;
@@ -39,9 +44,9 @@ public class EditorHighlighterUpdater {
     myProject = project;
     myEditor = editor;
     myFile = file;
-    MessageBusConnection myConnection = project.getMessageBus().connect(parentDisposable);
-    myConnection.subscribe(FileTypeManager.TOPIC, new MyFileTypeListener());
-    myConnection.subscribe(DumbService.DUMB_MODE, new DumbService.DumbModeListener() {
+    MessageBusConnection connection = project.getMessageBus().connect(parentDisposable);
+    connection.subscribe(FileTypeManager.TOPIC, new MyFileTypeListener());
+    connection.subscribe(DumbService.DUMB_MODE, new DumbService.DumbModeListener() {
       @Override
       public void enteredDumbMode() {
         updateHighlighters();
@@ -56,20 +61,50 @@ public class EditorHighlighterUpdater {
     updateHighlightersOnExtensionsChange(parentDisposable, LanguageSyntaxHighlighters.EP_NAME);
     updateHighlightersOnExtensionsChange(parentDisposable, SyntaxHighlighterLanguageFactory.EP_NAME);
     updateHighlightersOnExtensionsChange(parentDisposable, FileTypeEditorHighlighterProviders.EP_NAME);
+
+    SyntaxHighlighter.EP_NAME.addExtensionPointListener(new ExtensionPointListener<KeyedFactoryEPBean>() {
+      @Override
+      public void extensionAdded(@NotNull KeyedFactoryEPBean extension, @NotNull PluginDescriptor pluginDescriptor) {
+        checkUpdateHighlighters(extension.key, false);
+      }
+
+      @Override
+      public void extensionRemoved(@NotNull KeyedFactoryEPBean extension, @NotNull PluginDescriptor pluginDescriptor) {
+        checkUpdateHighlighters(extension.key, true);
+      }
+    }, parentDisposable);
+
+    connection.subscribe(DynamicPluginListener.TOPIC, new DynamicPluginListener() {
+      @Override
+      public void beforePluginUnload(@NotNull IdeaPluginDescriptor pluginDescriptor, boolean isUpdate) {
+        if (pluginDescriptor.getPluginId() == null) return;
+        IdeaPluginDescriptor loadedPluginDescriptor = PluginManagerCore.getPlugin(pluginDescriptor.getPluginId());
+        if (loadedPluginDescriptor == null) return;
+        ClassLoader pluginClassLoader = loadedPluginDescriptor.getPluginClassLoader();
+        if (myFile != null && pluginClassLoader instanceof PluginClassLoader) {
+          FileType fileType = myFile.getFileType();
+          if (fileType.getClass().getClassLoader() == pluginClassLoader ||
+              (fileType instanceof LanguageFileType && ((LanguageFileType) fileType).getClass().getClassLoader() == pluginClassLoader)) {
+            myEditor.setHighlighter(createHighlighter(true));
+          }
+        }
+      }
+    });
   }
 
   private <T> void updateHighlightersOnExtensionsChange(@NotNull Disposable parentDisposable, @NotNull ExtensionPointName<KeyedLazyInstance<T>> epName) {
-    epName.addExtensionPointListener(new ExtensionPointListener<KeyedLazyInstance<T>>() {
-      @Override
-      public void extensionAdded(@NotNull KeyedLazyInstance<T> extension, @NotNull PluginDescriptor pluginDescriptor) {
-        checkUpdateHighlighters(extension.getKey(), false);
-      }
+    epName.addExtensionPointListener(
+      new ExtensionPointListener<KeyedLazyInstance<T>>() {
+        @Override
+        public void extensionAdded(@NotNull KeyedLazyInstance<T> extension, @NotNull PluginDescriptor pluginDescriptor) {
+          checkUpdateHighlighters(extension.getKey(), false);
+        }
 
-      @Override
-      public void extensionRemoved(@NotNull KeyedLazyInstance<T> extension, @NotNull PluginDescriptor pluginDescriptor) {
-        checkUpdateHighlighters(extension.getKey(), true);
-      }
-    }, parentDisposable);
+        @Override
+        public void extensionRemoved(@NotNull KeyedLazyInstance<T> extension, @NotNull PluginDescriptor pluginDescriptor) {
+          checkUpdateHighlighters(extension.getKey(), true);
+        }
+      }, parentDisposable);
   }
 
   private void checkUpdateHighlighters(String key, boolean updateSynchronously) {
@@ -90,7 +125,7 @@ public class EditorHighlighterUpdater {
 
   public void updateHighlightersAsync() {
     ReadAction
-      .nonBlocking(() -> createHighlighter())
+      .nonBlocking(() -> createHighlighter(false))
       .expireWith(myProject)
       .expireWhen(() -> (myFile != null && !myFile.isValid()) || myEditor.isDisposed())
       .coalesceBy(EditorHighlighterUpdater.class, myEditor)
@@ -99,8 +134,8 @@ public class EditorHighlighterUpdater {
   }
 
   @NotNull
-  protected EditorHighlighter createHighlighter() {
-    EditorHighlighter highlighter = myFile != null
+  protected EditorHighlighter createHighlighter(boolean forceEmpty) {
+    EditorHighlighter highlighter = myFile != null && !forceEmpty
                                     ? EditorHighlighterFactory.getInstance().createEditorHighlighter(myProject, myFile)
                                     : new EmptyEditorHighlighter(EditorColorsManager.getInstance().getGlobalScheme().getAttributes(HighlighterColors.TEXT));
     highlighter.setText(myEditor.getDocument().getImmutableCharSequence());
@@ -119,7 +154,7 @@ public class EditorHighlighterUpdater {
 
   private void updateHighlightersSynchronously() {
     if (!myProject.isDisposed() && !myEditor.isDisposed()) {
-      myEditor.setHighlighter(createHighlighter());
+      myEditor.setHighlighter(createHighlighter(false));
     }
   }
 

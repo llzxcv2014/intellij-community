@@ -5,6 +5,7 @@ import com.intellij.codeInsight.ExceptionUtil;
 import com.intellij.codeInsight.daemon.impl.quickfix.DeleteCatchFix;
 import com.intellij.codeInsight.daemon.impl.quickfix.DeleteMultiCatchFix;
 import com.intellij.codeInspection.java15api.Java15APIUsageInspection;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.pom.java.LanguageLevel;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static com.intellij.psi.CommonClassNames.*;
+import static java.util.Map.entry;
 
 public class CharsetObjectCanBeUsedInspection extends AbstractBaseJavaLocalInspectionTool implements CleanupLocalInspectionTool {
   private static final CharsetCallMatcher[] MATCHERS = {
@@ -66,21 +68,19 @@ public class CharsetObjectCanBeUsedInspection extends AbstractBaseJavaLocalInspe
   private static final CallMatcher FOR_NAME_MATCHER =
     CallMatcher.staticCall("java.nio.charset.Charset", "forName").parameterTypes(JAVA_LANG_STRING);
 
-  private static final Map<String, String> SUPPORTED_CHARSETS =
-    ContainerUtil.<String, String>immutableMapBuilder()
-      .put("US-ASCII", "US_ASCII")
-      .put("ASCII", "US_ASCII")
-      .put("ISO646-US", "US_ASCII")
-      .put("ISO-8859-1", "ISO_8859_1")
-      .put("UTF-8", "UTF_8")
-      .put("UTF8", "UTF_8")
-      .put("UTF-16BE", "UTF_16BE")
-      .put("UTF16BE", "UTF_16BE")
-      .put("UTF-16LE", "UTF_16LE")
-      .put("UTF16LE", "UTF_16LE")
-      .put("UTF-16", "UTF_16")
-      .put("UTF16", "UTF_16")
-      .build();
+  private static final Map<String, String> SUPPORTED_CHARSETS = Map.ofEntries(
+      entry("US-ASCII", "US_ASCII"),
+      entry("ASCII", "US_ASCII"),
+      entry("ISO646-US", "US_ASCII"),
+      entry("ISO-8859-1", "ISO_8859_1"),
+      entry("UTF-8", "UTF_8"),
+      entry("UTF8", "UTF_8"),
+      entry("UTF-16BE", "UTF_16BE"),
+      entry("UTF16BE", "UTF_16BE"),
+      entry("UTF-16LE", "UTF_16LE"),
+      entry("UTF16LE", "UTF_16LE"),
+      entry("UTF-16", "UTF_16"),
+      entry("UTF16", "UTF_16"));
 
   @NotNull
   @Override
@@ -111,7 +111,7 @@ public class CharsetObjectCanBeUsedInspection extends AbstractBaseJavaLocalInspe
         String charsetString = getCharsetString(charset);
         if (charsetString == null) return;
         String constantName = "StandardCharsets." + SUPPORTED_CHARSETS.get(charsetString);
-        holder.registerProblem(place, InspectionsBundle.message("inspection.charset.object.can.be.used.message", constantName),
+        holder.registerProblem(place, JavaBundle.message("inspection.charset.object.can.be.used.message", constantName),
                                new CharsetObjectCanBeUsedFix(constantName));
       }
 
@@ -140,10 +140,10 @@ public class CharsetObjectCanBeUsedInspection extends AbstractBaseJavaLocalInspe
 
   abstract static class CharsetCallMatcher {
     @NotNull final String myClassName;
-    @NotNull final String[] myParameters;
+    final String @NotNull [] myParameters;
     final int myCharsetParameterIndex;
 
-    CharsetCallMatcher(@NotNull String className, @NotNull String... parameters) {
+    CharsetCallMatcher(@NotNull String className, String @NotNull ... parameters) {
       myClassName = className;
       myParameters = parameters;
       int index = -1;
@@ -198,7 +198,7 @@ public class CharsetObjectCanBeUsedInspection extends AbstractBaseJavaLocalInspe
   }
 
   static class CharsetConstructorMatcher extends CharsetCallMatcher {
-    CharsetConstructorMatcher(@NotNull String className, @NotNull String... parameters) {
+    CharsetConstructorMatcher(@NotNull String className, String @NotNull ... parameters) {
       super(className, parameters);
     }
 
@@ -217,7 +217,7 @@ public class CharsetObjectCanBeUsedInspection extends AbstractBaseJavaLocalInspe
   static class CharsetMethodMatcher extends CharsetCallMatcher {
     @NotNull private final String myMethodName;
 
-    CharsetMethodMatcher(@NotNull String className, @NotNull String methodName, @NotNull String... parameters) {
+    CharsetMethodMatcher(@NotNull String className, @NotNull String methodName, String @NotNull ... parameters) {
       super(className, parameters);
       myMethodName = methodName;
     }
@@ -258,14 +258,14 @@ public class CharsetObjectCanBeUsedInspection extends AbstractBaseJavaLocalInspe
     @NotNull
     @Override
     public String getName() {
-      return InspectionsBundle.message("inspection.charset.object.can.be.used.fix.name", myConstantName);
+      return JavaBundle.message("inspection.charset.object.can.be.used.fix.name", myConstantName);
     }
 
     @Nls
     @NotNull
     @Override
     public String getFamilyName() {
-      return InspectionsBundle.message("inspection.charset.object.can.be.used.fix.family.name");
+      return JavaBundle.message("inspection.charset.object.can.be.used.fix.family.name");
     }
 
     @Override

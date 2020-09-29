@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.diff.tools.util.text;
 
 import com.intellij.diff.comparison.ComparisonManagerImpl;
@@ -30,7 +16,6 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.openapi.util.registry.Registry;
 import com.intellij.util.ArrayUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -95,8 +80,8 @@ public class SmartTextDiffProvider extends TwosideTextDiffProviderBase implement
                                 @NotNull Runnable rediff,
                                 @NotNull Disposable disposable,
                                 @NotNull DiffIgnoredRangeProvider ignoredRangeProvider,
-                                @NotNull IgnorePolicy[] ignorePolicies,
-                                @NotNull HighlightPolicy[] highlightPolicies) {
+                                IgnorePolicy @NotNull [] ignorePolicies,
+                                HighlightPolicy @NotNull [] highlightPolicies) {
     super(settings, rediff, disposable, ignorePolicies, highlightPolicies);
     myProject = project;
     myContent1 = content1;
@@ -166,7 +151,6 @@ public class SmartTextDiffProvider extends TwosideTextDiffProviderBase implement
   private static DiffIgnoredRangeProvider getIgnoredRangeProvider(@Nullable Project project,
                                                                   @NotNull DiffContent content1,
                                                                   @NotNull DiffContent content2) {
-    if (!Registry.is("diff.smart.ignore.enabled")) return null;
     for (DiffIgnoredRangeProvider provider : DiffIgnoredRangeProvider.EP_NAME.getExtensions()) {
       if (provider.accepts(project, content1) &&
           provider.accepts(project, content2)) {
@@ -176,7 +160,7 @@ public class SmartTextDiffProvider extends TwosideTextDiffProviderBase implement
     return null;
   }
 
-  public static class NoIgnore extends SmartTextDiffProvider implements TwosideTextDiffProvider.NoIgnore {
+  public static final class NoIgnore extends SmartTextDiffProvider implements TwosideTextDiffProvider.NoIgnore {
     private NoIgnore(@Nullable Project project,
                      @NotNull DiffContent content1,
                      @NotNull DiffContent content2,

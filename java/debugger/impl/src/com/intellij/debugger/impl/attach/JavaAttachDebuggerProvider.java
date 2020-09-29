@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.impl.attach;
 
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.engine.RemoteStateState;
 import com.intellij.debugger.impl.DebuggerManagerImpl;
 import com.intellij.debugger.impl.GenericDebuggerRunner;
@@ -17,6 +18,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.SettingsEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.UserDataHolder;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.rt.execution.application.AppMainV2;
@@ -42,9 +44,6 @@ import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-/**
- * @author egor
- */
 public class JavaAttachDebuggerProvider implements XLocalAttachDebuggerProvider {
   private static final Logger LOG = Logger.getInstance(JavaAttachDebuggerProvider.class);
 
@@ -71,13 +70,14 @@ public class JavaAttachDebuggerProvider implements XLocalAttachDebuggerProvider 
 
   private static final Key<Map<String, LocalAttachInfo>> ADDRESS_MAP_KEY = Key.create("ADDRESS_MAP");
 
-  private static final XLocalAttachGroup ourAttachGroup = new JavaDebuggerAttachGroup("Java", -20);
+  private static final XLocalAttachGroup ourAttachGroup = new JavaDebuggerAttachGroup(
+    JavaDebuggerBundle.message("debugger.attach.group.name.java"), -20);
 
   static class JavaDebuggerAttachGroup extends XDefaultLocalAttachGroup {
-    private final String myName;
+    private final @Nls String myName;
     private final int myOrder;
 
-    JavaDebuggerAttachGroup(String name, int order) {
+    JavaDebuggerAttachGroup(@Nls String name, int order) {
       myName = name;
       myOrder = order;
     }
@@ -190,7 +190,7 @@ public class JavaAttachDebuggerProvider implements XLocalAttachDebuggerProvider 
             try {
               address = param.split("=")[1];
               address = StringUtil.trimStart(address, "*:"); // handle java 9 format: *:5005
-              return new DebuggerLocalAttachInfo(socket, address, null, pid, false);
+              return new DebuggerLocalAttachInfo(socket, address, null, pid, null, false);
             }
             catch (Exception e) {
               LOG.error(e);
@@ -252,7 +252,7 @@ public class JavaAttachDebuggerProvider implements XLocalAttachDebuggerProvider 
         }
         return new DebuggerLocalAttachInfo(!"dt_shmem".equals(StringUtil.substringBefore(property, ":")),
                                            StringUtil.substringAfter(property, ":"),
-                                           command, pid, autoAddress);
+                                           command, pid, null, autoAddress);
       }
 
       //do not allow further for idea process
@@ -293,12 +293,14 @@ public class JavaAttachDebuggerProvider implements XLocalAttachDebuggerProvider 
   private static class DebuggerLocalAttachInfo extends LocalAttachInfo {
     private final boolean myUseSocket;
     private final String myAddress;
+    private final String mySessionName;
     private final boolean myAutoAddress;
 
-    DebuggerLocalAttachInfo(boolean socket, @NotNull String address, String aClass, String pid, boolean autoAddress) {
+    DebuggerLocalAttachInfo(boolean socket, @NotNull String address, String aClass, String pid, @Nullable String sessionName, boolean autoAddress) {
       super(aClass, pid);
       myUseSocket = socket;
       myAddress = address;
+      mySessionName = sessionName;
       myAutoAddress = autoAddress;
     }
 
@@ -315,12 +317,21 @@ public class JavaAttachDebuggerProvider implements XLocalAttachDebuggerProvider 
           host = port.substring(0, pos);
           port = port.substring(pos + 1);
         }
-        return new PidRemoteConnection(myPid, myUseSocket, host, port, false);
+        if (!StringUtil.isEmpty(myPid)) {
+          return new PidRemoteConnection(myPid, myUseSocket, host, port, false);
+        }
+        else {
+          return new RemoteConnection(myUseSocket, host, port, false);
+        }
       }
     }
 
     @Override
     String getSessionName() {
+      if (mySessionName != null) {
+        return mySessionName;
+      }
+
       if (myAutoAddress) {
         return super.getSessionName();
       }
@@ -413,14 +424,16 @@ public class JavaAttachDebuggerProvider implements XLocalAttachDebuggerProvider 
       return "pid " + myPid;
     }
 
+    @NlsSafe
     abstract String getDebuggerName();
 
+    @NlsSafe
     String getProcessDisplayText(String text) {
       return text;
     }
   }
 
-  private static class ProcessAttachDebugExecutor extends DefaultDebugExecutor {
+  private static final class ProcessAttachDebugExecutor extends DefaultDebugExecutor {
     static ProcessAttachDebugExecutor INSTANCE = new ProcessAttachDebugExecutor();
 
     private ProcessAttachDebugExecutor() {
@@ -481,19 +494,24 @@ public class JavaAttachDebuggerProvider implements XLocalAttachDebuggerProvider 
       public RunConfiguration createTemplateConfiguration(@NotNull Project project) {
         return new ProcessAttachRunConfiguration(project);
       }
+
+      @Override
+      public @NotNull String getId() {
+        return INSTANCE.getId();
+      }
     };
 
     @NotNull
     @Nls
     @Override
     public String getDisplayName() {
-      return getId();
+      return JavaDebuggerBundle.message("process.attach.run.configuration.type.name");
     }
 
     @Nls
     @Override
     public String getConfigurationTypeDescription() {
-      return getId();
+      return getDisplayName();
     }
 
     @Override
@@ -516,6 +534,10 @@ public class JavaAttachDebuggerProvider implements XLocalAttachDebuggerProvider 
     public String getHelpTopic() {
       return "reference.dialogs.rundebug.ProcessAttachRunConfigurationType";
     }
+  }
+
+  public static void attach(String transport, String address, String sessionName, Project project) {
+    attach(new DebuggerLocalAttachInfo(!"dt_shmem".equals(transport), address, null, null, sessionName, false), project);
   }
 
   static void attach(JavaAttachDebuggerProvider.LocalAttachInfo info, Project project) {

@@ -16,11 +16,11 @@
 
 package com.intellij.codeInsight.intention.impl;
 
-import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.ExternalAnnotationsManager;
 import com.intellij.codeInsight.intention.AddAnnotationPsiFix;
 import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.codeInsight.intention.LowPriorityAction;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.command.undo.UndoUtil;
 import com.intellij.openapi.diagnostic.Logger;
@@ -45,13 +45,16 @@ public class DeannotateIntentionAction implements IntentionAction, LowPriorityAc
   @Override
   @NotNull
   public String getText() {
-    return CodeInsightBundle.message("deannotate.intention.action.text") + (myAnnotationName != null ? " @" + myAnnotationName : "...");
+    if (myAnnotationName == null) {
+      return JavaBundle.message("deannotate.intention.action.several.text");
+    }
+    return JavaBundle.message("deannotate.intention.action.text", "@" + myAnnotationName);
   }
 
   @Override
   @NotNull
   public String getFamilyName() {
-    return CodeInsightBundle.message("deannotate.intention.action.text");
+    return JavaBundle.message("deannotate.intention.action.family.name");
   }
 
   @Override
@@ -85,23 +88,24 @@ public class DeannotateIntentionAction implements IntentionAction, LowPriorityAc
       deannotate(externalAnnotations[0], project, file, annotationsManager, listOwner);
       return;
     }
-    JBPopupFactory.getInstance().createListPopup(new BaseListPopupStep<PsiAnnotation>(CodeInsightBundle.message("deannotate.intention.chooser.title"), externalAnnotations) {
-      @Override
-      public PopupStep<?> onChosen(final PsiAnnotation selectedValue, final boolean finalChoice) {
-        if (finalChoice) {
-          doFinalStep(() -> deannotate(selectedValue, project, file, annotationsManager, listOwner));
+    JBPopupFactory.getInstance().createListPopup(
+      new BaseListPopupStep<>(JavaBundle.message("deannotate.intention.chooser.title"), externalAnnotations) {
+        @Override
+        public PopupStep<?> onChosen(final PsiAnnotation selectedValue, final boolean finalChoice) {
+          if (finalChoice) {
+            doFinalStep(() -> deannotate(selectedValue, project, file, annotationsManager, listOwner));
+          }
+          return PopupStep.FINAL_CHOICE;
         }
-        return PopupStep.FINAL_CHOICE;
-      }
 
-      @Override
-      @NotNull
-      public String getTextFor(final PsiAnnotation value) {
-        final String qualifiedName = value.getQualifiedName();
-        LOG.assertTrue(qualifiedName != null);
-        return qualifiedName;
-      }
-    }).showInBestPositionFor(editor);
+        @Override
+        @NotNull
+        public String getTextFor(final PsiAnnotation value) {
+          final String qualifiedName = value.getQualifiedName();
+          LOG.assertTrue(qualifiedName != null);
+          return qualifiedName;
+        }
+      }).showInBestPositionFor(editor);
   }
 
   private void deannotate(final PsiAnnotation annotation,

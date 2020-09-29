@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.compiler.impl;
 
 import com.intellij.compiler.server.BuildManager;
@@ -29,13 +15,14 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.*;
 import com.intellij.openapi.vfs.newvfs.NewVirtualFile;
 import com.intellij.openapi.vfs.newvfs.events.*;
-import gnu.trove.THashSet;
+import com.intellij.util.containers.FileCollectionFactory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -50,8 +37,7 @@ import java.util.Set;
  * 1. corresponding source file has been scheduled for recompilation (see above)
  * 2. corresponding source file has been deleted
  */
-public class TranslatingCompilerFilesMonitor implements AsyncFileListener {
-
+public final class TranslatingCompilerFilesMonitor implements AsyncFileListener {
   public static TranslatingCompilerFilesMonitor getInstance() {
     return ApplicationManager.getApplication().getComponent(TranslatingCompilerFilesMonitor.class);
   }
@@ -110,8 +96,8 @@ public class TranslatingCompilerFilesMonitor implements AsyncFileListener {
 
   @Override
   public ChangeApplier prepareChange(@NotNull List<? extends VFileEvent> events) {
-    Set<File> filesChanged = new THashSet<>(FileUtil.FILE_HASHING_STRATEGY);
-    Set<File> filesDeleted = new THashSet<>(FileUtil.FILE_HASHING_STRATEGY);
+    Set<File> filesChanged = FileCollectionFactory.createCanonicalFileSet();
+    Set<File> filesDeleted = FileCollectionFactory.createCanonicalFileSet();
     for (VFileEvent event : events) {
       if (event instanceof VFileDeleteEvent || event instanceof VFileMoveEvent) {
         collectPaths(event.getFile(), filesDeleted);
@@ -152,7 +138,7 @@ public class TranslatingCompilerFilesMonitor implements AsyncFileListener {
     if (VirtualFile.PROP_NAME.equals(event.getPropertyName())) {
       final String oldName = (String)event.getOldValue();
       final String newName = (String)event.getNewValue();
-      if (Comparing.equal(oldName, newName)) {
+      if (Objects.equals(oldName, newName)) {
         // Old and new names may actually be the same: sometimes such events are sent by VFS
         return;
       }

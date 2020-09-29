@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.components.fields;
 
 import com.intellij.icons.AllIcons;
@@ -10,6 +10,7 @@ import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.ui.UIBundle;
 import com.intellij.ui.components.JBTextField;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,9 +27,6 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 
-/**
- * @author Sergey Malenkov
- */
 public class ExtendableTextField extends JBTextField implements ExtendableTextComponent {
   private List<Extension> extensions = emptyList();
 
@@ -40,11 +38,11 @@ public class ExtendableTextField extends JBTextField implements ExtendableTextCo
     this(null, columns);
   }
 
-  public ExtendableTextField(String text) {
+  public ExtendableTextField(@Nls String text) {
     this(text, 20);
   }
 
-  public ExtendableTextField(String text, int columns) {
+  public ExtendableTextField(@Nls String text, int columns) {
     super(text, columns);
   }
 

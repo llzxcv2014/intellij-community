@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.siyeh.ig.logging;
 
 import com.intellij.codeInspection.ProblemDescriptor;
@@ -8,6 +8,7 @@ import com.intellij.openapi.util.WriteExternalException;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.util.InheritanceUtil;
+import com.intellij.psi.util.PsiUtil;
 import com.intellij.util.ui.FormBuilder;
 import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseInspection;
@@ -15,11 +16,9 @@ import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
 import com.siyeh.ig.PsiReplacementUtil;
 import com.siyeh.ig.psiutils.ExpressionUtils;
-import com.siyeh.ig.psiutils.ParenthesesUtils;
 import com.siyeh.ig.psiutils.TypeUtils;
 import gnu.trove.THashSet;
 import org.jdom.Element;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -70,13 +69,6 @@ public class StringConcatenationArgumentToLogCallInspection extends BaseInspecti
       .addLabeledComponent(InspectionGadgetsBundle.message("warn.on.label"), comboBox)
       .addVerticalGap(-1)
       .getPanel();
-  }
-
-  @Nls
-  @NotNull
-  @Override
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("string.concatenation.argument.to.log.call.display.name");
   }
 
   @NotNull
@@ -175,7 +167,7 @@ public class StringConcatenationArgumentToLogCallInspection extends BaseInspecti
           if (ExpressionUtils.hasStringType(operand) && operand instanceof PsiLiteralExpression) {
             final int count = StringUtil.getOccurrenceCount(text, "{}");
             for (int i = 0; i < count && usedArguments + i < arguments.length; i++) {
-              newArguments.add(ParenthesesUtils.stripParentheses((PsiExpression)arguments[i + usedArguments].copy()));
+              newArguments.add(PsiUtil.skipParenthesizedExprDown((PsiExpression)arguments[i + usedArguments].copy()));
             }
             usedArguments += count;
             if (!inStringLiteral) {
@@ -205,7 +197,7 @@ public class StringConcatenationArgumentToLogCallInspection extends BaseInspecti
           }
         }
         else {
-          newArguments.add(ParenthesesUtils.stripParentheses((PsiExpression)operand.copy()));
+          newArguments.add(PsiUtil.skipParenthesizedExprDown((PsiExpression)operand.copy()));
           if (!inStringLiteral) {
             if (addPlus) {
               newMethodCall.append('+');
@@ -288,7 +280,8 @@ public class StringConcatenationArgumentToLogCallInspection extends BaseInspecti
       }
       final PsiClass containingClass = method.getContainingClass();
       if (!InheritanceUtil.isInheritor(containingClass, "org.slf4j.Logger") &&
-          !InheritanceUtil.isInheritor(containingClass, "org.apache.logging.log4j.Logger")) {
+          !InheritanceUtil.isInheritor(containingClass, "org.apache.logging.log4j.Logger") &&
+          !InheritanceUtil.isInheritor(containingClass, "org.apache.logging.log4j.LogBuilder")) {
         return;
       }
       final PsiExpressionList argumentList = expression.getArgumentList();

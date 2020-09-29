@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl;
 
 import com.intellij.icons.AllIcons;
@@ -53,7 +53,7 @@ final class JavaDirectoryIconProvider extends IconProvider implements DumbAware 
         symbolIcon = AllIcons.Nodes.Module;
       }
       else if (isValidPackage(psiDirectory)) {
-        symbolIcon = PlatformIcons.PACKAGE_ICON;
+        symbolIcon = IconManager.getInstance().tooltipOnlyIfComposite(PlatformIcons.PACKAGE_ICON);
       }
       else if (!Registry.is("ide.hide.excluded.files") && ProjectRootManager.getInstance(project).getFileIndex().isExcluded(vFile)) {
         symbolIcon = AllIcons.Modules.ExcludeRoot;

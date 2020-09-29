@@ -1,17 +1,16 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util
 
 import com.intellij.ide.highlighter.JavaFileType
 import com.intellij.psi.PsiMethod
-import com.intellij.psi.impl.JavaSimplePropertyIndex
 import com.intellij.psi.impl.PropertyIndexValue
+import com.intellij.psi.impl.javaSimplePropertyGist
 import com.intellij.psi.util.PropertyMemberType
 import com.intellij.psi.util.PropertyUtil
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
-import com.intellij.util.indexing.FileContentImpl
-import com.intellij.util.indexing.IndexingDataKeys
-import gnu.trove.TIntObjectHashMap
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap
 import kotlin.test.assertNotEquals
 
 class JavaPropertyDetectionTest : LightJavaCodeInsightFixtureTestCase() {
@@ -19,15 +18,15 @@ class JavaPropertyDetectionTest : LightJavaCodeInsightFixtureTestCase() {
   // getter field test
 
   fun testFieldRef() {
-    assertPropertyMember("""class Some {private String name;public String getN<caret>ame() { return name; }}""", PropertyMemberType.GETTER) 
+    assertPropertyMember("""class Some {private String name;public String getN<caret>ame() { return name; }}""", PropertyMemberType.GETTER)
   }
 
   fun testUnresolvedRef() {
-    assertNotPropertyMember("class Some { public String getN<caret>ame() { return name; }}", PropertyMemberType.GETTER) 
+    assertNotPropertyMember("class Some { public String getN<caret>ame() { return name; }}", PropertyMemberType.GETTER)
   }
 
   fun testUnresolvedRef2() {
-    assertNotPropertyMember("""class Some {private String name;public static String getN<caret>ame() { return name; }}""", PropertyMemberType.GETTER) 
+    assertNotPropertyMember("""class Some {private String name;public static String getN<caret>ame() { return name; }}""", PropertyMemberType.GETTER)
   }
 
   fun testSuperFieldRef() {
@@ -130,7 +129,7 @@ class JavaPropertyDetectionTest : LightJavaCodeInsightFixtureTestCase() {
           }
         }
       }
-    """.trimIndent(), TIntObjectHashMap<PropertyIndexValue>().apply {
+    """.trimIndent(), Int2ObjectOpenHashMap<PropertyIndexValue>().apply {
       put(0, PropertyIndexValue("name", true))
       put(2, PropertyIndexValue("Boo.Foo.CONST", true))
     })
@@ -157,17 +156,17 @@ class JavaPropertyDetectionTest : LightJavaCodeInsightFixtureTestCase() {
           return new String();
         }
       }
-    """.trimIndent(), TIntObjectHashMap())
+    """.trimIndent(), Int2ObjectOpenHashMap())
   }
 
   private fun assertPropertyMember(text: String, memberType: PropertyMemberType) {
     doTest(text, memberType, true)
   }
-  
+
   private fun assertNotPropertyMember(text: String, memberType: PropertyMemberType) {
     doTest(text, memberType, false)
   }
-  
+
   private fun doTest(text: String, memberType: PropertyMemberType, expectedDecision: Boolean) {
     assertNotEquals(PropertyMemberType.FIELD, memberType)
     myFixture.configureByText(JavaFileType.INSTANCE, text)
@@ -179,11 +178,9 @@ class JavaPropertyDetectionTest : LightJavaCodeInsightFixtureTestCase() {
     assertEquals(expectedDecision, if (memberType == PropertyMemberType.GETTER) PropertyUtil.isSimpleGetter(method, false) else PropertyUtil.isSimpleSetter(method, false))
   }
 
-  private fun assertJavaSimplePropertyIndex(text: String, expected: TIntObjectHashMap<PropertyIndexValue>) {
+  private fun assertJavaSimplePropertyIndex(text: String, expected: Int2ObjectMap<PropertyIndexValue>) {
     val file = myFixture.configureByText(JavaFileType.INSTANCE, text)
-    val content = FileContentImpl.createByFile(file.virtualFile)
-    content.putUserData(IndexingDataKeys.PROJECT, project)
-    val data = JavaSimplePropertyIndex().indexer.map(content).values.firstOrNull() ?: TIntObjectHashMap()
+    val data = javaSimplePropertyGist.getFileData(file)
     assertEquals(expected, data)
   }
 }

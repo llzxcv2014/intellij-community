@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.java.stubs;
 
 import com.intellij.lang.ASTNode;
@@ -33,11 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * @author max
- */
 abstract class JavaMethodElementType extends JavaStubElementType<PsiMethodStub, PsiMethod> {
-  private static final String TYPE_PARAMETER_PSEUDO_NAME = "$TYPE_PARAMETER$";
   JavaMethodElementType(@NonNls final String name) {
     super(name);
   }
@@ -140,18 +136,15 @@ abstract class JavaMethodElementType extends JavaStubElementType<PsiMethodStub, 
     }
 
     Set<String> methodTypeParams = getVisibleTypeParameters(stub);
-    for (StubElement stubElement : stub.getChildrenStubs()) {
+    for (StubElement<?> stubElement : stub.getChildrenStubs()) {
       if (stubElement instanceof PsiParameterListStub) {
-        for (StubElement paramStub : ((PsiParameterListStub)stubElement).getChildrenStubs()) {
+        for (StubElement<?> paramStub : stubElement.getChildrenStubs()) {
           if (paramStub instanceof PsiParameterStub) {
             TypeInfo type = ((PsiParameterStub)paramStub).getType(false);
             String typeName = PsiNameHelper.getShortClassName(type.text);
             if (TypeConversionUtil.isPrimitive(typeName) || TypeConversionUtil.isPrimitiveWrapper(typeName)) continue;
-            sink.occurrence(JavaStubIndexKeys.METHOD_TYPES, typeName);
-            if (typeName.equals(type.text) &&
-                (type.arrayCount == 0 || type.arrayCount == 1 && type.isEllipsis) &&
-                methodTypeParams.contains(typeName)) {
-              sink.occurrence(JavaStubIndexKeys.METHOD_TYPES, TYPE_PARAMETER_PSEUDO_NAME);
+            if (!methodTypeParams.contains(typeName)) {
+              sink.occurrence(JavaStubIndexKeys.METHOD_TYPES, typeName);
             }
           }
         }
@@ -182,7 +175,7 @@ abstract class JavaMethodElementType extends JavaStubElementType<PsiMethodStub, 
       PsiModifierListStub modList = stub.findChildStubByType(JavaStubElementTypes.MODIFIER_LIST);
       if (modList != null) {
         return BitUtil.isSet(modList.getModifiersMask(),
-                             ModifierFlags.NAME_TO_MODIFIER_FLAG_MAP.get(PsiModifier.STATIC));
+                             ModifierFlags.NAME_TO_MODIFIER_FLAG_MAP.getInt(PsiModifier.STATIC));
       }
     }
     return false;

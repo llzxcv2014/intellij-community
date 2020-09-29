@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.tabs;
 
 import com.intellij.icons.AllIcons;
@@ -20,12 +6,15 @@ import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.ui.Queryable;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.reference.SoftReference;
 import com.intellij.ui.IconDeferrer;
 import com.intellij.ui.PlaceProvider;
 import com.intellij.ui.SimpleColoredText;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.content.AlertIcon;
+import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,8 +26,11 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public final class TabInfo implements Queryable, PlaceProvider<String> {
+import static com.intellij.ui.tabs.impl.JBTabsImpl.PINNED;
+
+public final class TabInfo implements Queryable, PlaceProvider {
 
   public static final String ACTION_GROUP = "actionGroup";
   public static final String ICON = "icon";
@@ -60,7 +52,7 @@ public final class TabInfo implements Queryable, PlaceProvider<String> {
   private final PropertyChangeSupport myChangeSupport = new PropertyChangeSupport(this);
 
   private Icon myIcon;
-  private String myPlace;
+  private @NonNls String myPlace;
   private Object myObject;
   private JComponent mySideComponent;
   private Reference<JComponent> myLastFocusOwner;
@@ -77,7 +69,7 @@ public final class TabInfo implements Queryable, PlaceProvider<String> {
   private JComponent myActionsContextComponent;
 
   private final SimpleColoredText myText = new SimpleColoredText();
-  private String myTooltipText;
+  private @NlsContexts.Tooltip String myTooltipText;
 
   private int myDefaultStyle = -1;
   private Color myDefaultForeground;
@@ -109,7 +101,7 @@ public final class TabInfo implements Queryable, PlaceProvider<String> {
   }
 
   @NotNull
-  public TabInfo setText(@NotNull String text) {
+  public TabInfo setText(@NlsContexts.TabTitle @NotNull String text) {
     List<SimpleTextAttributes> attributes = myText.getAttributes();
     TextAttributes textAttributes = attributes.size() == 1 ? attributes.get(0).toTextAttributes() : null;
     TextAttributes defaultAttributes = getDefaultAttributes().toTextAttributes();
@@ -142,7 +134,7 @@ public final class TabInfo implements Queryable, PlaceProvider<String> {
   }
 
   @NotNull
-  public TabInfo append(@NotNull String fragment, @NotNull SimpleTextAttributes attributes) {
+  public TabInfo append(@NotNull @NlsContexts.Label String fragment, @NotNull SimpleTextAttributes attributes) {
     final String old = myText.toString();
     myText.append(fragment, attributes);
     myChangeSupport.firePropertyChange(TEXT, old, myText.toString());
@@ -177,8 +169,12 @@ public final class TabInfo implements Queryable, PlaceProvider<String> {
     return myComponent;
   }
 
+  public boolean isPinned() {
+    return UIUtil.isClientPropertyTrue(getComponent(), PINNED);
+  }
+
   @NotNull
-  public String getText() {
+  public @NlsContexts.TabTitle String getText() {
     return myText.toString();
   }
 
@@ -207,7 +203,7 @@ public final class TabInfo implements Queryable, PlaceProvider<String> {
   }
 
   @NotNull
-  public TabInfo setActions(ActionGroup group, String place) {
+  public TabInfo setActions(ActionGroup group, @NonNls String place) {
     ActionGroup old = myGroup;
     myGroup = group;
     myPlace = place;
@@ -374,16 +370,16 @@ public final class TabInfo implements Queryable, PlaceProvider<String> {
   }
 
   @NotNull
-  public TabInfo setTooltipText(final String text) {
+  public TabInfo setTooltipText(@NlsContexts.Tooltip String text) {
     String old = myTooltipText;
-    if (!Comparing.equal(old, text)) {
+    if (!Objects.equals(old, text)) {
       myTooltipText = text;
       myChangeSupport.firePropertyChange(TEXT, old, myTooltipText);
     }
     return this;
   }
 
-  public String getTooltipText() {
+  public @NlsContexts.Tooltip String getTooltipText() {
     return myTooltipText;
   }
 

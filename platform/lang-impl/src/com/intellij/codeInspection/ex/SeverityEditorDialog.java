@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInspection.ex;
 
@@ -10,6 +10,7 @@ import com.intellij.codeInsight.daemon.impl.SeverityRegistrar;
 import com.intellij.codeInsight.daemon.impl.SeverityUtil;
 import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.ide.DataManager;
+import com.intellij.lang.LangBundle;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.diagnostic.Logger;
@@ -42,7 +43,7 @@ import java.util.*;
 import static com.intellij.application.options.colors.ColorAndFontOptions.selectOrEditColor;
 import static com.intellij.codeInsight.daemon.impl.SeverityRegistrar.SeverityBasedTextAttributes;
 
-public class SeverityEditorDialog extends DialogWrapper {
+public final class SeverityEditorDialog extends DialogWrapper {
   private static final Logger LOG = Logger.getInstance(SeverityEditorDialog.class);
 
   private final JPanel myPanel;
@@ -141,7 +142,8 @@ public class SeverityEditorDialog extends DialogWrapper {
         @Override
         public void run(AnActionButton button) {
           String oldName = myCurrentSelection.getSeverity().getName();
-          String newName = Messages.showInputDialog(myPanel, InspectionsBundle.message("highlight.severity.create.dialog.name.label"), "Edit Severity Name", null, oldName, new InputValidator() {
+          String newName = Messages.showInputDialog(myPanel, InspectionsBundle.message("highlight.severity.create.dialog.name.label"),
+                                                    InspectionsBundle.message("highlight.severity.create.dialog.title"), null, oldName, new InputValidator() {
             @Override
             public boolean checkInput(String inputString) {
               return checkNameExist(inputString);
@@ -160,7 +162,8 @@ public class SeverityEditorDialog extends DialogWrapper {
             select(newSeverityBasedTextAttributes);
           }
         }
-      }).setEditActionUpdater(e -> myCurrentSelection != null && !SeverityRegistrar.isDefaultSeverity(myCurrentSelection.getSeverity())).setEditActionName("Rename").createPanel();
+      }).setEditActionUpdater(e -> myCurrentSelection != null && !SeverityRegistrar.isDefaultSeverity(myCurrentSelection.getSeverity())).setEditActionName(
+        LangBundle.message("action.rename.text")).createPanel();
     ToolbarDecorator.findRemoveButton(leftPanel).addCustomUpdater(
       e -> !SeverityRegistrar.isDefaultSeverity(myOptionsList.getSelectedValue().getSeverity()));
     ToolbarDecorator.findUpButton(leftPanel).addCustomUpdater(e -> {

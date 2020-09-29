@@ -20,6 +20,7 @@ import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInsight.generation.PsiElementClassMember;
 import com.intellij.codeInsight.hint.HintManager;
 import com.intellij.ide.util.MemberChooser;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.diagnostic.Logger;
@@ -111,7 +112,7 @@ public class GenerateToStringActionHandlerImpl implements GenerateToStringAction
                 }
             };
         //noinspection DialogTitleCapitalization
-        chooser.setTitle("Generate toString()");
+        chooser.setTitle(JavaBundle.message("generate.tostring.title"));
 
         chooser.setCopyJavadocVisible(false);
         chooser.selectElements(getPreselection(clazz, dialogMembers));
@@ -134,7 +135,7 @@ public class GenerateToStringActionHandlerImpl implements GenerateToStringAction
                 // decide what to do if the method already exists
                 ConflictResolutionPolicy resolutionPolicy = worker.exitsMethodDialog(template);
                 try {
-                    WriteCommandAction.runWriteCommandAction(project, "Generate toString()", null,
+                    WriteCommandAction.runWriteCommandAction(project, JavaBundle.message("command.name.generate.tostring"), null,
                                                              () -> worker.execute(selectedMembers, template, resolutionPolicy));
                 }
                 catch (Exception e) {
@@ -142,7 +143,8 @@ public class GenerateToStringActionHandlerImpl implements GenerateToStringAction
                 }
             }
             else {
-                HintManager.getInstance().showErrorHint(editor, "toString() template '" + template.getFileName() + "' is invalid");
+                HintManager.getInstance().showErrorHint(editor,
+                                                        JavaBundle.message("hint.text.tostring.template.invalid", template.getFileName()));
             }
         }
 
@@ -212,7 +214,7 @@ public class GenerateToStringActionHandlerImpl implements GenerateToStringAction
             final Collection<TemplateResource> templates = ToStringTemplatesManager.getInstance().getAllTemplates();
             final TemplateResource[] all = templates.toArray(new TemplateResource[0]);
 
-            final JButton settingsButton = new JButton("Settings");
+            final JButton settingsButton = new JButton(JavaBundle.message("button.text.settings"));
             settingsButton.setMnemonic(KeyEvent.VK_S);
 
             comboBox = new ComboBox<>(all);
@@ -243,7 +245,7 @@ public class GenerateToStringActionHandlerImpl implements GenerateToStringAction
 
                         @Override
                         public String getDisplayName() {
-                            return "toString() Generation Settings";
+                            return JavaBundle.message("generate.tostring.tab.title");
                         }
 
                         @Override
@@ -271,7 +273,7 @@ public class GenerateToStringActionHandlerImpl implements GenerateToStringAction
 
             comboBox.setSelectedItem(ToStringTemplatesManager.getInstance().getDefaultTemplate());
 
-            final JLabel templatesLabel = new JLabel("Template: ");
+            final JLabel templatesLabel = new JLabel(JavaBundle.message("generate.tostring.template.label"));
             templatesLabel.setDisplayedMnemonic('T');
             templatesLabel.setLabelFor(comboBox);
 

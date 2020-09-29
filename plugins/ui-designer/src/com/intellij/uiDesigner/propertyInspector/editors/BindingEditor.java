@@ -1,11 +1,11 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.uiDesigner.propertyInspector.editors;
 
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonShortcuts;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.psi.*;
 import com.intellij.uiDesigner.FormEditingUtil;
@@ -27,6 +27,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Objects;
 
 import static com.intellij.uiDesigner.propertyInspector.DesignerToolWindowManager.getInstance;
 
@@ -89,7 +90,7 @@ public final class BindingEditor extends ComboBoxPropertyEditor<String> {
 
       final String fieldName = field.getName();
 
-      if (Comparing.equal(currentName, fieldName)) {
+      if (Objects.equals(currentName, fieldName)) {
         continue;
       }
 
@@ -145,7 +146,7 @@ public final class BindingEditor extends ComboBoxPropertyEditor<String> {
   }
 
   @Override
-  public JComponent getComponent(final RadComponent component, final String value, final InplaceContext inplaceContext){
+  public JComponent getComponent(final RadComponent component, final @NlsSafe String value, final InplaceContext inplaceContext){
     final String[] fieldNames = getFieldNames(component, value);
     myCbx.setModel(new DefaultComboBoxModel(fieldNames));
     myCbx.setSelectedItem(value);

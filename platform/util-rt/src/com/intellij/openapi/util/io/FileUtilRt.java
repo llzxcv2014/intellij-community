@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.util.io;
 
 import com.intellij.ReviseWhenPortedToJDK;
@@ -13,6 +13,8 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.util.*;
@@ -67,6 +69,34 @@ public class FileUtilRt {
     // do not use getName to avoid extra String creation (File.getName() calls substring)
     final String path = file.getPath();
     return StringUtilRt.endsWithIgnoreCase(path, ".jar") || StringUtilRt.endsWithIgnoreCase(path, ".zip");
+  }
+
+  @NotNull
+  public static List<String> splitPath(@NotNull String path, char separatorChar) {
+    List<String> list = new ArrayList<String>();
+    int index = 0;
+    int nextSeparator;
+    while ((nextSeparator = path.indexOf(separatorChar, index)) != -1) {
+      list.add(path.substring(index, nextSeparator));
+      index = nextSeparator + 1;
+    }
+    list.add(path.substring(index));
+    return list;
+  }
+
+  public static boolean isFilePathAcceptable(@NotNull File root, @Nullable FileFilter fileFilter) {
+    if (fileFilter == null) {
+      return true;
+    }
+    File file = root;
+    do {
+      if (!fileFilter.accept(file)) {
+        return false;
+      }
+      file = file.getParentFile();
+    }
+    while (file != null);
+    return true;
   }
 
   protected interface SymlinkResolver {
@@ -125,12 +155,17 @@ public class FileUtilRt {
         ourDeletionVisitor = Proxy.newProxyInstance(FileUtilRt.class.getClassLoader(), new Class[]{visitorClass}, new InvocationHandler() {
           public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             if (args.length == 2) {
-              final Object second = args[1];
+              String methodName = method.getName();
+              Object second = args[1];
               if (second instanceof Throwable) {
-                throw (Throwable)second;
+                if (SystemInfoRt.isWindows && "visitFileFailed".equals(methodName) && ourNoSuchFileExceptionClass.isInstance(second)) {
+                  performDelete(args[0]);  // could be an aimless junction
+                }
+                else {
+                  throw (Throwable)second;
+                }
               }
-              final String methodName = method.getName();
-              if ("visitFile".equals(methodName) || "postVisitDirectory".equals(methodName)) {
+              else if ("visitFile".equals(methodName) || "postVisitDirectory".equals(methodName)) {
                 performDelete(args[0]);
               }
               else if (SystemInfoRt.isWindows && "preVisitDirectory".equals(methodName)) {
@@ -405,7 +440,7 @@ public class FileUtilRt {
     return fileName.subSequence(index + 1, fileName.length());
   }
 
-  public static boolean extensionEquals(@NotNull String filePath, @NotNull String extension) {
+  public static boolean extensionEquals(@NotNull @NonNls String filePath, @NotNull @NonNls String extension) {
     int extLen = extension.length();
     if (extLen == 0) {
       int lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
@@ -414,6 +449,15 @@ public class FileUtilRt {
     int extStart = filePath.length() - extLen;
     return extStart >= 1 && filePath.charAt(extStart-1) == '.'
            && filePath.regionMatches(!SystemInfoRt.isFileSystemCaseSensitive, extStart, extension, 0, extLen);
+  }
+
+  public static boolean fileNameEquals(@NotNull File file, @NonNls @NotNull String name) {
+    return fileNameEquals(file.getName(), name);
+  }
+
+  public static boolean fileNameEquals(@NotNull @NonNls CharSequence fileName,
+                                       @NotNull @NonNls CharSequence expectedName) {
+    return StringUtilRt.equal(expectedName, fileName, SystemInfoRt.isFileSystemCaseSensitive);
   }
 
   @NotNull
@@ -562,7 +606,7 @@ public class FileUtilRt {
   }
 
   @NotNull
-  public static File createTempFile(@NotNull String prefix, @Nullable String suffix, boolean deleteOnExit) throws IOException {
+  public static File createTempFile(@NonNls @NotNull String prefix, @NonNls @Nullable String suffix, boolean deleteOnExit) throws IOException {
     final File dir = new File(getTempDirectory());
     return createTempFile(dir, prefix, suffix, true, deleteOnExit);
   }
@@ -1098,5 +1142,54 @@ public class FileUtilRt {
   @NotNull
   private static LoggerRt logger() {
     return LoggerRt.getInstance("#com.intellij.openapi.util.io.FileUtilRt");
+  }
+
+  /**
+   * Energy-efficient variant of {@link File#toURI()}. Unlike the latter, doesn't check whether a given file is a directory,
+   * so URIs never have a trailing slash (but are nevertheless compatible with {@link File#File(URI)}).
+   */
+  public static @NotNull URI fileToUri(@NotNull File file) {
+    String path = file.getAbsolutePath();
+    if (File.separatorChar != '/') path = path.replace(File.separatorChar, '/');
+    if (!path.startsWith("/")) path = '/' + path;
+    if (path.startsWith("//")) path = "//" + path;
+    try {
+      return new URI("file", null, path, null);
+    }
+    catch (URISyntaxException e) {
+      throw new IllegalArgumentException(path, e);  // unlikely, as `File#toURI()` doesn't declare any exceptions
+    }
+  }
+
+  public static int pathHashCode(@Nullable String path) {
+    if (path == null || path.isEmpty()) {
+      return 0;
+    }
+    path = toCanonicalPath(path, File.separatorChar, true);
+    return SystemInfoRt.isFileSystemCaseSensitive ? path.hashCode() : StringUtilRt.stringHashCodeInsensitive(path);
+  }
+
+  public static boolean filesEqual(@Nullable File file1, @Nullable File file2) {
+    // on macOS java.io.File.equals() is incorrectly case-sensitive
+    return pathsEqual(file1 == null ? null : file1.getPath(),
+                      file2 == null ? null : file2.getPath());
+  }
+
+  public static boolean pathsEqual(@Nullable String path1, @Nullable String path2) {
+    if (path1 == path2) {
+      return true;
+    }
+    if (path1 == null || path2 == null) {
+      return false;
+    }
+
+    path1 = toCanonicalPath(path1, File.separatorChar, true);
+    path2 = toCanonicalPath(path2, File.separatorChar, true);
+    if (SystemInfoRt.isFileSystemCaseSensitive) {
+      return path1.equals(path2);
+    }
+    else {
+      return path1.equalsIgnoreCase(path2);
+    }
   }
 }

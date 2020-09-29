@@ -1,24 +1,10 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.daemon.impl;
 
 import com.intellij.analysis.AnalysisScope;
-import com.intellij.analysis.AnalysisScopeBundle;
 import com.intellij.analysis.AnalysisUIOptions;
 import com.intellij.analysis.BaseAnalysisActionDialog;
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.codeInspection.actions.CleanupIntention;
 import com.intellij.openapi.module.Module;
@@ -28,7 +14,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.Nullable;
 
-public class CleanupOnScopeIntention extends CleanupIntention {
+public final class CleanupOnScopeIntention extends CleanupIntention {
   public static final CleanupOnScopeIntention INSTANCE = new CleanupOnScopeIntention();
 
   private CleanupOnScopeIntention() {}
@@ -43,14 +29,13 @@ public class CleanupOnScopeIntention extends CleanupIntention {
       analysisScope = new AnalysisScope(project);
     }
     final BaseAnalysisActionDialog dlg = new BaseAnalysisActionDialog(
-      AnalysisScopeBundle.message("specify.analysis.scope", InspectionsBundle.message("inspection.action.title")),
-      AnalysisScopeBundle.message("analysis.scope.title", InspectionsBundle.message("inspection.action.noun")), project, BaseAnalysisActionDialog.standardItems(
+      CodeInsightBundle.message("specify.analysis.scope", InspectionsBundle.message("inspection.action.title")),
+      CodeInsightBundle.message("analysis.scope.title", InspectionsBundle.message("inspection.action.noun")), project, BaseAnalysisActionDialog.standardItems(
       project, analysisScope, module, file),
       AnalysisUIOptions.getInstance(project), true);
     if (!dlg.showAndGet()) {
       return null;
     }
-    final AnalysisUIOptions uiOptions = AnalysisUIOptions.getInstance(project);
-    return dlg.getScope(uiOptions, analysisScope, project, module);
+    return dlg.getScope(analysisScope);
   }
 }

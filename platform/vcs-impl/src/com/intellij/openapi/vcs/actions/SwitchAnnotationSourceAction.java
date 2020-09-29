@@ -4,6 +4,7 @@ package com.intellij.openapi.vcs.actions;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.DumbAware;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vcs.annotate.AnnotationSource;
 import com.intellij.openapi.vcs.annotate.AnnotationSourceSwitcher;
@@ -17,8 +18,6 @@ import java.util.List;
  * @author Konstantin Bulenkov
  */
 class SwitchAnnotationSourceAction extends AnAction implements DumbAware {
-  private final static String ourShowMerged = VcsBundle.message("annotation.switch.to.merged.text");
-  private final static String ourHideMerged = VcsBundle.message("annotation.switch.to.original.text");
   private final AnnotationSourceSwitcher mySwitcher;
   private final List<Consumer<AnnotationSource>> myListeners = ContainerUtil.createLockFreeCopyOnWriteList();
   private boolean myShowMerged;
@@ -34,7 +33,7 @@ class SwitchAnnotationSourceAction extends AnAction implements DumbAware {
 
   @Override
   public void update(@NotNull final AnActionEvent e) {
-    e.getPresentation().setText(myShowMerged ? ourHideMerged : ourShowMerged);
+    e.getPresentation().setText(myShowMerged ? getHideMerged() : getShowMerged());
   }
 
   @Override
@@ -47,5 +46,15 @@ class SwitchAnnotationSourceAction extends AnAction implements DumbAware {
     }
 
     AnnotateActionGroup.revalidateMarkupInAllEditors();
+  }
+
+  @NlsActions.ActionText
+  private static String getShowMerged() {
+    return VcsBundle.message("annotation.switch.to.merged.text");
+  }
+
+  @NlsActions.ActionText
+  private static String getHideMerged() {
+    return VcsBundle.message("annotation.switch.to.original.text");
   }
 }

@@ -1,11 +1,11 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.ui;
 
 import com.intellij.ide.BrowserUtil;
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.IdeEventQueue;
 import com.intellij.ide.ui.UISettings;
 import com.intellij.openapi.actionSystem.ActionManager;
-import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.application.ApplicationManager;
@@ -15,9 +15,13 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.ide.CopyPasteManager;
 import com.intellij.openapi.options.ex.SingleConfigurableEditor;
 import com.intellij.openapi.options.newEditor.SettingsDialog;
+import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.*;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.HyperlinkLabel;
 import com.intellij.ui.TextFieldWithHistory;
@@ -201,7 +205,7 @@ public class SwingHelper {
     LOG.debug("DialogWrapper '" + dialogWrapper.getTitle() + "' has been re-sized (added width: " + dw + ", added height: " + dh + ")");
   }
 
-  public static void resizeDialogToFitTextFor(@NotNull final JComponent... components) {
+  public static void resizeDialogToFitTextFor(final JComponent @NotNull ... components) {
     if (components.length == 0) return;
     doWithDialogWrapper(components[0], dialogWrapper -> {
       if (dialogWrapper instanceof SettingsDialog || dialogWrapper instanceof SingleConfigurableEditor) {
@@ -366,7 +370,7 @@ public class SwingHelper {
     }
   }
 
-  public static void setLongestAsPrototype(@NotNull JComboBox comboBox, @NotNull List<String> variants) {
+  private static void setLongestAsPrototype(@NotNull JComboBox comboBox, @NotNull List<String> variants) {
     Object prototypeDisplayValue = comboBox.getPrototypeDisplayValue();
     String prototypeDisplayValueStr = null;
     if (prototypeDisplayValue instanceof String) {
@@ -377,7 +381,7 @@ public class SwingHelper {
     }
     String longest = StringUtil.notNullize(prototypeDisplayValueStr);
     boolean updated = false;
-    for (String s : variants) {
+    for (@NlsSafe String s : variants) {
       if (longest.length() < s.length()) {
         longest = s;
         updated = true;
@@ -423,12 +427,12 @@ public class SwingHelper {
   }
 
   @NotNull
-  public static HyperlinkLabel createWebHyperlink(@NotNull String url) {
+  public static HyperlinkLabel createWebHyperlink(@NlsSafe @NotNull String url) {
     return createWebHyperlink(url, url);
   }
 
   @NotNull
-  public static HyperlinkLabel createWebHyperlink(@NotNull String text, @NotNull String url) {
+  public static HyperlinkLabel createWebHyperlink(@NlsContexts.LinkLabel @NotNull String text, @NotNull String url) {
     HyperlinkLabel hyperlink = new HyperlinkLabel(text);
     hyperlink.setHyperlinkTarget(url);
 
@@ -513,7 +517,7 @@ public class SwingHelper {
         }
 
         @Override
-        public void setText(String t) {
+        public void setText(@NlsSafe String t) {
           if (myDisabledHtml != null) {
             if (myEnabled) {
               myEnabledHtml = t;
@@ -614,7 +618,7 @@ public class SwingHelper {
   }
 
   public static void setHtml(@NotNull JEditorPane editorPane,
-                             @NotNull String bodyInnerHtml,
+                             @NotNull @Nls String bodyInnerHtml,
                              @Nullable Color foregroundColor) {
     editorPane.setText(buildHtml(
       UIUtil.getCssFontDeclaration(editorPane.getFont(), foregroundColor, JBUI.CurrentTheme.Link.linkColor(), null),
@@ -623,13 +627,16 @@ public class SwingHelper {
   }
 
   @NotNull
-  public static String buildHtml(@NotNull String headInnerHtml, @NotNull String bodyInnedHtml) {
-    return "<html><head>" + headInnerHtml + "</head><body>" + bodyInnedHtml + "</body></html>";
+  public static @Nls String buildHtml(@NotNull @Nls String headInnerHtml, @NotNull @Nls String bodyInnerHtml) {
+    return HtmlChunk.html().children(
+      HtmlChunk.head().addRaw(headInnerHtml),
+      HtmlChunk.body().addRaw(bodyInnerHtml)
+    ).toString();
   }
 
   @NotNull
   public static TextFieldWithHistoryWithBrowseButton createTextFieldWithHistoryWithBrowseButton(@Nullable Project project,
-                                                                                                @NotNull String browseDialogTitle,
+                                                                                                @NotNull @NlsContexts.DialogTitle String browseDialogTitle,
                                                                                                 @NotNull FileChooserDescriptor fileChooserDescriptor,
                                                                                                 @Nullable NotNullProducer<? extends List<String>> historyProvider) {
     return ComponentsKt.textFieldWithHistoryWithBrowseButton(project, browseDialogTitle, fileChooserDescriptor, historyProvider == null ? null : () -> historyProvider.produce());
@@ -637,7 +644,7 @@ public class SwingHelper {
 
   @NotNull
   public static <C extends JComponent> ComponentWithBrowseButton<C> wrapWithInfoButton(@NotNull final C component,
-                                                                                       @NotNull String infoButtonTooltip,
+                                                                                       @NlsContexts.Tooltip @NotNull String infoButtonTooltip,
                                                                                        @NotNull ActionListener listener) {
     ComponentWithBrowseButton<C> comp = new ComponentWithBrowseButton<>(component, listener);
     FixedSizeButton uiHelpButton = comp.getButton();
@@ -648,12 +655,12 @@ public class SwingHelper {
     return comp;
   }
 
-  private static class CopyLinkAction extends AnAction {
+  private static final class CopyLinkAction extends DumbAwareAction {
 
     private final String myUrl;
 
     private CopyLinkAction(@NotNull String url) {
-      super("Copy Link Address", null, PlatformIcons.COPY_ICON);
+      super(IdeBundle.message("action.text.copy.link.address"), null, PlatformIcons.COPY_ICON);
       myUrl = url;
     }
 
@@ -669,12 +676,12 @@ public class SwingHelper {
     }
   }
 
-  private static class OpenLinkInBrowser extends AnAction {
+  private static final class OpenLinkInBrowser extends DumbAwareAction {
 
     private final String myUrl;
 
     private OpenLinkInBrowser(@NotNull String url) {
-      super("Open Link in Browser", null, PlatformIcons.WEB_ICON);
+      super(IdeBundle.message("action.text.open.link.in.browser"), null, PlatformIcons.WEB_ICON);
       myUrl = url;
     }
 
@@ -691,7 +698,7 @@ public class SwingHelper {
 
   public final static String ELLIPSIS = "...";
   public static final String ERROR_STR = "www";
-  public static String truncateStringWithEllipsis(final String text, final int maxWidth, final FontMetrics fm) {
+  public static @Nls String truncateStringWithEllipsis(final @Nls String text, final int maxWidth, final FontMetrics fm) {
     return truncateStringWithEllipsis(text, maxWidth, new WidthCalculator() {
       @Override
       public int stringWidth(String s) {
@@ -710,7 +717,7 @@ public class SwingHelper {
     int charWidth(final char c);
   }
 
-  public static String truncateStringWithEllipsis(@NotNull final String text, final int maxWidth, final WidthCalculator fm) {
+  public static @Nls String truncateStringWithEllipsis(@Nls @NotNull final String text, final int maxWidth, final WidthCalculator fm) {
     final int error = fm.stringWidth(ERROR_STR);
     final int wholeWidth = fm.stringWidth(text) + error;
     if (wholeWidth <= maxWidth || text.isEmpty()) return text;
@@ -723,15 +730,14 @@ public class SwingHelper {
     final String currentSubstring = text.substring(0, currentLen);
     int realWidth = fm.stringWidth(currentSubstring);
 
+    int delta = 0;
     if (realWidth >= availableWidth) {
-      int delta = 0;
       for (int i = currentLen - 1; i >= 0; i--) {
         if ((realWidth - delta) < availableWidth) return text.substring(0, i) + ELLIPSIS;
         delta += fm.charWidth(currentSubstring.charAt(i));
       }
-      return text.substring(0, 1) + ELLIPSIS;
+      return text.charAt(0) + ELLIPSIS;
     } else {
-      int delta = 0;
       for (int i = currentLen; i < text.length(); i++) {
         if ((realWidth + delta) >= availableWidth) return text.substring(0, i) + ELLIPSIS;
         delta += fm.charWidth(text.charAt(i));
@@ -740,7 +746,7 @@ public class SwingHelper {
     }
   }
 
-  public static JEditorPane createHtmlLabel(@NotNull final String innerHtml, @Nullable String disabledHtml,
+  public static JEditorPane createHtmlLabel(@NotNull @Nls final String innerHtml, @Nullable @Nls String disabledHtml,
                                             @Nullable final Consumer<? super String> hyperlinkListener) {
     disabledHtml = disabledHtml == null ? innerHtml : disabledHtml;
     final Font font = UIUtil.getLabelFont();

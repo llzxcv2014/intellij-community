@@ -1,7 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.command.impl;
 
-import com.intellij.idea.StartupUtil;
+import com.intellij.idea.Main;
 import com.intellij.openapi.application.ApplicationStarter;
 import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.updateSettings.impl.PluginDownloader;
@@ -11,18 +11,17 @@ import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Works in two stages. On the first run, it collects available updates and writes an update script. The second run needs
  * {@code idea.force.plugin.updates = "true"} system property to apply the updates.
  *
  * @author Konstantin Bulenkov
- * @see StartupUtil#FORCE_PLUGIN_UPDATES
- * @see StartupUtil#installPluginUpdates()
+ * @see Main#FORCE_PLUGIN_UPDATES
+ * @see Main#installPluginUpdates()
  */
 public class UpdatePluginsApp implements ApplicationStarter {
   @Override
@@ -36,8 +35,8 @@ public class UpdatePluginsApp implements ApplicationStarter {
   }
 
   @Override
-  public void main(@NotNull String[] args) {
-    if (Boolean.getBoolean(StartupUtil.FORCE_PLUGIN_UPDATES)) {
+  public void main(@NotNull List<String> args) {
+    if (Boolean.getBoolean(Main.FORCE_PLUGIN_UPDATES)) {
       log("Updates applied.");
       System.exit(0);
     }
@@ -49,7 +48,7 @@ public class UpdatePluginsApp implements ApplicationStarter {
       return;
     }
 
-    Set<String> filter = Stream.of(args).skip(1).collect(Collectors.toSet());
+    Set<String> filter = new HashSet<>(args.subList(1, args.size()));
     if (!filter.isEmpty()) {
       availableUpdates = ContainerUtil.filter(availableUpdates, downloader -> filter.contains(downloader.getId().getIdString()));
     }

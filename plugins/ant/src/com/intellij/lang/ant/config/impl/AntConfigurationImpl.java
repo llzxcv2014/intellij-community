@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.lang.ant.config.impl;
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
@@ -7,6 +7,7 @@ import com.intellij.lang.ant.AntSupport;
 import com.intellij.lang.ant.config.*;
 import com.intellij.lang.ant.config.actions.TargetAction;
 import com.intellij.lang.ant.dom.AntDomFileDescription;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
@@ -41,6 +42,7 @@ import com.intellij.util.concurrency.Semaphore;
 import com.intellij.util.config.AbstractProperty;
 import com.intellij.util.config.ValueProperty;
 import org.jdom.Element;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -50,10 +52,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 @State(name = "AntConfiguration", storages = @Storage("ant.xml"), useLoadedStateAsExisting = false)
-public class AntConfigurationImpl extends AntConfigurationBase implements PersistentStateComponent<Element> {
+public class AntConfigurationImpl extends AntConfigurationBase implements PersistentStateComponent<Element>, Disposable {
   public static final ValueProperty<AntReference> DEFAULT_ANT = new ValueProperty<>("defaultAnt", AntReference.BUNDLED_ANT);
   private static final ValueProperty<AntConfiguration> INSTANCE = new ValueProperty<>("$instance", null);
-  public static final AbstractProperty<String> DEFAULT_JDK_NAME = new AbstractProperty<String>() {
+  public static final AbstractProperty<String> DEFAULT_JDK_NAME = new AbstractProperty<@Nls String>() {
     @Override
     public String getName() {
       return "$defaultJDKName";
@@ -160,9 +162,12 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
         }
         return antFiles == null? NO_OP : new FileDeletionChangeApplier(toDelete, antFiles);
       }
-    }, project);
+    }, this);
   }
 
+  @Override
+  public void dispose() {
+  }
 
   @Override
   public Element getState() {
@@ -183,7 +188,7 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
         files = new ArrayList<>(myAntFileToContextFileMap.keySet());
       }
       // sort in order to minimize changes
-      Collections.sort(files, Comparator.comparing(VirtualFile::getUrl));
+      files.sort(Comparator.comparing(VirtualFile::getUrl));
       for (VirtualFile file : files) {
         final Element element = new Element(CONTEXT_MAPPING);
         element.setAttribute(URL, file.getUrl());
@@ -239,7 +244,7 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
   private void queueInitialization() {
     try {
       runWhenInitialized(() -> {
-        String title = AntBundle.message("loading.ant.config.progress");
+        String title = AntBundle.message("progress.text.loading.ant.config");
         queueLater(new Task.Backgroundable(getProject(), title, false) {
           @Override
           public void run(@NotNull final ProgressIndicator indicator) {
@@ -255,10 +260,12 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
                 try {
                   myInitThread = Thread.currentThread();
                   // first, remove existing files
-                  for (AntBuildFile file : myBuildFiles) {
+                  Iterator<AntBuildFileBase> it = myBuildFiles.iterator();
+                  while (it.hasNext()) {
+                    AntBuildFile file = it.next();
+                    it.remove();
                     removeBuildFileImpl(file);
                   }
-                  myBuildFiles.clear();
 
                   // then fill the configuration with the files configured in xml
                   final VirtualFileManager vfManager = VirtualFileManager.getInstance();
@@ -386,12 +393,12 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
   public AntBuildFile addBuildFile(final VirtualFile file) throws AntNoFileException {
     final Ref<AntBuildFile> result = Ref.create(null);
     final Ref<AntNoFileException> ex = Ref.create(null);
-    final String title = AntBundle.message("register.ant.build.progress", file.getPresentableUrl());
+    final String title = AntBundle.message("dialog.title.register.ant.build.file", file.getPresentableUrl());
     ProgressManager.getInstance().run(new Task.Modal(getProject(), title, false) {
       @NotNull
       @Override
       public NotificationInfo getNotificationInfo() {
-        return new NotificationInfo("Ant", "Ant Task Finished", "");
+        return new NotificationInfo("Ant", AntBundle.message("system.notification.title.ant.task.finished"), "");
       }
 
       @Override
@@ -399,7 +406,7 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
         indicator.setIndeterminate(true);
         indicator.pushState();
         try {
-          indicator.setText(title);
+          indicator.setText(AntBundle.message("progress.text.register.ant.build.file", file.getPresentableUrl()));
           incModificationCount();
           boolean added = ApplicationManager.getApplication().runReadAction((Computable<Boolean>)() -> {
             try {
@@ -442,9 +449,9 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
   private void removeBuildFiles(Collection<AntBuildFileBase> files) {
     for (AntBuildFileBase file : files) {
       incModificationCount();
+      myBuildFiles.remove(file);
       removeBuildFileImpl(file);
     }
-    myBuildFiles.removeAll(files);
     updateRegisteredActions();
   }
 
@@ -595,7 +602,7 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
     }
 
     if (events != null) {
-      Collections.sort(events, EventElementComparator.INSTANCE);
+      events.sort(EventElementComparator.INSTANCE);
       for (Element eventElement : events) {
         element.addContent(eventElement);
       }
@@ -634,13 +641,13 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
   private AntBuildFileBase addBuildFileImpl(final VirtualFile file) throws AntNoFileException {
     PsiFile xmlFile = myPsiManager.findFile(file);
     if (!(xmlFile instanceof XmlFile)) {
-      throw new AntNoFileException("the file is not an xml file", file);
+      throw new AntNoFileException(AntBundle.message("ant.cannot.add.build.file.reason.file.is.not.xml"), file);
     }
     AntSupport.markFileAsAntFile(file, xmlFile.getProject(), true);
     if (!AntDomFileDescription.isAntFile(((XmlFile)xmlFile))) {
-      throw new AntNoFileException("the file is not recognized as an Ant file", file);
+      throw new AntNoFileException(AntBundle.message("ant.cannot.add.build.file.reason.file.not.ant.file"), file);
     }
-    final AntBuildFileImpl buildFile = new AntBuildFileImpl((XmlFile)xmlFile, this);
+    final AntBuildFileImpl buildFile = new AntBuildFileImpl(xmlFile, this);
     myBuildFiles.add(buildFile);
     return buildFile;
   }
@@ -656,7 +663,7 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
       String defaultTargetActionId = model.getDefaultTargetActionId();
       if (defaultTargetActionId != null) {
         final TargetAction action = new TargetAction(
-          buildFile, TargetAction.DEFAULT_TARGET_NAME, Collections.singletonList(TargetAction.DEFAULT_TARGET_NAME), null
+          buildFile, TargetAction.getDefaultTargetName(), Collections.singletonList(TargetAction.getDefaultTargetName()), null
         );
         actionList.add(new Pair<>(defaultTargetActionId, action));
       }
@@ -669,8 +676,7 @@ public class AntConfigurationImpl extends AntConfigurationBase implements Persis
     synchronized (this) {
       // unregister Ant actions
       ActionManagerEx actionManager = ActionManagerEx.getInstanceEx();
-      final String[] oldIds = actionManager.getActionIds(AntConfiguration.getActionIdPrefix(project));
-      for (String oldId : oldIds) {
+      for (String oldId : actionManager.getActionIdList(AntConfiguration.getActionIdPrefix(project))) {
         actionManager.unregisterAction(oldId);
       }
       final Set<String> registeredIds = new HashSet<>();

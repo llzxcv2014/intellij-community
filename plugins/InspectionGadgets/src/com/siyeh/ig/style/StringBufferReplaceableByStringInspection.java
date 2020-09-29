@@ -52,12 +52,6 @@ public class StringBufferReplaceableByStringInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("string.buffer.replaceable.by.string.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     final PsiElement element = (PsiElement)infos[0];
     if (element instanceof PsiNewExpression) {
@@ -255,7 +249,7 @@ public class StringBufferReplaceableByStringInspection extends BaseInspection {
       final boolean useVariable = expressionText.contains("\n") && !isVariableInitializer(lastExpression);
       if (useVariable) {
         toDelete.forEach(tracker::delete);
-        final String modifier = JavaCodeStyleSettings.getInstance(lastExpression.getContainingFile()).GENERATE_FINAL_LOCALS ? "final " : "";
+        final @NonNls String modifier = JavaCodeStyleSettings.getInstance(lastExpression.getContainingFile()).GENERATE_FINAL_LOCALS ? "final " : "";
         final String statementText = modifier + CommonClassNames.JAVA_LANG_STRING + ' ' + variableName + "=" + expressionText + ';';
         final PsiStatement newStatement = JavaPsiFacade.getElementFactory(project).createStatementFromText(statementText, lastExpression);
         codeBlock.addBefore(newStatement, statement);
@@ -285,8 +279,7 @@ public class StringBufferReplaceableByStringInspection extends BaseInspection {
       return concatText;
     }
 
-    @NotNull
-    private static String convertToString(PsiExpression expression) {
+    private static @NonNls @NotNull String convertToString(PsiExpression expression) {
       PsiType type = expression.getType();
       PsiExpression stripped = PsiUtil.skipParenthesizedExprDown(expression);
       if (stripped != null) {
@@ -440,7 +433,7 @@ public class StringBufferReplaceableByStringInspection extends BaseInspection {
     }
 
     private static int getLineNumber(PsiElement element) {
-      final Document document = PsiDocumentManager.getInstance(element.getProject()).getDocument(element.getContainingFile());
+      final Document document = element.getContainingFile().getViewProvider().getDocument();
       assert document != null;
       return document.getLineNumber(element.getTextRange().getStartOffset());
     }
@@ -548,7 +541,7 @@ public class StringBufferReplaceableByStringInspection extends BaseInspection {
     }
 
     @Override
-    public void visitElement(PsiElement element) {
+    public void visitElement(@NotNull PsiElement element) {
       if (!myReplaceable) {
         return;
       }

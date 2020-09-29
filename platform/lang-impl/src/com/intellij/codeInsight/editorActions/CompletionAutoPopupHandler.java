@@ -2,10 +2,12 @@
 package com.intellij.codeInsight.editorActions;
 
 import com.intellij.codeInsight.AutoPopupController;
-import com.intellij.codeInsight.AutoPopupControllerImpl;
+import com.intellij.codeInsight.completion.CompletionPhase;
+import com.intellij.codeInsight.completion.CompletionPhase.EmptyAutoPopup;
 import com.intellij.codeInsight.completion.impl.CompletionServiceImpl;
 import com.intellij.codeInsight.lookup.LookupManager;
 import com.intellij.codeInsight.lookup.impl.LookupImpl;
+import com.intellij.openapi.application.AppUIExecutor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -27,9 +29,10 @@ public class CompletionAutoPopupHandler extends TypedHandlerDelegate {
   public Result checkAutoPopup(char charTyped, @NotNull final Project project, @NotNull final Editor editor, @NotNull final PsiFile file) {
     LookupImpl lookup = (LookupImpl)LookupManager.getActiveLookup(editor);
 
+    CompletionPhase phase = CompletionServiceImpl.getCompletionPhase();
     if (LOG.isDebugEnabled()) {
       LOG.debug("checkAutoPopup: character=" + charTyped + ";");
-      LOG.debug("phase=" + CompletionServiceImpl.getCompletionPhase());
+      LOG.debug("phase=" + phase);
       LOG.debug("lookup=" + lookup);
       LOG.debug("currentCompletion=" + CompletionServiceImpl.getCompletionService().getCurrentCompletion());
     }
@@ -42,6 +45,10 @@ public class CompletionAutoPopupHandler extends TypedHandlerDelegate {
     }
 
     if (Character.isLetterOrDigit(charTyped) || charTyped == '_') {
+      if (phase instanceof EmptyAutoPopup && ((EmptyAutoPopup)phase).allowsSkippingNewAutoPopup(editor, charTyped)) {
+        return Result.CONTINUE;
+      }
+
       AutoPopupController.getInstance(project).scheduleAutoPopup(editor);
       return Result.STOP;
     }
@@ -50,10 +57,10 @@ public class CompletionAutoPopupHandler extends TypedHandlerDelegate {
   }
 
   /**
-   * @deprecated can be emulated with {@link com.intellij.openapi.application.AppUIExecutor}
+   * @deprecated can be emulated with {@link AppUIExecutor}
    */
   @Deprecated
-  public static void runLaterWithCommitted(@NotNull final Project project, final Document document, @NotNull final Runnable runnable) {
-    AutoPopupControllerImpl.runTransactionWithEverythingCommitted(project, runnable);
+  public static void runLaterWithCommitted(@NotNull Project project, @SuppressWarnings("unused") Document document, @NotNull Runnable runnable) {
+    AppUIExecutor.onUiThread().later().withDocumentsCommitted(project).execute(runnable);
   }
 }

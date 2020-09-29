@@ -6,10 +6,11 @@ import com.intellij.ide.IdeView;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
-import org.jetbrains.annotations.Nls;
+import com.intellij.openapi.util.NlsActions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
+import java.util.function.Supplier;
 
 /**
  * The base abstract class for actions which create new file elements in IDE view
@@ -18,10 +19,16 @@ public abstract class CreateInDirectoryActionBase extends AnAction {
   protected CreateInDirectoryActionBase() {
   }
 
-  protected CreateInDirectoryActionBase(@Nls(capitalization = Nls.Capitalization.Title) String text,
-                                        @Nls(capitalization = Nls.Capitalization.Sentence) String description,
+  protected CreateInDirectoryActionBase(@NlsActions.ActionText String text,
+                                        @NlsActions.ActionDescription String description,
                                         Icon icon) {
     super(text, description, icon);
+  }
+
+  protected CreateInDirectoryActionBase(@NotNull Supplier<@NlsActions.ActionText String> dynamicText,
+                                        @NotNull Supplier<@NlsActions.ActionDescription String> dynamicDescription,
+                                        Icon icon) {
+    super(dynamicText, dynamicDescription, icon);
   }
 
   @Override

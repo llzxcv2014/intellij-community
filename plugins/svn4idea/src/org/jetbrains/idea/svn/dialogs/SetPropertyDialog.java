@@ -1,16 +1,16 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn.dialogs;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.DocumentAdapter;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.svn.SvnBundle;
-import org.jetbrains.idea.svn.SvnPropertyKeys;
 import org.jetbrains.idea.svn.SvnVcs;
 import org.jetbrains.idea.svn.api.Depth;
 import org.jetbrains.idea.svn.api.Revision;
@@ -30,14 +30,17 @@ import java.io.File;
 import java.util.Collection;
 import java.util.TreeSet;
 
+import static com.intellij.util.containers.ContainerUtil.addAll;
+import static org.jetbrains.idea.svn.SvnPropertyKeys.*;
+
 public class SetPropertyDialog extends DialogWrapper {
 
   private static final Logger LOG = Logger.getInstance(SetPropertyDialog.class);
 
-  private final String myPropertyName;
+  private final @NlsSafe @Nullable String myPropertyName;
   private final File[] myFiles;
 
-  private JComboBox myPropertyNameBox;
+  private JComboBox<String> myPropertyNameBox;
   private JRadioButton mySetPropertyButton;
   private JTextArea myValueText;
   private JRadioButton myDeletePropertyButton;
@@ -48,7 +51,7 @@ public class SetPropertyDialog extends DialogWrapper {
   @NonNls private static final String HELP_ID = "vcs.subversion.property";
   private JPanel myMainPanel;
 
-  public SetPropertyDialog(Project project, File[] files, String name, boolean allowRecursion) {
+  public SetPropertyDialog(Project project, File[] files, @NlsSafe @Nullable String name, boolean allowRecursion) {
     super(project, true);
     myFiles = files;
     myPropertyName = name;
@@ -108,7 +111,7 @@ public class SetPropertyDialog extends DialogWrapper {
       if (e.getStateChange() == ItemEvent.SELECTED) {
         String name = getPropertyName();
         updatePropertyValue(name);
-        getOKAction().setEnabled(name != null && !"".equals(name.trim()));
+        getOKAction().setEnabled(name != null && !name.trim().isEmpty());
       }
     });
     Component editor = myPropertyNameBox.getEditor().getEditorComponent();
@@ -119,16 +122,16 @@ public class SetPropertyDialog extends DialogWrapper {
         protected void textChanged(@NotNull DocumentEvent e) {
           String name = getPropertyName();
           updatePropertyValue(name);
-          getOKAction().setEnabled(name != null && !"".equals(name.trim()));
+          getOKAction().setEnabled(name != null && !name.trim().isEmpty());
         }
       });
 
     }
-    getOKAction().setEnabled(myPropertyName != null && !"".equals(myPropertyName.trim()));
+    getOKAction().setEnabled(myPropertyName != null && !myPropertyName.trim().isEmpty());
   }
 
   private void updatePropertyValue(String name) {
-    if (myFiles.length == 0 || myFiles.length > 1) {
+    if (myFiles.length != 1) {
       return;
     }
     File file = myFiles[0];
@@ -161,7 +164,10 @@ public class SetPropertyDialog extends DialogWrapper {
 
   @Override
   protected JComponent createCenterPanel() {
-    fillPropertyNames(myFiles);
+    for (@NlsSafe String name : getPropertyNames(myFiles)) {
+      myPropertyNameBox.addItem(name);
+    }
+
     if (myPropertyName != null) {
       myPropertyNameBox.getEditor().setItem(myPropertyName);
       myPropertyNameBox.getEditor().selectAll();
@@ -178,7 +184,7 @@ public class SetPropertyDialog extends DialogWrapper {
     return myMainPanel;
   }
 
-  private void fillPropertyNames(File[] files) {
+  private @NotNull Collection<@NlsSafe String> getPropertyNames(File[] files) {
     final Collection<String> names = new TreeSet<>();
     if (files.length == 1) {
       File file = files[0];
@@ -186,18 +192,7 @@ public class SetPropertyDialog extends DialogWrapper {
         PropertyConsumer handler = new PropertyConsumer() {
           @Override
           public void handleProperty(File path, PropertyData property) {
-            String name = property.getName();
-            if (name != null) {
-              names.add(name);
-            }
-          }
-
-          @Override
-          public void handleProperty(Url url, PropertyData property) {
-          }
-
-          @Override
-          public void handleProperty(long revision, PropertyData property) {
+            names.add(property.getName());
           }
         };
 
@@ -209,20 +204,7 @@ public class SetPropertyDialog extends DialogWrapper {
       }
     }
 
-    fillProperties(names);
-
-    for (final String name : names) {
-      myPropertyNameBox.addItem(name);
-    }
-  }
-
-  private static void fillProperties(final Collection<String> names) {
-    names.add(SvnPropertyKeys.SVN_EOL_STYLE);
-    names.add(SvnPropertyKeys.SVN_KEYWORDS);
-    names.add(SvnPropertyKeys.SVN_NEEDS_LOCK);
-    names.add(SvnPropertyKeys.SVN_MIME_TYPE);
-    names.add(SvnPropertyKeys.SVN_EXECUTABLE);
-    names.add(SvnPropertyKeys.SVN_IGNORE);
-    names.add(SvnPropertyKeys.SVN_EXTERNALS);
+    addAll(names, SVN_EOL_STYLE, SVN_KEYWORDS, SVN_NEEDS_LOCK, SVN_MIME_TYPE, SVN_EXECUTABLE, SVN_IGNORE, SVN_EXTERNALS);
+    return names;
   }
 }

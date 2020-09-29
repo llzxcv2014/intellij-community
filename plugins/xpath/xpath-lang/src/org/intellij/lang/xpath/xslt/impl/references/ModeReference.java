@@ -35,6 +35,7 @@ import org.intellij.lang.xpath.xslt.psi.impl.ImplicitModeElement;
 import org.intellij.lang.xpath.xslt.util.MatchTemplateMatcher;
 import org.intellij.lang.xpath.xslt.util.QNameUtil;
 import org.intellij.lang.xpath.xslt.util.XsltCodeInsightUtil;
+import org.intellij.plugins.xpathView.XPathBundle;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -70,8 +71,7 @@ class ModeReference extends SimpleAttributeReference implements PsiPolyVariantRe
   }
 
   @Override
-  @NotNull
-  public Object[] getVariants() {
+  public Object @NotNull [] getVariants() {
     final PsiFile containingFile = myAttribute.getContainingFile();
     if (containingFile instanceof XmlFile && XsltSupport.isXsltFile(containingFile)) {
       final List<Object> l = new ArrayList<>();
@@ -107,8 +107,7 @@ class ModeReference extends SimpleAttributeReference implements PsiPolyVariantRe
   }
 
   @Override
-  @NotNull
-  public ResolveResult[] multiResolve(final boolean incompleteCode) {
+  public ResolveResult @NotNull [] multiResolve(final boolean incompleteCode) {
     final PsiFile containingFile = myAttribute.getContainingFile();
     if (containingFile instanceof XmlFile && XsltSupport.isXsltFile(containingFile) && myImplicitModeElement.getQName() != null) {
       return PsiElementResolveResult.createResults(ResolveUtil.collect(getMatcher()));
@@ -204,10 +203,10 @@ class ModeReference extends SimpleAttributeReference implements PsiPolyVariantRe
   public String getUnresolvedMessagePattern() {
     final QName qName = myImplicitModeElement.getQName();
     if (qName != null && qName != QNameUtil.UNRESOLVED) {
-      return "Undefined mode '" + qName.toString() + "'";
+      return XPathBundle.message("inspection.message.undefined.mode", qName);
     }
     else {
-      return "Undefined mode ''{0}''";
+      return XPathBundle.partialMessage("inspection.message.undefined.mode", 1);
     }
   }
 
@@ -216,16 +215,14 @@ class ModeReference extends SimpleAttributeReference implements PsiPolyVariantRe
       super(attribute);
     }
 
-    @Nullable
     @Override
-    public LocalQuickFix[] getQuickFixes() {
+    public LocalQuickFix @Nullable [] getQuickFixes() {
       // TODO: This should actually scan all (reachable) xslt files for mode-declarations with the same local name
       return LocalQuickFix.EMPTY_ARRAY;
     }
 
-    @NotNull
     @Override
-    public Object[] getVariants() {
+    public Object @NotNull [] getVariants() {
       return getPrefixCompletions(myAttribute);
     }
   }

@@ -5,7 +5,9 @@ import com.google.common.util.concurrent.SettableFuture
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.vcs.FilePath
+import com.intellij.openapi.vcs.VcsBundle
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.ui.content.TabGroupId
 import com.intellij.vcs.log.*
 import com.intellij.vcs.log.data.VcsLogData
 import com.intellij.vcs.log.data.VcsLogStorage
@@ -15,16 +17,19 @@ import com.intellij.vcs.log.ui.MainVcsLogUi
 import com.intellij.vcs.log.ui.VcsLogUiEx
 import com.intellij.vcs.log.ui.table.GraphTableModel
 import com.intellij.vcs.log.util.VcsLogUtil
+import com.intellij.vcs.log.util.VcsLogUtil.jumpToRow
 import com.intellij.vcs.log.visible.filters.VcsLogFilterObject
 import com.intellij.vcs.log.visible.filters.matches
 import com.intellij.vcsUtil.VcsUtil
+import java.util.function.Function
 
-private const val TAB_NAME = "History"
+fun isNewHistoryEnabled() = Registry.`is`("vcs.new.history")
 
 class VcsLogFileHistoryProviderImpl : VcsLogFileHistoryProvider {
+  private val tabGroupId: TabGroupId = TabGroupId("History", VcsBundle.messagePointer("file.history.tab.name"), false)
 
   override fun canShowFileHistory(project: Project, paths: Collection<FilePath>, revisionNumber: String?): Boolean {
-    if (!Registry.`is`("vcs.new.history")) return false
+    if (!isNewHistoryEnabled()) return false
     val dataManager = VcsProjectLog.getInstance(project).dataManager ?: return false
 
     if (paths.size == 1) {
@@ -53,7 +58,7 @@ class VcsLogFileHistoryProviderImpl : VcsLogFileHistoryProvider {
         ui.jumpToNearestCommit(logManager.dataManager.storage, hash, root, true)
       }
       else if (firstTime) {
-        ui.jumpToRow(0, true)
+        jumpToRow(ui, 0, true)
       }
     }
 
@@ -93,7 +98,7 @@ class VcsLogFileHistoryProviderImpl : VcsLogFileHistoryProvider {
     val firstTime = fileHistoryUi == null
     if (firstTime) {
       val suffix = if (hash != null) " (" + hash.toShortString() + ")" else ""
-      fileHistoryUi = VcsLogContentUtil.openLogTab(project, logManager, TAB_NAME, path.name + suffix,
+      fileHistoryUi = VcsLogContentUtil.openLogTab(project, logManager, tabGroupId, Function { path.name + suffix },
                                                    FileHistoryUiFactory(path, root, hash), true)
     }
     consumer(fileHistoryUi!!, firstTime)
@@ -119,7 +124,8 @@ class VcsLogFileHistoryProviderImpl : VcsLogFileHistoryProvider {
     for (path in paths) {
       val root = VcsLogUtil.getActualRoot(project, path)
       if (root == null) return null
-      if (!VcsLogProperties.SUPPORTS_LOG_DIRECTORY_HISTORY.getOrDefault(dataManager.getLogProvider(root))) return null
+      if (!dataManager.roots.contains(root) ||
+          !VcsLogProperties.SUPPORTS_LOG_DIRECTORY_HISTORY.getOrDefault(dataManager.getLogProvider(root))) return null
 
       val correctedPath = getCorrectedPath(project, path, root, false)
       if (!correctedPath.isDirectory) return null
@@ -179,5 +185,5 @@ private fun VcsLogUiEx.jumpToNearestCommit(storage: VcsLogStorage, hash: Hash, r
       rowIndex = findVisibleAncestorRow(commitIndex, visiblePack)
     }
     rowIndex ?: GraphTableModel.COMMIT_DOES_NOT_MATCH
-  }, SettableFuture.create<Boolean>(), silently)
+  }, SettableFuture.create(), silently)
 }

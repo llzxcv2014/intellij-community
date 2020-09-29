@@ -1,8 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.tools;
 
 import com.intellij.execution.ExecutionException;
-import com.intellij.execution.ExecutionManager;
 import com.intellij.execution.ExecutionResult;
 import com.intellij.execution.Executor;
 import com.intellij.execution.configurations.CommandLineState;
@@ -15,12 +14,14 @@ import com.intellij.execution.filters.TextConsoleBuilderFactory;
 import com.intellij.execution.process.*;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.runners.ProgramRunner;
+import com.intellij.execution.ui.RunContentManager;
 import com.intellij.ide.macro.Macro;
 import com.intellij.ide.macro.MacroManager;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsSafe;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -51,7 +52,7 @@ public class ToolRunProfile implements ModuleRunProfile{
     return expandMacrosInName(myTool, myContext);
   }
 
-  public static String expandMacrosInName(Tool tool, DataContext context) {
+  public static @NlsSafe String expandMacrosInName(Tool tool, DataContext context) {
     String name = tool.getName();
     if (name != null && name.contains("$")) {
       try {
@@ -93,7 +94,7 @@ public class ToolRunProfile implements ModuleRunProfile{
 
       @Override
       @NotNull
-      public ExecutionResult execute(@NotNull final Executor executor, @NotNull ProgramRunner runner) throws ExecutionException {
+      public ExecutionResult execute(@NotNull final Executor executor, @NotNull ProgramRunner<?> runner) throws ExecutionException {
         final ExecutionResult result = super.execute(executor, runner);
         final ProcessHandler processHandler = result.getProcessHandler();
         if (processHandler != null) {
@@ -103,7 +104,7 @@ public class ToolRunProfile implements ModuleRunProfile{
             public void onTextAvailable(@NotNull ProcessEvent event, @NotNull Key outputType) {
               if ((outputType == ProcessOutputTypes.STDOUT && myTool.isShowConsoleOnStdOut())
                 || (outputType == ProcessOutputTypes.STDERR && myTool.isShowConsoleOnStdErr())) {
-                ExecutionManager.getInstance(project).getContentManager().toFrontRunContent(executor, processHandler);
+                RunContentManager.getInstance(project).toFrontRunContent(executor, processHandler);
               }
             }
           });

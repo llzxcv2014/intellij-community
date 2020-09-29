@@ -1,37 +1,20 @@
-/*
- * Copyright 2000-2009 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.containers;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.util.ArrayUtil;
-import gnu.trove.TObjectHashingStrategy;
-import gnu.trove.TObjectIntHashMap;
-import gnu.trove.TObjectIntIterator;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import org.jetbrains.annotations.NotNull;
 
-/**
- * @author dyoma
- */
 public class Enumerator<T> {
   private static final Logger LOG = Logger.getInstance(Enumerator.class);
-  private final TObjectIntHashMap<T> myNumbers;
+  private final Object2IntOpenHashMap<T> myNumbers;
   private int myNextNumber = 1;
 
-  public Enumerator(int expectNumber, @NotNull TObjectHashingStrategy<T> strategy) {
-    myNumbers = new TObjectIntHashMap<>(expectNumber, strategy);
+  public Enumerator(int expectNumber) {
+    myNumbers = new Object2IntOpenHashMap<>(expectNumber);
   }
 
   public void clear() {
@@ -39,13 +22,11 @@ public class Enumerator<T> {
     myNextNumber = 1;
   }
 
-  @NotNull
-  public int[] enumerate(@NotNull T[] objects) {
+  public int @NotNull [] enumerate(T @NotNull [] objects) {
     return enumerate(objects, 0, 0);
   }
 
-  @NotNull
-  public int[] enumerate(@NotNull T[] objects, final int startShift, final int endCut) {
+  public int @NotNull [] enumerate(T @NotNull [] objects, final int startShift, final int endCut) {
     int[] idx = ArrayUtil.newIntArray(objects.length - startShift - endCut);
     for (int i = startShift; i < objects.length - endCut; i++) {
       final T object = objects[i];
@@ -68,7 +49,7 @@ public class Enumerator<T> {
   public int enumerateImpl(T object) {
     if( object == null ) return 0;
 
-    int number = myNumbers.get(object);
+    int number = myNumbers.getInt(object);
     if (number == 0) {
       number = myNextNumber++;
       myNumbers.put(object, number);
@@ -78,12 +59,12 @@ public class Enumerator<T> {
   }
 
   public boolean contains(@NotNull T object) {
-    return myNumbers.get(object) != 0;
+    return myNumbers.getInt(object) != 0;
   }
 
   public int get(T object) {
     if (object == null) return 0;
-    final int res = myNumbers.get(object);
+    final int res = myNumbers.getInt(object);
 
     if (res == 0)
       LOG.error( "Object "+ object + " must be already added to enumerator!" );
@@ -94,9 +75,9 @@ public class Enumerator<T> {
   @Override
   public String toString() {
     StringBuilder buffer = new StringBuilder();
-    for (TObjectIntIterator<T> iter = myNumbers.iterator(); iter.hasNext(); ) {
-      iter.advance();
-      buffer.append(iter.value()).append(": ").append(iter.key()).append("\n");
+    for (ObjectIterator<Object2IntMap.Entry<T>> iterator = myNumbers.object2IntEntrySet().fastIterator(); iterator.hasNext(); ) {
+      Object2IntMap.Entry<T> entry = iterator.next();
+      buffer.append(entry.getIntValue()).append(": ").append(entry.getKey()).append("\n");
     }
     return buffer.toString();
   }

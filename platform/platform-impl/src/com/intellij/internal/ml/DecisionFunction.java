@@ -2,6 +2,7 @@
 package com.intellij.internal.ml;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -13,8 +14,7 @@ import java.util.List;
  */
 @ApiStatus.Internal
 public interface DecisionFunction {
-  @NotNull
-  FeatureMapper[] getFeaturesOrder();
+  FeatureMapper @NotNull [] getFeaturesOrder();
 
   @NotNull
   List<String> getRequiredFeatures();
@@ -23,6 +23,7 @@ public interface DecisionFunction {
   List<String> getUnknownFeatures(@NotNull Collection<String> features);
 
   @Nullable
+  @NonNls
   String version();
 
   double predict(double[] features);

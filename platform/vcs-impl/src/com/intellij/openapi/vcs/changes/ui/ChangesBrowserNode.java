@@ -18,9 +18,7 @@ import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.Convertor;
 import one.util.streamex.StreamEx;
-import org.jetbrains.annotations.NonNls;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.*;
 
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.MutableTreeNode;
@@ -270,10 +268,11 @@ public class ChangesBrowserNode<T> extends DefaultMutableTreeNode implements Use
   }
 
   public void render(@NotNull ChangesBrowserNodeRenderer renderer, boolean selected, boolean expanded, boolean hasFocus) {
-    renderer.append(userObject.toString(), myAttributes);
+    renderer.append(getTextPresentation(), myAttributes);
     appendCount(renderer);
   }
 
+  @Nls
   @NotNull
   protected String getCountText() {
     int count = getFileCount();
@@ -300,6 +299,7 @@ public class ChangesBrowserNode<T> extends DefaultMutableTreeNode implements Use
     return getTextPresentation();
   }
 
+  @Nls
   public String getTextPresentation() {
     return userObject == null ? "" : userObject.toString();
   }
@@ -338,6 +338,11 @@ public class ChangesBrowserNode<T> extends DefaultMutableTreeNode implements Use
 
   public void setAttributes(@NotNull SimpleTextAttributes attributes) {
     myAttributes = attributes;
+  }
+
+  @NotNull
+  protected SimpleTextAttributes getAttributes() {
+    return myAttributes;
   }
 
   protected void appendParentPath(@NotNull ChangesBrowserNodeRenderer renderer, @Nullable FilePath parentPath) {
@@ -397,10 +402,14 @@ public class ChangesBrowserNode<T> extends DefaultMutableTreeNode implements Use
     return getFileCount();
   }
 
-  private static class Tag {
-    @NotNull private final String myKey;
+  public boolean shouldExpandByDefault() {
+    return true;
+  }
 
-    Tag(@NotNull String key) {
+  private static class Tag {
+    @PropertyKey(resourceBundle = VcsBundle.BUNDLE) @NotNull private final String myKey;
+
+    Tag(@PropertyKey(resourceBundle = VcsBundle.BUNDLE) @NotNull String key) {
       myKey = key;
     }
 

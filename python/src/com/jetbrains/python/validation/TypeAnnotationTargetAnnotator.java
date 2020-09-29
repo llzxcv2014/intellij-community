@@ -15,6 +15,8 @@
  */
 package com.jetbrains.python.validation;
 
+import com.intellij.lang.annotation.HighlightSeverity;
+import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.psi.*;
 import com.jetbrains.python.psi.impl.PyPsiUtils;
 import org.jetbrains.annotations.NotNull;
@@ -24,10 +26,11 @@ import org.jetbrains.annotations.NotNull;
  */
 public class TypeAnnotationTargetAnnotator extends PyAnnotator {
   @Override
-  public void visitPyAssignmentStatement(PyAssignmentStatement node) {
+  public void visitPyAssignmentStatement(@NotNull PyAssignmentStatement node) {
     if (node.getAnnotation() != null && LanguageLevel.forElement(node).isAtLeast(LanguageLevel.PYTHON36)) {
       if (node.getRawTargets().length > 1) {
-        getHolder().createErrorAnnotation(node, "Variable annotation cannot be used in assignment with multiple targets");
+        getHolder().newAnnotation(HighlightSeverity.ERROR,
+                                  PyBundle.message("ANN.variable.annotation.cannot.be.used.in.assignment.with.multiple.targets")).create();
       }
       final PyExpression target = node.getLeftHandSideExpression();
       if (target != null) {
@@ -37,7 +40,7 @@ public class TypeAnnotationTargetAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyTypeDeclarationStatement(PyTypeDeclarationStatement node) {
+  public void visitPyTypeDeclarationStatement(@NotNull PyTypeDeclarationStatement node) {
     if (node.getAnnotation() != null && LanguageLevel.forElement(node).isAtLeast(LanguageLevel.PYTHON36)) {
       checkAnnotationTarget(node.getTarget());
     }
@@ -46,10 +49,11 @@ public class TypeAnnotationTargetAnnotator extends PyAnnotator {
   private void checkAnnotationTarget(@NotNull PyExpression expression) {
     final PyExpression innerExpr = PyPsiUtils.flattenParens(expression);
     if (innerExpr instanceof PyTupleExpression || innerExpr instanceof PyListLiteralExpression) {
-      getHolder().createErrorAnnotation(innerExpr, "Variable annotation cannot be combined with tuple unpacking");
+      getHolder().newAnnotation(HighlightSeverity.ERROR,
+                                PyBundle.message("ANN.variable.annotation.cannot.be.combined.with.tuple.unpacking")).range(innerExpr).create();
     }
     else if (innerExpr != null && !(innerExpr instanceof PyTargetExpression || innerExpr instanceof PySubscriptionExpression)) {
-      getHolder().createErrorAnnotation(innerExpr, "Illegal target for variable annotation");
+      getHolder().newAnnotation(HighlightSeverity.ERROR, PyBundle.message("ANN.illegal.target.for.variable.annotation")).range(innerExpr).create();
     }
   }
 }

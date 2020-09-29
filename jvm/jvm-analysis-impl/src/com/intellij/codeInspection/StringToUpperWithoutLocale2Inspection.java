@@ -2,12 +2,13 @@
 package com.intellij.codeInspection;
 
 import com.intellij.analysis.JvmAnalysisBundle;
+import com.intellij.codeInspection.util.InspectionMessage;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.CommonClassNames;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.PsiIdentifier;
 import com.siyeh.HardcodedMethodConstants;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.uast.UCallExpression;
 import org.jetbrains.uast.UCallableReferenceExpression;
@@ -16,12 +17,6 @@ import org.jetbrains.uast.UastContextKt;
 
 
 public class StringToUpperWithoutLocale2Inspection extends AbstractBaseUastLocalInspectionTool {
-  @Nls
-  @NotNull
-  @Override
-  public String getDisplayName() { //TODO remove once inspection is registered in JvmAnalysisPlugin.xml
-    return "StringToUpperWithoutLocale2Inspection";
-  }
 
   private static final UastCallMatcher MATCHER = UastCallMatcher.anyOf(
     UastCallMatcher.builder()
@@ -39,7 +34,7 @@ public class StringToUpperWithoutLocale2Inspection extends AbstractBaseUastLocal
   public PsiElementVisitor buildVisitor(@NotNull ProblemsHolder holder, boolean isOnTheFly) {
     return new PsiElementVisitor() {
       @Override
-      public void visitElement(PsiElement element) {
+      public void visitElement(@NotNull PsiElement element) {
         UCallExpression callExpression = AnalysisUastUtil.getUCallExpression(element);
         if (callExpression != null) {
           handleCallExpression(callExpression, holder);
@@ -63,7 +58,7 @@ public class StringToUpperWithoutLocale2Inspection extends AbstractBaseUastLocal
     PsiElement methodIdentifierPsi = AnalysisUastUtil.getMethodIdentifierSourcePsi(callExpression);
     if (methodIdentifierPsi == null) return;
 
-    String methodName = callExpression.getMethodName();
+    @NlsSafe String methodName = callExpression.getMethodName();
     if (methodName == null) return; // shouldn't happen
     holder.registerProblem(methodIdentifierPsi, getErrorDescription(methodName));
   }
@@ -77,6 +72,7 @@ public class StringToUpperWithoutLocale2Inspection extends AbstractBaseUastLocal
     holder.registerProblem(identifier, getErrorDescription(expression.getCallableName()));
   }
 
+  @InspectionMessage
   @NotNull
   private static String getErrorDescription(@NotNull String methodName) {
     return JvmAnalysisBundle.message("jvm.inspections.string.touppercase.tolowercase.without.locale.description", methodName);

@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.zmlx.hg4idea.branch;
 
 import com.intellij.dvcs.DvcsUtil;
@@ -16,6 +16,7 @@ import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Conditions;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.zmlx.hg4idea.HgBundle;
 import org.zmlx.hg4idea.HgProjectSettings;
 import org.zmlx.hg4idea.repo.HgRepository;
 import org.zmlx.hg4idea.repo.HgRepositoryManager;
@@ -41,7 +42,7 @@ import static org.zmlx.hg4idea.util.HgUtil.getDisplayableBranchOrBookmarkText;
  * Use {@link #asListPopup()} to achieve the {@link com.intellij.openapi.ui.popup.ListPopup} itself.
  * </p>
  */
-public class HgBranchPopup extends DvcsBranchPopup<HgRepository> {
+public final class HgBranchPopup extends DvcsBranchPopup<HgRepository> {
   private static final String DIMENSION_SERVICE_KEY = "Hg.Branch.Popup";
   static final String SHOW_ALL_BRANCHES_KEY = "Hg.Branch.Popup.ShowAllBranches";
   static final String SHOW_ALL_BOOKMARKS_KEY = "Hg.Branch.Popup.ShowAllBookmarks";
@@ -76,7 +77,7 @@ public class HgBranchPopup extends DvcsBranchPopup<HgRepository> {
     popupGroup.addAction(new HgBranchPopupActions.HgShowUnnamedHeadsForCurrentBranchAction(myCurrentRepository));
     popupGroup.addAll(createRepositoriesActions());
 
-    popupGroup.addSeparator("Common Branches");
+    popupGroup.addSeparator(HgBundle.message("hg4idea.branch.common.branches.separator"));
     List<HgCommonBranchActions> branchActions =
       myMultiRootBranchConfig.getLocalBranchNames().stream()
         .map(b -> createLocalBranchActions(allRepositories, b, false))
@@ -89,7 +90,7 @@ public class HgBranchPopup extends DvcsBranchPopup<HgRepository> {
     }
     wrapWithMoreActionIfNeeded(myProject, popupGroup, branchActions, topShownBranches, SHOW_ALL_BRANCHES_KEY, true);
 
-    popupGroup.addSeparator("Common Bookmarks");
+    popupGroup.addSeparator(HgBundle.message("hg4idea.branch.common.bookmarks.separator"));
     List<HgCommonBranchActions> bookmarkActions = ((HgMultiRootBranchConfig)myMultiRootBranchConfig).getBookmarkNames().stream()
       .map(bm -> createLocalBranchActions(allRepositories, bm, true))
       .filter(Objects::nonNull).sorted(FAVORITE_BRANCH_COMPARATOR).collect(toList());
@@ -115,7 +116,7 @@ public class HgBranchPopup extends DvcsBranchPopup<HgRepository> {
   @NotNull
   protected LightActionGroup createRepositoriesActions() {
     LightActionGroup popupGroup = new LightActionGroup(false);
-    popupGroup.addSeparator("Repositories");
+    popupGroup.addSeparator(HgBundle.message("repositories"));
     List<ActionGroup> rootActions = DvcsUtil.sortRepositories(myRepositoryManager.getRepositories()).stream()
       .map(repo -> new RootAction<>(repo, new HgBranchPopupActions(repo.getProject(), repo).createActions(),
                                     getDisplayableBranchOrBookmarkText(repo)))
@@ -127,7 +128,7 @@ public class HgBranchPopup extends DvcsBranchPopup<HgRepository> {
 
   @Override
   protected void fillPopupWithCurrentRepositoryActions(@NotNull LightActionGroup popupGroup, @Nullable LightActionGroup actions) {
-    popupGroup.addAll(new HgBranchPopupActions(myProject, myCurrentRepository).createActions(actions, myRepoTitleInfo, true));
+    popupGroup.addAll(new HgBranchPopupActions(myProject, myCurrentRepository).createActions(actions, myInSpecificRepository ? myCurrentRepository : null, true));
   }
 }
 

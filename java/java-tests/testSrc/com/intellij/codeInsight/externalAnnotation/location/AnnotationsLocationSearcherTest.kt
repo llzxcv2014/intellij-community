@@ -1,7 +1,9 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.externalAnnotation.location
 
-import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.runWriteActionAndWait
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.libraries.Library
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import com.intellij.testFramework.ExtensionTestUtil
@@ -25,7 +27,7 @@ class AnnotationsLocationSearcherTest : LightPlatformTestCase() {
     configureExtensionPoint()
 
     val library = createLibrary("unknown-library")
-    assertEmpty(AnnotationsLocationSearcher.findAnnotationsLocation(library, null, null, null))
+    assertEmpty(AnnotationsLocationSearcher.findAnnotationsLocation(project, library, null, null, null))
   }
 
   @Test
@@ -33,7 +35,7 @@ class AnnotationsLocationSearcherTest : LightPlatformTestCase() {
     configureExtensionPoint()
 
     val library = createLibrary("known-library-name")
-    assertSize(1, AnnotationsLocationSearcher.findAnnotationsLocation(library, null, null, null))
+    assertSize(1, AnnotationsLocationSearcher.findAnnotationsLocation(project, library, null, null, null))
   }
 
   @Test
@@ -48,18 +50,26 @@ class AnnotationsLocationSearcherTest : LightPlatformTestCase() {
 
     configureExtensionPoint(secondProvider)
     val library = createLibrary("known-library-name")
-    assertSize(2, AnnotationsLocationSearcher.findAnnotationsLocation(library, null, null, null))
+    assertSize(2, AnnotationsLocationSearcher.findAnnotationsLocation(project, library, null, null, null))
   }
 
   private fun createLibrary(libraryName: String): Library {
     val libraryTable = LibraryTablesRegistrar.getInstance().libraryTable
-    return WriteAction.compute<Library, RuntimeException> { libraryTable.createLibrary(libraryName) }
+    val library = runWriteActionAndWait { libraryTable.createLibrary(libraryName) }
+    disposeOnTearDown(object : Disposable {
+      override fun dispose() {
+        runWriteActionAndWait { libraryTable.removeLibrary(library) }
+      }
+    })
+    return library
   }
 }
 
 private class TestAnnotationProvider : AnnotationsLocationProvider {
   private val myLibraryLocationMap = MultiMap.createLinked<String, AnnotationsLocation>()
-  override fun getLocations(library: Library,
+
+  override fun getLocations(project: Project,
+                            library: Library,
                             artifactId: String?,
                             groupId: String?,
                             version: String?): MutableCollection<AnnotationsLocation> = myLibraryLocationMap[library.name]

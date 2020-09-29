@@ -92,9 +92,8 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
     return GlobalSearchScope.allScope(myManager.getProject());
   }
 
-  @NotNull
   @Override
-  public PsiType[] getSuperTypes() {
+  public PsiType @NotNull [] getSuperTypes() {
     return new PsiType[]{getJavaLangObject(myManager, getResolveScope())};
   }
 
@@ -221,7 +220,7 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
     return result;
   }
 
-  private static JavaResolveResult getStaticFactoryCandidateInfo(final PsiNewExpression newExpression,
+  private static JavaResolveResult getStaticFactoryCandidateInfo(@NotNull PsiNewExpression newExpression,
                                                                  final PsiElement context) {
     return ourDiamondGuard.doPreventingRecursion(context, false, () -> {
 
@@ -231,7 +230,13 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
         return null;
       }
 
-      final JavaMethodsConflictResolver resolver = new JavaMethodsConflictResolver(argumentList, PsiUtil.getLanguageLevel(newExpression));
+      PsiFile containingFile = argumentList.getContainingFile();
+      if (containingFile == null) {
+        return null;
+      }
+      JavaMethodsConflictResolver resolver = new JavaMethodsConflictResolver(argumentList, null,
+                                                                             PsiUtil.getLanguageLevel(containingFile),
+                                                                             containingFile);
       final List<CandidateInfo> results = collectStaticFactories(newExpression);
       CandidateInfo result = results != null ? resolver.resolveConflict(new ArrayList<>(results)) : null;
       final PsiMethod staticFactory = result != null ? (PsiMethod)result.getElement() : null;
@@ -278,8 +283,9 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
       constructors = new PsiMethod[] {null};
     }
 
+    PsiFile containingFile = argumentList.getContainingFile();
     final MethodCandidatesProcessor
-      processor = new MethodCandidatesProcessor(argumentList, argumentList.getContainingFile(), new PsiConflictResolver[0], candidates) {
+      processor = new MethodCandidatesProcessor(argumentList, containingFile, new PsiConflictResolver[0], candidates) {
       @Override
       protected boolean isAccepted(@NotNull PsiMethod candidate) {
         return true;
@@ -287,6 +293,9 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
 
       @Override
       protected PsiClass getContainingClass(@NotNull PsiMethod method) {
+        if (newExpression.getAnonymousClass() != null) {
+          return PsiTreeUtil.getContextOfType(argumentList, PsiClass.class, false);
+        }
         return psiClass;
       }
 
@@ -418,8 +427,7 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
     }
   }
 
-  @NotNull
-  private static PsiTypeParameter[] getAllTypeParams(PsiTypeParameterListOwner listOwner, PsiClass containingClass) {
+  private static PsiTypeParameter @NotNull [] getAllTypeParams(PsiTypeParameterListOwner listOwner, PsiClass containingClass) {
     Set<PsiTypeParameter> params = new LinkedHashSet<>();
     Collections.addAll(params, containingClass.getTypeParameters());
     if (listOwner != null) {
@@ -474,12 +482,12 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
         final PsiType type = parameter.getType();
         final Boolean accept = type.accept(new PsiTypeVisitor<Boolean>() {
           @Override
-          public Boolean visitArrayType(PsiArrayType arrayType) {
+          public Boolean visitArrayType(@NotNull PsiArrayType arrayType) {
             return arrayType.getComponentType().accept(this);
           }
 
           @Override
-          public Boolean visitClassType(PsiClassType classType) {
+          public Boolean visitClassType(@NotNull PsiClassType classType) {
             for (PsiType psiType : classType.getParameters()) {
               if (psiType != null) {
                 final Boolean typeParamFound = psiType.accept(this);
@@ -491,7 +499,7 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
           }
 
           @Override
-          public Boolean visitWildcardType(PsiWildcardType wildcardType) {
+          public Boolean visitWildcardType(@NotNull PsiWildcardType wildcardType) {
             final PsiType bound = wildcardType.getBound();
             if (bound == null) return false;
             return bound.accept(this);
@@ -522,25 +530,25 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
 
     @Nullable
     @Override
-    public Boolean visitType(PsiType type) {
+    public Boolean visitType(@NotNull PsiType type) {
       return true;
     }
 
     @Nullable
     @Override
-    public Boolean visitCapturedWildcardType(PsiCapturedWildcardType capturedWildcardType) {
+    public Boolean visitCapturedWildcardType(@NotNull PsiCapturedWildcardType capturedWildcardType) {
       return false;
     }
 
     @Nullable
     @Override
-    public Boolean visitIntersectionType(PsiIntersectionType intersectionType) {
+    public Boolean visitIntersectionType(@NotNull PsiIntersectionType intersectionType) {
       return false;
     }
 
     @Nullable
     @Override
-    public Boolean visitClassType(PsiClassType classType) {
+    public Boolean visitClassType(@NotNull PsiClassType classType) {
       final PsiClassType.ClassResolveResult resolveResult = classType.resolveGenerics();
       final PsiClass psiClass = resolveResult.getElement();
       if (psiClass != null) {

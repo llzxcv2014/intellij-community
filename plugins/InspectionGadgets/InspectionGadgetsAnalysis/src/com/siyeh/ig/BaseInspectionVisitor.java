@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 Dave Griffith, Bas Leijdekkers
+ * Copyright 2003-2020 Dave Griffith, Bas Leijdekkers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import com.intellij.codeInspection.ProblemsHolder;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.profile.codeInspection.InspectionProjectProfileManager;
 import com.intellij.psi.*;
+import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
@@ -45,10 +46,15 @@ public abstract class BaseInspectionVisitor extends JavaElementVisitor {
 
   protected final void registerNewExpressionError(@NotNull PsiNewExpression expression, Object... infos) {
     final PsiJavaCodeReferenceElement classReference = expression.getClassOrAnonymousClassReference();
-    if (classReference == null) {
-      return;
+    if (classReference != null) {
+      registerError(classReference, infos);
     }
-    registerError(classReference, infos);
+    else if (expression.getType() instanceof PsiArrayType) {
+        final PsiKeyword sibling = PsiTreeUtil.getNextSiblingOfType(expression.getFirstChild(), PsiKeyword.class);
+        if (sibling != null) {
+          registerError(sibling, infos);
+        }
+      }
   }
 
   protected final void registerMethodCallError(@NotNull PsiMethodCallExpression expression, @NonNls Object... infos) {
@@ -171,7 +177,6 @@ public abstract class BaseInspectionVisitor extends JavaElementVisitor {
   protected final void registerErrorAtOffset(@NotNull PsiElement location, int offset, int length,
                                              ProblemHighlightType highlightType,
                                              Object... infos) {
-    assert !(location.getTextLength() == 0 || length == 0);
     final LocalQuickFix[] fixes = createAndInitFixes(infos);
     final String description = inspection.buildErrorString(infos);
     final TextRange range = new TextRange(offset, offset + length);
@@ -189,8 +194,7 @@ public abstract class BaseInspectionVisitor extends JavaElementVisitor {
     holder.registerProblem(problemDescriptor);
   }
 
-  @NotNull
-  private LocalQuickFix[] createAndInitFixes(Object[] infos) {
+  private LocalQuickFix @NotNull [] createAndInitFixes(Object[] infos) {
     final InspectionGadgetsFix[] fixes = createFixes(infos);
     for (InspectionGadgetsFix fix : fixes) {
       fix.setOnTheFly(onTheFly);
@@ -198,8 +202,7 @@ public abstract class BaseInspectionVisitor extends JavaElementVisitor {
     return fixes;
   }
 
-  @NotNull
-  private InspectionGadgetsFix[] createFixes(Object... infos) {
+  private InspectionGadgetsFix @NotNull [] createFixes(Object... infos) {
     if (!onTheFly && inspection.buildQuickFixesOnlyForOnTheFlyErrors()) {
       return InspectionGadgetsFix.EMPTY_ARRAY;
     }
@@ -221,6 +224,10 @@ public abstract class BaseInspectionVisitor extends JavaElementVisitor {
 
   public final void setProblemsHolder(ProblemsHolder holder) {
     this.holder = holder;
+  }
+
+  public PsiFile getCurrentFile() {
+    return holder.getFile();
   }
 
   protected boolean isVisibleHighlight(@NotNull PsiElement element) {

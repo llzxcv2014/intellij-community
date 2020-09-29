@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.resolve
 
+import com.intellij.openapi.util.RecursionManager
 import com.intellij.testFramework.LightProjectDescriptor
 import org.jetbrains.plugins.groovy.GroovyProjectDescriptors
 
@@ -65,15 +66,6 @@ enum E {
 }''', "java.util.Date"
   }
 
-  void 'test lambda param'() {
-    doTest '''
-interface I { def foo(String s) }
-def bar(I i) {}
-bar (var) -> <caret>var
-}
-''', 'java.lang.String'
-  }
-
   void '_test return type 1'() {
     doTest '''
 class A {
@@ -94,6 +86,7 @@ class A {
   }
 
   void 'test return type 2'() {
+    RecursionManager.disableMissedCacheAssertions(testRootDisposable)
     doTest '''
 class A {
   static def fact = (int i) -> {
@@ -355,5 +348,28 @@ class W {
   }
 }
 ''', 'W'
+  }
+
+  void 'test use parent DFA'() {
+    doTest '''
+  def foo(a) {
+    a = 1
+    1.with(x -> {
+      <caret>a
+    })
+  }
+''', 'java.lang.Integer'
+  }
+
+  void 'test use outer types inside unknown lambdas'() {
+    doTest '''
+def foo() {
+  def a = 1
+  lambda = x -> {
+    <caret>a
+  }
+  a = ""
+}
+''', 'java.lang.Integer'
   }
 }

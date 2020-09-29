@@ -9,13 +9,12 @@ import com.intellij.openapi.projectRoots.SdkType
 import com.intellij.openapi.util.IconLoader
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.ui.LayeredIcon
+import com.jetbrains.python.PyBundle
 import com.jetbrains.python.psi.LanguageLevel
 import com.jetbrains.python.sdk.flavors.PythonSdkFlavor
-import com.jetbrains.python.sdk.pipenv.PIPENV_ICON
-import com.jetbrains.python.sdk.pipenv.isPipEnv
 import javax.swing.Icon
 
-const val noInterpreterMarker: String = "<No interpreter>"
+val noInterpreterMarker: String = "<${PyBundle.message("python.sdk.there.is.no.interpreter")}>"
 
 fun name(sdk: Sdk, sdkModificator: SdkModificator? = null): Triple<String?, String, String?> = name(sdk, sdkModificator?.name ?: sdk.name)
 
@@ -29,8 +28,11 @@ fun name(sdk: Sdk, name: String): Triple<String?, String, String?> {
     !LanguageLevel.SUPPORTED_LEVELS.contains(PythonSdkType.getLanguageLevelForSdk(sdk)) -> "unsupported"
     else -> null
   }
+  val providedForSdk = PySdkProvider.EP_NAME.extensions
+    .mapNotNull { it.getSdkAdditionalText(sdk) }
+    .firstOrNull()
 
-  val secondary = if (sdk.isPipEnv) sdk.versionString else if (PythonSdkType.isRunAsRootViaSudo(sdk)) "[sudo]" else null
+  val secondary = providedForSdk ?: if (PythonSdkType.isRunAsRootViaSudo(sdk)) "[sudo]" else null
 
   return Triple(modifier, name, secondary)
 }
@@ -67,21 +69,19 @@ fun icon(sdk: Sdk): Icon? {
   val flavor = PythonSdkFlavor.getPlatformIndependentFlavor(sdk.homePath)
   val icon = if (flavor != null) flavor.icon else (sdk.sdkType as? SdkType)?.icon ?: return null
 
+  val providedIcon = PySdkProvider.EP_NAME.extensions
+    .mapNotNull { it.getSdkIcon(sdk) }
+    .firstOrNull()
+
   return when {
     PythonSdkUtil.isInvalid(sdk) ||
     PythonSdkType.isIncompleteRemote(sdk) ||
     PythonSdkType.hasInvalidRemoteCredentials(sdk) ||
     !LanguageLevel.SUPPORTED_LEVELS.contains(PythonSdkType.getLanguageLevelForSdk(sdk)) ->
       wrapIconWithWarningDecorator(icon)
-    sdk is PyDetectedSdk ->
-      IconLoader.getTransparentIcon(icon)
-    // XXX: We cannot provide pipenv SDK flavor by path since it's just a regular virtualenv. Consider
-    // adding the SDK flavor based on the `Sdk` object itself
-    // TODO: Refactor SDK flavors so they can actually provide icons for SDKs in all cases
-    sdk.isPipEnv ->
-      PIPENV_ICON
-    else ->
-      icon
+    sdk is PyDetectedSdk -> IconLoader.getTransparentIcon(icon)
+    providedIcon != null -> providedIcon
+    else -> icon
   }
 }
 

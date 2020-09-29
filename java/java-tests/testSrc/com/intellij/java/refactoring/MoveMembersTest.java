@@ -271,4 +271,5 @@ public class MoveMembersTest extends LightMultiFileTestCase {
     options.setMemberVisibility(visibility);
     new MoveMembersProcessor(getProject(), null, options).run();
   }
+
 }

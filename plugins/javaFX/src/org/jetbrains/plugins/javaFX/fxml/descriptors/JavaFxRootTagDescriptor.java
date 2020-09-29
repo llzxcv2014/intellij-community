@@ -11,6 +11,7 @@ import com.intellij.xml.XmlAttributeDescriptor;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.javaFX.JavaFXBundle;
 import org.jetbrains.plugins.javaFX.fxml.FxmlConstants;
 import org.jetbrains.plugins.javaFX.fxml.JavaFxPsiUtil;
 
@@ -59,7 +60,8 @@ public class JavaFxRootTagDescriptor extends JavaFxClassTagDescriptorBase {
     super.validate(context, host);
 
     if (context.getParentTag() != null) {
-      host.addMessage(context.getNavigationElement(), "<fx:root> is valid only as the root node of an FXML document",
+      host.addMessage(context.getNavigationElement(),
+                      JavaFXBundle.message("inspection.message.fx.root.valid.only.as.root.node.fxml.document"),
                       ValidationHost.ErrorType.ERROR);
     }
   }
@@ -111,7 +113,7 @@ public class JavaFxRootTagDescriptor extends JavaFxClassTagDescriptorBase {
     public String validateValue(XmlElement context, String value) {
       final PsiReference[] references = context.getReferences();
       if (references.length == 0 || references[references.length - 1].resolve() == null) {
-        return "Cannot resolve class " + value;
+        return JavaFXBundle.message("javafx.root.tag.descriptor.cannot.resolve.class", value);
       }
       return null;
     }

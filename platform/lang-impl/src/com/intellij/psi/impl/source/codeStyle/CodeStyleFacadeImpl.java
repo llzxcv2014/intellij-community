@@ -105,4 +105,19 @@ public class CodeStyleFacadeImpl extends CodeStyleFacade {
   public boolean useTabCharacter(final FileType fileType) {
     return CodeStyle.getProjectOrDefaultSettings(myProject).useTabCharacter(fileType);
   }
+
+  @Override
+  public boolean useSpaceBeforeComma(@NotNull PsiFile psiFile, @NotNull Language language) {
+    return CodeStyle.getLanguageSettings(psiFile, language).SPACE_BEFORE_COMMA;
+  }
+
+  @Override
+  public boolean useSpaceAfterComma(@NotNull PsiFile psiFile, @NotNull Language language) {
+    return CodeStyle.getLanguageSettings(psiFile, language).SPACE_AFTER_COMMA;
+  }
+
+  @Override
+  public boolean useSpaceAroundAssignmentOperators(@NotNull PsiFile psiFile, @NotNull Language language) {
+    return CodeStyle.getLanguageSettings(psiFile, language).SPACE_AROUND_ASSIGNMENT_OPERATORS;
+  }
 }

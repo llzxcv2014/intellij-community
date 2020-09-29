@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.codeInsight.typing
 
 import com.intellij.codeInspection.LocalInspectionToolSession
@@ -13,6 +13,8 @@ import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.profile.codeInspection.ProjectInspectionProfileManager
 import com.intellij.psi.PsiElementVisitor
+import com.jetbrains.python.PyBundle
+import com.jetbrains.python.PyPsiBundle
 import com.jetbrains.python.inspections.PyInspection
 import com.jetbrains.python.inspections.PyInspectionVisitor
 import com.jetbrains.python.inspections.PyInterpreterInspection
@@ -51,7 +53,8 @@ class PyStubPackagesCompatibilityInspection : PyInspection() {
   @Suppress("MemberVisibilityCanBePrivate")
   var ignoredStubPackages: MutableList<String> = mutableListOf()
 
-  override fun createOptionsPanel(): JComponent = ListEditForm("Ignored stub packages", ignoredStubPackages).contentPanel
+  override fun createOptionsPanel(): JComponent = ListEditForm(PyPsiBundle.message("INSP.stub.packages.compatibility.ignored.packages"),
+                                                               ignoredStubPackages).contentPanel
 
   override fun buildVisitor(holder: ProblemsHolder,
                             isOnTheFly: Boolean,
@@ -88,13 +91,13 @@ class PyStubPackagesCompatibilityInspection : PyInspection() {
           if (requirement.match(listOf(runtimePkg)) == null) {
             val stubPkgName = stubPkg.name
             val specsToString = StringUtil.join(requirement.versionSpecs, { it.presentableText }, ", ")
-
+            val message = PyPsiBundle.message("INSP.stub.packages.compatibility.incompatible.packages.message",
+                                              stubPkgName, PyRequirementRelation.EQ.presentableText, stubPkg.version,
+                                              runtimePkgName, PyRequirementRelation.EQ.presentableText, runtimePkg.version,
+                                              runtimePkgName, specsToString)
             registerProblem(node,
-                            "'$stubPkgName${PyRequirementRelation.EQ.presentableText}${stubPkg.version}' " +
-                            "is incompatible with " +
-                            "'$runtimePkgName${PyRequirementRelation.EQ.presentableText}${runtimePkg.version}'. " +
-                            "Expected '$runtimePkgName' version: [$specsToString]",
-                            PyInterpreterInspection.ConfigureInterpreterFix(),
+                            message,
+                            PyInterpreterInspection.InterpreterSettingsQuickFix(module),
                             createIgnoreStubPackageQuickFix(stubPkgName, ignoredStubPackages))
           }
         }
@@ -102,7 +105,7 @@ class PyStubPackagesCompatibilityInspection : PyInspection() {
 
     private fun createIgnoreStubPackageQuickFix(stubPkgName: String, ignoredStubPkgs: MutableList<String>): LocalQuickFix {
       return object : LocalQuickFix {
-        override fun getFamilyName() = "Ignore '$stubPkgName' compatibility"
+        override fun getFamilyName() = PyPsiBundle.message("INSP.stub.packages.compatibility.ignore", stubPkgName)
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
           if (ignoredStubPkgs.add(stubPkgName)) ProjectInspectionProfileManager.getInstance(project).fireProfileChanged()

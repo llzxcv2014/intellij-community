@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.designer;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -10,9 +11,7 @@ import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
-import com.intellij.openapi.project.DumbAwareRunnable;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.ToolWindow;
@@ -21,10 +20,12 @@ import com.intellij.openapi.wm.ex.ToolWindowEx;
 import com.intellij.util.messages.MessageBusConnection;
 import com.intellij.util.ui.update.MergingUpdateQueue;
 import com.intellij.util.ui.update.Update;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -45,13 +46,12 @@ public abstract class LightToolWindowManager implements Disposable {
     myProject = project;
     myEditorModeKey = EDITOR_MODE + getComponentName() + ".STATE";
 
-    ProjectUtil.runWhenProjectOpened(project, () -> StartupManager.getInstance(myProject).runWhenProjectIsInitialized(
-      (DumbAwareRunnable)() -> {
-        if (getEditorMode() == null) {
-          initListeners();
-          bindToDesigner(getActiveDesigner());
-        }
-      }));
+    StartupManager.getInstance(myProject).runAfterOpened(() -> {
+      if (getEditorMode() == null) {
+        initListeners();
+        bindToDesigner(getActiveDesigner());
+      }
+    });
   }
 
   private void initListeners() {
@@ -79,11 +79,9 @@ public abstract class LightToolWindowManager implements Disposable {
     myConnection = null;
   }
 
-  @Nullable
-  protected abstract DesignerEditorPanelFacade getDesigner(FileEditor editor);
+  protected abstract @Nullable DesignerEditorPanelFacade getDesigner(FileEditor editor);
 
-  @Nullable
-  public DesignerEditorPanelFacade getActiveDesigner() {
+  public @Nullable DesignerEditorPanelFacade getActiveDesigner() {
     if (myProject.isDisposed()) return null;
     for (FileEditor editor : FileEditorManager.getInstance(myProject).getSelectedEditors()) {
       DesignerEditorPanelFacade designer = getDesigner(editor);
@@ -129,7 +127,7 @@ public abstract class LightToolWindowManager implements Disposable {
   //////////////////////////////////////////////////////////////////////////////////////////
 
   public AnAction createGearActions() {
-    DefaultActionGroup group = new DefaultActionGroup("In Editor Mode", true);
+    DefaultActionGroup group = DefaultActionGroup.createPopupGroup(IdeBundle.messagePointer("popup.title.in.editor.mode"));
 
     group.add(createToggleAction(ToolWindowAnchor.LEFT));
     group.add(createToggleAction(ToolWindowAnchor.RIGHT));
@@ -161,12 +159,12 @@ public abstract class LightToolWindowManager implements Disposable {
 
   protected final LightToolWindow createContent(@NotNull DesignerEditorPanelFacade designer,
                                                 @NotNull LightToolWindowContent content,
-                                                @NotNull String title,
+                                                @Nls(capitalization = Nls.Capitalization.Title) @NotNull String title,
                                                 @NotNull Icon icon,
                                                 @NotNull JComponent component,
                                                 @NotNull JComponent focusedComponent,
                                                 int defaultWidth,
-                                                @Nullable AnAction[] actions) {
+                                                @Nullable List<AnAction> actions) {
     return new LightToolWindow(content,
                                title,
                                icon,
@@ -212,8 +210,7 @@ public abstract class LightToolWindowManager implements Disposable {
     return getEditorMode() != null;
   }
 
-  @Nullable
-  public final ToolWindowAnchor getEditorMode() {
+  public final @Nullable ToolWindowAnchor getEditorMode() {
     String value = PropertiesComponent.getInstance(myProject).getValue(myEditorModeKey);
     if (value == null) {
       return getAnchor();
@@ -249,8 +246,7 @@ public abstract class LightToolWindowManager implements Disposable {
     myToolWindow = null;
   }
 
-  @NotNull
-  protected String getComponentName() {
+  protected @NotNull String getComponentName() {
     return getClass().getName();
   }
 }

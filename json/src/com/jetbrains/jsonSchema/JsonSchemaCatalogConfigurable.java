@@ -1,10 +1,12 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.jsonSchema;
 
+import com.intellij.json.JsonBundle;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.panel.ComponentPanelBuilder;
+import com.intellij.openapi.util.NlsContexts.DetailedDescription;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBPanel;
 import com.intellij.util.ui.FormBuilder;
@@ -18,7 +20,6 @@ import java.awt.*;
 
 public class JsonSchemaCatalogConfigurable implements Configurable {
   @NonNls public static final String SETTINGS_JSON_SCHEMA_CATALOG = "settings.json.schema.catalog";
-  public static final String JSON_SCHEMA_CATALOG = "Remote JSON Schemas";
   @NotNull private final Project myProject;
   private final JBCheckBox myCatalogCheckBox;
   private final JBCheckBox myRemoteCheckBox;
@@ -26,9 +27,9 @@ public class JsonSchemaCatalogConfigurable implements Configurable {
 
   public JsonSchemaCatalogConfigurable(@NotNull final Project project) {
     myProject = project;
-    myCatalogCheckBox = new JBCheckBox("Use schemastore.org JSON Schema catalog");
-    myRemoteCheckBox = new JBCheckBox("Allow downloading JSON Schemas from remote sources");
-    myPreferRemoteCheckBox = new JBCheckBox("Always download the most recent version of schemas");
+    myCatalogCheckBox = new JBCheckBox(JsonBundle.message("checkbox.use.schemastore.org.json.schema.catalog"));
+    myRemoteCheckBox = new JBCheckBox(JsonBundle.message("checkbox.allow.downloading.json.schemas.from.remote.sources"));
+    myPreferRemoteCheckBox = new JBCheckBox(JsonBundle.message("checkbox.always.download.the.most.recent.version.of.schemas"));
   }
 
   @Nullable
@@ -47,14 +48,12 @@ public class JsonSchemaCatalogConfigurable implements Configurable {
         myPreferRemoteCheckBox.setSelected(false);
       }
     });
-    addWithComment(builder, myCatalogCheckBox,
-                   "Schemas will be downloaded and assigned using the <a href=\"http://schemastore.org/json/\">SchemaStore API</a>");
-    addWithComment(builder, myPreferRemoteCheckBox,
-                   "Schemas will always be downloaded from the SchemaStore, even if some of them are bundled with the IDE");
+    addWithComment(builder, myCatalogCheckBox, JsonBundle.message("schema.catalog.hint"));
+    addWithComment(builder, myPreferRemoteCheckBox, JsonBundle.message("schema.catalog.remote.hint"));
     return wrap(builder.getPanel());
   }
 
-  private static void addWithComment(FormBuilder builder, JBCheckBox box, String s) {
+  private static void addWithComment(FormBuilder builder, JBCheckBox box, @DetailedDescription String s) {
     builder.addComponent(new ComponentPanelBuilder(box).withComment(s).createPanel());
   }
 
@@ -99,7 +98,7 @@ public class JsonSchemaCatalogConfigurable implements Configurable {
   @Nls(capitalization = Nls.Capitalization.Title)
   @Override
   public String getDisplayName() {
-    return JSON_SCHEMA_CATALOG;
+    return JsonBundle.message("configurable.JsonSchemaCatalogConfigurable.display.name");
   }
 
   @Nullable

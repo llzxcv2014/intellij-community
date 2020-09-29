@@ -1,7 +1,6 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.configuration;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.DataManager;
@@ -21,7 +20,6 @@ import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.ProjectSdksModel;
 import com.intellij.openapi.ui.DialogWrapper;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtilCore;
@@ -164,7 +162,7 @@ public class PythonSdkDetailsDialog extends DialogWrapper {
                                    @NotNull AnActionButtonRunnable addAction,
                                    @NotNull AnActionButtonRunnable editAction,
                                    @NotNull AnActionButtonRunnable removeAction,
-                                   @NotNull AnActionButton... extraActions) {
+                                   AnActionButton @NotNull ... extraActions) {
     return ToolbarDecorator.createDecorator(sdkList)
       .disableUpDownActions()
       .setAddAction(addAction)
@@ -313,7 +311,7 @@ public class PythonSdkDetailsDialog extends DialogWrapper {
     });
     if (dialog.showAndGet()) {
       mySdkList.repaint();
-      final boolean pathChanged = !Comparing.equal(currentSdk.getHomePath(), dialog.getHomePath());
+      final boolean pathChanged = !Objects.equals(currentSdk.getHomePath(), dialog.getHomePath());
       if (!modificator.getName().equals(dialog.getName()) || pathChanged || dialog.isAssociateChanged()) {
         myModifiedModificators.add(modificator);
         modificator.setName(dialog.getName());
@@ -395,15 +393,17 @@ public class PythonSdkDetailsDialog extends DialogWrapper {
     /* PythonSdkUpdater.update invalidates the modificator so we need to create a new
       one for further changes
      */
-    if (PythonSdkUpdater.update(currentSdk, myModificators.get(currentSdk), myProject, null)){
-      myModifiedModificators.remove(myModificators.get(currentSdk));
+    SdkModificator modificator = myModificators.get(currentSdk);
+    assert modificator != null : "Modificator cannot be null here";
+    if (PythonSdkUpdater.updateVersionAndPathsSynchronouslyAndScheduleRemaining(currentSdk, modificator, myProject)){
+      myModifiedModificators.remove(modificator);
       myModificators.put(currentSdk, currentSdk.getSdkModificator());
     }
   }
 
   private class ToggleVirtualEnvFilterButton extends ToggleActionButton implements DumbAware {
     ToggleVirtualEnvFilterButton() {
-      super(PyBundle.message("sdk.details.dialog.hide.all.virtual.envs"), AllIcons.General.Filter);
+      super(PyBundle.messagePointer("sdk.details.dialog.hide.all.virtual.envs"), AllIcons.General.Filter);
     }
 
     @Override
@@ -421,7 +421,7 @@ public class PythonSdkDetailsDialog extends DialogWrapper {
 
   private class ShowPathButton extends AnActionButton implements DumbAware {
     ShowPathButton() {
-      super(PyBundle.message("sdk.details.dialog.show.interpreter.paths"), AllIcons.Actions.ShowAsTree);
+      super(PyBundle.messagePointer("sdk.details.dialog.show.interpreter.paths"), AllIcons.Actions.ShowAsTree);
     }
 
     @Override
@@ -452,7 +452,8 @@ public class PythonSdkDetailsDialog extends DialogWrapper {
       return new PyRemotePathEditor(sdk);
     }
     else {
-      return new PythonPathEditor("Classes", OrderRootType.CLASSES, FileChooserDescriptorFactory.createAllButJarContentsDescriptor()) {
+      return new PythonPathEditor(PyBundle.message("python.sdk.configuration.tab.title"), OrderRootType.CLASSES,
+                                  FileChooserDescriptorFactory.createAllButJarContentsDescriptor()) {
         @Override
         protected void onReloadButtonClicked() {
           reloadSdk();
@@ -465,10 +466,11 @@ public class PythonSdkDetailsDialog extends DialogWrapper {
     private final PyRemoteSdkAdditionalDataBase myRemoteSdkData;
     private final Sdk mySdk;
 
-    private final List<PathMappingSettings.PathMapping> myNewMappings = Lists.newArrayList();
+    private final List<PathMappingSettings.PathMapping> myNewMappings = new ArrayList<>();
 
     PyRemotePathEditor(Sdk sdk) {
-      super("Classes", OrderRootType.CLASSES, FileChooserDescriptorFactory.createAllButJarContentsDescriptor());
+      super(PyBundle.message("python.sdk.configuration.tab.title"), OrderRootType.CLASSES,
+            FileChooserDescriptorFactory.createAllButJarContentsDescriptor());
       mySdk = sdk;
       myRemoteSdkData = (PyRemoteSdkAdditionalDataBase)mySdk.getSdkAdditionalData();
     }

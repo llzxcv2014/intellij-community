@@ -1,21 +1,8 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.resolve.ast.builder.strategy;
 
 import com.intellij.codeInsight.AnnotationUtil;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.light.LightMethodBuilder;
@@ -29,6 +16,7 @@ import org.jetbrains.plugins.groovy.lang.resolve.ast.builder.BuilderAnnotationCo
 import org.jetbrains.plugins.groovy.lang.resolve.ast.builder.BuilderHelperLightPsiClass;
 import org.jetbrains.plugins.groovy.transformations.TransformationContext;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 import static org.jetbrains.plugins.groovy.lang.resolve.ast.builder.strategy.DefaultBuilderStrategySupport.getBuilderClassName;
@@ -45,7 +33,7 @@ public class InitializerBuilderStrategySupport extends BuilderAnnotationContribu
     new InitializerBuilderStrategyHandler(context).doProcess();
   }
 
-  private static class InitializerBuilderStrategyHandler {
+  private static final class InitializerBuilderStrategyHandler {
 
     private final @NotNull TransformationContext myContext;
     private final @NotNull GrTypeDefinition myContainingClass;
@@ -74,7 +62,7 @@ public class InitializerBuilderStrategySupport extends BuilderAnnotationContribu
 
     @NotNull
     private LightPsiClassBuilder createBuilderClass(@NotNull final PsiAnnotation annotation,
-                                                    @NotNull PsiVariable[] setters) {
+                                                    PsiVariable @NotNull [] setters) {
       final LightPsiClassBuilder builderClass = new BuilderHelperLightPsiClass(
         myContainingClass, getBuilderClassName(annotation, myContainingClass)
       );
@@ -162,6 +150,7 @@ public class InitializerBuilderStrategySupport extends BuilderAnnotationContribu
       return StringUtil.isEmpty(builderMethodName) ? "createInitializer" : builderMethodName;
     }
 
+    @NlsSafe
     @NotNull
     private static String getBuildMethodName(@NotNull PsiAnnotation annotation) {
       final String builderMethodName = AnnotationUtil.getDeclaredStringAttributeValue(annotation, "buildMethodName");
@@ -175,9 +164,7 @@ public class InitializerBuilderStrategySupport extends BuilderAnnotationContribu
         builderClass.getResolveScope()
       );
       final PsiType[] mappings = PsiType.createArray(builderClass.getTypeParameters().length);
-      for (int i = 0; i < mappings.length; i++) {
-        mappings[i] = type;
-      }
+      Arrays.fill(mappings, type);
       return myElementFactory.createType(builderClass, mappings);
     }
   }

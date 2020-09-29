@@ -39,8 +39,6 @@ public class PyClassTypeImpl extends UserDataHolderBase implements PyClassType {
   @NotNull protected final PyClass myClass;
   protected final boolean myIsDefinition;
 
-  private static final ThreadLocal<Set<Pair<PyClass, String>>> ourResolveMemberStack = ThreadLocal.withInitial(() -> new HashSet<>());
-
   /**
    * Describes a class-based type. Since everything in Python is an instance of some class, this type pretty much completes
    * the type system :)
@@ -134,18 +132,13 @@ public class PyClassTypeImpl extends UserDataHolderBase implements PyClassType {
                                                           @NotNull AccessDirection direction,
                                                           @NotNull PyResolveContext resolveContext,
                                                           boolean inherited) {
-    final Set<Pair<PyClass, String>> resolving = ourResolveMemberStack.get();
-    final Pair<PyClass, String> key = Pair.create(myClass, name);
-    if (resolving.contains(key)) {
-      return Collections.emptyList();
-    }
-    resolving.add(key);
-    try {
-      return doResolveMember(name, location, direction, resolveContext, inherited);
-    }
-    finally {
-      resolving.remove(key);
-    }
+    return RecursionManager.doPreventingRecursion(
+      resolveContext.allowProperties()
+      ? ContainerUtil.newArrayList(this, name, location, direction, resolveContext)
+      : ContainerUtil.newArrayList(this, name, location, resolveContext),
+      false,
+      () -> doResolveMember(name, location, direction, resolveContext, inherited)
+    );
   }
 
   @Nullable
@@ -370,7 +363,7 @@ public class PyClassTypeImpl extends UserDataHolderBase implements PyClassType {
   @Nullable
   private List<PyCallableParameter> getParametersOfMethod(@NotNull String name, @NotNull TypeEvalContext context) {
     final List<? extends RatedResolveResult> results =
-      resolveMember(name, null, AccessDirection.READ, PyResolveContext.noImplicits().withTypeEvalContext(context), true);
+      resolveMember(name, null, AccessDirection.READ, PyResolveContext.defaultContext().withTypeEvalContext(context), true);
     if (results != null) {
       return StreamEx.of(results)
         .map(RatedResolveResult::getElement)
@@ -492,8 +485,7 @@ public class PyClassTypeImpl extends UserDataHolderBase implements PyClassType {
   public static final Key<Boolean> CTX_SUPPRESS_PARENTHESES = Key.create("PyFunction.SuppressParentheses");
 
   @Override
-  @NotNull
-  public Object[] getCompletionVariants(String prefix, PsiElement location, @NotNull ProcessingContext context) {
+  public Object @NotNull [] getCompletionVariants(String prefix, PsiElement location, @NotNull ProcessingContext context) {
     if (isRecursive(context)) return ArrayUtilRt.EMPTY_OBJECT_ARRAY;
     final Set<String> visited = visitedNames(context);
 
@@ -576,7 +568,7 @@ public class PyClassTypeImpl extends UserDataHolderBase implements PyClassType {
   }
 
   @Override
-  public void visitMembers(@NotNull Processor<PsiElement> processor, boolean inherited, @NotNull TypeEvalContext context) {
+  public void visitMembers(@NotNull Processor<? super PsiElement> processor, boolean inherited, @NotNull TypeEvalContext context) {
     processMembers(processor);
 
     if (inherited) {
@@ -635,7 +627,7 @@ public class PyClassTypeImpl extends UserDataHolderBase implements PyClassType {
     return result;
   }
 
-  private void processMembers(@NotNull Processor<PsiElement> processor) {
+  private void processMembers(@NotNull Processor<? super PsiElement> processor) {
     final PsiScopeProcessor scopeProcessor = new PsiScopeProcessor() {
       @Override
       public boolean execute(@NotNull PsiElement element, @NotNull ResolveState state) {
@@ -654,7 +646,7 @@ public class PyClassTypeImpl extends UserDataHolderBase implements PyClassType {
     }
   }
 
-  private void processOwnSlots(@NotNull Processor<String> processor, @NotNull TypeEvalContext context) {
+  private void processOwnSlots(@NotNull Processor<? super String> processor, @NotNull TypeEvalContext context) {
     if (myClass.isNewStyleClass(context)) {
       for (String slot : ContainerUtil.notNullize(myClass.getOwnSlots())) {
         if (!processor.process(slot)) return;
@@ -662,7 +654,7 @@ public class PyClassTypeImpl extends UserDataHolderBase implements PyClassType {
     }
   }
 
-  private void processProvidedMembers(@NotNull Processor<PyCustomMember> processor,
+  private void processProvidedMembers(@NotNull Processor<? super PyCustomMember> processor,
                                       @Nullable PsiElement location,
                                       @NotNull TypeEvalContext context) {
     for (PyClassMembersProvider provider : PyClassMembersProvider.EP_NAME.getExtensionList()) {
@@ -677,7 +669,7 @@ public class PyClassTypeImpl extends UserDataHolderBase implements PyClassType {
     return StreamEx.of(types).nonNull().map(type -> isDefinition() ? type.toClass() : type.toInstance());
   }
 
-  private void processMetaClassMembers(@NotNull Consumer<PyClassLikeType> typeTypeConsumer,
+  private void processMetaClassMembers(@NotNull Consumer<? super PyClassLikeType> typeTypeConsumer,
                                        @NotNull Processor<? super PyTargetExpression> instanceTypeAttributesProcessor,
                                        @NotNull TypeEvalContext context) {
     if (!myClass.isNewStyleClass(context)) return;

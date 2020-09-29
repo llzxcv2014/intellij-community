@@ -33,7 +33,6 @@ import java.awt.event.KeyEvent;
 
 public class XmlTagRenameDialog extends RefactoringDialog {
   private static final Logger LOG = Logger.getInstance(XmlTagRenameDialog.class);
-  private static final String REFACTORING_NAME = RefactoringBundle.message("rename.title");
 
   private final PsiElement myElement;
   private final Editor myEditor;
@@ -49,12 +48,12 @@ public class XmlTagRenameDialog extends RefactoringDialog {
     myElement = element;
     myTag = tag;
 
-    setTitle(REFACTORING_NAME);
+    setTitle(RefactoringBundle.message("rename.title"));
     createNewNameComponent();
 
     init();
 
-    myTitleLabel.setText(XmlBundle.message("rename.current.tag", getFullName(tag)));
+    myTitleLabel.setText(XmlBundle.message("xml.refactor.rename.current.tag", getFullName(tag)));
 
     validateButtons();
   }

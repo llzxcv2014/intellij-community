@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.testFramework;
 
 import com.intellij.openapi.application.WriteAction;
@@ -15,7 +15,6 @@ import com.intellij.openapi.util.DefaultJDOMExternalizer;
 import com.intellij.openapi.util.JDOMUtil;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -29,11 +28,9 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.StringTokenizer;
 
-/**
- * @author Mike
- */
 public abstract class JavaPsiTestCase extends JavaModuleTestCase {
   protected PsiManagerImpl myPsiManager;
   protected PsiFile myFile;
@@ -44,7 +41,7 @@ public abstract class JavaPsiTestCase extends JavaModuleTestCase {
   @Override
   protected void setUp() throws Exception {
     super.setUp();
-    myPsiManager = (PsiManagerImpl) PsiManager.getInstance(myProject);
+    myPsiManager = (PsiManagerImpl)PsiManager.getInstance(myProject);
   }
 
   @Override
@@ -76,17 +73,7 @@ public abstract class JavaPsiTestCase extends JavaModuleTestCase {
 
   @NotNull
   protected PsiFile createFile(@NotNull Module module, @NotNull String fileName, @NotNull String text) throws Exception {
-    VirtualFile vDir = createTempVfsDirectory();
-    return createFile(module, vDir, fileName, text);
-  }
-
-  @NotNull
-  protected VirtualFile createTempVfsDirectory() throws IOException {
-    File dir = createTempDirectory();
-    VirtualFile vDir = LocalFileSystem.getInstance().refreshAndFindFileByPath(dir.getCanonicalPath().replace(File.separatorChar, '/'));
-
-    assert vDir != null : dir;
-    return vDir;
+    return createFile(module, getTempDir().createVirtualDir(), fileName, text);
   }
 
   @NotNull
@@ -131,10 +118,10 @@ public abstract class JavaPsiTestCase extends JavaModuleTestCase {
     myTestDataBefore = loadData(dataName);
 
     PsiTestUtil.removeAllRoots(myModule, IdeaTestUtil.getMockJdk17());
-    VirtualFile vDir = PsiTestUtil.createTestProjectStructure(myProject, myModule, myDataRoot, myFilesToDelete);
+    VirtualFile vDir = createTestProjectStructure(myModule, myDataRoot, true, getTempDir());
 
-    final VirtualFile vFile = vDir.findChild(myTestDataBefore.getTextFile());
-    myFile = myPsiManager.findFile(vFile);
+    VirtualFile vFile = vDir.findChild(myTestDataBefore.getTextFile());
+    myFile = myPsiManager.findFile(Objects.requireNonNull(vFile));
   }
 
   @NotNull

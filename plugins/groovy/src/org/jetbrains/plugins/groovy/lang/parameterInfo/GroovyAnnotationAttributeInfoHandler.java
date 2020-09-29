@@ -1,7 +1,6 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.parameterInfo;
 
-import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.lang.parameterInfo.*;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.psi.*;
@@ -15,7 +14,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.lang.lexer.GroovyTokenTypes;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyFile;
-import org.jetbrains.plugins.groovy.lang.psi.api.GroovyResolveResult;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.modifiers.annotation.GrAnnotation;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.modifiers.annotation.GrAnnotationArgumentList;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.modifiers.annotation.GrAnnotationNameValuePair;
@@ -29,12 +27,11 @@ import java.util.Set;
  */
 public class GroovyAnnotationAttributeInfoHandler implements ParameterInfoHandlerWithTabActionSupport<GrAnnotationArgumentList, PsiAnnotationMethod, GrAnnotationNameValuePair> {
 
-  private static final Set<Class> ALLOWED_CLASSES = ContainerUtil.newHashSet(GrAnnotation.class);
-  private static final Set<Class> STOP_SEARCHING_CLASSES = Collections.singleton(GroovyFile.class);
+  private static final Set<Class<?>> ALLOWED_CLASSES = ContainerUtil.newHashSet(GrAnnotation.class);
+  private static final Set<Class<?>> STOP_SEARCHING_CLASSES = Collections.singleton(GroovyFile.class);
 
-  @NotNull
   @Override
-  public GrAnnotationNameValuePair[] getActualParameters(@NotNull GrAnnotationArgumentList o) {
+  public GrAnnotationNameValuePair @NotNull [] getActualParameters(@NotNull GrAnnotationArgumentList o) {
     return o.getAttributes();
   }
 
@@ -52,13 +49,13 @@ public class GroovyAnnotationAttributeInfoHandler implements ParameterInfoHandle
 
   @NotNull
   @Override
-  public Set<Class> getArgumentListAllowedParentClasses() {
+  public Set<Class<?>> getArgumentListAllowedParentClasses() {
     return ALLOWED_CLASSES;
   }
 
   @NotNull
   @Override
-  public Set<Class> getArgListStopSearchClasses() {
+  public Set<? extends Class<?>> getArgListStopSearchClasses() {
     return STOP_SEARCHING_CLASSES;
   }
 
@@ -68,32 +65,7 @@ public class GroovyAnnotationAttributeInfoHandler implements ParameterInfoHandle
     return GrAnnotationArgumentList.class;
   }
 
-  @Override
-  public boolean couldShowInLookup() {
-    return true;
-  }
-
-  @Nullable
-  @Override
-  public Object[] getParametersForLookup(LookupElement item, ParameterInfoContext context) {
-    if (item == null || context == null) return null;
-    Object o = item.getObject();
-
-    if (o instanceof GroovyResolveResult) {
-      o = ((GroovyResolveResult)o).getElement();
-    }
-
-
-    if (o instanceof PsiClass && ((PsiClass)o).isAnnotationType()) {
-      return extractAnnotationMethodsFromClass((PsiClass)o);
-    }
-    else {
-      return GrAnnotationNameValuePair.EMPTY_ARRAY;
-    }
-  }
-
-  @NotNull
-  private static PsiAnnotationMethod[] extractAnnotationMethodsFromClass(@NotNull PsiClass o) {
+  private static PsiAnnotationMethod @NotNull [] extractAnnotationMethodsFromClass(@NotNull PsiClass o) {
     if (o.isAnnotationType()) {
       PsiMethod[] methods = o.getMethods();
       if (methods.length > 0) {

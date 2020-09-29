@@ -42,7 +42,7 @@ public class WrongPropertyKeyValueDelimiterInspection extends PropertiesInspecti
     final char codeStyleKeyValueDelimiter = codeStyleSettings.getDelimiter();
     return new PsiElementVisitor() {
       @Override
-      public void visitElement(PsiElement element) {
+      public void visitElement(@NotNull PsiElement element) {
         if (element instanceof PropertyImpl) {
           final char delimiter = ((PropertyImpl)element).getKeyValueDelimiter();
           if (delimiter != codeStyleKeyValueDelimiter) {
@@ -72,7 +72,7 @@ public class WrongPropertyKeyValueDelimiterInspection extends PropertiesInspecti
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Replace property key/value delimiter according code style";
+      return PropertiesBundle.message("replace.key.value.delimiter.quick.fix.family.name");
     }
   }
 }

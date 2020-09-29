@@ -17,6 +17,7 @@ import com.intellij.openapi.vcs.changes.actions.diff.ChangeDiffRequestProducer
 import com.intellij.openapi.vcs.changes.actions.diff.ChangeDiffRequestProducer.*
 import com.intellij.openapi.vcs.changes.actions.diff.ChangeDiffRequestProvider
 import com.intellij.util.ThreeState
+import git4idea.i18n.GitBundle
 
 class GitSubmoduleDiffRequestProvider : ChangeDiffRequestProvider {
   override fun isEquals(change1: Change, change2: Change): ThreeState {
@@ -51,10 +52,10 @@ class GitSubmoduleDiffRequestProvider : ChangeDiffRequestProvider {
     val beforeContent = beforeRevision?.content?.let { factory.create(it) } ?: factory.createEmpty()
     val afterContent = afterRevision?.content?.let { factory.create(it) } ?: factory.createEmpty()
     val title = DiffRequestFactoryImpl.getTitle(beforeRevision?.file, afterRevision?.file, DIFF_TITLE_RENAME_SEPARATOR)
-    return SimpleDiffRequest("$title (Submodule)",
+    return SimpleDiffRequest(GitBundle.message("label.diff.content.title.submodule.suffix", title),
                              beforeContent,
                              afterContent,
-                             getRevisionTitle(beforeRevision, BASE_VERSION),
-                             getRevisionTitle(afterRevision, YOUR_VERSION))
+                             getRevisionTitle(beforeRevision, getBaseVersion()),
+                             getRevisionTitle(afterRevision, getYourVersion()))
   }
 }

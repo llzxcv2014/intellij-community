@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.lang;
 
+import com.intellij.ReviseWhenPortedToJDK;
 import com.intellij.openapi.diagnostic.LoggerRt;
-import com.intellij.util.containers.Stack;
+import com.intellij.util.UrlUtilRt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,7 +22,7 @@ public final class ClassPath {
   private static final LoaderCollector ourLoaderCollector = new LoaderCollector();
   public static final String CLASSPATH_JAR_FILE_NAME_PREFIX = "classpath";
 
-  private final Stack<URL> myUrls = new Stack<URL>();
+  private final List<URL> myUrls = new ArrayList<URL>();
   private final List<Loader> myLoaders = new ArrayList<Loader>();
 
   private volatile boolean myAllUrlsWereProcessed;
@@ -37,11 +38,10 @@ public final class ClassPath {
   final boolean myPreloadJarContents;
   final boolean myCanHavePersistentIndex;
   final boolean myLazyClassloadingCaches;
-  @Nullable private final CachePoolImpl myCachePool;
-  @Nullable private final UrlClassLoader.CachingCondition myCachingCondition;
+  private final @Nullable CachePoolImpl myCachePool;
+  private final @Nullable UrlClassLoader.CachingCondition myCachingCondition;
   final boolean myLogErrorOnMissingJar;
-  @Nullable
-  private final LinkedHashSet<String> myJarAccessLog;
+  private final @Nullable LinkedHashSet<String> myJarAccessLog;
 
   public ClassPath(List<URL> urls,
                    boolean canLockJars,
@@ -69,10 +69,9 @@ public final class ClassPath {
     push(urls);
   }
 
-  /**
-   * @deprecated Adding additional urls to classpath at runtime could lead to hard-to-debug errors
-   */
+  /** @deprecated adding URLs to classpath at runtime could lead to hard-to-debug errors */
   @Deprecated
+  @SuppressWarnings("DeprecatedIsStillUsed")
   void addURL(URL url) {
     push(Collections.singletonList(url));
   }
@@ -81,7 +80,7 @@ public final class ClassPath {
     if (!urls.isEmpty()) {
       synchronized (myUrls) {
         for (int i = urls.size() - 1; i >= 0; i--) {
-          myUrls.push(urls.get(i));
+          myUrls.add(urls.get(i));
         }
         myAllUrlsWereProcessed = false;
       }
@@ -150,13 +149,14 @@ public final class ClassPath {
     while (myLoaders.size() < i + 1) {
       URL url;
       synchronized (myUrls) {
-        if (myUrls.empty()) {
+        int size = myUrls.size();
+        if (size == 0) {
           if (myCanUseCache) {
             myAllUrlsWereProcessed = true;
           }
           return null;
         }
-        url = myUrls.pop();
+        url = myUrls.remove(size - 1);
       }
 
       if (myLoadersMap.containsKey(url)) continue;
@@ -190,6 +190,7 @@ public final class ClassPath {
     }
   }
 
+  @ReviseWhenPortedToJDK("7")  // use URL -> URI -> Path conversion
   private void initLoaders(@NotNull URL url, int index) throws IOException {
     String path;
 
@@ -221,7 +222,7 @@ public final class ClassPath {
     }
     if (file.isFile()) {
       boolean isSigned = myURLsWithProtectionDomain.contains(url);
-      JarLoader loader = isSigned ? new SecureJarLoader(url, index, this) : new JarLoader(url, index, this);
+      JarLoader loader = isSigned ? new SecureJarLoader(url, file.getPath(), index, this) : new JarLoader(url, file.getPath(), index, this);
       if (processRecursively) {
         String[] referencedJars = loadManifestClasspath(loader);
         if (referencedJars != null) {
@@ -229,7 +230,7 @@ public final class ClassPath {
           List<URL> urls = new ArrayList<URL>(referencedJars.length);
           for (String referencedJar:referencedJars) {
             try {
-              urls.add(UrlClassLoader.internProtocol(new URI(referencedJar).toURL()));
+              urls.add(UrlUtilRt.internProtocol(new URI(referencedJar).toURL()));
             }
             catch (Exception e) {
               LoggerRt.getInstance(ClassPath.class).warn("url: " + url + " / " + referencedJar, e);
@@ -282,7 +283,7 @@ public final class ClassPath {
     }
   }
 
-  private class MyEnumeration implements Enumeration<URL> {
+  private final class MyEnumeration implements Enumeration<URL> {
     private int myIndex;
     private Resource myRes;
     @NotNull
@@ -362,7 +363,7 @@ public final class ClassPath {
     }
   }
 
-  private static class ResourceStringLoaderIterator extends ClasspathCache.LoaderIterator<Resource, String, ClassPath> {
+  private static final class ResourceStringLoaderIterator extends ClasspathCache.LoaderIterator<Resource, String, ClassPath> {
     @Override
     Resource process(@NotNull Loader loader, @NotNull String s, @NotNull ClassPath classPath, @NotNull String shortName) {
       return loader.containsName(s, shortName) ? findInLoader(loader, s, classPath) : null;
@@ -428,7 +429,7 @@ public final class ClassPath {
 
   static final boolean ourClassLoadingInfo = Boolean.getBoolean("idea.log.classpath.info");
 
-  static final Set<String> ourLoadedClasses = ourClassLoadingInfo ? Collections.synchronizedSet(new LinkedHashSet<String>()) : null;
+  private static final Set<String> ourLoadedClasses = ourClassLoadingInfo ? Collections.synchronizedSet(new LinkedHashSet<String>()) : null;
   private static final AtomicLong ourTotalTime = new AtomicLong();
   private static final AtomicInteger ourTotalRequests = new AtomicInteger();
   private static final ThreadLocal<Boolean> ourDoingTiming = new ThreadLocal<Boolean>();

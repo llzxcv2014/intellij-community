@@ -2,6 +2,7 @@
 package com.intellij.ide.util;
 
 import com.intellij.openapi.project.Project;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -9,15 +10,14 @@ import org.jetbrains.annotations.NotNull;
  *
  * @author Konstantin Bulenkov
  */
-public class RunOnceUtil {
-
+public final class RunOnceUtil {
   /**
    * Perform the task if it was not performed before for the given project.
    *
    * @param id unique id for the task
    * @return {@code true} if task was performed, {@code false} if task had already been performed before.
    */
-  public static boolean runOnceForProject(@NotNull Project project, @NotNull String id, @NotNull Runnable task) {
+  public static boolean runOnceForProject(@NotNull Project project, @NotNull @NonNls String id, @NotNull Runnable task) {
     return _runOnce(PropertiesComponent.getInstance(project), id, task);
   }
 
@@ -27,11 +27,11 @@ public class RunOnceUtil {
    * @param id unique id for the task
    * @return {@code true} if task was performed, {@code false} if task had already been performed before.
    */
-  public static boolean runOnceForApp(@NotNull String id, @NotNull Runnable task) {
+  public static boolean runOnceForApp(@NotNull @NonNls String id, @NotNull Runnable task) {
     return _runOnce(PropertiesComponent.getInstance(), id, task);
   }
 
-  private static boolean _runOnce(@NotNull PropertiesComponent storage, @NotNull String id, @NotNull Runnable activity) {
+  private static boolean _runOnce(@NotNull PropertiesComponent storage, @NotNull @NonNls String id, @NotNull Runnable activity) {
     String key = createKey(id);
     if (storage.isTrueValue(key)) {
       return false;
@@ -42,7 +42,7 @@ public class RunOnceUtil {
     return true;
   }
 
-  private static String createKey(@NotNull String id) {
+  private static @NonNls String createKey(@NotNull String id) {
     return "RunOnceActivity." + id;
   }
 }

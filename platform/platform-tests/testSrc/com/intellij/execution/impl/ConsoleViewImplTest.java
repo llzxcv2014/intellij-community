@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.impl;
 
 import com.intellij.concurrency.JobScheduler;
@@ -239,6 +239,15 @@ public class ConsoleViewImplTest extends LightPlatformTestCase {
     return console;
   }
 
+  public void testDoNotRemoveEverythingWhenOneCharIsPrintedAfterLargeText() {
+    withCycleConsoleNoFolding(1, console -> {
+      console.print(StringUtil.repeat("a", 5000), ConsoleViewContentType.NORMAL_OUTPUT);
+      console.print("\n", ConsoleViewContentType.NORMAL_OUTPUT);
+      console.waitAllRequests();
+      assertEquals(StringUtil.repeat("a", 1023) + "\n", console.getText());
+    });
+  }
+
   public void testPerformance() {
     withCycleConsoleNoFolding(100, console ->
       PlatformTestUtil.startPerformanceTest("console print", 15000, () -> {
@@ -281,7 +290,7 @@ public class ConsoleViewImplTest extends LightPlatformTestCase {
   }
 
   private void withCycleConsoleNoFolding(int capacityKB, Consumer<? super ConsoleViewImpl> runnable) {
-    ExtensionPoint<ConsoleFolding> point = ConsoleFolding.EP_NAME.getPoint(null);
+    ExtensionPoint<ConsoleFolding> point = ConsoleFolding.EP_NAME.getPoint();
 
     UISettings uiSettings = UISettings.getInstance();
     boolean oldUse = uiSettings.getOverrideConsoleCycleBufferSize();
@@ -496,7 +505,7 @@ public class ConsoleViewImplTest extends LightPlatformTestCase {
         return Collections.singletonList(Pair.create("+!" + text + "-!", contentType));
       }
     };
-    ConsoleInputFilterProvider.INPUT_FILTER_PROVIDERS.getPoint(null).registerExtension(crazyProvider, getTestRootDisposable());
+    ConsoleInputFilterProvider.INPUT_FILTER_PROVIDERS.getPoint().registerExtension(crazyProvider, getTestRootDisposable());
     myConsole = createConsole();
     StringBuilder expectedText = new StringBuilder();
     List<Pair<String, ConsoleViewContentType>> expectedRegisteredTokens = new ArrayList<>();
@@ -536,7 +545,7 @@ public class ConsoleViewImplTest extends LightPlatformTestCase {
                       "line1\nline2\nline3\nDone\n");
   }
 
-  private void assertPrintedText(@NotNull String[] textToPrint, @NotNull String expectedText) {
+  private void assertPrintedText(String @NotNull [] textToPrint, @NotNull String expectedText) {
     myConsole.clear();
     myConsole.waitAllRequests();
     Assert.assertEquals("", myConsole.getText());
@@ -661,6 +670,146 @@ public class ConsoleViewImplTest extends LightPlatformTestCase {
     assertSize(2, editor.getFoldingModel().getAllFoldRegions());
   }
 
+  public void testSubsequentNonAttachedFoldsAreCombined() {
+    ServiceContainerUtil.registerExtension(ApplicationManager.getApplication(), ConsoleFolding.EP_NAME, new ConsoleFolding() {
+      @Override
+      public boolean shouldFoldLine(@NotNull Project project, @NotNull String line) {
+        return line.contains("FOO");
+      }
+
+      @NotNull
+      @Override
+      public String getPlaceholderText(@NotNull Project project, @NotNull List<String> lines) {
+        return "folded";
+      }
+
+      @Override
+      public boolean shouldBeAttachedToThePreviousLine() {
+        return false;
+      }
+    }, myConsole);
+
+    Editor editor = myConsole.getEditor();
+
+    myConsole.print("a BAR a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.print("a FOO a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.flushDeferredText();
+
+    assertOneElement(editor.getFoldingModel().getAllFoldRegions());
+
+    myConsole.print("a FOO a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.print("a BAR a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.flushDeferredText();
+
+    FoldRegion region = assertOneElement(editor.getFoldingModel().getAllFoldRegions());
+    assertEquals("folded", region.getPlaceholderText());
+    assertEquals(1, editor.getDocument().getLineNumber(region.getStartOffset()));
+    assertEquals(2, editor.getDocument().getLineNumber(region.getEndOffset()));
+
+    myConsole.print("a FOO a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.print("a BAR a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.flushDeferredText();
+
+    assertSize(2, editor.getFoldingModel().getAllFoldRegions());
+  }
+
+  public void testSubsequentExpandedFoldsAreCombined() {
+    ServiceContainerUtil.registerExtension(ApplicationManager.getApplication(), ConsoleFolding.EP_NAME, new ConsoleFolding() {
+      @Override
+      public boolean shouldFoldLine(@NotNull Project project, @NotNull String line) {
+        return line.contains("FOO");
+      }
+
+      @NotNull
+      @Override
+      public String getPlaceholderText(@NotNull Project project, @NotNull List<String> lines) {
+        return "folded";
+      }
+    }, myConsole);
+
+    Editor editor = myConsole.getEditor();
+
+    myConsole.print("a BAR a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.print("a FOO a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.flushDeferredText();
+
+    assertOneElement(editor.getFoldingModel().getAllFoldRegions());
+
+    myConsole.getEditor().getFoldingModel().runBatchFoldingOperation(() -> {
+      FoldRegion firstRegion = assertOneElement(editor.getFoldingModel().getAllFoldRegions());
+      firstRegion.setExpanded(true);
+    });
+
+    myConsole.print("a FOO a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.print("a BAR a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.flushDeferredText();
+
+    FoldRegion region = assertOneElement(editor.getFoldingModel().getAllFoldRegions());
+    assertEquals("folded", region.getPlaceholderText());
+    assertEquals(0, editor.getDocument().getLineNumber(region.getStartOffset()));
+    assertEquals(2, editor.getDocument().getLineNumber(region.getEndOffset()));
+
+    myConsole.print("a FOO a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.print("a BAR a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.flushDeferredText();
+
+    FoldRegion[] regions = editor.getFoldingModel().getAllFoldRegions();
+    assertSize(2, regions);
+    assertTrue(regions[0].isExpanded());
+    assertFalse(regions[1].isExpanded());
+  }
+
+  public void testSubsequentExpandedNonAttachedFoldsAreCombined() {
+    ServiceContainerUtil.registerExtension(ApplicationManager.getApplication(), ConsoleFolding.EP_NAME, new ConsoleFolding() {
+      @Override
+      public boolean shouldFoldLine(@NotNull Project project, @NotNull String line) {
+        return line.contains("FOO");
+      }
+
+      @NotNull
+      @Override
+      public String getPlaceholderText(@NotNull Project project, @NotNull List<String> lines) {
+        return "folded";
+      }
+
+      @Override
+      public boolean shouldBeAttachedToThePreviousLine() {
+        return false;
+      }
+    }, myConsole);
+
+    Editor editor = myConsole.getEditor();
+
+    myConsole.print("a BAR a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.print("a FOO a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.flushDeferredText();
+
+    assertOneElement(editor.getFoldingModel().getAllFoldRegions());
+
+    myConsole.getEditor().getFoldingModel().runBatchFoldingOperation(() -> {
+      FoldRegion firstRegion = assertOneElement(editor.getFoldingModel().getAllFoldRegions());
+      firstRegion.setExpanded(true);
+    });
+
+    myConsole.print("a FOO a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.print("a BAR a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.flushDeferredText();
+
+    FoldRegion region = assertOneElement(editor.getFoldingModel().getAllFoldRegions());
+    assertEquals("folded", region.getPlaceholderText());
+    assertEquals(1, editor.getDocument().getLineNumber(region.getStartOffset()));
+    assertEquals(2, editor.getDocument().getLineNumber(region.getEndOffset()));
+
+    myConsole.print("a FOO a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.print("a BAR a\n", ConsoleViewContentType.NORMAL_OUTPUT);
+    myConsole.flushDeferredText();
+
+    FoldRegion[] regions = editor.getFoldingModel().getAllFoldRegions();
+    assertSize(2, regions);
+    assertTrue(regions[0].isExpanded());
+    assertFalse(regions[1].isExpanded());
+  }
+
   @NotNull
   private List<RangeHighlighter> getAllRangeHighlighters() {
     MarkupModel model = DocumentMarkupModel.forDocument(myConsole.getEditor().getDocument(), getProject(), true);
@@ -679,10 +828,11 @@ public class ConsoleViewImplTest extends LightPlatformTestCase {
   private static void assertMarkerEquals(@NotNull ExpectedHighlighter expected, @NotNull RangeHighlighter actual) {
     assertEquals(expected.myStartOffset, actual.getStartOffset());
     assertEquals(expected.myEndOffset, actual.getEndOffset());
-    assertEquals(expected.myContentType.getAttributes(), actual.getTextAttributes());
+    assertEquals(expected.myContentType.getAttributes(), actual.getTextAttributes(null));
+    assertEquals(expected.myContentType.getAttributesKey(), actual.getTextAttributesKey());
   }
 
-  private static class ExpectedHighlighter {
+  private static final class ExpectedHighlighter {
     private final int myStartOffset;
     private final int myEndOffset;
     private final ConsoleViewContentType myContentType;

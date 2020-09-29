@@ -5,6 +5,7 @@ package com.intellij.execution.junit2.inspection;
 import com.intellij.codeInsight.AnnotationUtil;
 import com.intellij.codeInspection.reference.RefElement;
 import com.intellij.codeInspection.visibility.EntryPointWithVisibilityLevel;
+import com.intellij.execution.JUnitBundle;
 import com.intellij.execution.junit.JUnitUtil;
 import com.intellij.openapi.util.DefaultJDOMExternalizer;
 import com.intellij.openapi.util.InvalidDataException;
@@ -25,7 +26,7 @@ public class JUnitEntryPoint extends EntryPointWithVisibilityLevel {
   @Override
   @NotNull
   public String getDisplayName() {
-    return "JUnit test cases";
+    return JUnitBundle.message("unused.declaration.junit.test.entry.point");
   }
 
   @Override
@@ -95,7 +96,7 @@ public class JUnitEntryPoint extends EntryPointWithVisibilityLevel {
 
   @Override
   public String getTitle() {
-    return "Suggest package-private visibility level for junit 5 tests";
+    return JUnitBundle.message("junit.entry.point.suggest.package.private.visibility.junit5");
   }
 
   @Override

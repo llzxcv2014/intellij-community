@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ui;
 
@@ -6,12 +6,12 @@ import com.intellij.icons.AllIcons;
 import com.intellij.ide.DataManager;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.TransactionGuard;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.FileTypes;
 import com.intellij.openapi.fileTypes.INativeFileType;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.util.ActionCallback;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.vfs.PersistentFSConstants;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.ToolWindow;
@@ -42,7 +42,7 @@ public abstract class AutoScrollToSourceHandler {
         TreePath location = tree.getPathForLocation(e.getPoint().x, e.getPoint().y);
         if (location != null) {
           onMouseClicked(tree);
-          return isAutoScrollMode();
+          // return isAutoScrollMode(); // do not consume event to allow processing by a tree
         }
 
         return false;
@@ -146,11 +146,11 @@ public abstract class AutoScrollToSourceHandler {
     }
   }
 
-  protected String getActionName() {
+  protected @NlsActions.ActionText String getActionName() {
     return UIBundle.message("autoscroll.to.source.action.name");
   }
 
-  protected String getActionDescription() {
+  protected @NlsActions.ActionDescription String getActionDescription() {
     return UIBundle.message("autoscroll.to.source.action.description");
   }
 
@@ -176,7 +176,7 @@ public abstract class AutoScrollToSourceHandler {
 
   protected void scrollToSource(final Component tree) {
     DataContext dataContext=DataManager.getInstance().getDataContext(tree);
-    getReady(dataContext).doWhenDone(() -> TransactionGuard.submitTransaction(ApplicationManager.getApplication(), () -> {
+    getReady(dataContext).doWhenDone(() -> ApplicationManager.getApplication().invokeLater(() -> {
       DataContext context = DataManager.getInstance().getDataContext(tree);
       final VirtualFile vFile = CommonDataKeys.VIRTUAL_FILE.getData(context);
       Navigatable[] navigatables = CommonDataKeys.NAVIGATABLE_ARRAY.getData(context);
@@ -192,7 +192,7 @@ public abstract class AutoScrollToSourceHandler {
   }
 
   private class AutoscrollToSourceAction extends ToggleAction implements DumbAware {
-    AutoscrollToSourceAction(String actionName, String actionDescription) {
+    AutoscrollToSourceAction(@NlsActions.ActionText String actionName, @NlsActions.ActionDescription String actionDescription) {
       super(actionName, actionDescription, AllIcons.General.AutoscrollToSource);
     }
 

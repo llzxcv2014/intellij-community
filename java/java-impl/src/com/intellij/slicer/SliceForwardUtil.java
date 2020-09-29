@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.slicer;
 
 import com.intellij.codeInspection.dataFlow.JavaMethodContractUtil;
@@ -38,16 +24,13 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 
-/**
- * @author cdr
- */
-class SliceForwardUtil {
+final class SliceForwardUtil {
   static boolean processUsagesFlownFromThe(@NotNull PsiElement element,
                                            @NotNull final JavaSliceUsage parent,
                                            @NotNull final Processor<? super SliceUsage> processor) {
     PsiExpression expression = getMethodCallTarget(element);
-    if (expression != null &&
-        !SliceUtil.createAndProcessSliceUsage(expression, parent, parent.getSubstitutor(), parent.indexNesting, "", processor)) {
+    JavaSliceBuilder builder = JavaSliceBuilder.create(parent).dropSyntheticField();
+    if (expression != null && !builder.process(expression, processor)) {
       return false;
     }
     Pair<PsiElement, PsiSubstitutor> pair = getAssignmentTarget(element, parent);
@@ -69,17 +52,17 @@ class SliceForwardUtil {
                                                                                           override.getSignature(substitutor));
 
             PsiParameter[] parameters = override.getParameterList().getParameters();
-            if (parameters.length <= parameterIndex) return true;
+            if (parameters.length <= parameterIndex || superSubstitutor == null) return true;
             PsiParameter actualParam = parameters[parameterIndex];
 
-            return SliceUtil.createAndProcessSliceUsage(actualParam, parent, superSubstitutor, parent.indexNesting, "", processor);
+            return builder.withSubstitutor(superSubstitutor).process(actualParam, processor);
           };
           if (!myProcessor.process(method)) return false;
           return OverridingMethodsSearch.search(method, parent.getScope().toSearchScope(), true).forEach(myProcessor);
         }
       }
 
-      return SliceUtil.createAndProcessSliceUsage(target, parent, parent.getSubstitutor(),parent.indexNesting, "", processor);
+      return builder.process(target, processor);
     }
 
     if (element instanceof PsiReferenceExpression) {
@@ -197,11 +180,11 @@ class SliceForwardUtil {
     if (!parent.params.scope.contains(element)) return true;
     if (element instanceof PsiCompiledElement) element = element.getNavigationElement();
     if (element.getLanguage() != JavaLanguage.INSTANCE) {
-      return SliceUtil.createAndProcessSliceUsage(element, parent, EmptySubstitutor.getInstance(), parent.indexNesting, "", processor);
+      return JavaSliceBuilder.create(parent).withSubstitutor(EmptySubstitutor.getInstance()).dropSyntheticField().process(element, processor);
     }
     Pair<PsiElement, PsiSubstitutor> pair = getAssignmentTarget(element, parent);
     if (pair != null) {
-      return SliceUtil.createAndProcessSliceUsage(element, parent, pair.getSecond(), parent.indexNesting, "", processor);
+      return JavaSliceBuilder.create(parent).withSubstitutor(pair.second).dropSyntheticField().process(element, processor);
     }
     if (parent.params.showInstanceDereferences && isDereferenced(element)) {
       SliceUsage usage = new JavaSliceDereferenceUsage(element.getParent(), parent, parent.getSubstitutor());

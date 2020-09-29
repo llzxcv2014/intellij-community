@@ -12,10 +12,19 @@ def groupId = pluginChannelSeparator == -1 ? "com.jetbrains.plugins"
                                            : "${kotlinPluginBuild.substring(pluginChannelSeparator + 1)}.com.jetbrains.plugins"
 def pluginArtifactVersion = pluginChannelSeparator == -1 ? kotlinPluginBuild : kotlinPluginBuild.substring(0, pluginChannelSeparator)
 dependencies {
-  kotlinPlugin "$groupId:org.jetbrains.kotlin:$pluginArtifactVersion@zip"
+  if (project.hasProperty('kotlinPluginPath')) {
+    kotlinPlugin files(kotlinPluginPath)
+  } else {
+    kotlinPlugin "$groupId:org.jetbrains.kotlin:$pluginArtifactVersion@zip"
+  }
 }
 
 task setupKotlinPlugin(dependsOn: configurations.kotlinPlugin, type: Sync) {
   from zipTree(configurations.kotlinPlugin.singleFile)
   into "${project.buildDir}/kotlin"
+}
+
+task deployKotlinPlugin(dependsOn: setupKotlinPlugin, type: Sync) {
+  from file("${project.buildDir}/kotlin")
+  into "${System.getProperty("idea.config.path")}/plugins/"
 }

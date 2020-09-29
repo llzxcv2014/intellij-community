@@ -32,15 +32,19 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
+import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vcs.changes.ChangesUtil;
 import com.intellij.openapi.vcs.changes.ui.SimpleChangesBrowser;
 import com.intellij.openapi.vcs.ui.ReplaceFileConfirmationDialog;
 import com.intellij.ui.HyperlinkAdapter;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.UIUtil;
-import org.jetbrains.annotations.CalledInAwt;
+import com.intellij.xml.util.XmlStringUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -53,9 +57,9 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 public class CompareBranchesDiffPanel extends JPanel {
-  private final String myBranchName;
+  private final @NlsSafe String myBranchName;
   private final Project myProject;
-  private final String myCurrentBranchName;
+  private final @NlsSafe String myCurrentBranchName;
   private final DvcsCompareSettings myVcsSettings;
 
   @Nullable private CommitCompareInfo myCompareInfo;
@@ -101,7 +105,7 @@ public class CompareBranchesDiffPanel extends JPanel {
     add(myChangesBrowser, BorderLayout.CENTER);
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public void setCompareInfo(@NotNull CommitCompareInfo compareInfo) {
     myCompareInfo = compareInfo;
     refreshView();
@@ -119,14 +123,25 @@ public class CompareBranchesDiffPanel extends JPanel {
 
   private void updateLabelText() {
     boolean swapSides = myVcsSettings.shouldSwapSidesInCompareBranches();
-    String currentBranchText = String.format("current working tree on <b><code>%s</code></b>", myCurrentBranchName);
-    String otherBranchText = String.format("files in <b><code>%s</code></b>", myBranchName);
-    myLabel.setText(String.format("<html>Difference between %s and %s:&emsp;<a href=\"\">Swap branches</a></html>",
-                                  swapSides ? otherBranchText : currentBranchText,
-                                  swapSides ? currentBranchText : otherBranchText));
+    HtmlChunk branchNameText = HtmlChunk.text(myBranchName).code().bold();
+    HtmlChunk currentBranchNameText = HtmlChunk.text(myCurrentBranchName).code().bold();
+    String diffBetween;
+    if (swapSides) {
+      diffBetween = DvcsBundle.message("compare.branches.diff.panel.diff.between.files.in.branch.and.current.working.tree.on.branch",
+                                       branchNameText,
+                                       currentBranchNameText);
+    }
+    else {
+      diffBetween = DvcsBundle.message("compare.branches.diff.panel.difference.between.current.working.tree.on.branch.and.files.in.branch",
+                                       currentBranchNameText,
+                                       branchNameText);
+    }
+
+    String swapBranches = DvcsBundle.message("compare.branches.diff.panel.swap.branches");
+    myLabel.setText(XmlStringUtil.wrapInHtml(diffBetween + "&emsp;" + HtmlChunk.link("", swapBranches))); // NON-NLS
   }
 
-  public void setEmptyText(@NotNull String text) {
+  public void setEmptyText(@NotNull @NlsContexts.Label String text) {
     myChangesBrowser.getViewer().setEmptyText(text);
   }
 
@@ -177,7 +192,9 @@ public class CompareBranchesDiffPanel extends JPanel {
 
   private class MyCopyChangesAction extends DumbAwareAction {
     MyCopyChangesAction() {
-      super("Get from Branch", "Replace file content with its version from branch " + myBranchName, AllIcons.Actions.Download);
+      super(DvcsBundle.messagePointer("compare.branches.diff.panel.get.from.branch.action"),
+            DvcsBundle.messagePointer("compare.branches.diff.panel.get.from.branch.action.description", myBranchName),
+            AllIcons.Actions.Download);
       copyShortcutFrom(ActionManager.getInstance().getAction("Vcs.GetVersion"));
     }
 
@@ -191,7 +208,7 @@ public class CompareBranchesDiffPanel extends JPanel {
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
-      String title = String.format("Get from Branch '%s'", myBranchName);
+      String title = DvcsBundle.message("compare.branches.diff.panel.get.from.branch.title", myBranchName);
       List<Change> changes = myChangesBrowser.getSelectedChanges();
       boolean swapSides = myVcsSettings.shouldSwapSidesInCompareBranches();
 
@@ -201,7 +218,7 @@ public class CompareBranchesDiffPanel extends JPanel {
       FileDocumentManager.getInstance().saveAllDocuments();
       LocalHistoryAction action = LocalHistory.getInstance().startAction(title);
 
-      new Task.Modal(myProject, "Loading Content from Branch", false) {
+      new Task.Modal(myProject, DvcsBundle.message("compare.branches.diff.panel.loading.content.from.branch.process"), false) {
         @Override
         public void run(@NotNull ProgressIndicator indicator) {
           try {
@@ -210,7 +227,8 @@ public class CompareBranchesDiffPanel extends JPanel {
             }
           }
           catch (VcsException err) {
-            ApplicationManager.getApplication().invokeLater(() -> Messages.showErrorDialog(myProject, err.getMessage(), "Can't Copy Changes"));
+            ApplicationManager.getApplication().invokeLater(() -> Messages.showErrorDialog(myProject, err.getMessage(), DvcsBundle
+              .message("compare.branches.diff.panel.can.not.copy.changes.error")));
           }
         }
 

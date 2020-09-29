@@ -1,13 +1,15 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.projectRoots.ex;
 
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.projectRoots.*;
+import com.intellij.openapi.projectRoots.JavaSdkVersion;
+import com.intellij.openapi.projectRoots.JavaSdkVersionUtil;
+import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.pom.java.LanguageLevel;
-import com.intellij.rt.compiler.JavacRunner;
+import com.intellij.rt.execution.CommandLineWrapper;
 import com.intellij.util.PathUtil;
 import com.intellij.util.PathsList;
 import com.intellij.util.ReflectionUtil;
@@ -18,7 +20,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Arrays;
 import java.util.List;
 
-public class JavaSdkUtil {
+public final class JavaSdkUtil {
   private static final String IDEA_PREPEND_RT_JAR = "idea.prepend.rtjar";
 
   public static void addRtJar(@NotNull PathsList pathsList) {
@@ -43,7 +45,7 @@ public class JavaSdkUtil {
 
   @NotNull
   public static String getIdeaRtJarPath() {
-    return PathUtil.getJarPathForClass(JavacRunner.class);
+    return PathUtil.getJarPathForClass(CommandLineWrapper.class);
   }
 
   @NotNull

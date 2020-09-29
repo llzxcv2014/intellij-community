@@ -8,6 +8,7 @@ import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.ScrollPaneFactory;
@@ -24,6 +25,7 @@ import org.gradle.internal.impldep.org.apache.commons.lang.WordUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.gradle.statistics.GradleActionsUsagesCollector;
+import org.jetbrains.plugins.gradle.util.GradleBundle;
 
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
@@ -71,7 +73,7 @@ public class DaemonsUi implements Disposable {
     final JPanel descriptionPanel = new JPanel(new BorderLayout());
 
     descriptionPanel.add(label, BorderLayout.CENTER);
-    JBCheckBox showStoppedCb = new JBCheckBox("show stopped");
+    JBCheckBox showStoppedCb = new JBCheckBox(GradleBundle.message("gradle.daemons.show.stopped"));
     showStoppedCb.addActionListener(e -> {
       if (myShowStopped != showStoppedCb.isSelected()) {
         myShowStopped = showStoppedCb.isSelected();
@@ -80,7 +82,7 @@ public class DaemonsUi implements Disposable {
     });
     UIUtil.applyStyle(UIUtil.ComponentStyle.SMALL, showStoppedCb);
     descriptionPanel.add(showStoppedCb, BorderLayout.SOUTH);
-    descriptionPanel.setBorder(IdeBorderFactory.createTitledBorder("Description", false));
+    descriptionPanel.setBorder(IdeBorderFactory.createTitledBorder(GradleBundle.message("gradle.daemons.description.title"), false));
 
     TableView<DaemonState> tableView = myTable.getTableView();
     tableView.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
@@ -135,7 +137,7 @@ public class DaemonsUi implements Disposable {
   private static class DaemonsTable extends ListTableWithButtons<DaemonState> {
     @Override
     protected ListTableModel createListModel() {
-      final ColumnInfo pidColumn = new DaemonsTable.TableColumn("PID", 80) {
+      final ColumnInfo pidColumn = new DaemonsTable.TableColumn(GradleBundle.message("column.name.daemon.PID"), 80) {
         @Nullable
         @Override
         public String valueOf(DaemonState daemonState) {
@@ -148,7 +150,7 @@ public class DaemonsUi implements Disposable {
           return Comparator.comparing(DaemonState::getPid);
         }
       };
-      final ColumnInfo statusColumn = new DaemonsTable.TableColumn("Status", 100) {
+      final ColumnInfo statusColumn = new DaemonsTable.TableColumn(GradleBundle.message("column.name.daemon.status"), 100) {
         @Nullable
         @Override
         public String valueOf(DaemonState daemonState) {
@@ -161,7 +163,7 @@ public class DaemonsUi implements Disposable {
           return Comparator.comparing(DaemonState::getStatus);
         }
       };
-      final ColumnInfo timeColumn = new DaemonsTable.TableColumn("Timestamp", 150) {
+      final ColumnInfo timeColumn = new DaemonsTable.TableColumn(GradleBundle.message("column.name.daemon.timestamp"), 150) {
         @NotNull
         @Override
         public String valueOf(DaemonState daemonState) {
@@ -174,7 +176,7 @@ public class DaemonsUi implements Disposable {
           return Comparator.comparing(DaemonState::getTimestamp);
         }
       };
-      final ColumnInfo infoColumn = new DaemonsTable.TableColumn("Info", -1) {
+      final ColumnInfo infoColumn = new DaemonsTable.TableColumn(GradleBundle.message("column.name.daemon.info"), -1) {
         private MultiLineTableCellRenderer myRenderer;
 
         @NotNull
@@ -233,7 +235,7 @@ public class DaemonsUi implements Disposable {
 
       private final int myWidth;
 
-      TableColumn(final String name, int width) {
+      TableColumn(@NlsContexts.ColumnName final String name, int width) {
         super(name);
         myWidth = width;
       }
@@ -258,7 +260,7 @@ public class DaemonsUi implements Disposable {
 
   private class RefreshAction extends AbstractAction {
     RefreshAction() {
-      super("Refresh", AllIcons.Actions.Refresh);
+      super(GradleBundle.message("gradle.daemons.refresh"), AllIcons.Actions.Refresh);
     }
 
     @Override
@@ -277,7 +279,7 @@ public class DaemonsUi implements Disposable {
 
   private class StopAllAction extends AbstractAction {
     StopAllAction() {
-      super("Stop All");
+      super(GradleBundle.message("gradle.daemons.stop.all"));
       setEnabled(false);
     }
 
@@ -298,7 +300,7 @@ public class DaemonsUi implements Disposable {
 
   private class StopSelectedAction extends AbstractAction {
     StopSelectedAction() {
-      super("Stop Selected");
+      super(GradleBundle.message("gradle.daemons.stop.selected"));
       setEnabled(false);
     }
 
@@ -320,7 +322,7 @@ public class DaemonsUi implements Disposable {
 
   private class MyDialogWrapper extends DialogWrapper {
     {
-      setTitle("Gradle Daemons");
+      setTitle(GradleBundle.message("gradle.daemons.gradle.daemons"));
       setModal(false);
       init();
 
@@ -342,9 +344,7 @@ public class DaemonsUi implements Disposable {
     protected JComponent createNorthPanel() {
       JPanel panel = new JPanel(new BorderLayout());
       JLabel infoLabel = new JLabel(XmlStringUtil.wrapInHtml(
-        "Daemons started by " +
-        ApplicationNamesInfo.getInstance().getFullProductName() +
-        " (or other daemons of the similar configuration) are displayed. <i>Gradle 3.0 or better supported.<i>"));
+        GradleBundle.message("daemons.started.by.are.displayed", ApplicationNamesInfo.getInstance().getFullProductName())));
       infoLabel.setIcon(UIUtil.getInformationIcon());
       panel.add(infoLabel, BorderLayout.CENTER);
       return panel;
@@ -373,22 +373,20 @@ public class DaemonsUi implements Disposable {
       return myTable.getTableView();
     }
 
-    @NotNull
     @Override
-    protected Action[] createActions() {
+    protected Action @NotNull [] createActions() {
       return new Action[]{myStopAllAction, myStopSelectedAction, myCloseAction};
     }
 
-    @NotNull
     @Override
-    protected Action[] createLeftSideActions() {
+    protected Action @NotNull [] createLeftSideActions() {
       return new Action[]{myRefreshAction};
     }
 
     @Override
     protected void createDefaultActions() {
       super.createDefaultActions();
-      myCloseAction = new AbstractAction("Close") {
+      myCloseAction = new AbstractAction(GradleBundle.message("gradle.daemons.close")) {
         @Override
         public void actionPerformed(@NotNull ActionEvent e) {
           doOKAction();

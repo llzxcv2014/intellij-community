@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.jps.javac;
 
 import com.google.protobuf.ByteString;
@@ -18,8 +18,7 @@ import java.util.*;
 /**
  * @author Eugene Zhuravlev
  */
-public class JavacProtoUtil {
-
+public final class JavacProtoUtil {
   public static JavacRemoteProto.Message.Request createCancelRequest() {
     return JavacRemoteProto.Message.Request.newBuilder().setRequestType(JavacRemoteProto.Message.Request.Type.CANCEL).build();
   }
@@ -95,9 +94,8 @@ public class JavacProtoUtil {
     if (relativePath != null) {
       msgBuilder.setRelativePath(relativePath);
     }
-    final URI srcUri = fileObject.getSourceUri();
-    if (srcUri != null) {
-      msgBuilder.setSourceUri(srcUri.toString());
+    for (URI uri : fileObject.getSourceUris()) {
+      msgBuilder.addSourceUri(uri.toString());
     }
     final JavaFileManager.Location location = fileObject.getLocation();
     if (location != null) {

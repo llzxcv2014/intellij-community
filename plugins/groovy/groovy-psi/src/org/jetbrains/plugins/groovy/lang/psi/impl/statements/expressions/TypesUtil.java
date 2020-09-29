@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Ref;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.*;
@@ -39,7 +40,7 @@ import static org.jetbrains.plugins.groovy.lang.psi.GroovyElementTypes.*;
 /**
  * @author ven
  */
-public class TypesUtil implements TypeConstants {
+public final class TypesUtil implements TypeConstants {
 
   public static final PsiPrimitiveType[] PRIMITIVES = {
     PsiType.BYTE,
@@ -57,7 +58,7 @@ public class TypesUtil implements TypeConstants {
   }
 
   private static final Map<IElementType, String> ourPrimitiveTypesToClassNames = new HashMap<>();
-  private static final String NULL = "null";
+  private static final @NlsSafe String NULL = "null";
 
   static {
     ourPrimitiveTypesToClassNames.put(STRING_SQ, CommonClassNames.JAVA_LANG_STRING);
@@ -147,7 +148,7 @@ public class TypesUtil implements TypeConstants {
       }
       return min;
     }
-    
+
     if (targetType instanceof PsiIntersectionType) {
       ConversionResult max = ConversionResult.OK;
       for (PsiType child : ((PsiIntersectionType)targetType).getConjuncts()) {
@@ -503,7 +504,7 @@ public class TypesUtil implements TypeConstants {
   }
 
   @Contract("null, _ -> false")
-  public static boolean isClassType(@Nullable PsiType type, @NotNull String... names) {
+  public static boolean isClassType(@Nullable PsiType type, String @NotNull ... names) {
     String fqn = getQualifiedName(type);
     if (fqn == null) return false;
     return ContainerUtil.or(names, it -> it.equals(fqn));
@@ -533,7 +534,7 @@ public class TypesUtil implements TypeConstants {
   public static PsiType createJavaLangClassType(@Nullable PsiType type, @NotNull PsiElement context) {
     return createJavaLangClassType(type, context.getProject(), context.getResolveScope());
   }
-  
+
   @Nullable
   public static PsiType createJavaLangClassType(@Nullable PsiType type,
                                                 Project project,
@@ -701,21 +702,21 @@ public class TypesUtil implements TypeConstants {
       parameter.accept(new PsiTypeVisitorEx<Object>() {
         @Nullable
         @Override
-        public Object visitClassType(PsiClassType classType) {
+        public Object visitClassType(@NotNull PsiClassType classType) {
             newParam.set(classType.rawType());
           return null;
         }
 
         @Nullable
         @Override
-        public Object visitCapturedWildcardType(PsiCapturedWildcardType capturedWildcardType) {
+        public Object visitCapturedWildcardType(@NotNull PsiCapturedWildcardType capturedWildcardType) {
           newParam.set(capturedWildcardType.getWildcard().getBound());
           return null;
         }
 
         @Nullable
         @Override
-        public Object visitWildcardType(PsiWildcardType wildcardType) {
+        public Object visitWildcardType(@NotNull PsiWildcardType wildcardType) {
           newParam.set(wildcardType.getBound());
           return null;
         }
@@ -735,12 +736,12 @@ public class TypesUtil implements TypeConstants {
   public static PsiType rawWildcard(PsiType type, PsiElement context) {
     final PsiTypeMapper visitor = new GrTypeMapper(context) {
       @Override
-      public PsiType visitCapturedWildcardType(PsiCapturedWildcardType capturedWildcardType) {
+      public PsiType visitCapturedWildcardType(@NotNull PsiCapturedWildcardType capturedWildcardType) {
         return getJavaLangObject(context);
       }
 
       @Override
-      public PsiType visitWildcardType(PsiWildcardType capturedWildcardType) {
+      public PsiType visitWildcardType(@NotNull PsiWildcardType capturedWildcardType) {
         return getJavaLangObject(context);
       }
 
@@ -760,6 +761,7 @@ public class TypesUtil implements TypeConstants {
   }
 
   @Nullable
+  @NlsSafe
   public static String getQualifiedName(@Nullable PsiType type) {
     if (type instanceof PsiClassType) {
       PsiClass resolved = ((PsiClassType)type).resolve();

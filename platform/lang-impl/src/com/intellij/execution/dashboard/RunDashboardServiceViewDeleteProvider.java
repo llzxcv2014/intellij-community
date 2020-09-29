@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.dashboard;
 
 import com.intellij.execution.ExecutionBundle;
@@ -7,10 +7,12 @@ import com.intellij.execution.dashboard.tree.GroupingNode;
 import com.intellij.execution.dashboard.tree.RunDashboardGroupImpl;
 import com.intellij.execution.services.ServiceViewContributorDeleteProvider;
 import com.intellij.ide.DeleteProvider;
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.MessageDialogBuilder;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.SmartList;
@@ -22,7 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-class RunDashboardServiceViewDeleteProvider implements ServiceViewContributorDeleteProvider {
+final class RunDashboardServiceViewDeleteProvider implements ServiceViewContributorDeleteProvider {
   private DeleteProvider myDelegate;
 
   @Override
@@ -46,13 +48,16 @@ class RunDashboardServiceViewDeleteProvider implements ServiceViewContributorDel
     ConfigurationType onlyType = ContainerUtil.getOnlyItem(targetTypes);
     String message;
     if (onlyType != null) {
-      message = ExecutionBundle.message("run.dashboard.remove.run.configuration.type.action.name", onlyType.getDisplayName()) + "?";
+      message = ExecutionBundle.message("run.dashboard.remove.run.configuration.type.confirmation", onlyType.getDisplayName());
     }
     else {
-      message = "Remove " + targetTypes.size() + " configuration types from Services?";
+      message = ExecutionBundle.message("run.dashboard.remove.run.configuration.types.confirmation", targetTypes.size());
     }
-    if (Messages.showYesNoDialog(project, message, "Remove", "Remove", Messages.CANCEL_BUTTON, Messages.getWarningIcon(), null)
-        != Messages.YES) {
+
+    if (!MessageDialogBuilder.yesNo(IdeBundle.message("button.remove"), message)
+          .yesText(IdeBundle.message("button.remove"))
+          .icon(Messages.getWarningIcon())
+          .ask(project)) {
       return;
     }
     RunDashboardManager runDashboardManager = RunDashboardManager.getInstance(project);

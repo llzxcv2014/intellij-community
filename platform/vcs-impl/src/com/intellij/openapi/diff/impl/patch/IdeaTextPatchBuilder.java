@@ -1,10 +1,9 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.diff.impl.patch;
 
 import com.intellij.diff.util.Side;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vcs.changes.*;
@@ -17,11 +16,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.Charset;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-public class IdeaTextPatchBuilder {
+public final class IdeaTextPatchBuilder {
   private IdeaTextPatchBuilder() {
   }
 
@@ -57,21 +58,26 @@ public class IdeaTextPatchBuilder {
     }
   }
 
-  @NotNull
-  public static List<FilePatch> buildPatch(Project project,
-                                           Collection<? extends Change> changes,
-                                           String basePath,
-                                           boolean reversePatch) throws VcsException {
+  public static @NotNull List<FilePatch> buildPatch(Project project,
+                                                    @NotNull Collection<? extends Change> changes,
+                                                    @NotNull String basePath,
+                                                    boolean reversePatch) throws VcsException {
+    return buildPatch(project, changes, Paths.get(basePath), reversePatch, false);
+  }
+
+  public static @NotNull List<FilePatch> buildPatch(Project project,
+                                                    @NotNull Collection<? extends Change> changes,
+                                                    @NotNull Path basePath,
+                                                    boolean reversePatch) throws VcsException {
     return buildPatch(project, changes, basePath, reversePatch, false);
   }
 
-  @NotNull
-  public static List<FilePatch> buildPatch(Project project,
-                                           Collection<? extends Change> changes,
-                                           String basePath,
-                                           boolean reversePatch,
-                                           boolean honorExcludedFromCommit) throws VcsException {
-    final Collection<BeforeAfter<AirContentRevision>> revisions;
+  public static @NotNull List<FilePatch> buildPatch(@Nullable Project project,
+                                                    @NotNull Collection<? extends Change> changes,
+                                                    @NotNull Path basePath,
+                                                    boolean reversePatch,
+                                                    boolean honorExcludedFromCommit) throws VcsException {
+    Collection<BeforeAfter<AirContentRevision>> revisions;
     if (project != null) {
       revisions = revisionsConvertor(project, new ArrayList<>(changes), honorExcludedFromCommit);
     }
@@ -82,8 +88,7 @@ public class IdeaTextPatchBuilder {
                                         convertRevision(change.getAfterRevision())));
       }
     }
-    return TextPatchBuilder.buildPatch(revisions, basePath, reversePatch, SystemInfo.isFileSystemCaseSensitive,
-                                       () -> ProgressManager.checkCanceled());
+    return TextPatchBuilder.buildPatch(revisions, basePath, reversePatch, () -> ProgressManager.checkCanceled());
   }
 
   @Nullable
@@ -93,10 +98,12 @@ public class IdeaTextPatchBuilder {
 
   @Nullable
   private static AirContentRevision convertRevision(@Nullable ContentRevision cr, @Nullable String actualTextContent) {
-    if (cr == null) return null;
-    final FilePath fp = cr.getFile();
-    final StaticPathDescription description = new StaticPathDescription(fp.isDirectory(), fp.getIOFile().lastModified(), fp.getPath());
+    if (cr == null) {
+      return null;
+    }
 
+    FilePath filePath = cr.getFile();
+    StaticPathDescription description = new StaticPathDescription(filePath.isDirectory(), filePath.getIOFile().toPath());
     if (actualTextContent != null) {
       return new PartialTextAirContentRevision(actualTextContent, cr, description, null);
     }

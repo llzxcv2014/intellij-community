@@ -3,6 +3,7 @@ package com.intellij.psi;
 
 import com.intellij.lang.jvm.JvmAnnotation;
 import com.intellij.lang.jvm.annotation.JvmAnnotationAttribute;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.meta.PsiMetaData;
 import com.intellij.util.ArrayFactory;
 import org.jetbrains.annotations.NonNls;
@@ -32,7 +33,7 @@ public interface PsiAnnotation extends PsiAnnotationMemberValue, JvmAnnotation {
    */
   enum TargetType {
     // see java.lang.annotation.ElementType
-    TYPE, FIELD, METHOD, PARAMETER, CONSTRUCTOR, LOCAL_VARIABLE, ANNOTATION_TYPE, PACKAGE, TYPE_USE, TYPE_PARAMETER, MODULE,
+    TYPE, FIELD, METHOD, PARAMETER, CONSTRUCTOR, LOCAL_VARIABLE, ANNOTATION_TYPE, PACKAGE, TYPE_USE, TYPE_PARAMETER, MODULE, RECORD_COMPONENT,
     // auxiliary value, used when it's impossible to determine annotation's targets
     UNKNOWN;
 
@@ -53,8 +54,7 @@ public interface PsiAnnotation extends PsiAnnotationMemberValue, JvmAnnotation {
    * @return the class name, or null if the annotation is unresolved.
    */
   @Override
-  @Nullable
-  @NonNls
+  @Nullable @NlsSafe
   String getQualifiedName();
 
   /**
@@ -96,12 +96,23 @@ public interface PsiAnnotation extends PsiAnnotationMemberValue, JvmAnnotation {
   <T extends PsiAnnotationMemberValue> T setDeclaredAttributeValue(@Nullable @NonNls String attributeName, @Nullable T value);
 
   /**
-   * Returns an owner of the annotation - usually a parent, but for type annotations the owner might be a type element.
+   * Returns an owner of the annotation - usually a parent, but for type annotations the owner might be a PsiType or PsiTypeElement.
    *
    * @return annotation owner
    */
   @Nullable
   PsiAnnotationOwner getOwner();
+
+  /**
+   * @return the target of {@link #getNameReferenceElement()}, if it's an {@code @interface}, otherwise null
+   */
+  @Nullable
+  default PsiClass resolveAnnotationType() {
+    PsiJavaCodeReferenceElement element = getNameReferenceElement();
+    PsiElement declaration = element == null ? null : element.resolve();
+    if (!(declaration instanceof PsiClass) || !((PsiClass)declaration).isAnnotationType()) return null;
+    return (PsiClass)declaration;
+  }
 
   @NotNull
   @Override

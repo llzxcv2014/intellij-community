@@ -7,6 +7,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings.IndentOptions;
 import com.intellij.psi.codeStyle.IndentStatusBarUIContributor;
+import org.editorconfig.Utils;
 import org.editorconfig.language.messages.EditorConfigBundle;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,9 +26,8 @@ public class EditorConfigIndentStatusBarUIContributor extends IndentStatusBarUIC
     return myEditorConfigIndentOptions;
   }
 
-  @Nullable
   @Override
-  public AnAction[] getActions(@NotNull PsiFile file) {
+  public AnAction @Nullable [] getActions(@NotNull PsiFile file) {
     if (myEditorConfigIndentOptions) {
       return EditorConfigActionUtil.createNavigationActions(file);
     }
@@ -43,7 +43,7 @@ public class EditorConfigIndentStatusBarUIContributor extends IndentStatusBarUIC
   @Nullable
   @Override
   public String getHint() {
-    return myEditorConfigIndentOptions ? "EditorConfig" : null;
+    return myEditorConfigIndentOptions ? Utils.EDITOR_CONFIG_NAME : null;
   }
 
   @Override

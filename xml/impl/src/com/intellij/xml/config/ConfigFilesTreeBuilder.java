@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xml.config;
 
 import com.intellij.ide.presentation.VirtualFilePresentation;
@@ -28,6 +14,8 @@ import com.intellij.ui.ColoredTreeCellRenderer;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.TreeSpeedSearch;
 import com.intellij.util.containers.MultiMap;
+import com.intellij.xml.XmlBundle;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -45,7 +33,6 @@ public class ConfigFilesTreeBuilder {
   }
 
   public Set<PsiFile> buildTree(DefaultMutableTreeNode root, ConfigFileSearcher... searchers) {
-    final Set<PsiFile> psiFiles = new HashSet<>();
 
     final MultiMap<Module, PsiFile> files = new MultiMap<>();
     final MultiMap<VirtualFile, PsiFile> jars = new MultiMap<>();
@@ -57,12 +44,12 @@ public class ConfigFilesTreeBuilder {
       virtualFiles.putAllValues(searcher.getVirtualFiles());
     }
 
-    psiFiles.addAll(buildModuleNodes(files, jars, root));
+    final Set<PsiFile> psiFiles = new HashSet<>(buildModuleNodes(files, jars, root));
 
     for (Map.Entry<VirtualFile, Collection<PsiFile>> entry : virtualFiles.entrySet()) {
       DefaultMutableTreeNode node = createFileNode(entry.getKey());
       List<PsiFile> list = new ArrayList<>(entry.getValue());
-      Collections.sort(list, FILE_COMPARATOR);
+      list.sort(FILE_COMPARATOR);
       for (PsiFile file : list) {
         node.add(createFileNode(file));
       }
@@ -89,7 +76,7 @@ public class ConfigFilesTreeBuilder {
 
     final HashSet<PsiFile> psiFiles = new HashSet<>();
     final List<Module> modules = new ArrayList<>(files.keySet());
-    Collections.sort(modules, ModulesAlphaComparator.INSTANCE);
+    modules.sort(ModulesAlphaComparator.INSTANCE);
     for (Module module : modules) {
       DefaultMutableTreeNode moduleNode = createFileNode(module);
       root.add(moduleNode);
@@ -114,7 +101,7 @@ public class ConfigFilesTreeBuilder {
     }
 
     List<VirtualFile> sortedJars = new ArrayList<>(jars.keySet());
-    Collections.sort(sortedJars, (o1, o2) -> StringUtil.naturalCompare(o1.getName(), o2.getName()));
+    sortedJars.sort((o1, o2) -> StringUtil.naturalCompare(o1.getName(), o2.getName()));
     for (VirtualFile file : sortedJars) {
       if (!file.isValid()) continue;
       final List<PsiFile> list = new ArrayList<>(jars.get(file));
@@ -122,7 +109,7 @@ public class ConfigFilesTreeBuilder {
       if (jar != null) {
         final DefaultMutableTreeNode jarNode = createFileNode(jar);
         root.add(jarNode);
-        Collections.sort(list, FILE_COMPARATOR);
+        list.sort(FILE_COMPARATOR);
         for (PsiFile psiFile : list) {
           jarNode.add(createFileNode(psiFile));
           psiFiles.add(psiFile);
@@ -132,8 +119,9 @@ public class ConfigFilesTreeBuilder {
     return psiFiles;
   }
 
+  @Nls
   private static String getFileTypeNodeName(FileType fileType) {
-    return fileType.getName() + " files";
+    return XmlBundle.message("xml.tree.config.files.type", fileType.getName());
   }
 
   private static boolean hasNonEmptyGroups(MultiMap<FileType, PsiFile> filesByType) {
@@ -143,7 +131,7 @@ public class ConfigFilesTreeBuilder {
   }
 
   private void addChildrenFiles(@NotNull Set<? super PsiFile> psiFiles, DefaultMutableTreeNode parentNode, @NotNull List<? extends PsiFile> moduleFiles) {
-    Collections.sort(moduleFiles, FILE_COMPARATOR);
+    moduleFiles.sort(FILE_COMPARATOR);
     for (PsiFile file : moduleFiles) {
       final DefaultMutableTreeNode fileNode = createFileNode(file);
       parentNode.add(fileNode);

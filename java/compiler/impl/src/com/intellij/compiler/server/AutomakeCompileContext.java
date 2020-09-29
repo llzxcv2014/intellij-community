@@ -13,6 +13,7 @@ import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.util.UserDataHolderBase;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.pom.Navigatable;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,7 +24,7 @@ final class AutomakeCompileContext extends UserDataHolderBase implements Compile
   private final Project myProject;
   private final ProjectCompileScope myScope;
   private final MessagesContainer myMessages;
-  private final EmptyProgressIndicator myIndicator;
+  private final ProgressIndicator myIndicator;
   private final boolean myAnnotationProcessingEnabled;
 
   AutomakeCompileContext(@NotNull Project project) {
@@ -71,14 +72,13 @@ final class AutomakeCompileContext extends UserDataHolderBase implements Compile
   }
 
   @Override
-  @NotNull
-  public CompilerMessage[] getMessages(@NotNull CompilerMessageCategory category) {
+  public CompilerMessage @NotNull [] getMessages(@NotNull CompilerMessageCategory category) {
     return myMessages.getMessages(category).toArray(CompilerMessage.EMPTY_ARRAY);
   }
 
   @Nullable
   CompilerMessage createAndAddMessage(CompilerMessageCategory category,
-                                      String message,
+                                      @Nls String message,
                                       @Nullable String url,
                                       int lineNum,
                                       int columnNum,

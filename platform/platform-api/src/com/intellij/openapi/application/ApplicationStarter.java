@@ -1,9 +1,11 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.application;
 
 import com.intellij.ide.CliResult;
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.util.ArrayUtilRt;
+import org.intellij.lang.annotations.MagicConstant;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -12,11 +14,13 @@ import java.util.concurrent.Future;
 
 /**
  * This extension point allows running custom [command-line] application based on IntelliJ platform.
- *
- * @author max
  */
 public interface ApplicationStarter {
   ExtensionPointName<ApplicationStarter> EP_NAME = new ExtensionPointName<>("com.intellij.appStarter");
+
+  int NON_MODAL = 1;
+  int ANY_MODALITY = 2;
+  int NOT_IN_EDT = 3;
 
   /**
    * Command-line switch to start with this runner.
@@ -24,17 +28,10 @@ public interface ApplicationStarter {
    *
    * @return command-line selector.
    */
-  String getCommandName();
+  @NonNls String getCommandName();
 
   /**
-   * @deprecated Use {@link #premain(List)}
-   */
-  @SuppressWarnings("DeprecatedIsStillUsed")
-  @Deprecated
-  default void premain(@SuppressWarnings("unused") @NotNull String[] args) { }
-
-  /**
-   * Called before application initialization. Invoked in event dispatch thread.
+   * Called before application initialization.
    *
    * @param args program arguments (including the selector)
    */
@@ -48,7 +45,9 @@ public interface ApplicationStarter {
    *
    * @param args program arguments (including the selector)
    */
-  void main(@NotNull String[] args);
+  default void main(@NotNull List <String> args) {
+    main(ArrayUtilRt.toStringArray(args));
+  }
 
   /**
    * Applications that are incapable of working in a headless mode should override the method and return {@code false}.
@@ -72,13 +71,30 @@ public interface ApplicationStarter {
    * Such a starter may not directly change the PSI/VFS/project model of the opened projects or open new projects.
    * Such activities should be performed inside write-safe contexts (see {@link TransactionGuard}).
    */
-  default boolean allowAnyModalityState() {
-    return false;
+  @MagicConstant(intValues = {NON_MODAL, ANY_MODALITY, NOT_IN_EDT})
+  default int getRequiredModality() {
+    return allowAnyModalityState() ? ANY_MODALITY : NON_MODAL;
   }
 
   /** @see #canProcessExternalCommandLine */
-  @NotNull
-  default Future<CliResult> processExternalCommandLineAsync(@NotNull List<String> args, @Nullable String currentDirectory) {
+  default @NotNull Future<CliResult> processExternalCommandLineAsync(@NotNull List<String> args, @Nullable String currentDirectory) {
     throw new UnsupportedOperationException("Class " + getClass().getName() + " must implement `processExternalCommandLineAsync()`");
   }
+
+  //<editor-fold desc="Deprecated stuff.">
+  /** @deprecated Use {@link #premain(List)} */
+  @Deprecated
+  default void premain(@SuppressWarnings("unused") String @NotNull [] args) { }
+
+  /** @deprecated Use {@link #main(List)} */
+  @Deprecated
+  default void main(String @NotNull [] args) { }
+
+  /** @deprecated Use {@link #getRequiredModality()} */
+  @SuppressWarnings("DeprecatedIsStillUsed")
+  @Deprecated
+  default boolean allowAnyModalityState() {
+    return false;
+  }
+  //</editor-fold>
 }

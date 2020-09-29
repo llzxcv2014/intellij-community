@@ -3,6 +3,7 @@ package com.intellij.application.options.codeStyle.excludedFiles;
 
 import com.intellij.formatting.fileSet.FileSetDescriptor;
 import com.intellij.formatting.fileSet.NamedScopeDescriptor;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.search.scope.packageSet.NamedScope;
 import org.jetbrains.annotations.NotNull;
@@ -21,18 +22,21 @@ public class ExcludedFilesScopeDialog extends ExcludedFilesDialogBase {
   private final Action myEditAction;
   private final List<? extends NamedScope> myAvailableScopes;
 
+  /**
+   * @param availableScopes editable scopes, means that names are @NlsSafe
+   */
   protected ExcludedFilesScopeDialog(@NotNull Project project,
                                      @NotNull List<? extends NamedScope> availableScopes) {
     super(project);
     myAvailableScopes = availableScopes;
-    setTitle("Add Scope");
+    setTitle(LangBundle.message("dialog.title.add.scope"));
     myEditAction = new AbstractAction() {
       @Override
       public void actionPerformed(ActionEvent e) {
         close(EDIT_SCOPES);
       }
     };
-    myEditAction.putValue(Action.NAME, "Edit Scopes...");
+    myEditAction.putValue(Action.NAME, LangBundle.message("button.edit.scopes"));
     init();
     fillScopesList(availableScopes);
   }
@@ -41,7 +45,7 @@ public class ExcludedFilesScopeDialog extends ExcludedFilesDialogBase {
   private void fillScopesList(@NotNull List<? extends NamedScope> availableScopes) {
     myScopeListModel = new DefaultComboBoxModel<>();
     for (NamedScope scope : availableScopes) {
-      myScopeListModel.addElement(scope.getName());
+      myScopeListModel.addElement(scope.getScopeId());
     }
     myForm.getScopesList().setModel(myScopeListModel);
   }
@@ -54,7 +58,7 @@ public class ExcludedFilesScopeDialog extends ExcludedFilesDialogBase {
     String scopeName = selectedIndex >= 0 ? myScopeListModel.getElementAt(selectedIndex) : null;
     if (scopeName != null) {
       for (NamedScope scope : myAvailableScopes) {
-        if (scopeName.equals(scope.getName())) {
+        if (scopeName.equals(scope.getScopeId())) {
           return new NamedScopeDescriptor(scope);
         }
       }
@@ -69,9 +73,8 @@ public class ExcludedFilesScopeDialog extends ExcludedFilesDialogBase {
     return myForm.getTopPanel();
   }
 
-  @NotNull
   @Override
-  protected Action[] createActions() {
+  protected Action @NotNull [] createActions() {
     return new Action[] {getOKAction(), getCancelAction(), myEditAction};
   }
 

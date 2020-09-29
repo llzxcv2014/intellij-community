@@ -1,8 +1,10 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.wm.impl.customFrameDecorations.header
 
+import com.intellij.openapi.util.NlsContexts
 import com.intellij.openapi.wm.impl.customFrameDecorations.CustomFrameTitleButtons
 import com.intellij.ui.awt.RelativeRectangle
+import com.intellij.util.ui.JBUI
 import net.miginfocom.swing.MigLayout
 import java.awt.*
 import java.beans.PropertyChangeListener
@@ -10,17 +12,21 @@ import java.util.ArrayList
 import javax.swing.*
 
 class DialogHeader(val window: Window) : CustomHeader(window) {
-    private val titleLabel = JLabel()
+    private val titleLabel = JLabel().apply {
+        border = LABEL_BORDER
+    }
     private val titleChangeListener = PropertyChangeListener{
         titleLabel.text = getTitle()
     }
 
     init {
-        layout = MigLayout("novisualpadding, ins 0, fillx, gap 0", "$H_GAP[min!]$H_GAP[][pref!]", "")
+        layout = MigLayout("novisualpadding, ins 0, fillx, gap 0", "[min!][][pref!]")
         titleLabel.text = getTitle()
 
+        productIcon.border = JBUI.Borders.empty(0, H, 0, H)
+
         add(productIcon)
-        add(titleLabel, "wmin 0, left, hmin $MIN_HEIGHT")
+        add(titleLabel, "wmin 0, left")
         add(buttonPanes.getView(), "top, wmin pref")
     }
 
@@ -51,6 +57,7 @@ class DialogHeader(val window: Window) : CustomHeader(window) {
         titleLabel.text = getTitle()
     }
 
+    @NlsContexts.DialogTitle
     private fun getTitle(): String? {
         when (window) {
             is Dialog -> return window.title

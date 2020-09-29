@@ -1,9 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.serviceContainer
 
 import com.intellij.diagnostic.PluginException
+import com.intellij.openapi.components.ComponentManager
 import com.intellij.openapi.extensions.PluginId
-import gnu.trove.THashSet
+import com.intellij.util.messages.MessageBus
 import java.io.File
 import java.lang.Deprecated
 import java.lang.reflect.Constructor
@@ -14,13 +15,14 @@ import kotlin.Array
 import kotlin.Boolean
 import kotlin.Comparator
 import kotlin.Pair
+import kotlin.RuntimeException
 import kotlin.Suppress
 import kotlin.let
 
 internal fun <T> instantiateUsingPicoContainer(aClass: Class<*>,
                                                requestorKey: Any,
                                                pluginId: PluginId,
-                                               componentManager: PlatformComponentManagerImpl,
+                                               componentManager: ComponentManagerImpl,
                                                parameterResolver: ConstructorParameterResolver): T {
   val sortedMatchingConstructors = getSortedMatchingConstructors(aClass)
 
@@ -40,13 +42,30 @@ internal fun <T> instantiateUsingPicoContainer(aClass: Class<*>,
 
   try {
     constructor.isAccessible = true
-    @Suppress("UNCHECKED_CAST")
-    return constructor.newInstance(*Array(parameterTypes.size) {
-      parameterResolver.resolveInstance(componentManager, requestorKey, aClass, constructor, parameterTypes.get(it), pluginId)
-    }) as T
+    if (parameterTypes.isEmpty()) {
+      @Suppress("UNCHECKED_CAST")
+      return constructor.newInstance() as T
+    }
+    else {
+      var isErrorLogged = false
+      @Suppress("UNCHECKED_CAST")
+      return constructor.newInstance(*Array(parameterTypes.size) {
+        val parameterType = parameterTypes.get(it)
+        if (!isErrorLogged && !ComponentManager::class.java.isAssignableFrom(parameterType) && parameterType != MessageBus::class.java) {
+          isErrorLogged = true
+          if (pluginId.idString != "org.jetbrains.kotlin") {
+            LOG.warn("Do not use constructor injection (requestorClass=${aClass.name})")
+          }
+        }
+        parameterResolver.resolveInstance(componentManager, requestorKey, aClass, constructor, parameterType, pluginId)
+      }) as T
+    }
   }
   catch (e: InvocationTargetException) {
     throw e.cause ?: e
+  }
+  catch (e: InstantiationException) {
+    throw RuntimeException("Cannot create class $aClass", e)
   }
 }
 
@@ -63,7 +82,7 @@ private fun getGreediestSatisfiableConstructor(aClass: Class<*>,
                                                sortedMatchingConstructors: Array<Constructor<*>>,
                                                requestorKey: Any,
                                                pluginId: PluginId,
-                                               componentManager: PlatformComponentManagerImpl,
+                                               componentManager: ComponentManagerImpl,
                                                parameterResolver: ConstructorParameterResolver,
                                                isExtensionSupported: Boolean): Pair<Constructor<*>, Array<Class<*>>> {
   var conflicts: MutableSet<Constructor<*>>? = null
@@ -108,7 +127,7 @@ private fun getGreediestSatisfiableConstructor(aClass: Class<*>,
       }
 
       if (unsatisfiableDependencyTypes == null) {
-        unsatisfiableDependencyTypes = THashSet()
+        unsatisfiableDependencyTypes = HashSet()
       }
       unsatisfiableDependencyTypes.add(parameterTypes)
       unsatisfiedDependencyType = expectedType
@@ -129,7 +148,7 @@ private fun getGreediestSatisfiableConstructor(aClass: Class<*>,
     else if (!failedDependency && lastSatisfiableConstructorSize == parameterTypes.size) {
       // satisfied and same size as previous one?
       if (conflicts == null) {
-        conflicts = THashSet()
+        conflicts = HashSet()
       }
       conflicts.add(constructor)
       greediestConstructor?.let {

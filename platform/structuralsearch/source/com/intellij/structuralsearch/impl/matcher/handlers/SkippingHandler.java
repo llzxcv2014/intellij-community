@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch.impl.matcher.handlers;
 
 import com.intellij.dupLocator.equivalence.EquivalenceDescriptor;
@@ -8,6 +8,7 @@ import com.intellij.dupLocator.util.NodeFilter;
 import com.intellij.psi.PsiElement;
 import com.intellij.structuralsearch.impl.matcher.MatchContext;
 import com.intellij.structuralsearch.impl.matcher.filters.LexicalNodesFilter;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,7 +24,7 @@ public class SkippingHandler extends MatchingHandler implements DelegatingHandle
   }
 
   @Override
-  public boolean match(PsiElement patternNode, PsiElement matchedNode, final MatchContext matchContext) {
+  public boolean match(PsiElement patternNode, PsiElement matchedNode, final @NotNull MatchContext matchContext) {
     if (patternNode == null || matchedNode == null || matchedNode.getClass() == patternNode.getClass()) {
       return myDelegate.match(patternNode, matchedNode, matchContext);
     }
@@ -31,8 +32,8 @@ public class SkippingHandler extends MatchingHandler implements DelegatingHandle
     /*if (patternNode != null && matchedNode != null && patternNode.getClass() == matchedNode.getClass()) {
       //return myDelegate.match(patternNode, matchedNode, matchContext);
     }*/
-    final PsiElement newPatternNode = skipNodeIfNeccessary(patternNode);
-    matchedNode = skipNodeIfNeccessary(matchedNode);
+    final PsiElement newPatternNode = skipNodeIfNecessary(patternNode);
+    matchedNode = skipNodeIfNecessary(matchedNode);
 
     if (newPatternNode != patternNode) {
       return matchContext.getPattern().getHandler(newPatternNode).match(newPatternNode, matchedNode, matchContext);
@@ -42,8 +43,8 @@ public class SkippingHandler extends MatchingHandler implements DelegatingHandle
   }
 
   @Override
-  public boolean canMatch(PsiElement patternNode, PsiElement matchedNode, MatchContext context) {
-    final PsiElement newPatternNode = skipNodeIfNeccessary(patternNode);
+  public boolean canMatch(@NotNull PsiElement patternNode, PsiElement matchedNode, @NotNull MatchContext context) {
+    final PsiElement newPatternNode = skipNodeIfNecessary(patternNode);
     if (newPatternNode != patternNode) {
       return context.getPattern().getHandler(newPatternNode).canMatch(newPatternNode, matchedNode, context);
     }
@@ -51,12 +52,12 @@ public class SkippingHandler extends MatchingHandler implements DelegatingHandle
   }
 
   @Override
-  public boolean matchSequentially(final NodeIterator patternNodes, final NodeIterator matchNodes, final MatchContext context) {
+  public boolean matchSequentially(final @NotNull NodeIterator patternNodes, final @NotNull NodeIterator matchNodes, final @NotNull MatchContext context) {
     return myDelegate.matchSequentially(patternNodes, matchNodes, context);
   }
 
   @Override
-  protected boolean isMatchSequentiallySucceeded(final NodeIterator matchNodes) {
+  protected boolean isMatchSequentiallySucceeded(final @NotNull NodeIterator matchNodes) {
     return myDelegate.isMatchSequentiallySucceeded(matchNodes);
   }
 
@@ -81,12 +82,14 @@ public class SkippingHandler extends MatchingHandler implements DelegatingHandle
   }
 
   @Nullable
-  public static PsiElement skipNodeIfNeccessary(PsiElement element) {
-    return skipNodeIfNeccessary(element, null, null);
+  @Contract("null -> null;!null -> !null;")
+  public static PsiElement skipNodeIfNecessary(PsiElement element) {
+    return skipNodeIfNecessary(element, null, null);
   }
 
   @Nullable
-  public static PsiElement skipNodeIfNeccessary(PsiElement element, EquivalenceDescriptor descriptor, NodeFilter filter) {
-    return DuplocatorUtil.skipNodeIfNeccessary(element, descriptor, filter != null ? filter : LexicalNodesFilter.getInstance());
+  @Contract("null, _, _ -> null;!null, _, _ -> !null;")
+  public static PsiElement skipNodeIfNecessary(PsiElement element, EquivalenceDescriptor descriptor, NodeFilter filter) {
+    return DuplocatorUtil.skipNodeIfNecessary(element, descriptor, filter != null ? filter : LexicalNodesFilter.getInstance());
   }
 }

@@ -5,6 +5,7 @@ import com.intellij.lang.Language;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileTypes.LanguageFileType;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.CharsetToolkit;
@@ -13,6 +14,7 @@ import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.text.CharSequenceReader;
 import icons.PythonPsiApiIcons;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,12 +48,14 @@ public class PythonFileType extends LanguageFileType {
 
   @Override
   @NotNull
+  @NonNls
   public String getName() {
     return "Python";
   }
 
   @Override
   @NotNull
+  @NlsSafe
   public String getDescription() {
     return "Python";
   }
@@ -69,7 +73,7 @@ public class PythonFileType extends LanguageFileType {
   }
 
   @Override
-  public String getCharset(@NotNull VirtualFile file, @NotNull byte[] content) {
+  public String getCharset(@NotNull VirtualFile file, byte @NotNull [] content) {
     if (CharsetToolkit.hasUTF8Bom(content)) {
       return CharsetToolkit.UTF8;
     }

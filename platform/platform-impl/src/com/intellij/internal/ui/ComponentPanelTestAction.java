@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.internal.ui;
 
+import com.google.common.collect.ImmutableList;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.HelpTooltip;
 import com.intellij.ide.ui.laf.darcula.DarculaUIUtil;
@@ -14,17 +15,18 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.*;
 import com.intellij.openapi.ui.cellvalidators.*;
 import com.intellij.openapi.ui.panel.ProgressPanel;
+import com.intellij.openapi.util.NlsActions;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.*;
+import com.intellij.ui.components.DropDownLink;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.ui.components.fields.ExtendableTextComponent;
 import com.intellij.ui.components.fields.ExtendableTextField;
-import com.intellij.ui.components.labels.DropDownLink;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.Alarm;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.JBInsets;
 import com.intellij.util.ui.JBUI;
@@ -48,9 +50,8 @@ import java.awt.*;
 import java.awt.event.ActionListener;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.Hashtable;
-import java.util.Set;
+import java.util.List;
+import java.util.*;
 import java.util.function.BiFunction;
 
 public class ComponentPanelTestAction extends DumbAwareAction {
@@ -88,7 +89,7 @@ public class ComponentPanelTestAction extends DumbAwareAction {
   }
 
   @SuppressWarnings({"MethodMayBeStatic", "UseOfSystemOutOrSystemErr"})
-  private static class ComponentPanelTest extends DialogWrapper {
+  private static final class ComponentPanelTest extends DialogWrapper {
 
     private static final Set<String> ALLOWED_VALUES = ContainerUtil
       .set("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
@@ -131,6 +132,7 @@ public class ComponentPanelTestAction extends DumbAwareAction {
       pane.addTab("Validators", createValidatorsPanel());
       pane.addTab("Multilines", createMultilinePanel());
       pane.addTab("JSliderUI", createJSliderTab());
+      pane.addTab("ComboBox", createComboBoxTab());
 
       pane.addChangeListener(e -> {
         if (pane.getSelectedIndex() == 2) {
@@ -351,7 +353,7 @@ public class ComponentPanelTestAction extends DumbAwareAction {
         { setIpad(JBUI.emptyInsets()); } // Reset standard pads
 
         @Override
-        protected void customizeCellRenderer(JTable table, @Nullable Object value, boolean selected,
+        protected void customizeCellRenderer(@NotNull JTable table, @Nullable Object value, boolean selected,
                                              boolean hasFocus, int row, int column) {
           if (value == null) {
             append("No data", SimpleTextAttributes.ERROR_ATTRIBUTES);
@@ -394,7 +396,7 @@ public class ComponentPanelTestAction extends DumbAwareAction {
                            Arrays.asList("Label 1",
                                          "Label 2 long long long long long long label",
                                          "Label 3", "Label 4", "Label 5", "Label 6"),
-                           t -> System.out.println("[" + t + "] selected"), false);
+                           t -> System.out.println("[" + t + "] selected"));
 
       JPanel p1 = UI.PanelFactory.grid().
       add(UI.PanelFactory.panel(new JTextField()).
@@ -670,7 +672,7 @@ public class ComponentPanelTestAction extends DumbAwareAction {
       return JBUI.Panels.simplePanel().addToTop(panel);
     }
 
-    private class ProgressTimerRequest implements Runnable {
+    private final class ProgressTimerRequest implements Runnable {
       private final JProgressBar myProgressBar;
 
       private ProgressTimerRequest(JProgressBar progressBar) {
@@ -725,8 +727,8 @@ public class ComponentPanelTestAction extends DumbAwareAction {
                                  resize().
         createPanel());
 
-      ObjectUtils.assertNotNull(ProgressPanel.getProgressPanel(pb1)).setCommentText("Long long long long long long long text");
-      ObjectUtils.assertNotNull(ProgressPanel.getProgressPanel(pb2)).setCommentText("Short text");
+      Objects.requireNonNull(ProgressPanel.getProgressPanel(pb1)).setCommentText("Long long long long long long long text");
+      Objects.requireNonNull(ProgressPanel.getProgressPanel(pb2)).setCommentText("Short text");
 
       JProgressBar pb3 = new JProgressBar(0, 100);
       JProgressBar pb4 = new JProgressBar(0, 100);
@@ -742,8 +744,8 @@ public class ComponentPanelTestAction extends DumbAwareAction {
                                  resize().
         createPanel());
 
-      ObjectUtils.assertNotNull(ProgressPanel.getProgressPanel(pb3)).setCommentText("Long long long long long long text");
-      ObjectUtils.assertNotNull(ProgressPanel.getProgressPanel(pb4)).setCommentText("Short text");
+      Objects.requireNonNull(ProgressPanel.getProgressPanel(pb3)).setCommentText("Long long long long long long text");
+      Objects.requireNonNull(ProgressPanel.getProgressPanel(pb4)).setCommentText("Short text");
 
       panel.add(UI.PanelFactory.grid().
         add(UI.PanelFactory.panel(new JProgressBar(0, 100)).
@@ -796,10 +798,10 @@ public class ComponentPanelTestAction extends DumbAwareAction {
         }
       };
 
-      DefaultActionGroup actions = new DefaultActionGroup("Simple group", false);
+      DefaultActionGroup actions = DefaultActionGroup.createFlatGroup(() -> "Simple group");
       actions.addAll(actionsArray);
 
-      DefaultActionGroup subActions = new DefaultActionGroup("Ratings", true);
+      DefaultActionGroup subActions = DefaultActionGroup.createPopupGroup(() -> "Ratings");
       subActions.getTemplatePresentation().setIcon(AllIcons.Ide.Rating);
       subActions.addAll(new MyAction("Rating one", AllIcons.Ide.Rating1).withDefaultDescription(),
                         new MyAction("Rating two", AllIcons.Ide.Rating2).withDefaultDescription(),
@@ -854,6 +856,92 @@ public class ComponentPanelTestAction extends DumbAwareAction {
       return panel;
     }
 
+    @NotNull
+    private JComponent createComboBoxTab() {
+      JPanel pane = new JPanel(new MigLayout("fillx, debug, novisualpadding, ins 0, gap 5"));
+      pane.add(new JLabel("Shows a combobox with custom JBPopup and multiple layers of items"), "baseline, wrap");
+
+      class Item {
+        final Icon myIcon;
+        final String myText;
+        final ImmutableList<Item> myChildren;
+
+        Item(@NotNull Icon icon, @NotNull @NlsContexts.ListItem String text) {
+          this(icon, text, ImmutableList.of());
+        }
+
+        Item(@NotNull Icon icon, @NotNull @NlsContexts.ListItem String text, @NotNull List<Item> myChildren) {
+          this.myIcon = icon;
+          this.myText = text;
+          this.myChildren = ImmutableList.copyOf(myChildren);
+        }
+      }
+
+      class Model extends DefaultComboBoxModel<Item> implements ComboBoxPopupState<Item> {
+        Model(List<Item> items) {
+          super(items.toArray(new Item[0]));
+        }
+
+        @Nullable
+        @Override
+        public ListModel<Item> onChosen(Item selectedValue) {
+          if (selectedValue.myChildren.isEmpty()) return null;
+          return new Model(selectedValue.myChildren);
+        }
+
+        @Override
+        public boolean hasSubstep(Item selectedValue) {
+          return !selectedValue.myChildren.isEmpty();
+        }
+
+        @Override
+        public void setSelectedItem(Object anObject) {
+          //sub-items are not contained here, so selector login has to be tweaked
+          super.setSelectedItem(anObject);
+        }
+      }
+
+      ImmutableList.Builder<Item> builder2 = ImmutableList.builder();
+      builder2.add(new Item(AllIcons.General.Add, "Add"));
+      builder2.add(new Item(AllIcons.General.ArrowDown, "ArrowDown"));
+      builder2.add(new Item(AllIcons.General.Balloon, "Balloon"));
+      builder2.add(new Item(AllIcons.General.Filter, "Filter"));
+      builder2.add(new Item(AllIcons.General.Remove, "Remove"));
+      ImmutableList<Item> level2 = builder2.build();
+
+      ImmutableList.Builder<Item> builder1 = ImmutableList.builder();
+      builder1.add(new Item(AllIcons.Icons.Ide.NextStep, "Next"));
+      builder1.add(new Item(AllIcons.Vcs.Patch_applied, "Patch"));
+      builder1.add(new Item(AllIcons.General.Settings, "SubList", level2));
+      builder1.add(new Item(AllIcons.General.Remove, "Remove"));
+
+      ComboBox<Item> comboBox = new ComboBox<>(new Model(builder1.build()));
+      comboBox.setSwingPopup(false);
+      ColoredListCellRenderer<Item> renderer = new ColoredListCellRenderer<Item>() {
+        @Override
+        protected void customizeCellRenderer(@NotNull JList<? extends Item> list,
+                                             Item value,
+                                             int index,
+                                             boolean selected,
+                                             boolean hasFocus) {
+          setIcon(value.myIcon);
+          append(value.myText);
+          append(" ");
+          append("this text is gray", SimpleTextAttributes.GRAY_ATTRIBUTES);
+          append(" ");
+          append("error", SimpleTextAttributes.ERROR_ATTRIBUTES);
+          if (!value.myChildren.isEmpty()) {
+            append(" ->");
+          }
+        }
+      };
+      comboBox.setRenderer(renderer);
+      pane.add(new JLabel("The ComboBox:"), "baseline");
+      pane.add(comboBox, "baseline");
+
+      return pane;
+    }
+
     private JComponent wrap(JComponent component) {
       JPanel pane = new JPanel(new MigLayout("fillx, debug, novisualpadding, ins 0, gap 5", "[min!][]"));
       pane.add(new JLabel("A color key and IntelliJ: "), "baseline");
@@ -881,7 +969,7 @@ public class ComponentPanelTestAction extends DumbAwareAction {
   }
 
   private static class MyAction extends DumbAwareAction {
-    private MyAction(@Nullable String name, @Nullable Icon icon) {
+    private MyAction(@Nullable @NlsActions.ActionText String name, @Nullable Icon icon) {
       super(name, null, icon);
     }
 
@@ -895,7 +983,7 @@ public class ComponentPanelTestAction extends DumbAwareAction {
       return this;
     }
 
-    public MyAction withDescription(@Nullable String description) {
+    public MyAction withDescription(@Nullable @NlsActions.ActionDescription String description) {
       getTemplatePresentation().setDescription(description);
       return this;
     }

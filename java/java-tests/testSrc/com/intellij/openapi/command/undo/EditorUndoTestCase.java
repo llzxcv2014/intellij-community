@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.command.undo;
 
 import com.intellij.openapi.application.WriteAction;
@@ -8,16 +8,13 @@ import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.impl.CurrentEditorProvider;
-import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.TestDialog;
+import com.intellij.openapi.ui.TestDialogManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
 
 import java.io.IOException;
 
-/**
- * @author max
- */
 public abstract class EditorUndoTestCase extends UndoTestCase {
   public static final String UP = "Up";
   public static final String DOWN = "Down";
@@ -32,7 +29,7 @@ public abstract class EditorUndoTestCase extends UndoTestCase {
 
   @Override
   protected void setUp() throws Exception {
-    myOldTestDialog = Messages.setTestDialog(TestDialog.OK);
+    myOldTestDialog = TestDialogManager.setTestDialog(TestDialog.OK);
 
     super.setUp();
 
@@ -59,7 +56,7 @@ public abstract class EditorUndoTestCase extends UndoTestCase {
       }
       if (myView != null) editorFactory.releaseEditor(myView);
 
-      Messages.setTestDialog(myOldTestDialog);
+      TestDialogManager.setTestDialog(myOldTestDialog);
     }
     catch (Throwable e) {
       addSuppressedException(e);

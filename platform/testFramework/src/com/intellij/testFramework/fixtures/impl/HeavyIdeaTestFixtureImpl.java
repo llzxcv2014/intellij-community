@@ -1,31 +1,34 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.testFramework.fixtures.impl;
 
 import com.intellij.ide.IdeView;
 import com.intellij.ide.highlighter.ProjectFileType;
-import com.intellij.idea.IdeaTestApplication;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataProvider;
 import com.intellij.openapi.actionSystem.LangDataKeys;
+import com.intellij.openapi.actionSystem.PlatformDataKeys;
+import com.intellij.openapi.application.AccessToken;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx;
+import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.fileTypes.impl.FileTypeManagerImpl;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleManager;
+import com.intellij.openapi.project.ModuleListener;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ex.ProjectManagerEx;
+import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.encoding.EncodingManager;
 import com.intellij.openapi.vfs.impl.jar.JarFileSystemImpl;
+import com.intellij.project.TestProjectManager;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
@@ -55,18 +58,20 @@ import java.util.stream.Stream;
 @SuppressWarnings("TestOnlyProblems")
 final class HeavyIdeaTestFixtureImpl extends BaseFixture implements HeavyIdeaTestFixture {
   private Project myProject;
+  private volatile Module myModule;
   private final Set<Path> myFilesToDelete = new HashSet<>();
-  private IdeaTestApplication myApplication;
   private final Set<ModuleFixtureBuilder<?>> myModuleFixtureBuilders = new LinkedHashSet<>();
   private EditorListenerTracker myEditorListenerTracker;
   private ThreadTracker myThreadTracker;
-  private final String myName;
+  private final String mySanitizedName;
   private final Path myProjectPath;
   private final boolean myIsDirectoryBasedProject;
   private SdkLeakTracker myOldSdks;
 
+  private AccessToken projectTracker;
+
   HeavyIdeaTestFixtureImpl(@NotNull String name, @Nullable Path projectPath, boolean isDirectoryBasedProject) {
-    myName = name;
+    mySanitizedName = FileUtil.sanitizeFileName(name, false);
     myProjectPath = projectPath;
     myIsDirectoryBasedProject = isDirectoryBasedProject;
   }
@@ -80,6 +85,7 @@ final class HeavyIdeaTestFixtureImpl extends BaseFixture implements HeavyIdeaTes
     super.setUp();
 
     initApplication();
+    projectTracker = ((TestProjectManager)ProjectManager.getInstance()).startTracking();
     setUpProject();
 
     EncodingManager.getInstance(); // adds listeners
@@ -94,16 +100,20 @@ final class HeavyIdeaTestFixtureImpl extends BaseFixture implements HeavyIdeaTes
     RunAll runAll = new RunAll();
 
     if (myProject != null) {
+      Project project = myProject;
       runAll = runAll
-        .append(() -> LightPlatformTestCase.doTearDown(getProject(), myApplication))
-        .append(() -> {
-          for (ModuleFixtureBuilder<?> moduleFixtureBuilder : myModuleFixtureBuilders) {
-            moduleFixtureBuilder.getFixture().tearDown();
-          }
-        })
-        .append(() -> EdtTestUtil.runInEdtAndWait(() -> HeavyPlatformTestCase.closeAndDisposeProjectAndCheckThatNoOpenProjects(getProject())))
-        .append(() -> InjectedLanguageManagerImpl.checkInjectorsAreDisposed(getProject()))
-        .append(() -> myProject = null);
+        .append(
+          () -> {
+            TestApplicationManagerKt.tearDownProjectAndApp(myProject);
+            myProject = null;
+          },
+          () -> {
+            for (ModuleFixtureBuilder<?> moduleFixtureBuilder : myModuleFixtureBuilders) {
+              moduleFixtureBuilder.getFixture().tearDown();
+            }
+          },
+          () -> InjectedLanguageManagerImpl.checkInjectorsAreDisposed(project)
+        );
     }
 
     JarFileSystemImpl.cleanupForNextTest();
@@ -134,38 +144,48 @@ final class HeavyIdeaTestFixtureImpl extends BaseFixture implements HeavyIdeaTes
     }
 
     runAll
-      .append(super::tearDown)
-      .append(() -> {
-        if (myEditorListenerTracker != null) {
-          myEditorListenerTracker.checkListenersLeak();
-        }
-      })
-      .append(() -> {
-        if (myThreadTracker != null) {
-          myThreadTracker.checkLeak();
-        }
-      })
-      .append(LightPlatformTestCase::checkEditorsReleased)
-      .append(() -> {
-        if (myOldSdks != null) {
-          myOldSdks.checkForJdkTableLeaks();
-        }
-      })
-      .append(() -> HeavyPlatformTestCase.cleanupApplicationCaches(null))  // project is disposed by now, no point in passing it
+      .append(
+        () -> {
+          AccessToken projectTracker = this.projectTracker;
+          if (projectTracker != null) {
+            this.projectTracker = null;
+            projectTracker.finish();
+          }
+        },
+        () -> super.tearDown(),
+        () -> {
+          if (myEditorListenerTracker != null) {
+            myEditorListenerTracker.checkListenersLeak();
+          }
+        },
+        () -> {
+          if (myThreadTracker != null) {
+            myThreadTracker.checkLeak();
+          }
+        },
+        () -> LightPlatformTestCase.checkEditorsReleased(),
+        () -> {
+          if (myOldSdks != null) {
+            myOldSdks.checkForJdkTableLeaks();
+          }
+        },
+        // project is disposed by now, no point in passing it
+        () -> HeavyPlatformTestCase.cleanupApplicationCaches(null)
+      )
       .run();
   }
 
-  private void setUpProject() {
-    Path tempDirectory = myProjectPath != null ? myProjectPath : TemporaryDirectory.generateTemporaryPath(myName);
-    HeavyPlatformTestCase.synchronizeTempDirVfs(tempDirectory);
-    if (myProjectPath == null) {
-      myFilesToDelete.add(tempDirectory);
-    }
-    myProject = HeavyPlatformTestCase.createProject(generateProjectPath(tempDirectory));
+  private void setUpProject() throws Exception {
+    myProject = HeavyTestHelper.openHeavyTestFixtureProject(generateProjectPath(), new ModuleListener() {
+      @Override
+      public void moduleAdded(@NotNull Project project, @NotNull Module module) {
+        if (myModule == null) {
+          myModule = module;
+        }
+      }
+    });
 
     EdtTestUtil.runInEdtAndWait(() -> {
-      ProjectManagerEx.getInstanceEx().openTestProject(myProject);
-
       for (ModuleFixtureBuilder<?> moduleFixtureBuilder : myModuleFixtureBuilders) {
         moduleFixtureBuilder.getFixture().setUp();
       }
@@ -176,14 +196,20 @@ final class HeavyIdeaTestFixtureImpl extends BaseFixture implements HeavyIdeaTes
   }
 
   @NotNull
-  private Path generateProjectPath(@NotNull Path tempDirectory) {
-    String suffix = myIsDirectoryBasedProject ? "" : ProjectFileType.DOT_DEFAULT_EXTENSION;
-    return tempDirectory.resolve(myName + suffix);
+  private Path generateProjectPath() {
+    Path tempDirectory;
+    if (myProjectPath == null) {
+      tempDirectory = TemporaryDirectory.generateTemporaryPath(mySanitizedName);
+      myFilesToDelete.add(tempDirectory);
+    }
+    else {
+      tempDirectory = myProjectPath;
+    }
+    return tempDirectory.resolve(mySanitizedName + (myIsDirectoryBasedProject ? "" : ProjectFileType.DOT_DEFAULT_EXTENSION));
   }
 
   private void initApplication() {
-    myApplication = IdeaTestApplication.getInstance();
-    myApplication.setDataProvider(new MyDataProvider());
+    TestApplicationManager.getInstance().setDataProvider(new MyDataProvider());
   }
 
   @Override
@@ -194,11 +220,10 @@ final class HeavyIdeaTestFixtureImpl extends BaseFixture implements HeavyIdeaTes
 
   @Override
   public Module getModule() {
-    Module[] modules = ModuleManager.getInstance(getProject()).getModules();
-    return modules.length == 0 ? null : modules[0];
+    return myModule;
   }
 
-  private class MyDataProvider implements DataProvider {
+  private final class MyDataProvider implements DataProvider {
     @Override
     @Nullable
     public Object getData(@NotNull @NonNls String dataId) {
@@ -206,24 +231,29 @@ final class HeavyIdeaTestFixtureImpl extends BaseFixture implements HeavyIdeaTes
         return myProject;
       }
       else if (CommonDataKeys.EDITOR.is(dataId) || OpenFileDescriptor.NAVIGATE_IN_EDITOR.is(dataId)) {
-        if (myProject == null) return null;
+        if (myProject == null || myProject.isDisposed()) {
+          return null;
+        }
         return FileEditorManager.getInstance(myProject).getSelectedTextEditor();
       }
       else {
         Editor editor = (Editor)getData(CommonDataKeys.EDITOR.getName());
         if (editor != null) {
-          FileEditorManagerEx manager = FileEditorManagerEx.getInstanceEx(myProject);
-          return manager.getData(dataId, editor, editor.getCaretModel().getCurrentCaret());
+          if (PlatformDataKeys.FILE_EDITOR.is(dataId)) {
+            return TextEditorProvider.getInstance().getTextEditor(editor);
+          }
+          else {
+            FileEditorManagerEx manager = FileEditorManagerEx.getInstanceEx(myProject);
+            return manager.getData(dataId, editor, editor.getCaretModel().getCurrentCaret());
+          }
         }
         if (LangDataKeys.IDE_VIEW.is(dataId)) {
           VirtualFile[] contentRoots = ProjectRootManager.getInstance(myProject).getContentRoots();
           if (contentRoots.length > 0) {
             final PsiDirectory psiDirectory = PsiManager.getInstance(myProject).findDirectory(contentRoots[0]);
             return new IdeView() {
-
-              @NotNull
               @Override
-              public PsiDirectory[] getDirectories() {
+              public PsiDirectory @NotNull [] getDirectories() {
                 return new PsiDirectory[] {psiDirectory};
               }
 

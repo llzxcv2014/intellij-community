@@ -1,19 +1,19 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.dom;
 
 import com.intellij.ide.presentation.Presentation;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiField;
 import com.intellij.psi.xml.XmlTag;
 import com.intellij.util.xml.*;
-import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.devkit.dom.impl.PluginPsiClassConverter;
 
 import java.util.List;
 
-@Presentation(typeName = "Extension Point")
+@Presentation(typeName = DevkitDomPresentationConstants.EXTENSION_POINT)
 public interface ExtensionPoint extends DomElement {
   enum Area {
     IDEA_PROJECT,
@@ -26,7 +26,7 @@ public interface ExtensionPoint extends DomElement {
   XmlTag getXmlTag();
 
   /**
-   * @see #getEffectiveName()
+   * Use {@link #getEffectiveQualifiedName()} for presentation.
    */
   @NotNull
   @Stubbed
@@ -34,7 +34,7 @@ public interface ExtensionPoint extends DomElement {
   GenericAttributeValue<String> getName();
 
   /**
-   * @see #getEffectiveName()
+   * Use {@link #getEffectiveQualifiedName()} for presentation.
    */
   @Attribute("qualifiedName")
   @Stubbed
@@ -62,7 +62,7 @@ public interface ExtensionPoint extends DomElement {
 
   @NotNull
   @Attribute("dynamic")
-  @ApiStatus.Experimental
+  @Stubbed
   GenericAttributeValue<Boolean> getDynamic();
 
   @NotNull
@@ -77,16 +77,8 @@ public interface ExtensionPoint extends DomElement {
    *
    * @return {@code PluginID.name} or {@code qualifiedName}.
    */
-  @NotNull
+  @NotNull @NlsSafe
   String getEffectiveQualifiedName();
-
-  /**
-   * Returns the actually defined name.
-   *
-   * @return {@link #getName()} if defined, {@link #getQualifiedName()} otherwise.
-   */
-  @NotNull
-  String getEffectiveName();
 
   /**
    * Returns the extension point class.
@@ -97,11 +89,25 @@ public interface ExtensionPoint extends DomElement {
   PsiClass getEffectiveClass();
 
   /**
+   * Returns the actual EP class to implement/override.
+   *
+   * @return Determined in the following order:
+   * <ol>
+   *   <li>{@link #getInterface()} if defined</li>
+   *   <li>first {@code <with> "implements"} class if exactly one {@code <with>} element defined</li>
+   *   <li>first {@code <with> "implements"} class where attribute name matching common naming rules ({@code "implementationClass"} etc.)</li>
+   *   <li>{@code null} if none of above rules apply</li>
+   * </ol>
+   */
+  @Nullable
+  PsiClass getExtensionPointClass();
+
+  /**
    * Returns EP name prefix (Plugin ID).
    *
    * @return {@code null} if {@code qualifiedName} is set.
    */
-  @Nullable
+  @Nullable @NlsSafe
   String getNamePrefix();
 
   /**

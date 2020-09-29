@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide;
 
 import com.intellij.ide.plugins.DynamicPluginListener;
@@ -6,7 +6,9 @@ import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.ide.presentation.Presentation;
 import com.intellij.ide.presentation.PresentationProvider;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.extensions.ExtensionPointListener;
 import com.intellij.openapi.extensions.ExtensionPointName;
+import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.util.ClassExtension;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.util.NullableLazyValue;
@@ -23,19 +25,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-/**
- * @author peter
- */
 public class TypePresentationServiceImpl extends TypePresentationService {
-
-  private static final ExtensionPointName<PresentationProvider> PROVIDER_EP = ExtensionPointName.create(
-    "com.intellij.presentationProvider"
-  );
-  private static final ClassExtension<PresentationProvider> PROVIDERS = new ClassExtension<>(PROVIDER_EP.getName());
+  private static final ExtensionPointName<PresentationProvider<?>> PROVIDER_EP = new ExtensionPointName<>("com.intellij.presentationProvider");
+  private static final ClassExtension<PresentationProvider<?>> PROVIDERS = new ClassExtension<>(PROVIDER_EP.getName());
 
   @Nullable
   @Override
-  public Icon getIcon(Object o) {
+  public Icon getIcon(@NotNull Object o) {
     return getIcon(o.getClass(), o);
   }
 
@@ -45,8 +41,7 @@ public class TypePresentationServiceImpl extends TypePresentationService {
     return getIcon(type, null);
   }
 
-  @Nullable
-  private Icon getIcon(Class type, Object o) {
+  private @Nullable Icon getIcon(Class<?> type, Object o) {
     return findFirst(type, template -> template.getIcon(o, 0));
   }
 
@@ -59,18 +54,18 @@ public class TypePresentationServiceImpl extends TypePresentationService {
 
   @Nullable
   @Override
-  public String getTypeName(Object o) {
+  public String getTypeName(@NotNull Object o) {
     return findFirst(o.getClass(), template -> template.getTypeName(o));
   }
 
   @Nullable
   @Override
-  public String getObjectName(Object o) {
+  public String getObjectName(@NotNull Object o) {
     return findFirst(o.getClass(), template -> template.getName(o));
   }
 
   @Nullable
-  private <T> T findFirst(Class<?> clazz, Function<PresentationTemplate, T> f) {
+  private <T> T findFirst(Class<?> clazz, @NotNull Function<? super PresentationTemplate, ? extends T> f) {
     Set<PresentationTemplate> templates = mySuperClasses.get(clazz);
     for (PresentationTemplate template : templates) {
       T result = f.apply(template);
@@ -85,9 +80,32 @@ public class TypePresentationServiceImpl extends TypePresentationService {
     for (TypeIconEP ep : TypeIconEP.EP_NAME.getExtensionList()) {
       myIcons.put(ep.className, ep.getIcon());
     }
+    TypeIconEP.EP_NAME.addExtensionPointListener(new ExtensionPointListener<TypeIconEP>() {
+      @Override
+      public void extensionAdded(@NotNull TypeIconEP extension, @NotNull PluginDescriptor pluginDescriptor) {
+        myIcons.put(extension.className, extension.getIcon());
+      }
+
+      @Override
+      public void extensionRemoved(@NotNull TypeIconEP extension, @NotNull PluginDescriptor pluginDescriptor) {
+        myIcons.remove(extension.className);
+      }
+    }, null);
+
     for (TypeNameEP ep : TypeNameEP.EP_NAME.getExtensionList()) {
       myNames.put(ep.className, ep.getTypeName());
     }
+    TypeNameEP.EP_NAME.addExtensionPointListener(new ExtensionPointListener<TypeNameEP>() {
+      @Override
+      public void extensionAdded(@NotNull TypeNameEP extension, @NotNull PluginDescriptor pluginDescriptor) {
+        myNames.put(extension.className, extension.getTypeName());
+      }
+
+      @Override
+      public void extensionRemoved(@NotNull TypeNameEP extension, @NotNull PluginDescriptor pluginDescriptor) {
+        myNames.remove(extension.className);
+      }
+    }, null);
 
     ApplicationManager.getApplication().getMessageBus().connect().subscribe(DynamicPluginListener.TOPIC, new DynamicPluginListener() {
       @Override
@@ -103,7 +121,7 @@ public class TypePresentationServiceImpl extends TypePresentationService {
     if (presentation != null) {
       return new AnnotationBasedTemplate(presentation, type);
     }
-    PresentationProvider provider = PROVIDERS.forClass(type);
+    PresentationProvider<?> provider = PROVIDERS.forClass(type);
     if (provider != null) {
       return new ProviderBasedTemplate(provider);
     }
@@ -141,60 +159,58 @@ public class TypePresentationServiceImpl extends TypePresentationService {
 
   private final Map<String, NullableLazyValue<Icon>> myIcons = new HashMap<>();
   private final Map<String, NullableLazyValue<String>> myNames = new HashMap<>();
-  private final Map<Class, Set<PresentationTemplate>> mySuperClasses = ConcurrentFactoryMap.createMap(key -> {
-    LinkedHashSet<PresentationTemplate> templates = new LinkedHashSet<>();
+  private final Map<Class<?>, Set<PresentationTemplate>> mySuperClasses = ConcurrentFactoryMap.createMap(key -> {
+    Set<PresentationTemplate> templates = new LinkedHashSet<>();
     walkSupers(key, new LinkedHashSet<>(), templates);
     return templates;
   });
 
-  private void walkSupers(Class aClass, Set<? super Class> classes, Set<? super PresentationTemplate> templates) {
+  private void walkSupers(Class<?> aClass, Set<? super Class<?>> classes, Set<? super PresentationTemplate> templates) {
     if (!classes.add(aClass)) {
       return;
     }
     ContainerUtil.addIfNotNull(templates, createPresentationTemplate(aClass));
-    final Class superClass = aClass.getSuperclass();
+    Class<?> superClass = aClass.getSuperclass();
     if (superClass != null) {
       walkSupers(superClass, classes, templates);
     }
 
-    for (Class intf : aClass.getInterfaces()) {
+    for (Class<?> intf : aClass.getInterfaces()) {
       walkSupers(intf, classes, templates);
     }
   }
 
-  @SuppressWarnings("unchecked")
   public static class ProviderBasedTemplate implements PresentationTemplate {
-
     private final PresentationProvider myProvider;
 
-    public ProviderBasedTemplate(PresentationProvider provider) {
+    public ProviderBasedTemplate(PresentationProvider<?> provider) {
       myProvider = provider;
     }
 
     @Nullable
     @Override
     public Icon getIcon(Object o, int flags) {
-      return myProvider instanceof PresentationTemplate ?
-             ((PresentationTemplate)myProvider).getIcon(o, flags) :
-             myProvider.getIcon(o);
+      //noinspection unchecked
+      return myProvider instanceof PresentationTemplate ? ((PresentationTemplate)myProvider).getIcon(o, flags) : myProvider.getIcon(o);
     }
 
     @Nullable
     @Override
     public String getName(Object o) {
+      //noinspection unchecked
       return myProvider.getName(o);
     }
 
     @Nullable
     @Override
     public String getTypeName() {
-      return myProvider instanceof PresentationTemplate ?
-             ((PresentationTemplate)myProvider).getTypeName() : null;
+      return myProvider instanceof PresentationTemplate ? ((PresentationTemplate)myProvider).getTypeName() : null;
     }
 
     @Nullable
     @Override
     public String getTypeName(Object o) {
+      //noinspection unchecked
       return myProvider.getTypeName(o);
     }
   }
@@ -208,7 +224,6 @@ public class TypePresentationServiceImpl extends TypePresentationService {
 
   @SuppressWarnings("unchecked")
   private static class AnnotationBasedTemplate extends PresentationProvider<Object> implements PresentationTemplate {
-
     private final Presentation myPresentation;
     private final Class<?> myClass;
 
@@ -251,6 +266,7 @@ public class TypePresentationServiceImpl extends TypePresentationService {
         String typeName = provider.getTypeName(o);
         if (typeName != null) return typeName;
       }
+      //noinspection HardCodedStringLiteral
       return getTypeName();
     }
 
@@ -269,11 +285,10 @@ public class TypePresentationServiceImpl extends TypePresentationService {
       }
     };
 
-    private final NullableLazyValue<PresentationProvider> myPresentationProvider = new NullableLazyValue<PresentationProvider>() {
+    private final NullableLazyValue<PresentationProvider<?>> myPresentationProvider = new NullableLazyValue<PresentationProvider<?>>() {
       @Override
-      protected PresentationProvider compute() {
+      protected PresentationProvider<?> compute() {
         Class<? extends PresentationProvider> aClass = myPresentation.provider();
-
         try {
           return aClass == PresentationProvider.class ? null : aClass.newInstance();
         }
@@ -285,7 +300,6 @@ public class TypePresentationServiceImpl extends TypePresentationService {
   }
 
   interface PresentationTemplate {
-
     @Nullable
     Icon getIcon(Object o, int flags);
 

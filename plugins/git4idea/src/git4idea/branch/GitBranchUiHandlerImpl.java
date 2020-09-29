@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.branch;
 
 import com.intellij.notification.Notification;
@@ -9,19 +9,27 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.MessageDialogBuilder;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Ref;
+import com.intellij.openapi.util.text.HtmlBuilder;
+import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.VcsNotifier;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.ui.UIUtil;
 import com.intellij.xml.util.XmlStringUtil;
 import git4idea.DialogManager;
 import git4idea.GitCommit;
 import git4idea.GitUtil;
 import git4idea.commands.Git;
+import git4idea.i18n.GitBundle;
 import git4idea.merge.GitConflictResolver;
 import git4idea.repo.GitRepository;
 import git4idea.util.GitUntrackedFilesHelper;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -39,6 +47,7 @@ import static git4idea.branch.GitBranchUiHandler.DeleteRemoteBranchDecision.CANC
 import static git4idea.branch.GitBranchUiHandler.DeleteRemoteBranchDecision.DELETE;
 
 public class GitBranchUiHandlerImpl implements GitBranchUiHandler {
+  @NonNls private static final String RESOLVE_HREF_ATTRIBUTE = "resolve";
 
   @NotNull private final Project myProject;
   @NotNull private final Git myGit;
@@ -51,17 +60,19 @@ public class GitBranchUiHandlerImpl implements GitBranchUiHandler {
   }
 
   @Override
-  public boolean notifyErrorWithRollbackProposal(@NotNull final String title, @NotNull final String message,
+  public boolean notifyErrorWithRollbackProposal(@NotNull final String title,
+                                                 @NotNull final String message,
                                                  @NotNull final String rollbackProposal) {
     final AtomicBoolean ok = new AtomicBoolean();
     ApplicationManager.getApplication().invokeAndWait(() -> {
       StringBuilder description = new StringBuilder();
       if (!StringUtil.isEmptyOrSpaces(message)) {
-        description.append(message).append("<br/>");
+        description.append(message).append(UIUtil.BR);
       }
       description.append(rollbackProposal);
       ok.set(YES == DialogManager.showOkCancelDialog(myProject, XmlStringUtil.wrapInHtml(description), title,
-                                                     "Rollback", "Don't rollback", Messages.getErrorIcon()));
+                                                     GitBundle.message("branch.ui.handler.rollback"),
+                                                     GitBundle.message("branch.ui.handler.do.not.rollback"), Messages.getErrorIcon()));
     });
     return ok.get();
   }
@@ -70,16 +81,15 @@ public class GitBranchUiHandlerImpl implements GitBranchUiHandler {
   public void showUnmergedFilesNotification(@NotNull final String operationName, @NotNull final Collection<? extends GitRepository> repositories) {
     String title = unmergedFilesErrorTitle(operationName);
     String description = unmergedFilesErrorNotificationDescription(operationName);
-    VcsNotifier.getInstance(myProject).notifyError(title, description,
-      new NotificationListener() {
+    VcsNotifier.getInstance(myProject).notifyError("git.unresolved.conflicts", title, description,
+                                                   new NotificationListener() {
         @Override
         public void hyperlinkUpdate(@NotNull Notification notification,
                                     @NotNull HyperlinkEvent event) {
-          if (event.getEventType() == HyperlinkEvent.EventType.ACTIVATED && event.getDescription().equals("resolve")) {
+          if (event.getEventType() == HyperlinkEvent.EventType.ACTIVATED && event.getDescription().equals(RESOLVE_HREF_ATTRIBUTE)) {
             GitConflictResolver.Params params = new GitConflictResolver.Params(myProject).
-              setMergeDescription(String.format("The following files have unresolved conflicts. You need to resolve them before %s.",
-                                                operationName)).
-              setErrorNotificationTitle("Unresolved files remain.");
+              setMergeDescription(GitBundle.message("branch.ui.handler.merge.notification.description", operationName)).
+              setErrorNotificationTitle(GitBundle.message("branch.ui.handler.merge.error.notification.title"));
             new GitConflictResolver(myProject, GitUtil.getRootsFromRepositories(repositories), params).merge();
           }
         }
@@ -88,14 +98,15 @@ public class GitBranchUiHandlerImpl implements GitBranchUiHandler {
   }
 
   @Override
-  public boolean showUnmergedFilesMessageWithRollback(@NotNull final String operationName, @NotNull final String rollbackProposal) {
+  public boolean showUnmergedFilesMessageWithRollback(@NotNull String operationName, @NotNull final String rollbackProposal) {
     final AtomicBoolean ok = new AtomicBoolean();
     ApplicationManager.getApplication().invokeAndWait(() -> {
-      String description = String.format("<html>You have to resolve all merge conflicts before %s.<br/>%s</html>",
-                                         operationName, rollbackProposal);
+      String description = XmlStringUtil.wrapInHtml(
+        GitBundle.message("branch.ui.handler.you.have.to.resolve.all.conflicts.before.operation.name", operationName, rollbackProposal));
       // suppressing: this message looks ugly if capitalized by words
       ok.set(YES == DialogManager.showOkCancelDialog(myProject, description, unmergedFilesErrorTitle(operationName),
-                                                     "Rollback", "Don't rollback", Messages.getErrorIcon()));
+                                                     GitBundle.message("branch.ui.handler.rollback"),
+                                                     GitBundle.message("branch.ui.handler.do.not.rollback"), Messages.getErrorIcon()));
     });
     return ok.get();
   }
@@ -117,7 +128,6 @@ public class GitBranchUiHandlerImpl implements GitBranchUiHandler {
     return myProgressIndicator;
   }
 
-  @NotNull
   @Override
   public GitSmartOperationDialog.Choice showSmartOperationDialog(@NotNull Project project,
                                                                  @NotNull List<? extends Change> changes,
@@ -125,7 +135,8 @@ public class GitBranchUiHandlerImpl implements GitBranchUiHandler {
                                                                  @NotNull String operation,
                                                                  @Nullable String forceButtonTitle) {
     Ref<GitSmartOperationDialog.Choice> exitCode = Ref.create();
-    ApplicationManager.getApplication().invokeAndWait(() -> exitCode.set(GitSmartOperationDialog.show(project, changes, paths, operation, forceButtonTitle)));
+    ApplicationManager.getApplication().invokeAndWait(
+      () -> exitCode.set(GitSmartOperationDialog.show(project, changes, paths, StringUtil.capitalize(operation), forceButtonTitle)));
     return exitCode.get();
   }
 
@@ -143,28 +154,29 @@ public class GitBranchUiHandlerImpl implements GitBranchUiHandler {
   @NotNull
   @Override
   public DeleteRemoteBranchDecision confirmRemoteBranchDeletion(@NotNull List<String> branchNames,
-                                                                @NotNull Collection<String> trackingBranches,
+                                                                @NotNull Collection<@NlsSafe String> trackingBranches,
                                                                 @NotNull Collection<GitRepository> repositories) {
     boolean deleteMultipleBranches = branchNames.size() > 1;
-    String title = "Delete Remote " + StringUtil.pluralize("Branch", branchNames.size());
-    String message = deleteMultipleBranches
-                     ? "Delete remote branches " + StringUtil.join(branchNames, ", ") + "?"
-                     : "Delete remote branch " + branchNames.iterator().next() + "?";
-    String deleteButtonText = deleteMultipleBranches ? "Delete All" : message("button.delete");
+    String title = GitBundle.message("branch.ui.handler.delete.remote.branches", branchNames.size());
+    String remoteBranches = deleteMultipleBranches ? StringUtil.join(branchNames, ", ") : branchNames.iterator().next();
+    String message = GitBundle.message("branch.ui.handler.delete.remote.branches.question", branchNames.size(), remoteBranches);
+    String deleteButtonText = deleteMultipleBranches ? GitBundle.message("branch.ui.handler.delete.all") : message("button.delete");
 
     if (trackingBranches.isEmpty()) {
       return YES ==
              DialogManager
                .showOkCancelDialog(myProject, message, title, deleteButtonText, getCancelButtonText(), getQuestionIcon()) ? DELETE : CANCEL;
     }
+    String forBranch = GitBundle.message("branch.ui.handler.delete.tracking.local.branch.as.well", trackingBranches.iterator().next());
+    String forBranches = new HtmlBuilder().append(GitBundle.message("branch.ui.handler.delete.tracking.local.branches")).br()
+      .appendWithSeparators(HtmlChunk.raw(", " + HtmlChunk.br()), ContainerUtil.map(trackingBranches, it -> HtmlChunk.text(it)))
+      .wrapWith(HtmlChunk.html()).toString();
+    String checkboxMessage = trackingBranches.size() == 1 ? forBranch : forBranches;
 
-    String checkboxMessage = trackingBranches.size() == 1
-                             ? "Delete tracking local branch " + trackingBranches.iterator().next() + " as well"
-                             : "<html>Delete tracking local branches: <br/>" + StringUtil.join(trackingBranches, ", <br/>");
-
-      Ref<Boolean> deleteChoice = Ref.create(false);
-      boolean delete = MessageDialogBuilder.yesNo(title, message).project(myProject).yesText(deleteButtonText).noText(getCancelButtonText()).doNotAsk(
-        new DialogWrapper.DoNotAskOption.Adapter() {
+    Ref<Boolean> deleteChoice = Ref.create(false);
+    boolean delete =
+      MessageDialogBuilder.yesNo(title, message).yesText(deleteButtonText).noText(getCancelButtonText())
+        .doNotAsk(new DialogWrapper.DoNotAskOption.Adapter() {
           @Override
           public void rememberChoice(boolean isSelected, int exitCode) {
             deleteChoice.set(isSelected);
@@ -175,7 +187,8 @@ public class GitBranchUiHandlerImpl implements GitBranchUiHandler {
           public String getDoNotShowMessage() {
             return checkboxMessage;
           }
-        }).show() == YES;
+        })
+        .ask(myProject);
       boolean deleteTracking = deleteChoice.get();
       return delete
              ? deleteTracking ? DeleteRemoteBranchDecision.DELETE_WITH_TRACKING : DELETE
@@ -183,13 +196,14 @@ public class GitBranchUiHandlerImpl implements GitBranchUiHandler {
   }
 
   @NotNull
+  @NlsContexts.DialogTitle
   private static String unmergedFilesErrorTitle(@NotNull String operationName) {
-    return "Can't " + operationName + " because of unmerged files";
+    return GitBundle.message("branch.ui.handler.can.not.operation.name.because.of.unmerged.files", operationName);
   }
 
   @NotNull
+  @NlsContexts.NotificationContent
   private static String unmergedFilesErrorNotificationDescription(String operationName) {
-    return "You have to <a href='resolve'>resolve</a> all merge conflicts before " + operationName + ".<br/>" +
-           "After resolving conflicts you also probably would want to commit your files to the current branch.";
+    return GitBundle.message("branch.ui.handler.unmerged.files.error.notification", RESOLVE_HREF_ATTRIBUTE, operationName);
   }
 }

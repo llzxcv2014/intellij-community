@@ -19,6 +19,7 @@ import com.intellij.framework.detection.DetectedFrameworkDescription;
 import com.intellij.framework.detection.DetectionExcludesConfiguration;
 import com.intellij.framework.detection.FrameworkDetectionContext;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.ColoredTreeCellRenderer;
@@ -29,9 +30,6 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.util.Collection;
 
-/**
- * @author nik
- */
 class DetectedFrameworkNode extends DetectedFrameworkTreeNodeBase {
   private static final Logger LOG = Logger.getInstance(DetectedFrameworkNode.class);
   private final DetectedFrameworkDescription myDescription;
@@ -94,7 +92,7 @@ class DetectedFrameworkNode extends DetectedFrameworkTreeNodeBase {
   }
 
   @NotNull
-  private String getRelativePath(@NotNull VirtualFile file) {
+  private @NlsSafe String getRelativePath(@NotNull VirtualFile file) {
     final VirtualFile dir = myContext.getBaseDir();
     if (dir != null) {
       final String path = VfsUtilCore.getRelativePath(dir, file, File.separatorChar);

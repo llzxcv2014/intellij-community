@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.util.treeView;
 
 import com.intellij.openapi.progress.ProcessCanceledException;
@@ -33,9 +19,8 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
-
-import static com.intellij.testFramework.PlatformTestUtil.notNull;
 
 abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
   TreeUiTestCase(boolean passThrough) {
@@ -297,7 +282,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
                " +xUnit\n");
 
     final Ref<StringBuffer> updates = new Ref<>(new StringBuffer());
-    notNull(getMyBuilder().getTreeModel()).addTreeModelListener(new TreeModelListener() {
+    Objects.requireNonNull(getMyBuilder().getTreeModel()).addTreeModelListener(new TreeModelListener() {
       @Override
       public void treeNodesChanged(TreeModelEvent e) {
         updates.get().append("changed parent").append(e.getTreePath()).append(" children=").append(Arrays.asList(e.getChildren()))
@@ -549,7 +534,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
 
   public void testExpandEqualElements() throws Exception {
     buildStructure(myRoot, false);
-    notNull(myRoot.getChildNode("org")).addChild("jetbrains").addChild("community").addChild("ide");
+    Objects.requireNonNull(myRoot.getChildNode("org")).addChild("jetbrains").addChild("community").addChild("ide");
 
     activate();
     expand(getPath("/"));
@@ -906,7 +891,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
 
   private void assertNoInfiniteAutoExpand(final Runnable enableExpand) throws Exception {
     class Level extends Node {
-      int myLevel;
+      final int myLevel;
 
       Level(Node parent, int level) {
         super(parent, "level" + level);
@@ -1028,7 +1013,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
     buildStructure(myRoot);
     assertTree("+/\n");
 
-    final Node refactoring = notNull(myCom.getChildNode("intellij")).addChild("refactoring");
+    final Node refactoring = Objects.requireNonNull(myCom.getChildNode("intellij")).addChild("refactoring");
 
     buildNode("refactoring", true);
 
@@ -1043,7 +1028,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
       " +xUnit\n");
 
     refactoring.delete();
-    notNull(notNull(myCom.getChildNode("intellij")).getChildNode("openapi")).addChild("refactoring");
+    Objects.requireNonNull(Objects.requireNonNull(myCom.getChildNode("intellij")).getChildNode("openapi")).addChild("refactoring");
 
     updateFromRoot();
 
@@ -1071,7 +1056,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
       " +org\n" +
       " +xUnit\n");
 
-    notNull(notNull(myCom.getChildNode("intellij")).getChildNode("openapi")).delete();
+    Objects.requireNonNull(Objects.requireNonNull(myCom.getChildNode("intellij")).getChildNode("openapi")).delete();
 
     updateFromRoot();
 
@@ -1100,7 +1085,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
 
     final Ref<Boolean> done = new Ref<>();
     invokeLaterIfNeeded(() -> getBuilder().expand(new NodeElement("com"), () -> {
-      notNull(getBuilder().getTree()).collapsePath(getPath("com"));
+      Objects.requireNonNull(getBuilder().getTree()).collapsePath(getPath("com"));
       done.set(Boolean.TRUE);
     }));
 
@@ -1123,8 +1108,8 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
       " +org\n" +
       " +xUnit\n");
 
-    notNull(notNull(myCom.getChildNode("intellij")).getChildNode("openapi")).delete();
-    notNull(myRoot.getChildNode("xUnit")).addChild("openapi");
+    Objects.requireNonNull(Objects.requireNonNull(myCom.getChildNode("intellij")).getChildNode("openapi")).delete();
+    Objects.requireNonNull(myRoot.getChildNode("xUnit")).addChild("openapi");
 
     updateFromRoot();
 
@@ -1152,13 +1137,13 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
       " +org\n" +
       " +xUnit\n");
 
-    notNull(notNull(myCom.getChildNode("intellij")).getChildNode("openapi")).delete();
-    notNull(myRoot.getChildNode("xUnit")).addChild("openapi");
+    Objects.requireNonNull(Objects.requireNonNull(myCom.getChildNode("intellij")).getChildNode("openapi")).delete();
+    Objects.requireNonNull(myRoot.getChildNode("xUnit")).addChild("openapi");
 
     getBuilder().addSubtreeToUpdateByElement(new NodeElement("intellij"));
     getBuilder().addSubtreeToUpdateByElement(new NodeElement("xUnit"));
 
-    doAndWaitForBuilder(() -> notNull(getBuilder().getUpdater()).performUpdate());
+    doAndWaitForBuilder(() -> Objects.requireNonNull(getBuilder().getUpdater()).performUpdate());
 
     assertTree(
       "-/\n" +
@@ -1184,7 +1169,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
       " +org\n" +
       " +xUnit\n");
 
-    collapsePath(new TreePath(notNull(findNode("intellij", false)).getPath()));
+    collapsePath(new TreePath(Objects.requireNonNull(findNode("intellij", false)).getPath()));
 
     assertTree(
       "-/\n" +
@@ -1246,7 +1231,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
 
     assertTrue(getBuilder().getUi().isIdle());
     assertTreeNow("+null\n");
-    assertNull(((DefaultMutableTreeNode)notNull(getBuilder().getTreeModel()).getRoot()).getUserObject());
+    assertNull(((DefaultMutableTreeNode)Objects.requireNonNull(getBuilder().getTreeModel()).getRoot()).getUserObject());
 
     invokeLaterIfNeeded(() -> {
       getBuilder().getUi().activate(true);
@@ -1533,8 +1518,10 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
       @Override
       public void onElementAction(String action, Object element) {
         if (new NodeElement("apple").equals(element) && "getChildren".equals(action)) {
-          notNull(getBuilder().getUpdater()).addSubtreeToUpdate(new TreeUpdatePass(notNull(findNode("ibm", false))).setUpdateStamp(1));
-          notNull(getBuilder().getUpdater()).addSubtreeToUpdate(new TreeUpdatePass(notNull(findNode("intellij", false))).setUpdateStamp(1));
+          Objects.requireNonNull(getBuilder().getUpdater())
+            .addSubtreeToUpdate(new TreeUpdatePass(Objects.requireNonNull(findNode("ibm", false))).setUpdateStamp(1));
+          Objects.requireNonNull(getBuilder().getUpdater())
+            .addSubtreeToUpdate(new TreeUpdatePass(Objects.requireNonNull(findNode("intellij", false))).setUpdateStamp(1));
         }
       }
     };
@@ -1778,10 +1765,10 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
   }
 
   public void testResorting() throws Exception {
-    final boolean[] invert = new boolean[]{false};
-    NodeDescriptor.NodeComparator<NodeDescriptor> c = new NodeDescriptor.NodeComparator<NodeDescriptor>() {
+    boolean[] invert = new boolean[]{false};
+    NodeDescriptor.NodeComparator<NodeDescriptor<?>> c = new NodeDescriptor.NodeComparator<NodeDescriptor<?>>() {
       @Override
-      public int compare(NodeDescriptor o1, NodeDescriptor o2) {
+      public int compare(NodeDescriptor<?> o1, NodeDescriptor<?> o2) {
         return invert[0] ? AlphaComparator.INSTANCE.compare(o2, o1) : AlphaComparator.INSTANCE.compare(o1, o2);
       }
     };
@@ -1838,15 +1825,15 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
 
   public void testElementMove1() throws Exception {
     assertMove(() -> {
-      notNull(getBuilder().getUpdater()).addSubtreeToUpdateByElement(new NodeElement("com"));
-      notNull(getBuilder().getUpdater()).addSubtreeToUpdateByElement(new NodeElement("jetbrains"));
+      Objects.requireNonNull(getBuilder().getUpdater()).addSubtreeToUpdateByElement(new NodeElement("com"));
+      Objects.requireNonNull(getBuilder().getUpdater()).addSubtreeToUpdateByElement(new NodeElement("jetbrains"));
     });
   }
 
   public void testElementMove2() throws Exception {
     assertMove(() -> {
-      notNull(getBuilder().getUpdater()).addSubtreeToUpdateByElement(new NodeElement("jetbrains"));
-      notNull(getBuilder().getUpdater()).addSubtreeToUpdateByElement(new NodeElement("com"));
+      Objects.requireNonNull(getBuilder().getUpdater()).addSubtreeToUpdateByElement(new NodeElement("jetbrains"));
+      Objects.requireNonNull(getBuilder().getUpdater()).addSubtreeToUpdateByElement(new NodeElement("com"));
     });
   }
 
@@ -2003,7 +1990,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
   }
 
   private void doTestSelectionOnDelete(boolean keepRef) throws Exception {
-    myComparator.setDelegate(new NodeDescriptor.NodeComparator<NodeDescriptor>() {
+    myComparator.setDelegate(new NodeDescriptor.NodeComparator<NodeDescriptor<?>>() {
       @Override
       public int compare(NodeDescriptor o1, NodeDescriptor o2) {
         boolean isParent1 = myStructure._getChildElements(o1.getElement(), false).length > 0;
@@ -2080,7 +2067,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
   }
 
   public void testSelectWhenUpdatesArePending() throws Exception {
-    notNull(getBuilder().getUpdater()).setDelay(100);
+    Objects.requireNonNull(getBuilder().getUpdater()).setDelay(100);
 
     buildStructure(myRoot);
 
@@ -2175,7 +2162,7 @@ abstract class TreeUiTestCase extends AbstractTreeBuilderTest {
                " +xUnit\n");
 
     AbstractTreeBuilderTest.Node intellij = removeFromParentButKeepRef(new NodeElement("intellij"));
-    notNull(myRoot.getChildNode("jetbrains")).addChild(intellij);
+    Objects.requireNonNull(myRoot.getChildNode("jetbrains")).addChild(intellij);
 
     updateRoutine.run();
 

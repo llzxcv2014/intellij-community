@@ -1,10 +1,9 @@
-/*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.ui.configuration.projectRoot;
 
 import com.intellij.facet.Facet;
 import com.intellij.ide.CommonActionsManager;
+import com.intellij.ide.DefaultTreeExpander;
 import com.intellij.ide.TreeExpander;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
@@ -22,12 +21,12 @@ import com.intellij.openapi.ui.NamedConfigurable;
 import com.intellij.openapi.util.ActionCallback;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.ui.TreeSpeedSearch;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.navigation.Place;
 import com.intellij.util.IconUtil;
 import com.intellij.util.containers.ContainerUtil;
-import com.intellij.util.containers.LinkedMultiMap;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.ui.tree.TreeUtil;
 import org.jetbrains.annotations.NotNull;
@@ -36,8 +35,8 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.tree.TreePath;
 import java.awt.*;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 
 public abstract class BaseStructureConfigurable extends MasterDetailsComponent implements SearchableConfigurable, Disposable, Place.Navigator {
   protected StructureConfigurableContext myContext;
@@ -155,27 +154,7 @@ public abstract class BaseStructureConfigurable extends MasterDetailsComponent i
   }
 
   protected void addCollapseExpandActions(final List<? super AnAction> result) {
-    final TreeExpander expander = new TreeExpander() {
-      @Override
-      public void expandAll() {
-        TreeUtil.expandAll(myTree);
-      }
-
-      @Override
-      public boolean canExpand() {
-        return true;
-      }
-
-      @Override
-      public void collapseAll() {
-        TreeUtil.collapseAll(myTree, 0);
-      }
-
-      @Override
-      public boolean canCollapse() {
-        return true;
-      }
-    };
+    final TreeExpander expander = new DefaultTreeExpander(myTree);
     final CommonActionsManager actionsManager = CommonActionsManager.getInstance();
     result.add(actionsManager.createExpandAllAction(expander, myTree));
     result.add(actionsManager.createCollapseAllAction(expander, myTree));
@@ -266,7 +245,7 @@ public abstract class BaseStructureConfigurable extends MasterDetailsComponent i
   }
 
   protected abstract void loadTree();
- 
+
 
   @Override
   @NotNull
@@ -310,7 +289,7 @@ public abstract class BaseStructureConfigurable extends MasterDetailsComponent i
   @NotNull
   private MultiMap<RemoveConfigurableHandler, MyNode> groupNodes(List<? extends MyNode> nodes) {
     List<? extends RemoveConfigurableHandler<?>> handlers = getRemoveHandlers();
-    MultiMap<RemoveConfigurableHandler, MyNode> grouped = new LinkedMultiMap<>();
+    MultiMap<RemoveConfigurableHandler, MyNode> grouped = MultiMap.createLinked();
     for (MyNode node : nodes) {
       final NamedConfigurable<?> configurable = node.getConfigurable();
       if (configurable == null) continue;
@@ -335,7 +314,7 @@ public abstract class BaseStructureConfigurable extends MasterDetailsComponent i
   protected class MyRemoveAction extends MyDeleteAction {
     public MyRemoveAction() {
       //noinspection Convert2Lambda
-      super(new Condition<Object[]>() {
+      super(new Condition<>() {
         @Override
         public boolean value(final Object[] objects) {
           List<MyNode> nodes = new ArrayList<>();
@@ -401,20 +380,21 @@ public abstract class BaseStructureConfigurable extends MasterDetailsComponent i
   }
 
   protected abstract static class AbstractAddGroup extends ActionGroup implements ActionGroupWithPreselection {
-    protected AbstractAddGroup(String text, Icon icon) {
+    protected AbstractAddGroup(@NlsActions.ActionText String text, Icon icon) {
       super(text, true);
 
       final Presentation presentation = getTemplatePresentation();
       presentation.setIcon(icon);
 
-      final Keymap active = KeymapManager.getInstance().getActiveKeymap();
-      if (active != null) {
+      KeymapManager keymapManager = KeymapManager.getInstance();
+      if (keymapManager != null) {
+        final Keymap active = keymapManager.getActiveKeymap();
         final Shortcut[] shortcuts = active.getShortcuts("NewElement");
         setShortcutSet(new CustomShortcutSet(shortcuts));
       }
     }
 
-    public AbstractAddGroup(String text) {
+    public AbstractAddGroup(@NlsActions.ActionText String text) {
       this(text, IconUtil.getAddIcon());
     }
 

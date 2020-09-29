@@ -1,9 +1,10 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.facet;
 
 import com.intellij.facet.mock.MockFacet;
 import com.intellij.facet.mock.MockFacetType;
+import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.application.ex.PathManagerEx;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
@@ -12,9 +13,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 
 import java.io.File;
 
-/**
- * @author nik
- */
 public class FacetFinderTest extends FacetTestCase {
   private FacetFinder myFacetFinder;
 
@@ -66,17 +64,17 @@ public class FacetFinderTest extends FacetTestCase {
     assertNull(findFacet(configFile));
   }
 
-  public void testAddRemoveModule() {
+  public void testAddRemoveModule() throws Exception {
     final VirtualFile file = findFile("../module/src/pack/MyClass.java");
 
     assertNull(findFacet(file));
-    final Module module = loadModule("facet/module/MyFacetModule.iml");
-    final MockFacet facet = findFacet(file);
+    File imlFile = PathManagerEx.findFileUnderCommunityHome("java/java-tests/testData/facet/module/MyFacetModule.iml");
+    Module module = WriteAction.compute(() -> ModuleManager.getInstance(myProject).loadModule(imlFile.toPath()));
+    MockFacet facet = findFacet(file);
     assertNotNull(facet);
     assertSame(module, facet.getModule());
 
     ModuleManager.getInstance(myProject).disposeModule(module);
-    myModulesToDispose.remove(module);
     assertNull(findFacet(file));
   }
 

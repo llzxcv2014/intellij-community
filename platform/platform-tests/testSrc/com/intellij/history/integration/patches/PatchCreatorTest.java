@@ -1,22 +1,22 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.history.integration.patches;
 
 import com.intellij.history.core.revisions.Difference;
 import com.intellij.history.core.revisions.Revision;
 import com.intellij.history.integration.PatchingTestCase;
-import com.intellij.idea.Bombed;
+import com.intellij.openapi.diff.impl.patch.FilePatch;
+import com.intellij.openapi.diff.impl.patch.IdeaTextPatchBuilder;
 import com.intellij.openapi.vcs.changes.Change;
+import com.intellij.openapi.vcs.changes.patch.PatchWriter;
 import com.intellij.openapi.vfs.VirtualFile;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 
-public class PatchCreatorTest extends PatchingTestCase {
+import static org.assertj.core.api.Assertions.assertThat;
 
-  @Bombed(user = "Nadya Zabrodina", year = 2020, month = Calendar.DECEMBER, day = 1,
-    description = "Now we are not able to apply empty file creation patch; git special tag needed or smth like that")
+public class PatchCreatorTest extends PatchingTestCase {
   public void testCreationEmptyPatch() throws Exception {
     createChildData(myRoot, "f.txt");
 
@@ -74,8 +74,8 @@ public class PatchCreatorTest extends PatchingTestCase {
 
     applyPatch();
 
-    assertNotNull(myRoot.findChild("dir"));
-    assertNotNull(myRoot.findChild("dir").findChild("f.txt"));
+    assertThat(myRoot.findChild("dir")).isNotNull();
+    assertThat(myRoot.findChild("dir").findChild("f.txt")).isNotNull();
   }
 
   public void testDirectoryDeletionWithFiles() throws Exception {
@@ -127,13 +127,15 @@ public class PatchCreatorTest extends PatchingTestCase {
     Revision l = rr.get(left);
     Revision r = rr.get(right);
 
-    List<Difference> dd = l.getDifferencesWith(r);
-    List<Change> cc = new ArrayList<>();
-    for (Difference d : dd) {
+    List<Difference> differences = l.getDifferencesWith(r);
+    List<Change> changes = new ArrayList<>();
+    for (Difference d : differences) {
       Change c = new Change(d.getLeftContentRevision(myGateway), d.getRightContentRevision(myGateway));
-      cc.add(c);
+      changes.add(c);
     }
 
-    PatchCreator.create(myProject, cc, patchFilePath, reverse, null);
+    Path basePath = myRoot.toNioPath();
+    List<FilePatch> patches = IdeaTextPatchBuilder.buildPatch(myProject, changes, basePath, reverse, false);
+    PatchWriter.writePatches(myProject, patchFilePath, basePath, patches, null);
   }
 }

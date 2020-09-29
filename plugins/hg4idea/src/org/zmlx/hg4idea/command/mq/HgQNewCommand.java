@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
+import org.zmlx.hg4idea.HgBundle;
 import org.zmlx.hg4idea.HgVcs;
 import org.zmlx.hg4idea.action.HgCommandResultNotifier;
 import org.zmlx.hg4idea.command.HgCommitTypeCommand;
@@ -57,7 +58,10 @@ public class HgQNewCommand extends HgCommitTypeCommand {
     HgCommandResult result = new HgCommandExecutor(myProject).executeInCurrentThread(myRepository.getRoot(), "qrefresh", args);
     if (HgErrorUtil.hasErrorsInCommandExecution(result)) {
       new HgCommandResultNotifier(myProject)
-        .notifyError(result, "QRefresh Failed", "Could not amend selected changes to newly created patch");
+        .notifyError("hg.qrefresh.error",
+                     result,
+                     HgBundle.message("action.hg4idea.QRefresh.error"),
+                     HgBundle.message("action.hg4idea.QRefresh.error.msg"));
     }
   }
 
@@ -73,7 +77,10 @@ public class HgQNewCommand extends HgCommitTypeCommand {
     HgCommandResult result = executor.executeInCurrentThread(myRepository.getRoot(), "qnew", args);
     if (HgErrorUtil.hasErrorsInCommandExecution(result)) {
       new HgCommandResultNotifier(myProject)
-        .notifyError(result, "Qnew Failed", "Could not create mq patch for selected changes");
+        .notifyError("hg.qnew.error",
+                     result,
+                     HgBundle.message("action.hg4idea.QNew.error"),
+                     HgBundle.message("action.hg4idea.QNew.error.msg"));
     }
   }
 }

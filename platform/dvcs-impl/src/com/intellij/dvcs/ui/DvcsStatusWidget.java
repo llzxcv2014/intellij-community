@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.dvcs.ui;
 
+import com.intellij.dvcs.branch.DvcsBranchUtil;
 import com.intellij.dvcs.repo.Repository;
 import com.intellij.dvcs.repo.VcsRepositoryManager;
 import com.intellij.dvcs.repo.VcsRepositoryMappingListener;
@@ -11,14 +12,16 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.ListPopup;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.StatusBar;
 import com.intellij.openapi.wm.StatusBarWidget;
-import com.intellij.openapi.wm.WindowManager;
 import com.intellij.openapi.wm.impl.status.EditorBasedWidget;
 import com.intellij.util.Consumer;
-import org.jetbrains.annotations.CalledInAwt;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,32 +29,40 @@ import javax.swing.*;
 import java.awt.event.MouseEvent;
 
 public abstract class DvcsStatusWidget<T extends Repository> extends EditorBasedWidget
-  implements StatusBarWidget.MultipleTextValuesPresentation, StatusBarWidget.Multiframe
-{
+  implements StatusBarWidget.MultipleTextValuesPresentation, StatusBarWidget.Multiframe {
   protected static final Logger LOG = Logger.getInstance(DvcsStatusWidget.class);
-  private static final String MAX_STRING = "VCS: Rebasing feature-12345 in custom development branch";
 
-  @NotNull private final String myPrefix;
+  @NotNull private final String myVcsName;
 
-  @Nullable private String myText;
-  @Nullable private String myTooltip;
+  @Nullable private @Nls String myText;
+  @Nullable private @NlsContexts.Tooltip String myTooltip;
   @Nullable private Icon myIcon;
 
-  protected DvcsStatusWidget(@NotNull Project project, @NotNull String prefix) {
+  protected DvcsStatusWidget(@NotNull Project project, @NotNull @Nls String vcsName) {
     super(project);
-    myPrefix = prefix;
+    myVcsName = vcsName;
+
+    project.getMessageBus().connect(this)
+      .subscribe(VcsRepositoryManager.VCS_REPOSITORY_MAPPING_UPDATED, new VcsRepositoryMappingListener() {
+        @Override
+        public void mappingChanged() {
+          LOG.debug("repository mappings changed");
+          updateLater();
+        }
+      });
   }
 
   @Nullable
   protected abstract T guessCurrentRepository(@NotNull Project project);
 
+  @Nls
   @NotNull
   protected abstract String getFullBranchName(@NotNull T repository);
 
   @Nullable
   protected Icon getIcon(@NotNull T repository) {
     if (repository.getState() != Repository.State.NORMAL) return AllIcons.General.Warning;
-    return null;
+    return AllIcons.Vcs.Branch;
   }
 
   protected abstract boolean isMultiRoot(@NotNull Project project);
@@ -59,28 +70,21 @@ public abstract class DvcsStatusWidget<T extends Repository> extends EditorBased
   @NotNull
   protected abstract ListPopup getPopup(@NotNull Project project, @NotNull T repository);
 
-  protected abstract void subscribeToRepoChangeEvents(@NotNull Project project);
-
   protected abstract void rememberRecentRoot(@NotNull String path);
 
-  public void activate() {
-    installWidgetToStatusBar(getProject(), this);
+  @Override
+  public void install(@NotNull StatusBar statusBar) {
+    super.install(statusBar);
+    updateLater();
   }
 
+  /**
+   * @deprecated dvcs widgets are controlled by {@link com.intellij.openapi.wm.impl.status.widget.StatusBarWidgetsManager}
+   * and cannot be removed manually
+   */
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval
   public void deactivate() {
-    removeWidgetFromStatusBar();
-  }
-
-  @Override
-  public void dispose() {
-    deactivate();
-    super.dispose();
-  }
-
-  @NotNull
-  @Override
-  public String ID() {
-    return getClass().getName();
   }
 
   @Override
@@ -106,11 +110,11 @@ public abstract class DvcsStatusWidget<T extends Repository> extends EditorBased
     update();
   }
 
-  @CalledInAwt
+  @RequiresEdt
   @Nullable
   @Override
   public String getSelectedValue() {
-    return StringUtil.isEmpty(myText) ? "" : myPrefix + ": " + myText;
+    return StringUtil.defaultIfEmpty(myText, "");
   }
 
   @Nullable
@@ -128,8 +132,8 @@ public abstract class DvcsStatusWidget<T extends Repository> extends EditorBased
   @Nullable
   @Override
   public ListPopup getPopupStep() {
+    if (isDisposed()) return null;
     Project project = getProject();
-    if (project.isDisposed()) return null;
     T repository = guessCurrentRepository(project);
     if (repository == null) return null;
 
@@ -145,26 +149,24 @@ public abstract class DvcsStatusWidget<T extends Repository> extends EditorBased
 
   protected void updateLater() {
     Project project = getProject();
-    if (project.isDisposed()) return;
+    if (isDisposed()) return;
     ApplicationManager.getApplication().invokeLater(() -> {
       LOG.debug("update after repository change");
       update();
     }, project.getDisposed());
   }
 
-  @CalledInAwt
+  @RequiresEdt
   private void update() {
     myText = null;
     myTooltip = null;
     myIcon = null;
 
+    if (isDisposed()) return;
     Project project = getProject();
-    if (project.isDisposed()) return;
     T repository = guessCurrentRepository(project);
     if (repository == null) return;
-
-    int maxLength = MAX_STRING.length() - 1; // -1, because there are arrows indicating that it is a popup
-    myText = StringUtil.shortenTextWithEllipsis(getFullBranchName(repository), maxLength, 5);
+    myText = DvcsBranchUtil.shortenBranchName(getFullBranchName(repository));
     myTooltip = getToolTip(repository);
     myIcon = getIcon(repository);
     if (myStatusBar != null) {
@@ -173,44 +175,16 @@ public abstract class DvcsStatusWidget<T extends Repository> extends EditorBased
     rememberRecentRoot(repository.getRoot().getPath());
   }
 
+  @NlsContexts.Tooltip
   @Nullable
-  @CalledInAwt
+  @RequiresEdt
   private String getToolTip(@Nullable T repository) {
     if (repository == null) return null;
-    String branchName = myPrefix + " Branch: " + getFullBranchName(repository);
+    String message = DvcsBundle.message("tooltip.branch.widget.vcs.branch.name.text", myVcsName, getFullBranchName(repository));
     if (isMultiRoot(repository.getProject())) {
-      return branchName + "\n" + "Root: " + repository.getRoot().getName();
+      message += "\n";
+      message += DvcsBundle.message("tooltip.branch.widget.root.name.text", repository.getRoot().getName());
     }
-    return branchName;
-  }
-
-  private void installWidgetToStatusBar(@NotNull final Project project, @NotNull final StatusBarWidget widget) {
-    ApplicationManager.getApplication().invokeLater(() -> {
-      StatusBar statusBar = WindowManager.getInstance().getStatusBar(project);
-      if (statusBar != null && !isDisposed()) {
-        statusBar.addWidget(widget, StatusBar.Anchors.DEFAULT_ANCHOR, project);
-        subscribeToMappingChanged(project);
-        subscribeToRepoChangeEvents(project);
-        update();
-      }
-    }, project.getDisposed());
-  }
-
-  private void removeWidgetFromStatusBar() {
-    ApplicationManager.getApplication().invokeLater(() -> {
-      if (myStatusBar != null && !isDisposed()) {
-        myStatusBar.removeWidget(ID());
-      }
-    }, getProject().getDisposed());
-  }
-
-  private void subscribeToMappingChanged(Project project) {
-    project.getMessageBus().connect().subscribe(VcsRepositoryManager.VCS_REPOSITORY_MAPPING_UPDATED, new VcsRepositoryMappingListener() {
-      @Override
-      public void mappingChanged() {
-        LOG.debug("repository mappings changed");
-        updateLater();
-      }
-    });
+    return message;
   }
 }

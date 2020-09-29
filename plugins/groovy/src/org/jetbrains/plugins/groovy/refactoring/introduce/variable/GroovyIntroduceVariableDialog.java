@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package org.jetbrains.plugins.groovy.refactoring.introduce.variable;
 
@@ -13,6 +13,7 @@ import com.intellij.util.ui.GridBag;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.groovy.GroovyBundle;
 import org.jetbrains.plugins.groovy.GroovyFileType;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpression;
 import org.jetbrains.plugins.groovy.lang.psi.impl.GroovyNamesUtil;
@@ -27,8 +28,6 @@ import java.awt.*;
 import java.util.LinkedHashSet;
 
 public class GroovyIntroduceVariableDialog extends DialogWrapper implements GrIntroduceDialog<GroovyIntroduceVariableSettings> {
-  private static final String REFACTORING_NAME = GroovyRefactoringBundle.message("introduce.variable.title");
-
   private final Project myProject;
   private final GrExpression myExpression;
   private final int myOccurrencesCount;
@@ -55,7 +54,7 @@ public class GroovyIntroduceVariableDialog extends DialogWrapper implements GrIn
     super.init();
 
     setModal(true);
-    setTitle(REFACTORING_NAME);
+    setTitle(GroovyRefactoringBundle.message("introduce.variable.title"));
 
     myCbReplaceAllOccurrences.setFocusable(false);
     myCbIsFinal.setFocusable(false);
@@ -66,7 +65,9 @@ public class GroovyIntroduceVariableDialog extends DialogWrapper implements GrIn
     if (myOccurrencesCount > 1) {
       myCbReplaceAllOccurrences.setSelected(false);
       myCbReplaceAllOccurrences.setEnabled(true);
-      myCbReplaceAllOccurrences.setText(myCbReplaceAllOccurrences.getText() + " (" + myOccurrencesCount + " occurrences)");
+      myCbReplaceAllOccurrences.setText(UIUtil.replaceMnemonicAmpersand(
+        GroovyBundle.message("introduce.variable.replace.all.0.occurrences", myOccurrencesCount)
+      ));
     }
     else {
       myCbReplaceAllOccurrences.setSelected(false);
@@ -96,9 +97,13 @@ public class GroovyIntroduceVariableDialog extends DialogWrapper implements GrIn
 
   private JPanel createCBPanel() {
     final JPanel panel = new JPanel(new FlowLayout());
-    myCbIsFinal = new JCheckBox(UIUtil.replaceMnemonicAmpersand("Declare &final"));
+    myCbIsFinal = new JCheckBox(UIUtil.replaceMnemonicAmpersand(
+      GroovyBundle.message("introduce.variable.declare.final.label")
+    ));
     panel.add(myCbIsFinal);
-    myCbReplaceAllOccurrences = new JCheckBox(UIUtil.replaceMnemonicAmpersand("Replace &all occurrences"));
+    myCbReplaceAllOccurrences = new JCheckBox(UIUtil.replaceMnemonicAmpersand(
+      GroovyBundle.message("introduce.variable.replace.all.occurrences")
+    ));
     panel.add(myCbReplaceAllOccurrences);
     return panel;
   }
@@ -107,7 +112,7 @@ public class GroovyIntroduceVariableDialog extends DialogWrapper implements GrIn
     final GridBag c = new GridBag().setDefaultAnchor(GridBagConstraints.WEST).setDefaultInsets(1, 1, 1, 1);
     final JPanel namePanel = new JPanel(new GridBagLayout());
 
-    final JLabel typeLabel = new JLabel(UIUtil.replaceMnemonicAmpersand("&Type:"));
+    final JLabel typeLabel = new JLabel(UIUtil.replaceMnemonicAmpersand(GroovyBundle.message("introduce.variable.type.label")));
     c.nextLine().next().weightx(0).fillCellNone();
     namePanel.add(typeLabel, c);
 
@@ -116,7 +121,7 @@ public class GroovyIntroduceVariableDialog extends DialogWrapper implements GrIn
     namePanel.add(myTypeComboBox, c);
     typeLabel.setLabelFor(myTypeComboBox);
 
-    final JLabel nameLabel = new JLabel(UIUtil.replaceMnemonicAmpersand("&Name:"));
+    final JLabel nameLabel = new JLabel(UIUtil.replaceMnemonicAmpersand(GroovyBundle.message("introduce.variable.name.label")));
     c.nextLine().next().weightx(0).fillCellNone();
     namePanel.add(nameLabel, c);
 

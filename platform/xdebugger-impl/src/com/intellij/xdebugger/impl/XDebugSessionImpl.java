@@ -1,7 +1,6 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xdebugger.impl;
 
-import com.intellij.execution.ExecutionManager;
 import com.intellij.execution.configurations.RunConfiguration;
 import com.intellij.execution.configurations.RunProfile;
 import com.intellij.execution.executors.DefaultDebugExecutor;
@@ -11,13 +10,11 @@ import com.intellij.execution.process.ProcessAdapter;
 import com.intellij.execution.process.ProcessEvent;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ExecutionEnvironment;
-import com.intellij.execution.ui.ConsoleView;
-import com.intellij.execution.ui.ConsoleViewContentType;
-import com.intellij.execution.ui.RunContentDescriptor;
-import com.intellij.execution.ui.RunnerLayoutUi;
+import com.intellij.execution.ui.*;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.DataManager;
 import com.intellij.notification.NotificationGroup;
+import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationListener;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -33,7 +30,6 @@ import com.intellij.openapi.util.registry.Registry;
 import com.intellij.ui.AppUIUtil;
 import com.intellij.util.EventDispatcher;
 import com.intellij.util.SmartList;
-import com.intellij.util.containers.SmartHashSet;
 import com.intellij.util.messages.MessageBusConnection;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.xdebugger.*;
@@ -47,14 +43,15 @@ import com.intellij.xdebugger.impl.evaluate.XDebuggerEditorLinePainter;
 import com.intellij.xdebugger.impl.evaluate.quick.common.ValueLookupManager;
 import com.intellij.xdebugger.impl.frame.XValueMarkers;
 import com.intellij.xdebugger.impl.frame.XWatchesViewImpl;
+import com.intellij.xdebugger.impl.inline.DebuggerInlayListener;
+import com.intellij.xdebugger.impl.inline.XDebuggerInlayUtil;
 import com.intellij.xdebugger.impl.settings.XDebuggerSettingManagerImpl;
 import com.intellij.xdebugger.impl.ui.XDebugSessionData;
 import com.intellij.xdebugger.impl.ui.XDebugSessionTab;
 import com.intellij.xdebugger.impl.ui.XDebuggerUIConstants;
 import com.intellij.xdebugger.stepping.XSmartStepIntoHandler;
 import com.intellij.xdebugger.stepping.XSmartStepIntoVariant;
-import gnu.trove.THashMap;
-import gnu.trove.THashSet;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -64,21 +61,18 @@ import javax.swing.event.HyperlinkListener;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * @author nik
- */
-public class XDebugSessionImpl implements XDebugSession {
+public final class XDebugSessionImpl implements XDebugSession {
   private static final Logger LOG = Logger.getInstance(XDebugSessionImpl.class);
   private static final Logger PERFORMANCE_LOG = Logger.getInstance("#com.intellij.xdebugger.impl.XDebugSessionImpl.performance");
+  private static final NotificationGroup BP_NOTIFICATION_GROUP = NotificationGroupManager.getInstance().getNotificationGroup("Breakpoint hit");
 
   /** @deprecated Use {@link XDebuggerManagerImpl#NOTIFICATION_GROUP} */
   @Deprecated
   public static final NotificationGroup NOTIFICATION_GROUP = XDebuggerManagerImpl.NOTIFICATION_GROUP;
 
   private XDebugProcess myDebugProcess;
-  private final Map<XBreakpoint<?>, CustomizedBreakpointPresentation> myRegisteredBreakpoints =
-    new THashMap<>();
-  private final Set<XBreakpoint<?>> myInactiveSlaveBreakpoints = Collections.synchronizedSet(new SmartHashSet<>());
+  private final Map<XBreakpoint<?>, CustomizedBreakpointPresentation> myRegisteredBreakpoints = new HashMap<>();
+  private final Set<XBreakpoint<?>> myInactiveSlaveBreakpoints = Collections.synchronizedSet(new HashSet<>());
   private boolean myBreakpointsDisabled;
   private final XDebuggerManagerImpl myDebuggerManager;
   private Disposable myBreakpointListenerDisposable;
@@ -89,7 +83,7 @@ public class XDebugSessionImpl implements XDebugSession {
   private volatile XSourcePosition myTopFramePosition;
   private final AtomicBoolean myPaused = new AtomicBoolean();
   private XValueMarkers<?, ?> myValueMarkers;
-  private final String mySessionName;
+  private @Nls final String mySessionName;
   private @Nullable XDebugSessionTab mySessionTab;
   private @NotNull final XDebugSessionData mySessionData;
   private XBreakpoint<?> myActiveNonLineBreakpoint;
@@ -115,7 +109,7 @@ public class XDebugSessionImpl implements XDebugSession {
 
   public XDebugSessionImpl(@Nullable ExecutionEnvironment environment,
                            @NotNull XDebuggerManagerImpl debuggerManager,
-                           @NotNull String sessionName,
+                           @NotNull @Nls String sessionName,
                            @Nullable Icon icon,
                            boolean showTabOnSuspend,
                            @Nullable RunContentDescriptor contentToReuse) {
@@ -125,6 +119,7 @@ public class XDebugSessionImpl implements XDebugSession {
     myShowTabOnSuspend = new AtomicBoolean(showTabOnSuspend);
     myProject = debuggerManager.getProject();
     ValueLookupManager.getInstance(myProject).startListening();
+    DebuggerInlayListener.getInstance(myProject).startListening();
     myIcon = icon;
 
     XDebugSessionData oldSessionData = null;
@@ -384,7 +379,7 @@ public class XDebugSessionImpl implements XDebugSession {
       return;
     }
 
-    Set<XBreakpointType<?, ?>> breakpointTypes = new THashSet<>();
+    Set<XBreakpointType<?, ?>> breakpointTypes = new HashSet<>();
     for (XBreakpointHandler<?> handler : myDebugProcess.getBreakpointHandlers()) {
       breakpointTypes.add(getBreakpointTypeClass(handler));
     }
@@ -397,8 +392,7 @@ public class XDebugSessionImpl implements XDebugSession {
 
   public void showSessionTab() {
     RunContentDescriptor descriptor = getRunContentDescriptor();
-    ExecutionManager.getInstance(getProject()).getContentManager()
-      .showRunContent(DefaultDebugExecutor.getDebugExecutorInstance(), descriptor);
+    RunContentManager.getInstance(getProject()).showRunContent(DefaultDebugExecutor.getDebugExecutorInstance(), descriptor);
   }
 
   @Nullable
@@ -774,6 +768,10 @@ public class XDebugSessionImpl implements XDebugSession {
       }
     }
 
+    BP_NOTIFICATION_GROUP
+      .createNotification(XDebuggerBundle.message("xdebugger.breakpoint.reached"), MessageType.INFO)
+      .notify(getProject());
+
     myActiveNonLineBreakpoint =
       (!(breakpoint instanceof XLineBreakpoint) || ((XLineBreakpoint)breakpoint).getType().canBeHitInOtherPlaces()) ? breakpoint : null;
 
@@ -1098,6 +1096,7 @@ public class XDebugSessionImpl implements XDebugSession {
   List<XExpression> getWatchExpressions() {
     return myDebuggerManager.getWatchesManager().getWatches(getConfigurationName());
   }
+
 
   @Nullable
   public ExecutionEnvironment getExecutionEnvironment() {

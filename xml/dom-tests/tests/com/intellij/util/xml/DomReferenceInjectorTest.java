@@ -19,6 +19,7 @@ import com.intellij.lang.ASTNode;
 import com.intellij.lang.Language;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.*;
 import com.intellij.psi.scope.PsiScopeProcessor;
@@ -135,8 +136,7 @@ public class DomReferenceInjectorTest extends DomHardCoreTestCase {
     }
 
     @Override
-    @NotNull
-    public PsiElement[] getChildren() {
+    public PsiElement @NotNull [] getChildren() {
       throw new UnsupportedOperationException();
     }
 
@@ -206,8 +206,7 @@ public class DomReferenceInjectorTest extends DomHardCoreTestCase {
     }
 
     @Override
-    @NotNull
-    public char[] textToCharArray() {
+    public char @NotNull [] textToCharArray() {
       throw new UnsupportedOperationException();
     }
 
@@ -323,8 +322,7 @@ public class DomReferenceInjectorTest extends DomHardCoreTestCase {
     }
 
     @Override
-    @NotNull
-    public PsiReference[] getReferences() {
+    public PsiReference @NotNull [] getReferences() {
       throw new UnsupportedOperationException();
     }
 
@@ -402,13 +400,12 @@ public class DomReferenceInjectorTest extends DomHardCoreTestCase {
     }
 
     @Override
-    public String resolveString(@Nullable String unresolvedText, @NotNull ConvertContext context) {
+    public @Nullable @NlsSafe String resolveString(@Nullable @NonNls String unresolvedText, @NotNull ConvertContext context) {
       return unresolvedText == null ? null : unresolvedText.replaceAll("\\$\\{prop\\}", "FOO");
     }
 
     @Override
-    @NotNull
-    public PsiReference[] inject(@Nullable String unresolvedText, @NotNull final PsiElement element, @NotNull ConvertContext context) {
+    public PsiReference @NotNull [] inject(@Nullable String unresolvedText, @NotNull final PsiElement element, @NotNull ConvertContext context) {
       final String prop = "${prop}";
       int index = unresolvedText == null ? -1 : unresolvedText.indexOf(prop);
       if (index == -1) return PsiReference.EMPTY_ARRAY;

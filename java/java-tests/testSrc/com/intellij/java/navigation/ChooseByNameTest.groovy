@@ -4,19 +4,22 @@
 package com.intellij.java.navigation
 
 import com.intellij.codeInsight.JavaProjectCodeInsightSettings
-import com.intellij.ide.actions.searcheverywhere.ClassSearchEverywhereContributor
-import com.intellij.ide.actions.searcheverywhere.FileSearchEverywhereContributor
-import com.intellij.ide.actions.searcheverywhere.SearchEverywhereContributor
-import com.intellij.ide.actions.searcheverywhere.SymbolSearchEverywhereContributor
+import com.intellij.ide.actions.searcheverywhere.*
 import com.intellij.ide.util.scopeChooser.ScopeDescriptor
-import com.intellij.idea.Bombed
 import com.intellij.lang.java.JavaLanguage
 import com.intellij.mock.MockProgressIndicator
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.psi.*
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
+import com.intellij.util.ObjectUtils
 import com.intellij.util.indexing.FindSymbolParameters
-import org.jetbrains.annotations.Nullable
+import org.jetbrains.annotations.NotNull
 import org.jetbrains.plugins.groovy.lang.psi.GroovyFile
 
 import static com.intellij.testFramework.EdtTestUtil.runInEdtAndWait
@@ -61,6 +64,11 @@ class ChooseByNameTest extends LightJavaCodeInsightFixtureTestCase {
     def match = myFixture.addClass("@interface Anno1 {}")
     myFixture.addClass("class Anno2 {}")
     assert gotoClass("@Anno") == [match]
+  }
+
+  void "test class a in same-named package and partially matching subpackage"() {
+    def c = myFixture.addClass("package com.intellij.codeInsight.template.impl; class TemplateListPanel {}")
+    assert gotoClass("templistpa") == [c]
   }
 
   void "test no result for empty patterns"() {
@@ -110,7 +118,7 @@ class Cls {
 
     assert gotoSymbol('pkg.Cls.bar') as Set == methods[1..3] as Set
     assert gotoSymbol('pkg.Cls#bar') as Set == methods[1..3] as Set
-    
+
     assert gotoSymbol('pkg.Cls#bar(int)') == [methods[1]]
     assert gotoSymbol('pkg.Cls#bar(boolean)') == [methods[2]]
     assert gotoSymbol('pkg.Cls#bar(java.util.List)') == [methods[3]]
@@ -186,10 +194,10 @@ class Intf {
     def fooContext = addEmptyFile("foo/context.html")
     def barContext = addEmptyFile("bar/context.html")
 
-    def contributor = createFileContributor(project, fooContext)
+    def contributor = createFileContributor(project, testRootDisposable, fooContext)
     assert calcContributorElements(contributor, "index") == [fooIndex, barIndex]
 
-    contributor = createFileContributor(project, barContext)
+    contributor = createFileContributor(project, testRootDisposable, barContext)
     assert calcContributorElements(contributor, "index") == [barIndex, fooIndex]
   }
 
@@ -213,7 +221,7 @@ class Intf {
     PsiFile fooIndex = addEmptyFile("foo/index.html")
     PsiFile barIndex = addEmptyFile("bar.txt/bar.txt")
 
-    def contributor = createFileContributor(project, fooIndex)
+    def contributor = createFileContributor(project, testRootDisposable, fooIndex)
 
     def fooDir = fooIndex.containingDirectory
     def barDir = barIndex.containingDirectory
@@ -240,7 +248,7 @@ class Intf {
     def fooFile = addEmptyFile('dir/fooFile.txt')
     def fooDir = addEmptyFile('foo/barFile.txt').containingDirectory
 
-    def contributor = createFileContributor(project)
+    def contributor = createFileContributor(project, testRootDisposable)
     def popupElements = calcContributorElements(contributor, 'foo')
 
     assert popupElements == [fooFile, fooDir]
@@ -305,14 +313,6 @@ class Intf {
     assert gotoClass('goo.baz.Bar') == [bar2]
   }
 
-  @Bombed(user = "Mikhail.Sokolov", year=2020, month = Calendar.FEBRUARY, day = 1, description = "Should be handled by SE UI, not Contributor")
-  void "test try lowercase pattern if nothing matches"() {
-    def match = myFixture.addClass("class IPRoi { }")
-    def nonMatch = myFixture.addClass("class InspectionProfileImpl { }")
-    assert gotoClass('IPRoi') == [match]
-    assert gotoClass('IproImpl') == [nonMatch]
-  }
-
   private static filterJavaItems(List<Object> items) {
     return items.findAll { it instanceof PsiElement && it.language == JavaLanguage.INSTANCE }
   }
@@ -362,7 +362,7 @@ class Intf {
     def wanted = myFixture.addClass('class XFile {}')
     def smth1 = myFixture.addClass('class xfilterExprOwner {}')
     def smth2 = myFixture.addClass('class xfile_baton_t {}')
-    def contributor = createClassContributor(project)
+    def contributor = createClassContributor(project, testRootDisposable)
     def popupElements = calcContributorElements(contributor, 'xfile')
 
     assert popupElements == [wanted, smth2, smth1]
@@ -371,7 +371,7 @@ class Intf {
   void "test prefer prefix match"() {
     def wanted = myFixture.addClass('class PsiClassImpl {}')
     def smth = myFixture.addClass('class DroolsPsiClassImpl {}')
-    def contributor = createClassContributor(project)
+    def contributor = createClassContributor(project, testRootDisposable)
     def popupElements = calcContributorElements(contributor, 'PsiCl')
 
     assert popupElements == [wanted, smth]
@@ -387,7 +387,7 @@ class Intf {
     def foo = myFixture.addClass('package foo; class List {}')
     def bar = myFixture.addClass('package bar; class List {}')
 
-    def contributor = createClassContributor(project, myFixture.addClass('class Context {}'))
+    def contributor = createClassContributor(project, testRootDisposable, myFixture.addClass('class Context {}').containingFile)
     assert calcContributorElements(contributor, "List") == [bar, foo]
 
     JavaProjectCodeInsightSettings.setExcludedNames(project, testRootDisposable, 'bar')
@@ -431,11 +431,10 @@ class Intf {
     assert gotoFile('samplecontrol', false) == [enumControl, control]
   }
 
-  @Bombed(user = "Mikhail.Sokolov", year=2020, month = Calendar.FEBRUARY, day = 1, description = "Should be handled by SE UI, not Contributor")
   void "test show longer suffix matches from jdk and shorter from project"() {
     def seq = addEmptyFile("langc/Sequence.java")
     def charSeq = myFixture.findClass(CharSequence.name)
-    assert gotoFile('langcsequence', false) == [charSeq.containingFile, seq]
+    assert gotoFile('langcsequence', true) == [charSeq.containingFile, seq]
   }
 
   void "test show no matches from jdk when there are in project"() {
@@ -456,11 +455,29 @@ class Intf {
     assert gotoClass('SomeClass') == [camel, upper]
     assert gotoFile('SomeClass.java') == [camel.containingFile, upper.containingFile]
   }
-  
+
   void "test prefer closer path match"() {
     def index = addEmptyFile("content/objc/features/index.html")
     def i18n = addEmptyFile("content/objc/features/screenshots/i18n.html")
     assert gotoFile('objc/features/i') == [index, i18n]
+  }
+
+  void "test search for full name"() {
+    def file1 = addEmptyFile("Folder/Web/SubFolder/Flow.html")
+    def file2 = addEmptyFile("Folder/Web/SubFolder/Flow/Helper.html")
+
+    def contributor = createFileContributor(project, testRootDisposable)
+    def files = calcWeightedContributorElements(contributor as WeightedSearchEverywhereContributor<?>, "Folder/Web/SubFolder/Flow.html")
+    assert files == [file1, file2]
+  }
+
+  void "test prefer name match over path match"() {
+    def nameMatchFile = addEmptyFile("JBCefBrowser.java")
+    def pathMatchFile = addEmptyFile("com/elements/folder/WebBrowser.java")
+
+    def contributor = createFileContributor(project, testRootDisposable)
+    def files = calcWeightedContributorElements(contributor as WeightedSearchEverywhereContributor<?>, "CefBrowser")
+    assert files == [nameMatchFile, pathMatchFile]
   }
 
   void "test matching file in a matching directory"() {
@@ -527,16 +544,25 @@ class Intf {
     assert gotoFile('resolvecache') == [f1, f2]
   }
 
-  private List<Object> gotoClass(String text, boolean checkboxState = false) {
-    return getContributorElements(createClassContributor(project, null, checkboxState), text)
+  void "test search for long full name"() {
+    def veryLongNameFile = addEmptyFile("aaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbb/cccccccccccccccccc/" +
+                                        "ddddddddddddddddd/eeeeeeeeeeeeeeee/ffffffffffffffffff/" +
+                                        "ggggggggggggggggg/hhhhhhhhhhhhhhhh/ClassName.java")
+
+    assert gotoFile("bbbbbbbbbbbbbbbb/cccccccccccccccccc/ddddddddddddddddd/eeeeeeeeeeeeeeee/" +
+                    "ffffffffffffffffff/ggggggggggggggggg/hhhhhhhhhhhhhhhh/ClassName.java") == [veryLongNameFile]
   }
 
-  private List<Object> gotoSymbol(String text, boolean checkboxState = false) {
-    return getContributorElements(createSymbolContributor(project, null, checkboxState), text)
+  private List<Object> gotoClass(String text, boolean checkboxState = false, PsiElement context = null) {
+    return getContributorElements(createClassContributor(project, testRootDisposable, context, checkboxState), text)
   }
 
-  private List<Object> gotoFile(String text, boolean checkboxState = false) {
-    return getContributorElements(createFileContributor(project, null, checkboxState), text)
+  private List<Object> gotoSymbol(String text, boolean checkboxState = false, PsiElement context = null) {
+    return getContributorElements(createSymbolContributor(project, testRootDisposable, context, checkboxState), text)
+  }
+
+  private List<Object> gotoFile(String text, boolean checkboxState = false, PsiElement context = null) {
+    return getContributorElements(createFileContributor(project, testRootDisposable, context, checkboxState), text)
   }
 
   private static List<Object> getContributorElements(SearchEverywhereContributor<?> contributor, String text) {
@@ -544,33 +570,56 @@ class Intf {
   }
 
   static List<Object> calcContributorElements(SearchEverywhereContributor<?> contributor, String text) {
-    def res = new LinkedHashSet<Object>()
-    invokeAdnWait({ -> res.addAll(contributor.search(text, new MockProgressIndicator(), ELEMENTS_LIMIT).items) })
-    return res.collect()
+    return contributor.search(text, new MockProgressIndicator(), ELEMENTS_LIMIT).items
   }
 
-  static SearchEverywhereContributor<Object> createClassContributor(Project project, PsiElement context = null, boolean everywhere = false) {
-    def res = new TestClassContributor(project, context)
+  static List<Object> calcWeightedContributorElements(WeightedSearchEverywhereContributor<?> contributor, String text) {
+    def items = contributor.searchWeightedElements(text, new MockProgressIndicator(), ELEMENTS_LIMIT).items
+    return new ArrayList<>(items)
+      .sort{-(it as FoundItemDescriptor<?>).weight}
+      .collect{(it as FoundItemDescriptor<?>).item}
+  }
+
+  static SearchEverywhereContributor<Object> createClassContributor(Project project,
+                                                                    Disposable parentDisposable,
+                                                                    PsiElement context = null,
+                                                                    boolean everywhere = false) {
+    def res = new TestClassContributor(createEvent(project, context))
     res.setEverywhere(everywhere)
+    Disposer.register(parentDisposable, res)
     return res
   }
 
-  static SearchEverywhereContributor<Object> createFileContributor(Project project, PsiElement context = null, boolean everywhere = false) {
-    def res = new TestFileContributor(project, context)
+  static SearchEverywhereContributor<Object> createFileContributor(Project project,
+                                                                   Disposable parentDisposable,
+                                                                   PsiElement context = null,
+                                                                   boolean everywhere = false) {
+    def res = new TestFileContributor(createEvent(project, context))
     res.setEverywhere(everywhere)
+    Disposer.register(parentDisposable, res)
     return res
   }
 
-  static SearchEverywhereContributor<Object> createSymbolContributor(Project project, PsiElement context = null, boolean everywhere = false) {
-    def res = new TestSymbolContributor(project, context)
+  static SearchEverywhereContributor<Object> createSymbolContributor(Project project,
+                                                                     Disposable parentDisposable,
+                                                                     PsiElement context = null,
+                                                                     boolean everywhere = false) {
+    def res = new TestSymbolContributor(createEvent(project, context))
     res.setEverywhere(everywhere)
+    Disposer.register(parentDisposable, res)
     return res
+  }
+
+  static AnActionEvent createEvent(Project project, PsiElement context = null) {
+    def dataContext = SimpleDataContext.getSimpleContext(
+      CommonDataKeys.PSI_FILE.name, ObjectUtils.tryCast(context, PsiFile.class), SimpleDataContext.getProjectContext(project))
+    return AnActionEvent.createFromDataContext(ActionPlaces.UNKNOWN, null, dataContext)
   }
 
   private static class TestClassContributor extends ClassSearchEverywhereContributor {
 
-    TestClassContributor(@Nullable Project project, @Nullable PsiElement context) {
-      super(project, context)
+    TestClassContributor(@NotNull AnActionEvent event) {
+      super(event)
     }
 
     void setEverywhere(boolean state) {
@@ -580,8 +629,8 @@ class Intf {
 
   private static class TestFileContributor extends FileSearchEverywhereContributor {
 
-    TestFileContributor(@Nullable Project project, @Nullable PsiElement context) {
-      super(project, context)
+    TestFileContributor(@NotNull AnActionEvent event) {
+      super(event)
     }
 
     void setEverywhere(boolean state) {
@@ -591,19 +640,12 @@ class Intf {
 
   private static class TestSymbolContributor extends SymbolSearchEverywhereContributor {
 
-    TestSymbolContributor(@Nullable Project project, @Nullable PsiElement context) {
-      super(project, context)
+    TestSymbolContributor(@NotNull AnActionEvent event) {
+      super(event)
     }
 
     void setEverywhere(boolean state) {
       myScopeDescriptor = new ScopeDescriptor(FindSymbolParameters.searchScopeFor(myProject, state))
     }
   }
-
-  private static void invokeAdnWait(Runnable runnable) {
-    def thread = new Thread(runnable)
-    thread.start()
-    thread.join()
-  }
-
 }

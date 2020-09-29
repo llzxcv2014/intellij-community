@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2011 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.framework.detection.impl.ui;
 
 import com.intellij.framework.FrameworkType;
@@ -33,9 +19,6 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeNode;
 import java.util.*;
 
-/**
- * @author nik
- */
 public class DetectedFrameworksTree extends CheckboxTree {
   private List<? extends DetectedFrameworkDescription> myDetectedFrameworks;
   private final FrameworkDetectionContext myContext;
@@ -141,13 +124,13 @@ public class DetectedFrameworksTree extends CheckboxTree {
   }
 
   private void createNodesGroupedByType(CheckedTreeNode root, final List<? extends DetectedFrameworkDescription> frameworks) {
-    Map<FrameworkType, FrameworkTypeNode> groupNodes = new HashMap<>();
+    Map<String, FrameworkTypeNode> groupNodes = new HashMap<>();
     for (DetectedFrameworkDescription framework : frameworks) {
       final FrameworkType type = framework.getDetector().getFrameworkType();
-      FrameworkTypeNode group = groupNodes.get(type);
+      FrameworkTypeNode group = groupNodes.get(type.getId());
       if (group == null) {
         group = new FrameworkTypeNode(type);
-        groupNodes.put(type, group);
+        groupNodes.put(type.getId(), group);
         root.add(group);
       }
       group.add(new DetectedFrameworkNode(framework, myContext));
@@ -180,7 +163,7 @@ public class DetectedFrameworksTree extends CheckboxTree {
     myDetectedFrameworks = frameworks;
   }
 
-  private static class DetectedFrameworksTreeRenderer extends CheckboxTreeCellRenderer {
+  private static final class DetectedFrameworksTreeRenderer extends CheckboxTreeCellRenderer {
     private DetectedFrameworksTreeRenderer() {
       super(true, false);
     }

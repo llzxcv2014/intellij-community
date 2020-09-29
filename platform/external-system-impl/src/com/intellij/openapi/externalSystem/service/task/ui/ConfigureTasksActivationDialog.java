@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.externalSystem.service.task.ui;
 
 import com.intellij.icons.AllIcons;
@@ -14,9 +14,11 @@ import com.intellij.openapi.externalSystem.model.ProjectKeys;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.externalSystem.model.project.ModuleData;
 import com.intellij.openapi.externalSystem.service.project.ProjectDataManager;
+import com.intellij.openapi.externalSystem.service.project.manage.ExternalProjectsManagerImpl;
 import com.intellij.openapi.externalSystem.service.project.manage.ExternalProjectsManagerImpl.ExternalProjectsStateProvider;
 import com.intellij.openapi.externalSystem.service.project.manage.ExternalSystemTaskActivator;
 import com.intellij.openapi.externalSystem.service.project.manage.ExternalSystemTaskActivator.Phase;
+import com.intellij.openapi.externalSystem.service.project.manage.ExternalSystemTaskActivator.TaskActivationEntry;
 import com.intellij.openapi.externalSystem.service.project.manage.TaskActivationState;
 import com.intellij.openapi.externalSystem.settings.AbstractExternalSystemSettings;
 import com.intellij.openapi.externalSystem.settings.ExternalProjectSettings;
@@ -36,12 +38,11 @@ import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.treeStructure.*;
 import com.intellij.util.ArrayUtilRt;
-import com.intellij.util.Function;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
-import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.SwingHelper;
+import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -53,14 +54,7 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import java.util.*;
 
-import static com.intellij.openapi.externalSystem.service.project.manage.ExternalProjectsManagerImpl.getInstance;
-import static com.intellij.openapi.externalSystem.service.project.manage.ExternalSystemTaskActivator.TaskActivationEntry;
-
-/**
- * @author Vladislav.Soroka
- */
-public class ConfigureTasksActivationDialog extends DialogWrapper {
-
+public final class ConfigureTasksActivationDialog extends DialogWrapper {
   @NotNull private final Project myProject;
   @NotNull private final ExternalSystemTaskActivator myTaskActivator;
   @NotNull ProjectSystemId myProjectSystemId;
@@ -85,12 +79,11 @@ public class ConfigureTasksActivationDialog extends DialogWrapper {
     setModal(true);
     setTitle(ExternalSystemBundle.message("external.system.task.activation.title", externalSystemId.getReadableName()));
     init();
-    myTaskActivator = getInstance(myProject).getTaskActivator();
+    myTaskActivator = ExternalProjectsManagerImpl.getInstance(myProject).getTaskActivator();
   }
 
-  @NotNull
   @Override
-  protected Action[] createActions() {
+  protected Action @NotNull [] createActions() {
     return new Action[]{getOKAction()};
   }
 
@@ -164,8 +157,7 @@ public class ConfigureTasksActivationDialog extends DialogWrapper {
       setMoveUpActionUpdater(e -> isMoveActionEnabled(-1)).
       setMoveDownAction(button -> moveAction(+1)).
       setMoveDownActionUpdater(e -> isMoveActionEnabled(+1)).
-      setToolbarPosition(ActionToolbarPosition.RIGHT).
-      setToolbarBorder(JBUI.Borders.empty());
+      setToolbarPosition(ActionToolbarPosition.RIGHT);
     tasksPanel.add(decorator.createPanel());
     return contentPane;
   }
@@ -207,7 +199,7 @@ public class ConfigureTasksActivationDialog extends DialogWrapper {
     final TreePath[] selectionPaths = tree.getSelectionPaths();
     if (selectionPaths == null) return;
 
-    ContainerUtil.sort(selectionPaths, new Comparator<TreePath>() {
+    ContainerUtil.sort(selectionPaths, new Comparator<>() {
       @Override
       public int compare(TreePath o1, TreePath o2) {
         return -direction * compare(tree.getRowForPath(o1), tree.getRowForPath(o2));
@@ -239,7 +231,7 @@ public class ConfigureTasksActivationDialog extends DialogWrapper {
   }
 
   @NotNull
-  private List<TaskActivationEntry> findTasksUnder(@NotNull SimpleNode[] nodes) {
+  private List<TaskActivationEntry> findTasksUnder(SimpleNode @NotNull [] nodes) {
     List<TaskActivationEntry> tasks = new SmartList<>();
     for (SimpleNode node : nodes) {
       if (node instanceof TaskNode) {
@@ -321,7 +313,7 @@ public class ConfigureTasksActivationDialog extends DialogWrapper {
   }
 
   private void updateTree(@Nullable CachingSimpleNode nodeToUpdate) {
-    Set<CachingSimpleNode> toUpdate = ContainerUtil.newIdentityTroveSet();
+    Set<CachingSimpleNode> toUpdate = new ReferenceOpenHashSet<>();
     if (nodeToUpdate == null) {
       for (DefaultMutableTreeNode node : myTree.getSelectedNodes(DefaultMutableTreeNode.class, null)) {
         final Object userObject = node.getUserObject();
@@ -379,22 +371,22 @@ public class ConfigureTasksActivationDialog extends DialogWrapper {
 
   private class ChooseProjectStep extends BaseListPopupStep<ProjectPopupItem> {
     protected ChooseProjectStep(List<? extends ProjectPopupItem> values) {
-      super("Choose project", values);
+      super(ExternalSystemBundle.message("popup.title.choose.project"), values);
     }
 
     @Override
     public PopupStep onChosen(final ProjectPopupItem projectPopupItem, final boolean finalChoice) {
-      return new BaseListPopupStep<Phase>("Choose activation phase", Phase.values()) {
+      return new BaseListPopupStep<>(ExternalSystemBundle.message("popup.title.choose.activation.phase"), Phase.values()) {
         @Override
         public PopupStep onChosen(final Phase selectedPhase, boolean finalChoice) {
           final Map<String, TaskActivationState> activationMap =
-            getInstance(myProject).getStateProvider().getProjectsTasksActivationMap(myProjectSystemId);
+            ExternalProjectsManagerImpl.getInstance(myProject).getStateProvider().getProjectsTasksActivationMap(myProjectSystemId);
           final String projectPath = projectPopupItem.myModuleData.getLinkedExternalProjectPath();
           final List<String> tasks = activationMap.get(projectPath).getTasks(selectedPhase);
 
           final List<String> tasksToSuggest = new ArrayList<>(projectPopupItem.myTasks);
           tasksToSuggest.removeAll(tasks);
-          return new BaseListPopupStep<String>("Choose task", tasksToSuggest) {
+          return new BaseListPopupStep<>(ExternalSystemBundle.message("popup.title.choose.task"), tasksToSuggest) {
             @Override
             public PopupStep onChosen(final String taskName, boolean finalChoice) {
               return doFinalStep(() -> {
@@ -433,7 +425,7 @@ public class ConfigureTasksActivationDialog extends DialogWrapper {
 
     RootNode() {
       super(ConfigureTasksActivationDialog.this.myProject, null);
-      myStateProvider = getInstance(ConfigureTasksActivationDialog.this.myProject).getStateProvider();
+      myStateProvider = ExternalProjectsManagerImpl.getInstance(ConfigureTasksActivationDialog.this.myProject).getStateProvider();
     }
 
     @Override
@@ -516,8 +508,7 @@ public class ConfigureTasksActivationDialog extends DialogWrapper {
 
     @Override
     public MyNode[] buildChildren() {
-      return ContainerUtil.map2Array(myTaskActivationState.getTasks(myPhase), MyNode.class,
-                                     (Function<String, MyNode>)taskName -> new TaskNode(taskName, this));
+      return ContainerUtil.map2Array(myTaskActivationState.getTasks(myPhase), MyNode.class, taskName -> new TaskNode(taskName, this));
     }
 
     @Override

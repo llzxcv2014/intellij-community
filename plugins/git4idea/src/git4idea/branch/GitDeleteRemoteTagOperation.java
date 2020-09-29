@@ -4,6 +4,7 @@ package git4idea.branch;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.VcsNotifier;
 import com.intellij.util.containers.ContainerUtil;
@@ -11,6 +12,7 @@ import git4idea.GitTag;
 import git4idea.commands.Git;
 import git4idea.commands.GitCommandResult;
 import git4idea.commands.GitCompoundResult;
+import git4idea.i18n.GitBundle;
 import git4idea.push.GitPushParams.ForceWithLease;
 import git4idea.push.GitPushParamsImpl;
 import git4idea.push.GitPushParamsImpl.ForceWithLeaseReference;
@@ -55,7 +57,8 @@ class GitDeleteRemoteTagOperation extends GitBranchOperation {
                                             : emptyList();
 
       for (GitRemote remote: repository.getRemotes()) {
-        GitCommandResult lsRemoteResult = myGit.lsRemoteRefs(myProject, repository.getRoot(), remote, singletonList(tagFullName), "--tags");
+        GitCommandResult lsRemoteResult =
+          myGit.lsRemoteRefs(myProject, repository.getRoot(), remote, singletonList(tagFullName), "--tags"); //NON-NLS
         if (!lsRemoteResult.success()) {
           result.append(repository, lsRemoteResult);
           continue;
@@ -78,22 +81,27 @@ class GitDeleteRemoteTagOperation extends GitBranchOperation {
       repository.update();
     }
 
-
-    boolean hasMultipleRemotes = ContainerUtil.exists(repositories, it -> it.getRemotes().size() > 1);
-    String onRemotes = hasMultipleRemotes ? " on Remotes" : " on Remote";
+    int remotesCount = ContainerUtil.exists(repositories, it -> it.getRemotes().size() > 1) ? 1 : 2;
 
     if (successRemotes > 0) {
-      String message = "<b>Deleted Tag" + onRemotes + ":</b> " + myTagName;
-      notifySuccess("", message);
+      String message = GitBundle.message("delete.remote.tag.operation.deleted.tag.on.remotes",
+                                         remotesCount,
+                                         myTagName);
+      notifySuccessWithEmptyTitle(message);
     }
     else if (successRemotes == 0 && failureRemotes == 0) {
-      String message = "<b>Tag Doesn't Exist" + onRemotes + ":</b> " + myTagName;
-      notifySuccess("", message);
+      String message = GitBundle.message("delete.remote.tag.operation.tag.does.not.exist.on.remotes",
+                                         remotesCount,
+                                         myTagName);
+      notifySuccessWithEmptyTitle(message);
     }
 
     if (!result.totalSuccess()) {
-      String title = "Failed to delete tag " + myTagName + StringUtil.toLowerCase(onRemotes);
-      VcsNotifier.getInstance(myProject).notifyError(title, result.getErrorOutputWithReposIndication());
+      String title = GitBundle.message("delete.remote.tag.operation.failed.to.delete.tag.on.remotes",
+                                       myTagName,
+                                       remotesCount);
+      VcsNotifier.getInstance(myProject)
+        .notifyError("git.tag.remote.deletion.error", title, result.getErrorOutputWithReposIndication(), true);
     }
   }
 
@@ -106,8 +114,9 @@ class GitDeleteRemoteTagOperation extends GitBranchOperation {
     });
   }
 
-  private void notifySuccess(@NotNull String title, @NotNull String message) {
-    Notification notification = STANDARD_NOTIFICATION.createNotification(title, message, NotificationType.INFORMATION, null);
+  private void notifySuccessWithEmptyTitle(@NotNull @NlsContexts.NotificationContent String message) {
+    Notification notification = STANDARD_NOTIFICATION.createNotification("", message, NotificationType.INFORMATION, null,
+                                                                         "git.tag.remote.deletion.success");
     VcsNotifier.getInstance(myProject).notify(notification);
   }
 

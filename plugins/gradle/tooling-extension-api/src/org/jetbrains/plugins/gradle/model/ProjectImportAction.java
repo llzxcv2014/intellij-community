@@ -1,24 +1,9 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.model;
 
 import com.intellij.openapi.externalSystem.model.ExternalSystemException;
 import com.intellij.openapi.util.Pair;
 import com.intellij.util.ExceptionUtilRt;
-import gnu.trove.THashSet;
 import org.gradle.api.Action;
 import org.gradle.tooling.BuildAction;
 import org.gradle.tooling.BuildController;
@@ -39,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.gradle.model.ProjectImportModelProvider.BuildModelConsumer;
 import org.jetbrains.plugins.gradle.model.ProjectImportModelProvider.ProjectModelConsumer;
 import org.jetbrains.plugins.gradle.model.internal.DummyModel;
+import org.jetbrains.plugins.gradle.model.internal.TurnOffDefaultTasks;
 import org.jetbrains.plugins.gradle.tooling.Exceptions;
 import org.jetbrains.plugins.gradle.tooling.serialization.SerializationService;
 import org.jetbrains.plugins.gradle.tooling.serialization.ToolingSerializer;
@@ -52,10 +38,10 @@ import java.util.*;
 /**
  * @author Vladislav.Soroka
  */
-public class ProjectImportAction implements BuildAction<ProjectImportAction.AllModels>, Serializable {
-  private final Set<ProjectImportModelProvider> myProjectsLoadedModelProviders = new THashSet<ProjectImportModelProvider>();
-  private final Set<ProjectImportModelProvider> myBuildFinishedModelProviders = new THashSet<ProjectImportModelProvider>();
-  private final Set<Class> myTargetTypes = new THashSet<Class>();
+public final class ProjectImportAction implements BuildAction<ProjectImportAction.AllModels>, Serializable {
+  private final Set<ProjectImportModelProvider> myProjectsLoadedModelProviders = new HashSet<ProjectImportModelProvider>();
+  private final Set<ProjectImportModelProvider> myBuildFinishedModelProviders = new HashSet<ProjectImportModelProvider>();
+  private final Set<Class<?>> myTargetTypes = new HashSet<Class<?>>();
   private final boolean myIsPreviewMode;
   private final boolean myIsCompositeBuildsSupported;
   private final boolean myUseCustomSerialization;
@@ -90,7 +76,7 @@ public class ProjectImportAction implements BuildAction<ProjectImportAction.AllM
     }
   }
 
-  public void addTargetTypes(@NotNull Set<Class> targetTypes) {
+  public void addTargetTypes(@NotNull Set<Class<?>> targetTypes) {
     myTargetTypes.addAll(targetTypes);
   }
 
@@ -138,6 +124,9 @@ public class ProjectImportAction implements BuildAction<ProjectImportAction.AllM
         }
         addBuildModels(mySerializer, controller, myAllModels, includedBuild, isProjectsLoadedAction);
       }
+    }
+    if (isProjectsLoadedAction) {
+      controller.getModel(TurnOffDefaultTasks.class);
     }
     return isProjectsLoadedAction && !myAllModels.hasModels() ? null : myAllModels;
   }
@@ -196,7 +185,7 @@ public class ProjectImportAction implements BuildAction<ProjectImportAction.AllM
     try {
       Set<ProjectImportModelProvider> modelProviders = getModelProviders(isProjectsLoadedAction);
       for (ProjectImportModelProvider extension : modelProviders) {
-        final Set<String> obtainedModels = new THashSet<String>();
+        final Set<String> obtainedModels = new HashSet<String>();
         long startTime = System.currentTimeMillis();
         ProjectModelConsumer modelConsumer = new ProjectModelConsumer() {
           @Override
@@ -349,7 +338,7 @@ public class ProjectImportAction implements BuildAction<ProjectImportAction.AllM
     }
   }
 
-  private static class ToolingSerializerAdapter {
+  private static final class ToolingSerializerAdapter {
     private final Object mySerializer;
     private final Method mySerializerWriteMethod;
     private final ClassLoader myModelBuildersClassLoader;
@@ -488,16 +477,26 @@ public class ProjectImportAction implements BuildAction<ProjectImportAction.AllM
       public ProjectIdentifier getProjectIdentifier() {
         return myProjectIdentifier;
       }
+
+      @Override
+      public String toString() {
+        return "ProjectModel{" +
+               "name='" + myName + '\'' +
+               ", id=" + myProjectIdentifier +
+               '}';
+      }
     }
   }
 
   private final static class MyBuildController implements BuildController {
     private final BuildController myDelegate;
     private final GradleBuild myMainGradleBuild;
+    private final Model myMyMainGradleBuildRootProject;
 
     private MyBuildController(@NotNull BuildController buildController, @NotNull GradleBuild mainGradleBuild) {
       myDelegate = buildController;
       myMainGradleBuild = mainGradleBuild;
+      myMyMainGradleBuildRootProject = myMainGradleBuild.getRootProject();
     }
 
     @Override
@@ -506,7 +505,7 @@ public class ProjectImportAction implements BuildAction<ProjectImportAction.AllM
         //noinspection unchecked
         return (T)myMainGradleBuild;
       }
-      return myDelegate.getModel(aClass);
+      return myDelegate.getModel(myMyMainGradleBuildRootProject, aClass);
     }
 
     @Override
@@ -515,7 +514,7 @@ public class ProjectImportAction implements BuildAction<ProjectImportAction.AllM
         //noinspection unchecked
         return (T)myMainGradleBuild;
       }
-      return myDelegate.findModel(aClass);
+      return myDelegate.findModel(myMyMainGradleBuildRootProject, aClass);
     }
 
     @Override
@@ -546,12 +545,12 @@ public class ProjectImportAction implements BuildAction<ProjectImportAction.AllM
     @Override
     public <T, P> T getModel(Class<T> aClass, Class<P> aClass1, Action<? super P> action)
       throws UnsupportedVersionException {
-      return myDelegate.getModel(aClass, aClass1, action);
+      return myDelegate.getModel(myMyMainGradleBuildRootProject, aClass, aClass1, action);
     }
 
     @Override
     public <T, P> T findModel(Class<T> aClass, Class<P> aClass1, Action<? super P> action) {
-      return myDelegate.findModel(aClass, aClass1, action);
+      return myDelegate.findModel(myMyMainGradleBuildRootProject, aClass, aClass1, action);
     }
 
     @Override

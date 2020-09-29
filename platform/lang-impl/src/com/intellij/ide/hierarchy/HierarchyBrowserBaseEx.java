@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.hierarchy;
 
 import com.intellij.icons.AllIcons;
@@ -13,22 +13,30 @@ import com.intellij.ide.projectView.impl.ProjectViewTree;
 import com.intellij.ide.util.scopeChooser.EditScopesDialog;
 import com.intellij.ide.util.treeView.NodeDescriptor;
 import com.intellij.ide.util.treeView.TreeBuilderUtil;
+import com.intellij.idea.ActionsBundle;
+import com.intellij.lang.LangBundle;
 import com.intellij.lang.LanguageExtension;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.ex.ComboBoxAction;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.editor.PlatformEditorBundle;
 import com.intellij.openapi.fileEditor.PsiElementNavigatable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsActions.ActionText;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.pom.Navigatable;
 import com.intellij.psi.*;
+import com.intellij.psi.search.scope.ProjectProductionScope;
+import com.intellij.psi.search.scope.TestsScope;
+import com.intellij.psi.search.scope.packageSet.CustomScopesProviderEx;
 import com.intellij.psi.search.scope.packageSet.NamedScope;
 import com.intellij.psi.search.scope.packageSet.NamedScopesHolder;
 import com.intellij.ui.ScrollPaneFactory;
+import com.intellij.ui.content.Content;
 import com.intellij.ui.popup.HintUpdateSupply;
 import com.intellij.ui.tree.AsyncTreeModel;
 import com.intellij.ui.tree.StructureTreeModel;
@@ -54,14 +62,15 @@ import java.io.File;
 import java.text.MessageFormat;
 import java.util.List;
 import java.util.*;
+import java.util.function.Supplier;
 
 public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implements OccurenceNavigator {
   private static final Logger LOG = Logger.getInstance(HierarchyBrowserBaseEx.class);
 
-  public static final String SCOPE_PROJECT = IdeBundle.message("hierarchy.scope.project");
-  public static final String SCOPE_ALL = IdeBundle.message("hierarchy.scope.all");
-  public static final String SCOPE_TEST = IdeBundle.message("hierarchy.scope.test");
-  public static final String SCOPE_CLASS = IdeBundle.message("hierarchy.scope.this.class");
+  public static final String SCOPE_PROJECT = "Production";
+  public static final String SCOPE_ALL = "All";
+  public static final String SCOPE_CLASS = "This Class";
+  public static final String SCOPE_TEST = "Test";
 
   public static final String HELP_ID = "reference.toolWindows.hierarchy";
 
@@ -70,6 +79,8 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
   @ApiStatus.ScheduledForRemoval(inVersion = "2021.1")
   @SuppressWarnings("DeprecatedIsStillUsed")
   protected String myCurrentViewType;
+
+  private final Map<String, Supplier<String>> myI18nMap;
 
   private static class Sheet implements Disposable {
     private AsyncTreeModel myAsyncTreeModel;
@@ -111,6 +122,8 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
 
     Map<String, JTree> type2treeMap = new THashMap<>();
     createTrees(type2treeMap);
+
+    myI18nMap = getPresentableNameMap();
 
     HierarchyBrowserManager.State state = HierarchyBrowserManager.getSettings(project);
 
@@ -174,13 +187,29 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
   @Nullable
   protected abstract PsiElement getElementFromDescriptor(@NotNull HierarchyNodeDescriptor descriptor);
 
+  @ActionText
   @NotNull
   protected abstract String getPrevOccurenceActionNameImpl();
 
+  @ActionText
   @NotNull
   protected abstract String getNextOccurenceActionNameImpl();
 
   protected abstract void createTrees(@NotNull Map<String, JTree> trees);
+
+  /**
+   * Put (scope type -> presentable name) pairs into a map.
+   * This map is used in {@link #changeView(String, boolean)} method to get a proper localization in UI.
+   */
+  protected Map<String, Supplier<String>> getPresentableNameMap() {
+    HashMap<String, Supplier<String>> map = new HashMap<>();
+    map.put(SCOPE_PROJECT, () -> ProjectProductionScope.INSTANCE.getPresentableName());
+    map.put(SCOPE_CLASS, () -> LangBundle.message("this.class.scope.name"));
+    map.put(SCOPE_TEST, () -> TestsScope.INSTANCE.getPresentableName());
+    map.put(SCOPE_ALL, () -> CustomScopesProviderEx.getAllScope().getPresentableName());
+    return map;
+  }
+
 
   @Nullable
   protected abstract JPanel createLegendPanel();
@@ -195,7 +224,7 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
   protected abstract HierarchyTreeStructure createHierarchyTreeStructure(@NotNull String type, @NotNull PsiElement psiElement);
 
   @Nullable
-  protected abstract Comparator<NodeDescriptor> getComparator();
+  protected abstract Comparator<NodeDescriptor<?>> getComparator();
 
   @NotNull
   protected abstract String getActionPlace();
@@ -268,14 +297,6 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
               }
             });
           }
-
-          @Override
-          public void dragDropEnd() {
-          }
-
-          @Override
-          public void dropActionChanged(final int gestureModifiers) {
-          }
         }, tree);
       }
     }
@@ -342,7 +363,7 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
     }
 
     if (myContent != null) {
-      final String displayName = getContentDisplayName(typeName, element);
+      final String displayName = getContentDisplayName(myI18nMap.computeIfAbsent(typeName, key -> () -> key).get(), element);
       if (displayName != null) {
         myContent.setDisplayName(displayName);
       }
@@ -360,9 +381,7 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
         if (structure == null) {
           return;
         }
-        Comparator<NodeDescriptor> comparator = getComparator();
-        StructureTreeModel myModel = comparator == null ? new StructureTreeModel<>(structure, sheet)
-                                                        : new StructureTreeModel<>(structure, comparator, sheet);
+        StructureTreeModel myModel = new StructureTreeModel<>(structure, getComparator(), sheet);
         AsyncTreeModel atm = new AsyncTreeModel(myModel, sheet);
         tree.setModel(atm);
 
@@ -444,6 +463,7 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
 
   @NotNull
   private OccurenceNavigator getOccurrenceNavigator() {
+    ApplicationManager.getApplication().assertIsDispatchThread();
     String currentViewType = getCurrentViewType();
     if (currentViewType != null) {
       OccurenceNavigator navigator = myType2Sheet.get(currentViewType).myOccurenceNavigator;
@@ -482,12 +502,22 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
   }
 
   @NotNull
-  public StructureTreeModel getTreeModel(@NotNull String viewType) {
+  public StructureTreeModel<?> getTreeModel(@NotNull String viewType) {
+    ApplicationManager.getApplication().assertIsDispatchThread();
     return myType2Sheet.get(viewType).myStructureTreeModel;
   }
 
   @Override
-  StructureTreeModel getCurrentBuilder() {
+  public void setContent(Content content) {
+    super.setContent(content);
+    if (content != null) {
+      // stop all background tasks when toolwindow closed
+      Disposer.register(content, this::disposeAllSheets);
+    }
+  }
+
+  @Override
+  StructureTreeModel<?> getCurrentBuilder() {
     String viewType = getCurrentViewType();
     if (viewType == null) {
       return null;
@@ -546,6 +576,8 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
   }
 
   protected void doRefresh(boolean currentBuilderOnly) {
+    ApplicationManager.getApplication().assertIsDispatchThread();
+
     if (currentBuilderOnly) LOG.assertTrue(getCurrentViewType() != null);
 
     if (!isValidBase()) return;
@@ -592,7 +624,8 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
 
   protected class AlphaSortAction extends ToggleAction {
     public AlphaSortAction() {
-      super(IdeBundle.message("action.sort.alphabetically"), IdeBundle.message("action.sort.alphabetically"), AllIcons.ObjectBrowser.Sorted);
+      super(PlatformEditorBundle.messagePointer("action.sort.alphabetically"), PlatformEditorBundle.messagePointer("action.sort.alphabetically"),
+            AllIcons.ObjectBrowser.Sorted);
     }
 
     @Override
@@ -603,7 +636,7 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
     @Override
     public final void setSelected(@NotNull final AnActionEvent event, final boolean flag) {
       HierarchyBrowserManager.getSettings(myProject).SORT_ALPHABETICALLY = flag;
-      final Comparator<NodeDescriptor> comparator = getComparator();
+      final Comparator<NodeDescriptor<?>> comparator = getComparator();
       myType2Sheet.values().stream().map(s->s.myStructureTreeModel).filter(m-> m != null).forEach(m->m.setComparator(comparator));
     }
 
@@ -620,6 +653,12 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
     private final LanguageExtension<HierarchyProvider> myProviderLanguageExtension;
 
     protected BaseOnThisElementAction(@NotNull String text,
+                                      @NotNull String browserDataKey,
+                                      @NotNull LanguageExtension<HierarchyProvider> providerLanguageExtension) {
+      this(() -> text, browserDataKey, providerLanguageExtension);
+    }
+
+    protected BaseOnThisElementAction(@NotNull Supplier<String> text,
                                       @NotNull String browserDataKey,
                                       @NotNull LanguageExtension<HierarchyProvider> providerLanguageExtension) {
       super(text);
@@ -671,7 +710,7 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
       else {
         String typeName = ElementDescriptionUtil.getElementDescription(selectedElement, UsageViewTypeLocation.INSTANCE);
         if (StringUtil.isNotEmpty(typeName)) {
-          presentation.setText(IdeBundle.message("action.base.on.this.0", StringUtil.capitalize(typeName)));
+          presentation.setText(IdeBundle.messagePointer("action.base.on.this.0", StringUtil.capitalize(typeName)));
         }
         presentation.setEnabled(isEnabled(browser, selectedElement));
       }
@@ -684,7 +723,7 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
 
   private class RefreshAction extends com.intellij.ide.actions.RefreshAction {
     RefreshAction() {
-      super(IdeBundle.message("action.refresh"), IdeBundle.message("action.refresh"), AllIcons.Actions.Refresh);
+      super(IdeBundle.messagePointer("action.refresh"), IdeBundle.messagePointer("action.refresh"), AllIcons.Actions.Refresh);
     }
 
     @Override
@@ -699,20 +738,17 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
     }
   }
 
-  @NotNull
-  private Collection<String> getValidScopeNames() {
-    List<String> result = new ArrayList<>();
-    result.add(SCOPE_PROJECT);
-    result.add(SCOPE_TEST);
-    result.add(SCOPE_ALL);
-    result.add(SCOPE_CLASS);
+  private List<NamedScope> getValidScopes() {
+    List<NamedScope> result = new ArrayList<>();
+    result.add(ProjectProductionScope.INSTANCE);
+    result.add(TestsScope.INSTANCE);
+    result.add(CustomScopesProviderEx.getAllScope());
+    result.add(new NamedScope(SCOPE_CLASS, () -> LangBundle.message("this.class.scope.name"), AllIcons.Ide.LocalScope, null));
 
     final NamedScopesHolder[] holders = NamedScopesHolder.getAllNamedScopeHolders(myProject);
     for (NamedScopesHolder holder : holders) {
       NamedScope[] scopes = holder.getEditableScopes(); //predefined scopes already included
-      for (NamedScope scope : scopes) {
-        result.add(scope.getName());
-      }
+      Collections.addAll(result, scopes);
     }
     return result;
   }
@@ -724,7 +760,8 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
       final Project project = e.getProject();
       if (project == null) return;
       presentation.setEnabled(isEnabled());
-      presentation.setText(getCurrentScopeType());
+      String scopeType = getCurrentScopeType();
+      presentation.setText(myI18nMap.getOrDefault(scopeType, () -> scopeType));
     }
 
     protected boolean isEnabled(){
@@ -736,8 +773,8 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
     protected final DefaultActionGroup createPopupActionGroup(final JComponent button) {
       final DefaultActionGroup group = new DefaultActionGroup();
 
-      for(String name: getValidScopeNames()) {
-        group.add(new MenuAction(name));
+      for(NamedScope namedScope: getValidScopes()) {
+        group.add(new MenuAction(namedScope));
       }
 
       group.add(new ConfigureScopesAction());
@@ -768,9 +805,9 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
     private final class MenuAction extends AnAction {
       private final String myScopeType;
 
-      MenuAction(@NotNull String scopeType) {
-        super(scopeType);
-        myScopeType = scopeType;
+      MenuAction(NamedScope namedScope) {
+        super(namedScope.getPresentableName());
+        myScopeType = namedScope.getScopeId();
       }
 
       @Override
@@ -781,13 +818,13 @@ public abstract class HierarchyBrowserBaseEx extends HierarchyBrowserBase implem
 
     private final class ConfigureScopesAction extends AnAction {
       private ConfigureScopesAction() {
-        super("Configure...");
+        super(ActionsBundle.messagePointer("action.ConfigureScopesAction.text"));
       }
 
       @Override
       public void actionPerformed(@NotNull AnActionEvent e) {
         EditScopesDialog.showDialog(myProject, null);
-        if (!getValidScopeNames().contains(getCurrentScopeType())) {
+        if (getValidScopes().stream().anyMatch(scope -> scope.getScopeId().equals(getCurrentScopeType()))) {
           selectScope(SCOPE_ALL);
         }
       }

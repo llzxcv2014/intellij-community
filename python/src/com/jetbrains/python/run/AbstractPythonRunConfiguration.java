@@ -1,7 +1,6 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.run;
 
-import com.google.common.collect.Lists;
 import com.intellij.diagnostic.logging.LogConfigurationPanel;
 import com.intellij.execution.ExecutionBundle;
 import com.intellij.execution.configuration.AbstractRunConfiguration;
@@ -35,6 +34,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +87,7 @@ public abstract class AbstractPythonRunConfiguration<T extends AbstractPythonRun
 
   public static List<Module> getValidModules(Project project) {
     final Module[] modules = ModuleManager.getInstance(project).getModules();
-    List<Module> result = Lists.newArrayList();
+    List<Module> result = new ArrayList<>();
     for (Module module : modules) {
       if (PythonSdkUtil.findPythonSdk(module) != null) {
         result.add(module);
@@ -162,7 +162,7 @@ public abstract class AbstractPythonRunConfiguration<T extends AbstractPythonRun
     if (PlatformUtils.isPyCharm()) {
       final String path = getInterpreterPath();
       if (StringUtil.isEmptyOrSpaces(path)) {
-        throw new RuntimeConfigurationError("Please select a valid Python interpreter");
+        throw new RuntimeConfigurationError(PyBundle.message("runcfg.unittest.no_valid_sdk"));
       }
     }
     else {
@@ -472,7 +472,10 @@ public abstract class AbstractPythonRunConfiguration<T extends AbstractPythonRun
 
   /**
    * Adds test specs (like method, class, script, etc) to list of runner parameters.
+   *
+   * @deprecated this method has been moved to {@link com.jetbrains.python.testing.PythonTestCommandLineStateBase}
    */
+  @Deprecated
   public void addTestSpecsAsParameters(@NotNull final ParamsGroup paramsGroup, @NotNull final List<String> testSpecs) {
     // By default we simply add them as arguments
     paramsGroup.addParameters(testSpecs);

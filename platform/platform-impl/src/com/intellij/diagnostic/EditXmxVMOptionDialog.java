@@ -1,11 +1,13 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.diagnostic;
 
+import com.intellij.CommonBundle;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ex.ApplicationEx;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.ui.components.JBLabel;
@@ -13,7 +15,7 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
-import java.io.File;
+import java.nio.file.Path;
 
 public class EditXmxVMOptionDialog extends DialogWrapper {
 
@@ -30,16 +32,16 @@ public class EditXmxVMOptionDialog extends DialogWrapper {
 
   public EditXmxVMOptionDialog(long unusedMemory, long totalMemory) {
     this();
-    mySettingsFileHintLabel.setText(IdeBundle.message("change.memory.usage", unusedMemory / 1024 / 1024, totalMemory / 1024 / 1024));
+    mySettingsFileHintLabel.setText(DiagnosticBundle.message("change.memory.usage", unusedMemory / 1024 / 1024, totalMemory / 1024 / 1024));
   }
 
   public EditXmxVMOptionDialog() {
     super(false);
-    setTitle(IdeBundle.message("change.memory.title"));
+    setTitle(DiagnosticBundle.message("change.memory.title"));
 
     mySettingsFileHintLabel.setIcon(AllIcons.General.Warning);
 
-    myIgnoreAction = new AbstractAction("Close") {
+    myIgnoreAction = new AbstractAction(CommonBundle.getCloseButtonText()) {
       @Override
       public void actionPerformed(ActionEvent e) {
         close(0);
@@ -47,10 +49,10 @@ public class EditXmxVMOptionDialog extends DialogWrapper {
     };
 
     if (isRestartCapable) {
-      myShutdownAction = new SaveAction("Save and Restart");
+      myShutdownAction = new SaveAction(IdeBundle.message("action.save.restart.text"));
     }
     else {
-      myShutdownAction = new SaveAction("Save");
+      myShutdownAction = new SaveAction(IdeBundle.message("button.save"));
     }
     myShutdownAction.putValue(DialogWrapper.DEFAULT_ACTION, true);
 
@@ -59,10 +61,10 @@ public class EditXmxVMOptionDialog extends DialogWrapper {
       currentMemory == -1 ? DiagnosticBundle.message("diagnostic.out.of.memory.currentValue.unknown") : String.valueOf(currentMemory);
     myHeapCurrentValueLabel.setText(DiagnosticBundle.message("diagnostic.out.of.memory.currentValue", formatted));
 
-    File file = VMOptions.getWriteFile();
+    Path file = VMOptions.getWriteFile();
     if (file != null) {
-      mySettingsFileHintLabel.setText(DiagnosticBundle.message("diagnostic.out.of.memory.willBeSavedTo", file.getPath()));
-      myMessageLabel.setText(IdeBundle.message("change.memory.restart"));
+      mySettingsFileHintLabel.setText(DiagnosticBundle.message("diagnostic.out.of.memory.willBeSavedTo", file.toString()));
+      myMessageLabel.setText(DiagnosticBundle.message("change.memory.restart"));
 
       int newMemory;
       if (SystemInfo.is64Bit) {
@@ -74,7 +76,7 @@ public class EditXmxVMOptionDialog extends DialogWrapper {
       myHeapSizeField.setText(String.valueOf(newMemory));
     }
     else {
-      myMessageLabel.setText(IdeBundle.message("change.memory.nofile"));
+      myMessageLabel.setText(DiagnosticBundle.message("change.memory.nofile"));
       mySettingsFileHintLabel.setVisible(false);
       myHeapSizeField.setEnabled(false);
       myShutdownAction.setEnabled(false);
@@ -89,9 +91,8 @@ public class EditXmxVMOptionDialog extends DialogWrapper {
     return myContentPane;
   }
 
-  @NotNull
   @Override
-  protected Action[] createActions() {
+  protected Action @NotNull [] createActions() {
     return new Action[]{myShutdownAction, myIgnoreAction};
   }
 
@@ -101,7 +102,7 @@ public class EditXmxVMOptionDialog extends DialogWrapper {
   }
 
   private class SaveAction extends AbstractAction {
-    SaveAction(String actionName) {
+    SaveAction(@NlsActions.ActionText String actionName) {
       super(actionName);
     }
 
@@ -122,18 +123,18 @@ public class EditXmxVMOptionDialog extends DialogWrapper {
       try {
         int heapSize = Integer.parseInt(myHeapSizeField.getText());
         if (heapSize < 256) {
-          mySettingsFileHintLabel.setText(IdeBundle.message("change.memory.low"));
+          mySettingsFileHintLabel.setText(DiagnosticBundle.message("change.memory.low"));
           return false;
         }
         if (heapSize > 800 && !SystemInfo.is64Bit) {
-          mySettingsFileHintLabel.setText(IdeBundle.message("change.memory.large"));
+          mySettingsFileHintLabel.setText(DiagnosticBundle.message("change.memory.large"));
           return false;
         }
         VMOptions.writeOption(VMOptions.MemoryKind.HEAP, heapSize);
         return true;
       }
       catch (NumberFormatException ignored) {
-        mySettingsFileHintLabel.setText(IdeBundle.message("change.memory.integer"));
+        mySettingsFileHintLabel.setText(DiagnosticBundle.message("change.memory.integer"));
         return false;
       }
     }

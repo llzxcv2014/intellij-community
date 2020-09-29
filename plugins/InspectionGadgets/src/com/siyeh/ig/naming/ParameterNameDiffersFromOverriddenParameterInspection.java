@@ -16,10 +16,8 @@
 package com.siyeh.ig.naming;
 
 import com.intellij.codeInspection.ui.MultipleCheckboxOptionsPanel;
-import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiMethod;
-import com.intellij.psi.PsiParameter;
-import com.intellij.psi.PsiParameterList;
+import com.intellij.psi.*;
+import com.intellij.util.JavaPsiConstructorUtil;
 import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
@@ -65,13 +63,6 @@ public class ParameterNameDiffersFromOverriddenParameterInspection
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "parameter.name.differs.from.overridden.parameter.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message(
       "parameter.name.differs.from.overridden.parameter.problem.descriptor",
@@ -92,12 +83,27 @@ public class ParameterNameDiffersFromOverriddenParameterInspection
       if (parameterList.isEmpty()) {
         return;
       }
-      final PsiMethod superMethod = MethodUtils.getSuper(method);
+      final PsiMethod superMethod = getSuperMethod(method);
       if (superMethod == null) {
         return;
       }
       final PsiParameter[] parameters = parameterList.getParameters();
       checkParameters(superMethod, parameters);
+    }
+
+    @Nullable
+    private PsiMethod getSuperMethod(@NotNull PsiMethod method) {
+      if (method.isConstructor()) {
+        PsiMethod superCtor = JavaPsiConstructorUtil.findConstructorInSuper(method);
+        if (superCtor == null) return null;
+        PsiClass superClass = superCtor.getContainingClass();
+        if (superClass == null || CommonClassNames.JAVA_LANG_OBJECT.equals(superClass.getQualifiedName()) ||
+            superCtor.getParameters().length != method.getParameters().length) {
+          return null;
+        }
+        return superCtor;
+      }
+      return MethodUtils.getSuper(method);
     }
 
     private void checkParameters(@NotNull PsiMethod superMethod, PsiParameter[] parameters) {
@@ -118,6 +124,11 @@ public class ParameterNameDiffersFromOverriddenParameterInspection
         final String parameterName = parameter.getName();
         final String superParameterName = superParameters[i].getName();
         if (superParameterName.equals(parameterName)) {
+          continue;
+        }
+        final PsiType parameterType = parameter.getType();
+        final PsiType superParameterType = superParameters[i].getType();
+        if (!parameterType.equalsToText(superParameterType.getCanonicalText())) {
           continue;
         }
         if (m_ignoreSingleCharacterNames &&

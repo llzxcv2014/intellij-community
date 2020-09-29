@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.externalSystem.configurationStore
 
 import com.intellij.ProjectTopics
@@ -14,7 +14,6 @@ import com.intellij.openapi.project.isExternalStorageEnabled
 import com.intellij.openapi.roots.ProjectModelElement
 import com.intellij.openapi.startup.StartupManager
 import com.intellij.util.Function
-import gnu.trove.THashMap
 import org.jdom.Element
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -24,13 +23,13 @@ import kotlin.concurrent.write
 
 // todo handle module rename
 internal class ExternalSystemStreamProviderFactory(private val project: Project) : StreamProviderFactory {
-  val moduleStorage = ModuleFileSystemExternalSystemStorage(project)
-  val fileStorage = ProjectFileSystemExternalSystemStorage(project)
+  val moduleStorage by lazy { ModuleFileSystemExternalSystemStorage(project) }
+  val fileStorage by lazy { ProjectFileSystemExternalSystemStorage(project) }
 
   private val isReimportOnMissedExternalStorageScheduled = AtomicBoolean(false)
 
   private val storageSpecLock = ReentrantReadWriteLock()
-  private val storages = THashMap<String, Storage>()
+  private val storages = HashMap<String, Storage>()
 
   init {
     project.messageBus.connect().subscribe(ProjectTopics.MODULES, object : ModuleListener {
@@ -57,7 +56,7 @@ internal class ExternalSystemStreamProviderFactory(private val project: Project)
     if (componentManager is Project) {
       val fileSpec = storages.firstOrNull()?.value
       if (fileSpec == "libraries" || fileSpec == "artifacts") {
-        val externalStorageSpec = getOrCreateExternalStorageSpec("$fileSpec.xml", stateSpec)
+        val externalStorageSpec = getOrCreateStorageSpec("$fileSpec.xml", stateSpec)
         if (operation == StateStorageOperation.READ) {
           return listOf(externalStorageSpec)
         }
@@ -87,10 +86,10 @@ internal class ExternalSystemStreamProviderFactory(private val project: Project)
     // on write default storages also returned, because default FileBasedStorage will remove data if component has external source
     val annotation: Storage
     if (componentManager is Project) {
-      annotation = getOrCreateExternalStorageSpec(storages.get(0).value)
+      annotation = getOrCreateStorageSpec(storages.get(0).value)
     }
     else {
-      annotation = getOrCreateExternalStorageSpec(StoragePathMacros.MODULE_FILE)
+      annotation = getOrCreateStorageSpec(StoragePathMacros.MODULE_FILE)
     }
 
     if (externalStorageOnly) {
@@ -103,11 +102,9 @@ internal class ExternalSystemStreamProviderFactory(private val project: Project)
     return result
   }
 
-  private fun getOrCreateExternalStorageSpec(fileSpec: String, inProjectStateSpec: State? = null): Storage {
+  override fun getOrCreateStorageSpec(fileSpec: String, inProjectStateSpec: State?): Storage {
     return storageSpecLock.read { storages.get(fileSpec) } ?: return storageSpecLock.write {
-      storages.getOrPut(fileSpec) {
-        ExternalStorageSpec(fileSpec, inProjectStateSpec)
-      }
+      storages.computeIfAbsent(fileSpec) { ExternalStorageSpec(fileSpec, inProjectStateSpec) }
     }
   }
 

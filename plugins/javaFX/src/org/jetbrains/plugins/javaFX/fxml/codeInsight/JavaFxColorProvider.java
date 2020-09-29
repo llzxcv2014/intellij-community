@@ -1,7 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.javaFX.fxml.codeInsight;
 
-import com.intellij.ide.IdeBundle;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.ElementColorProvider;
@@ -31,7 +31,7 @@ public class JavaFxColorProvider implements ElementColorProvider {
   private static final String GRAY = "gray";
   private static final String GRAY_RGB = "grayRgb";
   private static final String HSB = "hsb";
-  private static final Set<String> FACTORY_METHODS = ContainerUtil.immutableSet(COLOR, RGB, GRAY, GRAY_RGB, HSB);
+  private static final Set<String> FACTORY_METHODS = Set.of(COLOR, RGB, GRAY, GRAY_RGB, HSB);
   private static final String DECIMAL_FORMAT_PATTERN = "#.####";
   private static final DecimalFormatSymbols DECIMAL_FORMAT_SYMBOLS = new DecimalFormatSymbols(Locale.US); // use '.' as a decimal separator
 
@@ -116,8 +116,7 @@ public class JavaFxColorProvider implements ElementColorProvider {
     return null;
   }
 
-  @NotNull
-  private static Object[] getArgumentValues(@NotNull PsiExpression[] argumentExpressions) {
+  private static Object @NotNull [] getArgumentValues(PsiExpression @NotNull [] argumentExpressions) {
     return ContainerUtil.map(argumentExpressions,
                              expression -> JavaConstantExpressionEvaluator.computeConstantExpression(expression, false),
                              ArrayUtilRt.EMPTY_OBJECT_ARRAY);
@@ -213,7 +212,7 @@ public class JavaFxColorProvider implements ElementColorProvider {
     if (command != null) {
       Document document = PsiDocumentManager.getInstance(element.getProject()).getDocument(element.getContainingFile());
       CommandProcessor.getInstance()
-        .executeCommand(element.getProject(), command, IdeBundle.message("change.color.command.text"), null, document);
+        .executeCommand(element.getProject(), command, JavaBundle.message("change.color.command.text"), null, document);
     }
   }
 

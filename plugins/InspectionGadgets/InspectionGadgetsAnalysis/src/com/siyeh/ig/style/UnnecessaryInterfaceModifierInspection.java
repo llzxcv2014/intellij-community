@@ -45,12 +45,6 @@ public class UnnecessaryInterfaceModifierInspection extends BaseInspection imple
     ContainerUtil.set(PsiModifier.PUBLIC, PsiModifier.ABSTRACT);
 
   @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("unnecessary.interface.modifier.display.name");
-  }
-
-  @Override
   public boolean isEnabledByDefault() {
     return true;
   }
@@ -93,7 +87,7 @@ public class UnnecessaryInterfaceModifierInspection extends BaseInspection imple
     return new UnnecessaryInterfaceModifiersFix((String)infos[0]);
   }
 
-  private static class UnnecessaryInterfaceModifiersFix extends InspectionGadgetsFix {
+  private static final class UnnecessaryInterfaceModifiersFix extends InspectionGadgetsFix {
 
     private final String modifiersText;
 
@@ -110,7 +104,7 @@ public class UnnecessaryInterfaceModifierInspection extends BaseInspection imple
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Remove unnecessary modifiers";
+      return InspectionGadgetsBundle.message("unnecessary.interface.modifiers.fix.family.name");
     }
 
     @Override

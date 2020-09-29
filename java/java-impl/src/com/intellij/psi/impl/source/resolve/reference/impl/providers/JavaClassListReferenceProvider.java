@@ -39,8 +39,7 @@ public class JavaClassListReferenceProvider extends JavaClassReferenceProvider {
   }
 
   @Override
-  @NotNull
-  public PsiReference[] getReferencesByString(String str, @NotNull final PsiElement position, int offsetInPosition){
+  public PsiReference @NotNull [] getReferencesByString(String str, @NotNull final PsiElement position, int offsetInPosition){
     if (position instanceof XmlTag && ((XmlTag)position).getValue().getTextElements().length == 0) {
       return PsiReference.EMPTY_ARRAY; 
     }
@@ -56,7 +55,7 @@ public class JavaClassListReferenceProvider extends JavaClassReferenceProvider {
       }
     }
 
-    NotNullLazyValue<Set<String>> topLevelPackages = new NotNullLazyValue<Set<String>>() {
+    NotNullLazyValue<Set<String>> topLevelPackages = new NotNullLazyValue<>() {
       @NotNull
       @Override
       protected Set<String> compute() {

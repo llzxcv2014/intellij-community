@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.semantic;
 
 import com.intellij.util.ArrayUtil;
@@ -17,15 +17,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @author peter
  */
-public class SemKey<T extends SemElement> {
+public final class SemKey<T extends SemElement> {
   private static final AtomicInteger counter = new AtomicInteger(0);
   private final String myDebugName;
-  @NotNull private final SemKey<? super T>[] mySupers;
+  private final SemKey<? super T> @NotNull [] mySupers;
   private final List<SemKey<?>> myInheritors = ContainerUtil.createEmptyCOWList();
   private final int myUniqueId;
 
   @SafeVarargs
-  private SemKey(String debugName, @NotNull SemKey<? super T>... supers) {
+  private SemKey(String debugName, SemKey<? super T> @NotNull ... supers) {
     myDebugName = debugName;
     mySupers = supers;
     myUniqueId = counter.getAndIncrement();
@@ -40,8 +40,7 @@ public class SemKey<T extends SemElement> {
     }
   }
 
-  @NotNull
-  public SemKey<? super T>[] getSupers() {
+  public SemKey<? super T> @NotNull [] getSupers() {
     return mySupers;
   }
 
@@ -65,7 +64,8 @@ public class SemKey<T extends SemElement> {
   }
 
   @SafeVarargs
-  public static <T extends SemElement> SemKey<T> createKey(String debugName, @NotNull SemKey<? super T>... supers) {
+  @NotNull
+  public static <T extends SemElement> SemKey<T> createKey(String debugName, SemKey<? super T> @NotNull ... supers) {
     return new SemKey<>(debugName, supers);
   }
 
@@ -79,7 +79,8 @@ public class SemKey<T extends SemElement> {
   }
 
   @SafeVarargs
-  public final <K extends T> SemKey<K> subKey(@NonNls String debugName, @NotNull SemKey<? super T>... otherSupers) {
+  @NotNull
+  public final <K extends T> SemKey<K> subKey(@NonNls String debugName, SemKey<? super K> @NotNull ... otherSupers) {
     if (otherSupers.length == 0) {
       return new SemKey<>(debugName, this);
     }

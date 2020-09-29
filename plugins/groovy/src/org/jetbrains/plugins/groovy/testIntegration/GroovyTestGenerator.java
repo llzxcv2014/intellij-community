@@ -1,8 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.testIntegration;
 
-import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.CodeInsightUtil;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.editor.Editor;
@@ -23,9 +23,9 @@ import com.intellij.testIntegration.createTest.TestGenerator;
 import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.groovy.GroovyBundle;
 import org.jetbrains.plugins.groovy.actions.GroovyTemplates;
 import org.jetbrains.plugins.groovy.annotator.intentions.CreateClassActionBase;
-import org.jetbrains.plugins.groovy.intentions.GroovyIntentionsBundle;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElementFactory;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.GrExtendsClause;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.GrTypeDefinition;
@@ -82,7 +82,7 @@ public class GroovyTestGenerator implements TestGenerator {
 
   @Override
   public String toString() {
-    return GroovyIntentionsBundle.message("intention.crete.test.groovy");
+    return GroovyBundle.message("language.groovy");
   }
 
   private static void addSuperClass(@NotNull GrTypeDefinition targetClass, @NotNull Project project, @Nullable String superClassName)
@@ -133,8 +133,8 @@ public class GroovyTestGenerator implements TestGenerator {
 
   private static void showErrorLater(final Project project, final String targetClassName) {
     ApplicationManager.getApplication().invokeLater(() -> Messages.showErrorDialog(project,
-                                                                               CodeInsightBundle.message("intention.error.cannot.create.class.message", targetClassName),
-                                                                               CodeInsightBundle.message("intention.error.cannot.create.class.title")));
+                                                                               JavaBundle.message("intention.error.cannot.create.class.message", targetClassName),
+                                                                               JavaBundle.message("intention.error.cannot.create.class.title")));
   }
 
   private static void generateMethod(@NotNull TestIntegrationUtils.MethodKind methodKind,

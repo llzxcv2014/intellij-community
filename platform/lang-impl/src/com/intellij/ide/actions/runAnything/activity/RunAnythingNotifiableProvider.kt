@@ -7,11 +7,13 @@ import com.intellij.ide.actions.runAnything.RunAnythingUtil.fetchProject
 import com.intellij.ide.actions.runAnything.activity.RunAnythingNotifiableProvider.ExecutionStatus.ERROR
 import com.intellij.ide.actions.runAnything.activity.RunAnythingNotifiableProvider.ExecutionStatus.SUCCESS
 import com.intellij.notification.Notification
+import com.intellij.notification.NotificationGroup
 import com.intellij.notification.NotificationType.INFORMATION
 import com.intellij.notification.Notifications
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.util.NlsActions
 
 /**
  * Implement notifiable provider if you desire to run an arbitrary activity in the IDE, that may hasn't provide visual effects,
@@ -21,7 +23,8 @@ import com.intellij.openapi.actionSystem.DataContext
  */
 abstract class RunAnythingNotifiableProvider<V> : RunAnythingProviderBase<V>() {
 
-  private val RUN_ANYTHING_GROUP_ID = IdeBundle.message("run.anything.custom.activity.notification.group.id")
+  private val RUN_ANYTHING_GROUP_ID = NotificationGroup.createIdWithTitle("Run Anything", IdeBundle.message(
+    "run.anything.custom.activity.notification.group.id"))
 
   private val notificationConfigurators = LinkedHashMap<ExecutionStatus, NotificationBuilder.() -> Unit>()
 
@@ -65,7 +68,7 @@ abstract class RunAnythingNotifiableProvider<V> : RunAnythingProviderBase<V>() {
     var subtitle: String? = null
     var content: String? = null
 
-    fun action(name: String, perform: () -> Unit) {
+    fun action(@NlsActions.ActionText name: String, perform: () -> Unit) {
       actions.add(ActionData(name, perform))
     }
 
@@ -86,7 +89,7 @@ abstract class RunAnythingNotifiableProvider<V> : RunAnythingProviderBase<V>() {
 
   protected enum class ExecutionStatus { SUCCESS, ERROR }
 
-  private data class ActionData(val name: String, val perform: () -> Unit)
+  private data class ActionData(@NlsActions.ActionText val name: String, val perform: () -> Unit)
 
   init {
     notification(ERROR) {

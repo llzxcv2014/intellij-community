@@ -1,10 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.tooling.serialization;
 
 import com.amazon.ion.IonReader;
 import com.amazon.ion.IonType;
 import com.amazon.ion.IonWriter;
-import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonReaderBuilder;
 import com.amazon.ion.util.IonStreamUtils;
 import com.intellij.openapi.externalSystem.model.project.ExternalSystemSourceType;
@@ -30,14 +29,14 @@ import static org.jetbrains.plugins.gradle.tooling.serialization.ToolingStreamAp
 /**
  * @author Vladislav.Soroka
  */
-public class ExternalProjectSerializationService implements SerializationService<ExternalProject> {
+public final class ExternalProjectSerializationService implements SerializationService<ExternalProject> {
   private final WriteContext myWriteContext = new WriteContext();
   private final ReadContext myReadContext = new ReadContext();
 
   @Override
   public byte[] write(ExternalProject project, Class<? extends ExternalProject> modelClazz) throws IOException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    IonWriter writer = IonBinaryWriterBuilder.standard().build(out);
+    IonWriter writer = ToolingStreamApiUtils.createIonWriter().build(out);
     try {
       writeProject(writer, myWriteContext, project);
     }
@@ -79,6 +78,8 @@ public class ExternalProjectSerializationService implements SerializationService
           writeString(writer, "description", project.getDescription());
           writeString(writer, "group", project.getGroup());
           writeString(writer, "version", project.getVersion());
+          writeString(writer, "sourceCompatibility", project.getSourceCompatibility());
+          writeString(writer, "targetCompatibility", project.getTargetCompatibility());
           writeString(writer, "projectDir", project.getProjectDir().getPath());
           writeString(writer, "buildDir", project.getBuildDir().getPath());
           writeFile(writer, "buildFile", project.getBuildFile());
@@ -123,6 +124,7 @@ public class ExternalProjectSerializationService implements SerializationService
     writeString(writer, "name", sourceSet.getName());
     writeString(writer, "sourceCompatibility", sourceSet.getSourceCompatibility());
     writeString(writer, "targetCompatibility", sourceSet.getTargetCompatibility());
+    writeBoolean(writer,"isPreview", sourceSet.isPreview());
     writeFiles(writer, "artifacts", sourceSet.getArtifacts());
     writeDependencies(writer, context, sourceSet.getDependencies());
     writeSourceDirectorySets(writer, sourceSet.getSources());
@@ -294,6 +296,9 @@ public class ExternalProjectSerializationService implements SerializationService
           writer.writeString(FileCollectionDependency.class.getSimpleName());
           writeDependencyCommonFields(writer, context, dependency);
           writeFiles(writer, "files", dependency.getFiles());
+          if (dependency instanceof DefaultFileCollectionDependency) {
+            writeBoolean(writer, "excludedFromIndexing", ((DefaultFileCollectionDependency)dependency).isExcludedFromIndexing());
+          }
         }
         writer.stepOut();
       }
@@ -394,6 +399,8 @@ public class ExternalProjectSerializationService implements SerializationService
           externalProject.setDescription(readString(reader, "description"));
           externalProject.setGroup(assertNotNull(readString(reader, "group")));
           externalProject.setVersion(assertNotNull(readString(reader, "version")));
+          externalProject.setSourceCompatibility(readString(reader, "sourceCompatibility"));
+          externalProject.setTargetCompatibility(readString(reader, "targetCompatibility"));
           File projectDir = readFile(reader, "projectDir");
           if (projectDir != null) {
             externalProject.setProjectDir(projectDir);
@@ -480,6 +487,7 @@ public class ExternalProjectSerializationService implements SerializationService
     sourceSet.setName(readString(reader, "name"));
     sourceSet.setSourceCompatibility(readString(reader, "sourceCompatibility"));
     sourceSet.setTargetCompatibility(readString(reader, "targetCompatibility"));
+    sourceSet.setPreview(readBoolean(reader,"isPreview"));
     sourceSet.setArtifacts(readFiles(reader));
     sourceSet.getDependencies().addAll(readDependencies(reader, context));
     sourceSet.setSources(readSourceDirectorySets(reader));
@@ -623,6 +631,7 @@ public class ExternalProjectSerializationService implements SerializationService
           else if (externalDependency instanceof DefaultFileCollectionDependency) {
             DefaultFileCollectionDependency fileCollectionDependency = (DefaultFileCollectionDependency)externalDependency;
             fileCollectionDependency.getFiles().addAll(readFiles(reader));
+            fileCollectionDependency.setExcludedFromIndexing(readBoolean(reader, "excludedFromIndexing"));
           }
           else if (externalDependency instanceof DefaultUnresolvedExternalDependency) {
             DefaultUnresolvedExternalDependency unresolvedExternalDependency = (DefaultUnresolvedExternalDependency)externalDependency;

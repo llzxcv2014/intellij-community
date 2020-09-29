@@ -35,6 +35,7 @@ import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.refactoring.BaseRefactoringProcessor;
 import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.util.Function;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -99,29 +100,26 @@ public abstract class DirectoryAsPackageRenameHandlerBase<T extends PsiDirectory
               moduleDirs = null;
             }
           }
-          final String promptMessage = "Package \'" +
-                                       aPackage.getName() +
-                                       "\' contains directories in libraries which cannot be renamed. Do you want to rename " +
-                                       (moduleDirs == null ? "current directory" : "current module directories");
           if (projectDirectories.length > 0) {
             int ret = Messages
-              .showYesNoCancelDialog(project, promptMessage + " or all directories in project?", RefactoringBundle.message("warning.title"),
-                          RefactoringBundle.message("rename.current.directory"),
-                            RefactoringBundle.message("rename.directories"), CommonBundle.getCancelButtonText(),
-                          Messages.getWarningIcon());
+              .showYesNoCancelDialog(project, RefactoringBundle.message("rename.package.with.lib.multiple.message", aPackage.getName(), moduleDirs == null ? 1 : 2),
+                                     RefactoringBundle.message("warning.title"),
+                                     RefactoringBundle.message("rename.current.directory"),
+                                     RefactoringBundle.message("rename.directories"), CommonBundle.getCancelButtonText(),
+                                     Messages.getWarningIcon());
             if (ret == Messages.CANCEL) return;
             renameDirs(project, nameSuggestionContext, editor, psiDirectory, aPackage,
                        ret == Messages.YES ? (moduleDirs == null ? new PsiDirectory[]{psiDirectory} : moduleDirs) : projectDirectories);
           }
           else {
-            if (Messages.showOkCancelDialog(project, promptMessage + "?", RefactoringBundle.message("warning.title"),
-                                    Messages.getWarningIcon()) == Messages.OK) {
+            if (Messages.showOkCancelDialog(project, RefactoringBundle.message("rename.package.with.lib.message", aPackage.getName(), moduleDirs == null ? 1 : 2), RefactoringBundle.message("warning.title"),
+                                            Messages.getWarningIcon()) == Messages.OK) {
               renameDirs(project, nameSuggestionContext, editor, psiDirectory, aPackage, psiDirectory);
             }
           }
         }
         else {
-          final StringBuffer message = new StringBuffer();
+          final @Nls StringBuffer message = new StringBuffer();
           RenameUtil.buildPackagePrefixChangedMessage(virtualFiles, message, qualifiedName);
           buildMultipleDirectoriesInPackageMessage(message, getQualifiedName(aPackage), directories);
           message.append(RefactoringBundle.message("directories.and.all.references.to.package.will.be.renamed",
@@ -162,9 +160,7 @@ public abstract class DirectoryAsPackageRenameHandlerBase<T extends PsiDirectory
   public static void buildMultipleDirectoriesInPackageMessage(StringBuffer message,
                                                               String packageQname,
                                                               PsiDirectory[] directories) {
-    message.append(RefactoringBundle.message("multiple.directories.correspond.to.package"));
-    message.append(packageQname);
-    message.append(":\n\n");
+    message.append(RefactoringBundle.message("multiple.directories.correspond.to.package", packageQname));
     final List<PsiDirectory> generated = new ArrayList<>();
     final List<PsiDirectory> source = new ArrayList<>();
     for (PsiDirectory directory : directories) {
@@ -178,7 +174,7 @@ public abstract class DirectoryAsPackageRenameHandlerBase<T extends PsiDirectory
     final Function<PsiDirectory, String> directoryPresentation = directory -> directory.getVirtualFile().getPresentableUrl();
     message.append(StringUtil.join(source, directoryPresentation, "\n"));
     if (!generated.isEmpty()) {
-      message.append("\n\nalso generated:\n");
+      message.append("\n\n").append(RefactoringBundle.message("also.generated")).append("\n");
       message.append(StringUtil.join(generated, directoryPresentation, "\n"));
       
     }

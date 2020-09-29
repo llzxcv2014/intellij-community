@@ -4,7 +4,7 @@
 
 package com.intellij.debugger.actions;
 
-import com.intellij.debugger.DebuggerBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.engine.DebugProcessImpl;
 import com.intellij.debugger.engine.JavaStackFrame;
 import com.intellij.debugger.engine.JavaValue;
@@ -20,6 +20,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.xdebugger.XDebuggerBundle;
 import com.intellij.xdebugger.XExpression;
@@ -55,7 +56,7 @@ public class ThrowExceptionAction extends DebuggerAction {
       public void threadAction(@NotNull SuspendContextImpl suspendContext) {
         ApplicationManager.getApplication().invokeLater(
           () -> new XExpressionDialog(project, debugProcess.getXdebugProcess().getEditorsProvider(), "throwExceptionValue",
-                                    "Exception To Throw", stackFrame.getSourcePosition(), null) {
+                                      JavaDebuggerBundle.message("dialog.title.exception.to.throw"), stackFrame.getSourcePosition(), null) {
             @Override
             protected void doOKAction() {
               evaluateAndReturn(project, stackFrame, debugProcess, getExpression(), this);
@@ -76,7 +77,7 @@ public class ThrowExceptionAction extends DebuggerAction {
           thread.stop((ObjectReference)value);
         }
         catch (Exception e) {
-          showError(debugProcess.getProject(), DebuggerBundle.message("error.throw.exception", e.getLocalizedMessage()));
+          showError(debugProcess.getProject(), JavaDebuggerBundle.message("error.throw.exception", e.getLocalizedMessage()));
           return;
         }
         //noinspection SSBasedInspection
@@ -90,7 +91,7 @@ public class ThrowExceptionAction extends DebuggerAction {
     });
   }
 
-  private static void showError(Project project, String message) {
+  private static void showError(Project project, @NlsContexts.DialogMessage String message) {
     PopFrameAction.showError(project, message, UIUtil.removeMnemonic(ActionsBundle.actionText("Debugger.ThrowException")));
   }
 
@@ -113,7 +114,7 @@ public class ThrowExceptionAction extends DebuggerAction {
 
                            @Override
                            public void errorOccurred(@NotNull final String errorMessage) {
-                             showError(project, DebuggerBundle.message("error.unable.to.evaluate.expression") + ": " + errorMessage);
+                             showError(project, JavaDebuggerBundle.message("error.unable.to.evaluate.expression") + ": " + errorMessage);
                            }
                          }, stackFrame.getSourcePosition());
     }

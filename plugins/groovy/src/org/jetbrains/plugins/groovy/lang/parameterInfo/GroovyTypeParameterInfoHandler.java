@@ -1,7 +1,6 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.parameterInfo;
 
-import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.lang.parameterInfo.*;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
@@ -25,12 +24,11 @@ import java.util.Set;
  */
 public class GroovyTypeParameterInfoHandler implements ParameterInfoHandlerWithTabActionSupport<GrTypeArgumentList, PsiTypeParameter, GrTypeElement> {
 
-  private static final Set<Class> ALLOWED_PARENT_CLASSES = ContainerUtil.newHashSet(GrCodeReferenceElement.class);
-  private static final Set<Class> STOP_SEARCHING_CLASSES = ContainerUtil.newHashSet(GroovyFile.class);
+  private static final Set<Class<?>> ALLOWED_PARENT_CLASSES = ContainerUtil.newHashSet(GrCodeReferenceElement.class);
+  private static final Set<Class<?>> STOP_SEARCHING_CLASSES = ContainerUtil.newHashSet(GroovyFile.class);
 
-  @NotNull
   @Override
-  public GrTypeElement[] getActualParameters(@NotNull GrTypeArgumentList o) {
+  public GrTypeElement @NotNull [] getActualParameters(@NotNull GrTypeArgumentList o) {
     return o.getTypeArgumentElements();
   }
 
@@ -48,13 +46,13 @@ public class GroovyTypeParameterInfoHandler implements ParameterInfoHandlerWithT
 
   @NotNull
   @Override
-  public Set<Class> getArgumentListAllowedParentClasses() {
+  public Set<Class<?>> getArgumentListAllowedParentClasses() {
     return ALLOWED_PARENT_CLASSES;
   }
 
   @NotNull
   @Override
-  public Set<Class> getArgListStopSearchClasses() {
+  public Set<? extends Class<?>> getArgListStopSearchClasses() {
     return STOP_SEARCHING_CLASSES;
   }
 
@@ -62,17 +60,6 @@ public class GroovyTypeParameterInfoHandler implements ParameterInfoHandlerWithT
   @Override
   public Class<GrTypeArgumentList> getArgumentListClass() {
     return GrTypeArgumentList.class;
-  }
-
-  @Override
-  public boolean couldShowInLookup() {
-    return false;
-  }
-
-  @Nullable
-  @Override
-  public Object[] getParametersForLookup(LookupElement item, ParameterInfoContext context) {
-    return null;
   }
 
   @Nullable
@@ -113,7 +100,7 @@ public class GroovyTypeParameterInfoHandler implements ParameterInfoHandlerWithT
     int index = ParameterInfoUtils.getCurrentParameterIndex(parameterOwner.getNode(), context.getOffset(), getActualParameterDelimiterType());
     context.setCurrentParameter(index);
     final Object[] objectsToView = context.getObjectsToView();
-    context.setHighlightedParameter(index < objectsToView.length && index >= 0 ? (PsiElement)objectsToView[index] : null);
+    context.setHighlightedParameter(index < objectsToView.length && index >= 0 ? objectsToView[index] : null);
   }
 
   @Override

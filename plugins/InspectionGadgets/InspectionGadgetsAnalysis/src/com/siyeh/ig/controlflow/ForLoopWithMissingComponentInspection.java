@@ -23,6 +23,7 @@ import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.psiutils.MethodCallUtils;
 import com.siyeh.ig.psiutils.TypeUtils;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,12 +33,6 @@ public class ForLoopWithMissingComponentInspection extends BaseInspection {
 
   @SuppressWarnings("PublicField")
   public boolean ignoreCollectionLoops = false;
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("for.loop.with.missing.component.display.name");
-  }
 
   @Override
   @NotNull
@@ -159,7 +154,7 @@ public class ForLoopWithMissingComponentInspection extends BaseInspection {
       return isCallToBooleanZeroArgumentMethod("hasMoreElements", condition, enumeration);
     }
 
-    private boolean isCallToBooleanZeroArgumentMethod(String methodName, PsiExpression expression, PsiVariable calledOn) {
+    private boolean isCallToBooleanZeroArgumentMethod(@NonNls String methodName, PsiExpression expression, PsiVariable calledOn) {
       if (expression instanceof PsiPolyadicExpression) {
         final PsiPolyadicExpression polyadicExpression = (PsiPolyadicExpression)expression;
         for (PsiExpression operand : polyadicExpression.getOperands()) {

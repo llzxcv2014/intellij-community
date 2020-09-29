@@ -2,16 +2,19 @@ package com.intellij.jps.cache.loader;
 
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+import com.intellij.jps.cache.JpsCacheBundle;
 import com.intellij.jps.cache.client.JpsServerClient;
 import com.intellij.jps.cache.model.AffectedModule;
 import com.intellij.jps.cache.model.BuildTargetState;
 import com.intellij.jps.cache.model.JpsLoaderContext;
+import com.intellij.jps.cache.model.OutputLoadResult;
 import com.intellij.jps.cache.ui.SegmentedProgressIndicatorManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.ArrayUtil;
+import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.io.ZipUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
@@ -20,9 +23,14 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
-class JpsCompilationOutputLoader implements JpsOutputLoader {
+import static com.intellij.jps.cache.JpsCachesPluginUtil.EXECUTOR_SERVICE;
+
+class JpsCompilationOutputLoader implements JpsOutputLoader<List<OutputLoadResult>> {
   private static final Logger LOG = Logger.getInstance("com.intellij.jps.loader.JpsCompilationOutputLoader");
   private static final String RESOURCES_PRODUCTION = "resources-production";
   private static final String JAVA_PRODUCTION = "java-production";
@@ -31,42 +39,69 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
   private static final String PRODUCTION = "production";
   private static final String TEST = "test";
   private final JpsServerClient myClient;
-  private final Project myProject;
-  private final String myProjectPath;
+  private final String myBuildDirPath;
   private List<File> myOldModulesPaths;
   private Map<File, String> myTmpFolderToModuleName;
 
-  JpsCompilationOutputLoader(JpsServerClient client, Project project) {
+  JpsCompilationOutputLoader(@NotNull JpsServerClient client, @NotNull String buildDirPath) {
     myClient = client;
-    myProject = project;
-    myProjectPath = myProject.getBasePath();
+    myBuildDirPath = buildDirPath;
   }
 
   @Override
-  public LoaderStatus load(@NotNull JpsLoaderContext context) {
+  public int calculateDownloads(@NotNull Map<String, Map<String, BuildTargetState>> commitSourcesState,
+                                @Nullable Map<String, Map<String, BuildTargetState>> currentSourcesState) {
+    return calculateAffectedModules(currentSourcesState, commitSourcesState, true).size();
+  }
+
+  @Override
+  public List<OutputLoadResult> load(@NotNull JpsLoaderContext context) {
     myOldModulesPaths = null;
     myTmpFolderToModuleName = null;
 
-    SegmentedProgressIndicatorManager progressIndicatorManager = context.getIndicatorManager();
-    progressIndicatorManager.setText(this, "Calculating affected modules");
+    SegmentedProgressIndicatorManager downloadProgressManager = context.getDownloadIndicatorManager();
+    downloadProgressManager.setText(this, JpsCacheBundle.message("progress.text.calculating.affected.modules"));
     List<AffectedModule> affectedModules = calculateAffectedModules(context.getCurrentSourcesState(),
                                                                     context.getCommitSourcesState(), true);
-    progressIndicatorManager.finished(this);
-    progressIndicatorManager.getProgressIndicator().checkCanceled();
+    downloadProgressManager.finished(this);
+    downloadProgressManager.getProgressIndicator().checkCanceled();
 
     if (affectedModules.size() > 0) {
       long start = System.currentTimeMillis();
-      Pair<Boolean, Map<File, String>> downloadResultsPair = myClient.downloadCompiledModules(progressIndicatorManager, affectedModules);
+      List<OutputLoadResult> loadResults = myClient.downloadCompiledModules(downloadProgressManager, affectedModules);
       LOG.info("Download of compilation outputs took: " + (System.currentTimeMillis() - start));
-      myTmpFolderToModuleName = downloadResultsPair.second;
-      if (!downloadResultsPair.first) return LoaderStatus.FAILED;
+      return loadResults;
     }
-    else {
-      // Move progress up to the half of segment size
-      progressIndicatorManager.setTasksCount(1);
-      progressIndicatorManager.updateFraction(1.0);
+    return Collections.emptyList();
+  }
+
+  @Override
+  public LoaderStatus extract(@Nullable Object loadResults, @NotNull SegmentedProgressIndicatorManager extractIndicatorManager) {
+    if (!(loadResults instanceof List)) return LoaderStatus.FAILED;
+
+    //noinspection unchecked
+    List<OutputLoadResult> outputLoadResults = (List<OutputLoadResult>)loadResults;
+    Map<File, String> result = new ConcurrentHashMap<>();
+    try {
+      // Extracting results
+      long start = System.currentTimeMillis();
+      extractIndicatorManager.setText(this, JpsCacheBundle.message("progress.text.extracting.downloaded.results"));
+      List<Future<?>> futureList = ContainerUtil.map(outputLoadResults, loadResult ->
+        EXECUTOR_SERVICE.submit(new UnzipOutputTask(result, loadResult, extractIndicatorManager)));
+      for (Future<?> future : futureList) {
+        future.get();
+      }
+      extractIndicatorManager.finished(this);
+      myTmpFolderToModuleName = result;
+      LOG.info("Unzip compilation output took: " + (System.currentTimeMillis() - start));
+      return LoaderStatus.COMPLETE;
     }
-    return LoaderStatus.COMPLETE;
+    catch (ProcessCanceledException | InterruptedException | ExecutionException e) {
+      if (!(e.getCause() instanceof ProcessCanceledException)) LOG.warn("Failed unzip downloaded compilation outputs", e);
+      outputLoadResults.forEach(loadResult -> FileUtil.delete(loadResult.getZipFile()));
+      result.forEach((key, value) -> FileUtil.delete(key));
+    }
+    return LoaderStatus.FAILED;
   }
 
   @Override
@@ -75,14 +110,14 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
     myTmpFolderToModuleName.forEach((tmpFolder, __) -> {
       if (tmpFolder.isDirectory() && tmpFolder.exists()) FileUtil.delete(tmpFolder);
     });
-    LOG.debug("JPS cache loader rolled back");
+    LOG.info("JPS cache loader rolled back");
   }
 
   @Override
-  public void apply() {
+  public void apply(@NotNull SegmentedProgressIndicatorManager indicatorManager) {
     long start = System.currentTimeMillis();
     if (myOldModulesPaths != null) {
-      LOG.debug("Removing old compilation outputs " + myOldModulesPaths.size() + " counts");
+      LOG.info("Removing old compilation outputs " + myOldModulesPaths.size() + " counts");
       myOldModulesPaths.forEach(file -> {
         if (file.exists()) FileUtil.delete(file);
       });
@@ -92,20 +127,38 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
       return;
     }
 
-    myTmpFolderToModuleName.forEach((tmpModuleFolder, moduleName) -> {
-      File currentModuleBuildDir = new File(tmpModuleFolder.getParentFile(), moduleName);
-      FileUtil.delete(currentModuleBuildDir);
-      try {
-        FileUtil.rename(tmpModuleFolder, currentModuleBuildDir);
-        LOG.debug("Module: " + moduleName + " was replaced successfully");
-      }
-      catch (IOException e) {
-        LOG.warn("Couldn't replace compilation output for module: " + moduleName, e);
-      }
-    });
+    indicatorManager.setText(this, JpsCacheBundle.message("progress.text.applying.jps.caches"));
+    ContainerUtil.map(myTmpFolderToModuleName.entrySet(),
+                      entry -> EXECUTOR_SERVICE.submit(() -> {
+                        String moduleName = entry.getValue();
+                        File tmpModuleFolder = entry.getKey();
+                        SegmentedProgressIndicatorManager.SubTaskProgressIndicator subTaskIndicator =
+                          indicatorManager.createSubTaskIndicator();
+                        subTaskIndicator.setText2(JpsCacheBundle.message("progress.details.applying.changes.for.module", moduleName));
+                        File currentModuleBuildDir = new File(tmpModuleFolder.getParentFile(), moduleName);
+                        FileUtil.delete(currentModuleBuildDir);
+                        try {
+                          FileUtil.rename(tmpModuleFolder, currentModuleBuildDir);
+                          LOG.debug("Module: " + moduleName + " was replaced successfully");
+                        }
+                        catch (IOException e) {
+                          LOG.warn("Couldn't replace compilation output for module: " + moduleName, e);
+                        }
+                        subTaskIndicator.finished();
+                      }))
+      .forEach(future -> {
+        try {
+          future.get();
+        }
+        catch (InterruptedException | ExecutionException e) {
+          LOG.info("Couldn't apply compilation output", e);
+        }
+      });
+    indicatorManager.finished(this);
     LOG.info("Applying compilation output took: " + (System.currentTimeMillis() - start));
   }
 
+  @NotNull
   private List<AffectedModule> calculateAffectedModules(@Nullable Map<String, Map<String, BuildTargetState>> currentModulesState,
                                                         @NotNull Map<String, Map<String, BuildTargetState>> commitModulesState,
                                                         boolean checkExistance) {
@@ -118,7 +171,7 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
     if (currentModulesState == null) {
       commitModulesState.forEach((type, map) -> {
         map.forEach((name, state) -> {
-          affectedModules.add(new AffectedModule(type, name, state.getHash(), getProjectRelativeFile(state.getRelativePath())));
+          affectedModules.add(new AffectedModule(type, name, state.getHash(), getBuildDirRelativeFile(state.getRelativePath())));
         });
       });
       LOG.warn("Project doesn't contain metadata, force to download " + affectedModules.size() + " modules.");
@@ -133,7 +186,7 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
     newBuildTypes.removeAll(currentModulesState.keySet());
     newBuildTypes.forEach(type -> {
       commitModulesState.get(type).forEach((name, state) -> {
-        affectedModules.add(new AffectedModule(type, name, state.getHash(), getProjectRelativeFile(state.getRelativePath())));
+        affectedModules.add(new AffectedModule(type, name, state.getHash(), getBuildDirRelativeFile(state.getRelativePath())));
       });
     });
 
@@ -157,7 +210,7 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
       newBuildModules.removeAll(currentTypeState.keySet());
       newBuildModules.forEach(name -> {
         BuildTargetState state = map.get(name);
-        affectedModules.add(new AffectedModule(type, name, state.getHash(), getProjectRelativeFile(state.getRelativePath())));
+        affectedModules.add(new AffectedModule(type, name, state.getHash(), getBuildDirRelativeFile(state.getRelativePath())));
       });
 
       // Calculate old modules paths for remove
@@ -172,11 +225,11 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
       map.forEach((name, state) -> {
         BuildTargetState currentTargetState = currentTypeState.get(name);
         if (currentTargetState == null || !state.equals(currentTargetState)) {
-          affectedModules.add(new AffectedModule(type, name, state.getHash(), getProjectRelativeFile(state.getRelativePath())));
+          affectedModules.add(new AffectedModule(type, name, state.getHash(), getBuildDirRelativeFile(state.getRelativePath())));
           return;
         }
 
-        File outFile = getProjectRelativeFile(state.getRelativePath());
+        File outFile = getBuildDirRelativeFile(state.getRelativePath());
         if (checkExistance && (!outFile.exists() || ArrayUtil.isEmpty(outFile.listFiles()))) {
           affectedModules.add(new AffectedModule(type, name, state.getHash(), outFile));
         }
@@ -190,7 +243,7 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
         if (targetState != null && targetState.getRelativePath().equals(entry.getValue())) return false;
       }
       return true;
-    }).map(entry -> getProjectRelativeFile(entry.getValue()))
+    }).map(entry -> getBuildDirRelativeFile(entry.getValue()))
       .collect(Collectors.toList());
     List<AffectedModule> result = mergeAffectedModules(affectedModules, commitModulesState);
     long total = System.currentTimeMillis() - start;
@@ -198,6 +251,7 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
     return result;
   }
 
+  @NotNull
   private static List<AffectedModule> mergeAffectedModules(List<AffectedModule> affectedModules,
                                                            @NotNull Map<String, Map<String, BuildTargetState>> commitModulesState) {
     Set<AffectedModule> result = new HashSet<>();
@@ -245,8 +299,8 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
     return new ArrayList<>(result);
   }
 
-  private File getProjectRelativeFile(String projectRelativePath) {
-    return new File(projectRelativePath.replace("$PROJECT_DIR$", myProjectPath));
+  private File getBuildDirRelativeFile(String buildDirRelativePath) {
+    return new File(buildDirRelativePath.replace("$BUILD_DIR$", myBuildDirPath));
   }
 
   private static String calculateStringHash(String content) {
@@ -263,5 +317,41 @@ class JpsCompilationOutputLoader implements JpsOutputLoader {
   List<AffectedModule> getAffectedModules(@Nullable Map<String, Map<String, BuildTargetState>> currentModulesState,
                                           @NotNull Map<String, Map<String, BuildTargetState>> commitModulesState, boolean checkExistence) {
     return calculateAffectedModules(currentModulesState, commitModulesState, checkExistence);
+  }
+
+  private static final class UnzipOutputTask implements Runnable {
+    private final OutputLoadResult loadResult;
+    private final Map<File, String> result;
+    private final SegmentedProgressIndicatorManager extractIndicatorManager;
+
+    private UnzipOutputTask(Map<File, String> result,
+                            OutputLoadResult loadResult,
+                            SegmentedProgressIndicatorManager extractIndicatorManager) {
+      this.result = result;
+      this.loadResult = loadResult;
+      this.extractIndicatorManager = extractIndicatorManager;
+    }
+
+    @Override
+    public void run() {
+      AffectedModule affectedModule = loadResult.getModule();
+      File outPath = affectedModule.getOutPath();
+      try {
+        SegmentedProgressIndicatorManager.SubTaskProgressIndicator subTaskIndicator = extractIndicatorManager.createSubTaskIndicator();
+        extractIndicatorManager.getProgressIndicator().checkCanceled();
+        subTaskIndicator.setText2(
+          JpsCacheBundle.message("progress.details.extracting.compilation.outputs.for.module", affectedModule.getName()));
+        LOG.debug("Downloaded JPS compiled module from: " + loadResult.getDownloadUrl());
+        File tmpFolder = new File(outPath.getParent(), outPath.getName() + "_tmp");
+        File zipFile = loadResult.getZipFile();
+        ZipUtil.extract(zipFile, tmpFolder, null);
+        FileUtil.delete(zipFile);
+        result.put(tmpFolder, affectedModule.getName());
+        subTaskIndicator.finished();
+      }
+      catch (IOException e) {
+        LOG.warn("Couldn't extract download result for module: " + affectedModule.getName(), e);
+      }
+    }
   }
 }

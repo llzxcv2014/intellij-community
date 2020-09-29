@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.configuration;
 
 import com.google.common.collect.Lists;
@@ -13,6 +13,8 @@ import com.intellij.openapi.projectRoots.SdkAdditionalData;
 import com.intellij.openapi.projectRoots.SdkModificator;
 import com.intellij.openapi.projectRoots.ui.SdkPathEditor;
 import com.intellij.openapi.roots.OrderRootType;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -27,24 +29,22 @@ import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.codeInsight.typing.PyTypeShed;
 import com.jetbrains.python.codeInsight.userSkeletons.PyUserSkeletonsUtil;
 import com.jetbrains.python.sdk.PythonSdkAdditionalData;
-import com.jetbrains.python.sdk.PythonSdkType;
+import com.jetbrains.python.sdk.PythonSdkUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * @author traff
- */
 public class PythonPathEditor extends SdkPathEditor {
   private final PathListModel myPathListModel;
 
-  public PythonPathEditor(final String displayName,
-                          @NotNull OrderRootType orderRootType,
-                          final FileChooserDescriptor descriptor) {
+  public PythonPathEditor(@NlsContexts.TabTitle String displayName, @NotNull OrderRootType orderRootType, FileChooserDescriptor descriptor) {
     super(displayName, orderRootType, descriptor);
     myPathListModel = new PathListModel(orderRootType, getListModel());
   }
@@ -99,9 +99,9 @@ public class PythonPathEditor extends SdkPathEditor {
   }
 
   @Override
-  protected void doRemoveItems(int[] idxs, JList list) {
-    List<Pair<VirtualFile, Integer>> removed = Lists.newArrayList();
-    for (int i : idxs) {
+  protected void doRemoveItems(int[] indices, JList<VirtualFile> list) {
+    List<Pair<VirtualFile, Integer>> removed = new ArrayList<>();
+    for (int i : indices) {
       removed.add(Pair.create(getListModel().get(i), i));
     }
     ListUtil.removeIndices(list, myPathListModel.remove(removed));
@@ -110,40 +110,36 @@ public class PythonPathEditor extends SdkPathEditor {
   }
 
   @Override
-  protected ListCellRenderer<VirtualFile> createListCellRenderer(JBList list) {
+  protected ListCellRenderer<VirtualFile> createListCellRenderer(JBList<VirtualFile> list) {
     return SimpleListCellRenderer.create("", value -> {
       String suffix = myPathListModel.getPresentationSuffix(value);
-      if (suffix.length() > 0) {
-        suffix = "  " + suffix;
-      }
+      if (suffix.length() > 0) suffix = "  " + suffix;
       return getPresentablePath(value) + suffix;
     });
   }
 
   @Override
   protected void addToolbarButtons(ToolbarDecorator toolbarDecorator) {
-    AnActionButton reloadButton = new AnActionButton(PyBundle.message("sdk.paths.dialog.reload.paths"), AllIcons.Actions.Refresh) {
+    toolbarDecorator.addExtraAction(new AnActionButton(PyBundle.message("sdk.paths.dialog.reload.paths"), AllIcons.Actions.Refresh) {
       @Override
       public void actionPerformed(@NotNull AnActionEvent e) {
         onReloadButtonClicked();
       }
-    };
-    toolbarDecorator.addExtraAction(reloadButton);
+    });
   }
 
-  protected void onReloadButtonClicked() {
-  }
+  protected void onReloadButtonClicked() { }
 
   private static class PathListModel {
-    private Set<VirtualFile> myAdded = Sets.newHashSet();
-    private Set<VirtualFile> myExcluded = Sets.newHashSet();
-    private final Set<VirtualFile> myFoundFiles = Sets.newHashSet();
-    private final List<VirtualFile> myFilteredOut = Lists.newArrayList();
-    private final DefaultListModel myListModel;
+    private Set<VirtualFile> myAdded = new HashSet<VirtualFile>();
+    private Set<VirtualFile> myExcluded = new HashSet<VirtualFile>();
+    private final Set<VirtualFile> myFoundFiles = new HashSet<VirtualFile>();
+    private final List<VirtualFile> myFilteredOut = new ArrayList<>();
+    private final DefaultListModel<VirtualFile> myListModel;
     private final OrderRootType myOrderRootType;
-    private final Set<VirtualFile> myUserAddedToRemove = Sets.newHashSet();
+    private final Set<VirtualFile> myUserAddedToRemove = new HashSet<VirtualFile>();
 
-    PathListModel(OrderRootType orderRootType, DefaultListModel listModel) {
+    PathListModel(OrderRootType orderRootType, DefaultListModel<VirtualFile> listModel) {
       myOrderRootType = orderRootType;
       myListModel = listModel;
     }
@@ -153,7 +149,7 @@ public class PythonPathEditor extends SdkPathEditor {
     }
 
     private VirtualFile getValueAt(int row) {
-      return (VirtualFile)myListModel.get(row);
+      return myListModel.get(row);
     }
 
     public boolean add(List<VirtualFile> files) {
@@ -167,7 +163,8 @@ public class PythonPathEditor extends SdkPathEditor {
             myFoundFiles.add(file);
             return true;
           }
-        } else {
+        }
+        else {
           myExcluded.remove(file);
         }
       }
@@ -175,7 +172,7 @@ public class PythonPathEditor extends SdkPathEditor {
     }
 
     public int[] remove(List<Pair<VirtualFile, Integer>> files) {
-      List<Integer> toRemove = Lists.newArrayList();
+      List<Integer> toRemove = new ArrayList<>();
       for (Pair<VirtualFile, Integer> e : files) {
         if (myAdded.contains(e.first)) {
           toRemove.add(e.second);
@@ -221,6 +218,7 @@ public class PythonPathEditor extends SdkPathEditor {
       myExcluded = Sets.newHashSet(excluded);
     }
 
+    @Nls
     public String getPresentationSuffix(VirtualFile file) {
       if (myAdded.contains(file)) {
         return PyBundle.message("sdk.paths.dialog.added.by.user.suffix");
@@ -264,7 +262,7 @@ public class PythonPathEditor extends SdkPathEditor {
     }
 
     private static List<VirtualFile> filterOutStubs(List<VirtualFile> list, List<VirtualFile> filteredOut) {
-      List<VirtualFile> result = Lists.newArrayList();
+      List<VirtualFile> result = new ArrayList<>();
       filteredOut.clear();
       for (VirtualFile file : list) {
         if (!isStubPath(file)) {
@@ -278,7 +276,7 @@ public class PythonPathEditor extends SdkPathEditor {
     }
 
     private static boolean isStubPath(@NotNull VirtualFile file) {
-      final String path = PythonSdkType.getSkeletonsRootPath(PathManager.getSystemPath());
+      final String path = PythonSdkUtil.getSkeletonsRootPath(PathManager.getSystemPath());
       final VirtualFile skeletonRoot = LocalFileSystem.getInstance().findFileByPath(path);
       if (skeletonRoot != null && file.getPath().startsWith(skeletonRoot.getPath())) {
         return true;
@@ -299,6 +297,7 @@ public class PythonPathEditor extends SdkPathEditor {
     }
   }
 
+  @NlsSafe
   protected String getPresentablePath(VirtualFile value) {
     return value.getPresentableUrl();
   }

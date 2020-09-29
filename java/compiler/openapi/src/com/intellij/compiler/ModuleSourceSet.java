@@ -15,16 +15,15 @@
  */
 package com.intellij.compiler;
 
+import com.intellij.openapi.compiler.JavaCompilerBundle;
 import com.intellij.openapi.module.Module;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
-* @author nik
-*/
 public class ModuleSourceSet {
   public enum Type { PRODUCTION, TEST }
 
@@ -66,8 +65,9 @@ public class ModuleSourceSet {
   }
 
   @NotNull
-  public String getDisplayName() {
-    return (myType == Type.PRODUCTION ? "" : "Tests of ") + "'" + myModule.getName() + "' module";
+  public @Nls(capitalization = Nls.Capitalization.Sentence) String getDisplayName() {
+    final int choice = myType == Type.PRODUCTION ? 0 : 1;
+    return JavaCompilerBundle.message("module.sources.set.display.name", choice, myModule.getName());
   }
 
   @NotNull

@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.source;
 
 import com.intellij.openapi.util.RecursionManager;
@@ -26,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 
-public class JavaVarTypeUtil {
+public final class JavaVarTypeUtil {
   public static PsiType getUpwardProjection(@NotNull PsiType t) {
     return t.accept(new UpwardProjectionTypeVisitor());
   }
@@ -34,16 +20,16 @@ public class JavaVarTypeUtil {
   public static PsiType getDownwardProjection(@NotNull PsiType type) {
     return type.accept(new DownwardProjectionTypeVisitor());
   }
-  
+
   private static boolean mentionsRestrictedTypeVariables(PsiType type) {
     return type.accept(new PsiTypeVisitor<Boolean>() {
       @Override
-      public Boolean visitType(PsiType type) {
+      public Boolean visitType(@NotNull PsiType type) {
         return false;
       }
 
       @Override
-      public Boolean visitCapturedWildcardType(PsiCapturedWildcardType capturedWildcardType) {
+      public Boolean visitCapturedWildcardType(@NotNull PsiCapturedWildcardType capturedWildcardType) {
         return true;
       }
     });
@@ -51,42 +37,42 @@ public class JavaVarTypeUtil {
 
   private static class UpwardProjectionTypeVisitor extends PsiTypeVisitorEx<PsiType> {
     @Override
-    public PsiType visitType(PsiType type) {
+    public PsiType visitType(@NotNull PsiType type) {
       return type;
     }
 
     @Nullable
     @Override
-    public PsiType visitCapturedWildcardType(PsiCapturedWildcardType capturedWildcardType) {
+    public PsiType visitCapturedWildcardType(@NotNull PsiCapturedWildcardType capturedWildcardType) {
       return capturedWildcardType.getUpperBound().accept(this);
     }
 
     @Override
-    public PsiType visitArrayType(PsiArrayType arrayType) {
+    public PsiType visitArrayType(@NotNull PsiArrayType arrayType) {
       PsiType componentType = arrayType.getComponentType();
       return componentType.accept(this).createArrayType();
     }
 
     @Nullable
     @Override
-    public PsiType visitLambdaExpressionType(PsiLambdaExpressionType lambdaExpressionType) {
+    public PsiType visitLambdaExpressionType(@NotNull PsiLambdaExpressionType lambdaExpressionType) {
       return lambdaExpressionType;
     }
 
     @Override
-    public PsiType visitMethodReferenceType(PsiMethodReferenceType methodReferenceType) {
+    public PsiType visitMethodReferenceType(@NotNull PsiMethodReferenceType methodReferenceType) {
       return methodReferenceType;
     }
 
     @Override
-    public PsiType visitIntersectionType(PsiIntersectionType intersectionType) {
+    public PsiType visitIntersectionType(@NotNull PsiIntersectionType intersectionType) {
       return PsiIntersectionType.createIntersection(Arrays.stream(intersectionType.getConjuncts())
                                                       .map(conjunct -> conjunct.accept(this))
                                                       .toArray(PsiType[]::new));
     }
 
     @Override
-    public PsiType visitClassType(PsiClassType classType) {
+    public PsiType visitClassType(@NotNull PsiClassType classType) {
       PsiClassType.ClassResolveResult result = classType.resolveGenerics();
       PsiClass aClass = result.getElement();
       if (aClass != null) {
@@ -100,7 +86,7 @@ public class JavaVarTypeUtil {
             if (ai instanceof PsiWildcardType) {
 
               if (((PsiWildcardType)ai).isExtends()) {
-                targetSubstitutor = targetSubstitutor.put(parameter, 
+                targetSubstitutor = targetSubstitutor.put(parameter,
                                                           PsiWildcardType.createExtends(manager, ((PsiWildcardType)ai).getExtendsBound().accept(this)));
               }
 
@@ -145,41 +131,41 @@ public class JavaVarTypeUtil {
 
   private static class DownwardProjectionTypeVisitor extends PsiTypeVisitor<PsiType> {
     @Override
-    public PsiType visitType(PsiType type) {
+    public PsiType visitType(@NotNull PsiType type) {
       return type;
     }
 
     @Override
-    public PsiType visitCapturedWildcardType(PsiCapturedWildcardType capturedWildcardType) {
+    public PsiType visitCapturedWildcardType(@NotNull PsiCapturedWildcardType capturedWildcardType) {
       return capturedWildcardType.getLowerBound().accept(this);
     }
 
     @Override
-    public PsiType visitArrayType(PsiArrayType arrayType) {
+    public PsiType visitArrayType(@NotNull PsiArrayType arrayType) {
       PsiType projection = arrayType.getComponentType().accept(this);
       if (projection == PsiType.NULL) return PsiType.NULL;
       return projection.createArrayType();
     }
 
     @Override
-    public PsiType visitIntersectionType(PsiIntersectionType intersectionType) {
+    public PsiType visitIntersectionType(@NotNull PsiIntersectionType intersectionType) {
       PsiType[] conjuncts = Arrays.stream(intersectionType.getConjuncts()).map(conjunct -> conjunct.accept(this)).toArray(PsiType[]::new);
       if (ArrayUtil.find(conjuncts, PsiType.NULL) > -1) return PsiType.NULL;
       return PsiIntersectionType.createIntersection(conjuncts);
     }
 
     @Override
-    public PsiType visitLambdaExpressionType(PsiLambdaExpressionType lambdaExpressionType) {
+    public PsiType visitLambdaExpressionType(@NotNull PsiLambdaExpressionType lambdaExpressionType) {
       return lambdaExpressionType;
     }
 
     @Override
-    public PsiType visitMethodReferenceType(PsiMethodReferenceType methodReferenceType) {
+    public PsiType visitMethodReferenceType(@NotNull PsiMethodReferenceType methodReferenceType) {
       return methodReferenceType;
     }
 
     @Override
-    public PsiType visitClassType(PsiClassType classType) {
+    public PsiType visitClassType(@NotNull PsiClassType classType) {
       PsiClassType.ClassResolveResult result = classType.resolveGenerics();
       PsiClass aClass = result.getElement();
       if (aClass != null) {

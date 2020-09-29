@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.roots
 
 import com.intellij.openapi.Disposable
@@ -6,28 +6,26 @@ import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.module.StdModuleTypes
-import com.intellij.openapi.module.impl.ModuleManagerImpl
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.project.ex.ProjectManagerEx
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.JDOMUtil
-import com.intellij.openapi.util.io.systemIndependentPath
 import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.project.ProjectStoreOwner
 import com.intellij.testFramework.*
 import com.intellij.testFramework.UsefulTestCase.assertSameElements
 import com.intellij.util.io.systemIndependentPath
 import org.jdom.Element
 import org.jetbrains.jps.model.serialization.JDomSerializationUtil
+import org.jetbrains.jps.model.serialization.JpsProjectLoader
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
+import java.nio.file.Path
+import java.nio.file.Paths
 
-/**
- * @author nik
- */
 @RunsInEdt
 class AutomaticModuleUnloaderTest {
   @Rule
@@ -150,24 +148,25 @@ class AutomaticModuleUnloaderTest {
   }
 
   private fun createProject(): Project {
-    return ProjectManager.getInstance().createProject(null, tempDir.newPath("automaticReloaderTest").systemIndependentPath)!!
+    return ProjectManagerEx.getInstanceEx().newProject(tempDir.newPath("automaticReloaderTest"), createTestOpenProjectOptions())!!
   }
 
   private fun createModule(project: Project, moduleName: String): Module {
     return runWriteAction { ModuleManager.getInstance(project).newModule("${project.basePath}/$moduleName.iml", "JAVA") }
   }
 
-  private fun createNewModuleFiles(moduleNames: List<String>, setup: (Map<String, Module>) -> Unit): List<File> {
-    val newModulesProjectDir = tempDir.newPath("newModules").toFile()
-    val moduleFiles = moduleNames.map { File(newModulesProjectDir, "$it.iml") }
-    val project = ProjectManager.getInstance().createProject("newModules", newModulesProjectDir.absolutePath)!!
+  private fun createNewModuleFiles(moduleNames: List<String>, setup: (Map<String, Module>) -> Unit): List<Path> {
+    val newModulesProjectDir = tempDir.newPath("newModules")
+    val moduleFiles = moduleNames.map { newModulesProjectDir.resolve("$it.iml") }
+    val project = ProjectManagerEx.getInstanceEx().newProject(newModulesProjectDir, createTestOpenProjectOptions())!!
     try {
+      val moduleManager = ModuleManager.getInstance(project)
       runWriteAction {
         moduleFiles.map {
-          ModuleManager.getInstance(project).newModule(it.absolutePath, StdModuleTypes.JAVA.id)
+          moduleManager.newModule(it.toAbsolutePath().toString(), StdModuleTypes.JAVA.id)
         }
       }
-      setup(ModuleManager.getInstance(project).modules.associateBy { it.name })
+      setup(moduleManager.modules.associateBy { it.name })
     }
     finally {
       saveAndCloseProject(project)
@@ -177,15 +176,14 @@ class AutomaticModuleUnloaderTest {
 
   private fun saveAndCloseProject(project: Project) {
     PlatformTestUtil.saveProject(project, true)
-    ProjectManagerEx.getInstanceEx().forceCloseProject(project, true)
-    runWriteAction { Disposer.dispose(project) }
+    ProjectManagerEx.getInstanceEx().forceCloseProject(project)
   }
 
-  private fun reloadProjectWithNewModules(project: Project, moduleFiles: List<File>, beforeReload: () -> Unit = {}): Project {
+  private fun reloadProjectWithNewModules(project: Project, moduleFiles: List<Path>, beforeReload: () -> Unit = {}): Project {
     saveAndCloseProject(project)
-    val modulesXmlFile = File(project.basePath, ".idea/modules.xml")
+    val modulesXmlFile = (project as ProjectStoreOwner).componentStore.getDirectoryStorePath()!!.resolve("modules.xml")
     val rootElement = JDOMUtil.load(modulesXmlFile)
-    val moduleRootComponent = JDomSerializationUtil.findComponent(rootElement, ModuleManagerImpl.COMPONENT_NAME)
+    val moduleRootComponent = JDomSerializationUtil.findComponent(rootElement, JpsProjectLoader.MODULE_MANAGER_COMPONENT)
     val modulesTag = moduleRootComponent!!.getChild("modules")!!
     moduleFiles.forEach {
       val filePath = it.systemIndependentPath
@@ -194,8 +192,8 @@ class AutomaticModuleUnloaderTest {
     }
     JDOMUtil.write(rootElement, modulesXmlFile)
     beforeReload()
-    val reloaded = ProjectManager.getInstance().loadAndOpenProject(project.basePath!!)!!
-    Disposer.register(disposableRule.disposable, Disposable { ProjectManagerEx.getInstanceEx().forceCloseProject(reloaded, true) })
+    val reloaded = PlatformTestUtil.loadAndOpenProject(Paths.get(project.basePath!!))
+    Disposer.register(disposableRule.disposable, Disposable { ProjectManagerEx.getInstanceEx().forceCloseProject(reloaded) })
     return reloaded
   }
 

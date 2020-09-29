@@ -28,6 +28,7 @@ public class PyDebuggerSettings extends XDebuggerSettings<PyDebuggerSettings> im
   private boolean myWatchReturnValues = false;
   private boolean mySimplifiedView = true;
   private volatile PyDebugValue.ValuesPolicy myValuesPolicy = PyDebugValue.ValuesPolicy.ASYNC;
+  private boolean myAlwaysDoSmartStepIntoEnabled = true;
 
   public PyDebuggerSettings() {
     super("python");
@@ -78,6 +79,14 @@ public class PyDebuggerSettings extends XDebuggerSettings<PyDebuggerSettings> im
     mySteppingFiltersEnabled = steppingFiltersEnabled;
   }
 
+  public void setAlwaysDoSmartStepIntoEnabled(boolean alwaysDoSmartStepIntoEnabled) {
+    myAlwaysDoSmartStepIntoEnabled = alwaysDoSmartStepIntoEnabled;
+  }
+
+  public boolean isAlwaysDoSmartStepInto() {
+    return myAlwaysDoSmartStepIntoEnabled;
+  }
+
   @NotNull
   public List<PySteppingFilter> getSteppingFilters() {
     return mySteppingFilters;
@@ -118,7 +127,7 @@ public class PyDebuggerSettings extends XDebuggerSettings<PyDebuggerSettings> im
   @Override
   public Collection<? extends Configurable> createConfigurables(@NotNull DebuggerSettingsCategory category) {
     if (category == DebuggerSettingsCategory.STEPPING) {
-      return singletonList(SimpleConfigurable.create("python.debug.configurable", "Python",
+      return singletonList(SimpleConfigurable.create("python.debug.configurable", "Python", //NON-NLS
                                                      PyDebuggerSteppingConfigurableUi.class, this));
     }
     return Collections.emptyList();

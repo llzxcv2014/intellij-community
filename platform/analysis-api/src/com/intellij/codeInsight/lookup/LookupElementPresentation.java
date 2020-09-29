@@ -1,23 +1,10 @@
-/*
- * Copyright 2000-2019 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.lookup;
 
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.JBColor;
 import com.intellij.util.SmartList;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,24 +30,30 @@ public class LookupElementPresentation {
   private boolean myItemTextItalic;
   private boolean myTypeGrayed;
   @Nullable private List<TextFragment> myTail;
+  private boolean myFrozen;
 
   public void setIcon(@Nullable Icon icon) {
+    ensureMutable();
     myIcon = icon;
   }
 
   public void setItemText(@Nullable String text) {
+    ensureMutable();
     myItemText = text;
   }
 
   public void setStrikeout(boolean strikeout) {
+    ensureMutable();
     myStrikeout = strikeout;
   }
 
   public void setItemTextBold(boolean bold) {
+    ensureMutable();
     myItemTextBold = bold;
   }
 
   public void setItemTextItalic(boolean itemTextItalic) {
+    ensureMutable();
     myItemTextItalic = itemTextItalic;
   }
 
@@ -69,6 +62,7 @@ public class LookupElementPresentation {
   }
 
   public void clearTail() {
+    ensureMutable();
     myTail = null;
   }
 
@@ -81,6 +75,9 @@ public class LookupElementPresentation {
   }
 
   private void appendTailText(@NotNull TextFragment fragment) {
+    ensureMutable();
+    if (fragment.text.isEmpty()) return;
+
     if (myTail == null) {
       myTail = new SmartList<>();
     }
@@ -106,18 +103,18 @@ public class LookupElementPresentation {
   }
 
   public void setTypeText(@Nullable String text, @Nullable Icon icon) {
+    ensureMutable();
     myTypeText = text;
     myTypeIcon = icon;
   }
 
   /**
-   * Is equivalent to instanceof {@link RealLookupElementPresentation} check.
-   *
-   * @return whether the presentation is requested to actually render lookup element on screen, or just to estimate its width.
-   * In the second, 'non-real' case, some heavy operations (e.g. getIcon()) can be omitted (only icon width is important)
+   * @deprecated Always returns true. To speed up completion by delaying rendering more expensive parts,
+   * implement {@link LookupElement#getExpensiveRenderer()}.
    */
+  @Deprecated
   public boolean isReal() {
-    return false;
+    return true;
   }
 
   @Nullable
@@ -155,14 +152,6 @@ public class LookupElementPresentation {
     return myStrikeout;
   }
 
-  /**
-   * @deprecated there can be multiple {@link #getTailFragments()}
-   */
-  @Deprecated
-  public boolean isTailGrayed() {
-    return myTail != null && myTail.get(0).myGrayed;
-  }
-
   public boolean isItemTextBold() {
     return myItemTextBold;
   }
@@ -176,6 +165,7 @@ public class LookupElementPresentation {
   }
 
   public void setItemTextUnderlined(boolean itemTextUnderlined) {
+    ensureMutable();
     myItemTextUnderlined = itemTextUnderlined;
   }
 
@@ -184,6 +174,7 @@ public class LookupElementPresentation {
   }
 
   public void setItemTextForeground(@NotNull Color itemTextForeground) {
+    ensureMutable();
     myItemTextForeground = itemTextForeground;
   }
 
@@ -210,7 +201,12 @@ public class LookupElementPresentation {
   }
 
   public void setTypeGrayed(boolean typeGrayed) {
+    ensureMutable();
     myTypeGrayed = typeGrayed;
+  }
+
+  private void ensureMutable() {
+    if (myFrozen) throw new IllegalStateException("This lookup element presentation can't be changed");
   }
 
   public boolean isTypeIconRightAligned() {
@@ -218,6 +214,7 @@ public class LookupElementPresentation {
   }
 
   public void setTypeIconRightAligned(boolean typeIconRightAligned) {
+    ensureMutable();
     myTypeIconRightAligned = typeIconRightAligned;
   }
 
@@ -225,6 +222,14 @@ public class LookupElementPresentation {
     LookupElementPresentation presentation = new LookupElementPresentation();
     element.renderElement(presentation);
     return presentation;
+  }
+
+  /**
+   * Disallow any further changes to this presentation object.
+   */
+  @ApiStatus.Internal
+  public void freeze() {
+    myFrozen = true;
   }
 
   @Override
@@ -236,7 +241,7 @@ public class LookupElementPresentation {
            '}';
   }
 
-  public static class TextFragment {
+  public static final class TextFragment {
     public final String text;
     private final boolean myGrayed;
     private final boolean myItalic;
@@ -253,8 +258,9 @@ public class LookupElementPresentation {
     public String toString() {
       return "TextFragment{" +
              "text='" + text + '\'' +
-             ", grayed=" + myGrayed +
-             ", fgColor=" + myFgColor +
+             (myGrayed ? ", grayed" : "") +
+             (myItalic ? ", italic" : "") +
+             (myFgColor != null ? ", fgColor=" + myFgColor : "") +
              '}';
     }
 

@@ -17,20 +17,23 @@ package com.siyeh.ig.numeric;
 
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.dataFlow.CommonDataflow;
-import com.intellij.codeInspection.dataFlow.DfaFactType;
 import com.intellij.codeInspection.dataFlow.rangeSet.LongRangeSet;
+import com.intellij.codeInspection.dataFlow.types.DfLongType;
 import com.intellij.codeInspection.ui.SingleCheckboxOptionsPanel;
+import com.intellij.lang.java.parser.ExpressionParser;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.ConstantEvaluationOverflowException;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.psi.util.TypeConversionUtil;
+import com.intellij.util.ObjectUtils;
 import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
 import com.siyeh.ig.PsiReplacementUtil;
+import com.siyeh.ig.callMatcher.CallMatcher;
 import com.siyeh.ig.psiutils.ExpectedTypeUtils;
 import com.siyeh.ig.psiutils.ExpressionUtils;
 import org.jetbrains.annotations.Nls;
@@ -44,6 +47,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class IntegerMultiplicationImplicitCastToLongInspection extends BaseInspection {
+  private static final CallMatcher JUNIT4_ASSERT_EQUALS =
+    CallMatcher.anyOf(
+      CallMatcher.staticCall("org.junit.Assert", "assertEquals").parameterTypes("long", "long"),
+      CallMatcher.staticCall("org.junit.Assert", "assertEquals").parameterTypes(CommonClassNames.JAVA_LANG_STRING, "long", "long")
+    );
 
   /**
    */
@@ -61,15 +69,8 @@ public class IntegerMultiplicationImplicitCastToLongInspection extends BaseInspe
     s_typesToCheck.add(CommonClassNames.JAVA_LANG_CHARACTER);
   }
 
-  @SuppressWarnings({"PublicField"})
+  @SuppressWarnings("PublicField")
   public boolean ignoreNonOverflowingCompileTimeConstants = true;
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "integer.multiplication.implicit.cast.to.long.display.name");
-  }
 
   @Nullable
   @Override
@@ -147,9 +148,7 @@ public class IntegerMultiplicationImplicitCastToLongInspection extends BaseInspe
   }
 
   private static boolean isShiftToken(IElementType tokenType) {
-    return tokenType.equals(JavaTokenType.LTLT) ||
-           tokenType.equals(JavaTokenType.GTGT) ||
-           tokenType.equals(JavaTokenType.GTGTGT);
+    return ExpressionParser.SHIFT_OPS.contains(tokenType);
   }
 
   private static class IntegerMultiplicationImplicitCastToLongInspectionFix extends InspectionGadgetsFix {
@@ -221,12 +220,14 @@ public class IntegerMultiplicationImplicitCastToLongInspection extends BaseInspe
       if (hasInnerMultiplication(expression)) {
         return;
       }
+      if (insideAssertEquals(expression)) {
+        return;
+      }
       PsiExpression[] operands = expression.getOperands();
       if (operands.length < 2 || expression.getLastChild() instanceof PsiErrorElement) {
         return;
       }
       PsiExpression context = getContainingExpression(expression);
-      if (context == null) return;
       PsiElement parent = PsiUtil.skipParenthesizedExprUp(context.getParent());
       if (parent instanceof PsiTypeCastExpression) {
         PsiType castType = ((PsiTypeCastExpression)parent).getType();
@@ -252,29 +253,42 @@ public class IntegerMultiplicationImplicitCastToLongInspection extends BaseInspe
       registerError(expression, tokenType);
     }
 
+    private boolean insideAssertEquals(PsiExpression expression) {
+      PsiElement parent = ExpressionUtils.getPassThroughParent(expression);
+      if (parent instanceof PsiExpressionList) {
+        PsiMethodCallExpression call = ObjectUtils.tryCast(parent.getParent(), PsiMethodCallExpression.class);
+        // JUnit4 has assertEquals(long, long) but no assertEquals(int, int)
+        // so int-assertions will be wired to assertEquals(long, long), which could be annoying false-positive.
+        // If the multiplication unexpectedly overflows then assertion will fail anyway, so the problem will manifest itself.
+        return JUNIT4_ASSERT_EQUALS.matches(call);
+      }
+      return false;
+    }
+
     private boolean cannotOverflow(@NotNull PsiPolyadicExpression expression, PsiExpression[] operands, boolean shift) {
       CommonDataflow.DataflowResult dfr = CommonDataflow.getDataflowResult(expression);
       if (dfr != null) {
         long min = 1, max = 1;
         for (PsiExpression operand : operands) {
-          LongRangeSet set = dfr.getExpressionFact(PsiUtil.skipParenthesizedExprDown(operand), DfaFactType.RANGE);
-          if (set == null) return false;
-          long nextMin = set.min();
-          long nextMax = set.max();
+          LongRangeSet set = DfLongType.extractRange(dfr.getDfType(PsiUtil.skipParenthesizedExprDown(operand)));
           if (operand == operands[0]) {
-            min = nextMin;
-            max = nextMax;
+            min = set.min();
+            max = set.max();
             continue;
           }
           long r1, r2, r3, r4;
           if (shift) {
-            nextMin &= 0x1F;
-            nextMax &= 0x1F;
+            set = set.bitwiseAnd(LongRangeSet.point(0x3F));
+            long nextMin = set.min();
+            long nextMax = set.max();
+            if (nextMax >= 0x20) return false;
             r1 = min << nextMin;
             r2 = max << nextMin;
             r3 = min << nextMax;
             r4 = max << nextMax;
           } else {
+            long nextMin = set.min();
+            long nextMax = set.max();
             if (intOverflow(nextMin) || intOverflow(nextMax)) return false;
             r1 = min * nextMin;
             r2 = max * nextMin;

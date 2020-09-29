@@ -35,7 +35,7 @@ import java.util.function.Predicate;
 import static com.intellij.codeInspection.util.OptionalUtil.*;
 import static com.intellij.psi.CommonClassNames.JAVA_UTIL_OPTIONAL;
 
-public class BoolUtils {
+public final class BoolUtils {
 
   private BoolUtils() {}
 
@@ -69,7 +69,7 @@ public class BoolUtils {
       return null;
     }
     final PsiExpression operand = prefixExpression.getOperand();
-    PsiExpression stripped = ParenthesesUtils.stripParentheses(operand);
+    PsiExpression stripped = PsiUtil.skipParenthesizedExprDown(operand);
     return stripped == null ? operand : stripped;
   }
 
@@ -101,11 +101,11 @@ public class BoolUtils {
       CallMatcher.exactInstanceCall(OPTIONAL_DOUBLE, "isEmpty").parameterCount(0)
     );
 
-  private static class PredicatedReplacement {
+  private static final class PredicatedReplacement {
     Predicate<PsiMethodCallExpression> predicate;
     String name;
 
-    private PredicatedReplacement(Predicate<PsiMethodCallExpression> predicate, String name) {
+    private PredicatedReplacement(Predicate<PsiMethodCallExpression> predicate, @NonNls String name) {
       this.predicate = predicate;
       this.name = name;
     }
@@ -160,7 +160,7 @@ public class BoolUtils {
         newOp = "&=";
       }
       if (newOp != null) {
-        return tracker.text(((PsiAssignmentExpression)expression).getLExpression()) + 
+        return tracker.text(((PsiAssignmentExpression)expression).getLExpression()) +
                newOp +
                getNegatedExpressionText(((PsiAssignmentExpression)expression).getRExpression());
       }
@@ -255,8 +255,9 @@ public class BoolUtils {
     return null;
   }
 
+  @Contract("null -> false")
   public static boolean isBooleanLiteral(PsiExpression expression) {
-    expression = ParenthesesUtils.stripParentheses(expression);
+    expression = PsiUtil.skipParenthesizedExprDown(expression);
     if (!(expression instanceof PsiLiteralExpression)) {
       return false;
     }
@@ -267,7 +268,7 @@ public class BoolUtils {
 
   @Contract(value = "null -> false", pure = true)
   public static boolean isTrue(@Nullable PsiExpression expression) {
-    expression = ParenthesesUtils.stripParentheses(expression);
+    expression = PsiUtil.skipParenthesizedExprDown(expression);
     if (expression == null) {
       return false;
     }
@@ -276,7 +277,7 @@ public class BoolUtils {
 
   @Contract(value ="null -> false", pure = true)
   public static boolean isFalse(@Nullable PsiExpression expression) {
-    expression = ParenthesesUtils.stripParentheses(expression);
+    expression = PsiUtil.skipParenthesizedExprDown(expression);
     if (expression == null) {
       return false;
     }

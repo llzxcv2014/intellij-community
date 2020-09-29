@@ -7,6 +7,7 @@ import com.intellij.codeInsight.intention.impl.config.TextDescriptor;
 import com.intellij.codeInsight.template.postfix.templates.PostfixTemplate;
 import com.intellij.codeInsight.template.postfix.templates.editable.EditablePostfixTemplate;
 import com.intellij.codeInsight.template.postfix.templates.editable.PostfixTemplateWrapper;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -45,25 +46,21 @@ public final class PostfixTemplateMetaData extends BeforeAfterActionMetaData {
     super(EMPTY_DESCRIPTION, EMPTY_EXAMPLE, EMPTY_EXAMPLE);
   }
 
-  @NotNull
   @Override
-  public TextDescriptor[] getExampleUsagesBefore() {
+  public TextDescriptor @NotNull [] getExampleUsagesBefore() {
     return decorateTextDescriptor(getRawExampleUsagesBefore());
   }
 
-  @NotNull
-  TextDescriptor[] getRawExampleUsagesBefore() {
+  TextDescriptor @NotNull [] getRawExampleUsagesBefore() {
     return super.getExampleUsagesBefore();
   }
 
-  @NotNull
-  private TextDescriptor[] decorateTextDescriptor(TextDescriptor[] before) {
+  private TextDescriptor @NotNull [] decorateTextDescriptor(TextDescriptor[] before) {
     String key = myTemplate.getKey();
     return decorateTextDescriptorWithKey(before, key);
   }
 
-  @NotNull
-  static TextDescriptor[] decorateTextDescriptorWithKey(TextDescriptor[] before, @NotNull String key) {
+  static TextDescriptor @NotNull [] decorateTextDescriptorWithKey(TextDescriptor[] before, @NotNull @NlsSafe String key) {
     List<TextDescriptor> list = new ArrayList<>(before.length);
     for (final TextDescriptor descriptor : before) {
       list.add(new TextDescriptor() {
@@ -83,14 +80,12 @@ public final class PostfixTemplateMetaData extends BeforeAfterActionMetaData {
     return list.toArray(new TextDescriptor[0]);
   }
 
-  @NotNull
   @Override
-  public TextDescriptor[] getExampleUsagesAfter() {
+  public TextDescriptor @NotNull [] getExampleUsagesAfter() {
     return decorateTextDescriptor(getRawExampleUsagesAfter());
   }
 
-  @NotNull
-  TextDescriptor[] getRawExampleUsagesAfter() {
+  TextDescriptor @NotNull [] getRawExampleUsagesAfter() {
     return super.getExampleUsagesAfter();
   }
 

@@ -19,16 +19,18 @@ package com.intellij.tools;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.Presentation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 public class SimpleActionGroup extends ActionGroup {
   private final ArrayList<AnAction> myChildren = new ArrayList<>();
 
   public SimpleActionGroup() {
-    super(null, false);
+    super(Presentation.NULL_STRING, false);
   }
 
   public void add(AnAction action) {
@@ -36,8 +38,7 @@ public class SimpleActionGroup extends ActionGroup {
   }
 
   @Override
-  @NotNull
-  public AnAction[] getChildren(@Nullable AnActionEvent e) {
+  public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e) {
     return myChildren.toArray(AnAction.EMPTY_ARRAY);
   }
 
@@ -47,6 +48,17 @@ public class SimpleActionGroup extends ActionGroup {
 
   public void removeAll() {
     myChildren.clear();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (myChildren.isEmpty()) return super.equals(obj);
+    return obj instanceof SimpleActionGroup && myChildren.equals(((SimpleActionGroup)obj).myChildren);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(myChildren);
   }
 }
 

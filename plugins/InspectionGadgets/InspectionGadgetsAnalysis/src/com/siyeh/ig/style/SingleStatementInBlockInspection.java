@@ -16,18 +16,9 @@ import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
 import com.siyeh.ig.psiutils.CommentTracker;
-import org.jetbrains.annotations.Contract;
-import org.jetbrains.annotations.Nls;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.*;
 
 public class SingleStatementInBlockInspection extends BaseInspection {
-  @Nls
-  @NotNull
-  @Override
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("single.statement.in.block.name");
-  }
 
   @NotNull
   @Override
@@ -132,7 +123,7 @@ public class SingleStatementInBlockInspection extends BaseInspection {
   }
 
   private static class SingleStatementInBlockFix extends InspectionGadgetsFix {
-    private final String myKeywordText;
+    private final @NonNls String myKeywordText;
 
     SingleStatementInBlockFix(String keywordText) {
       myKeywordText = keywordText;

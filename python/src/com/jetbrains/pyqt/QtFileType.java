@@ -9,14 +9,17 @@ import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts.Label;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.QualifiedName;
+import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.psi.resolve.PyResolveImportUtil;
 import com.jetbrains.python.sdk.PythonSdkUtil;
 import one.util.streamex.StreamEx;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,10 +31,10 @@ import java.util.List;
  */
 public abstract class QtFileType extends LanguageFileType implements INativeFileType {
   private final String myName;
-  private final String myDescription;
+  private final @Label String myDescription;
   private final String myDefaultExtension;
 
-  QtFileType(String name, String description, String defaultExtension) {
+  QtFileType(@NonNls String name, @Label String description, String defaultExtension) {
     super(XMLLanguage.INSTANCE, true);
     myName = name;
     myDescription = description;
@@ -39,12 +42,14 @@ public abstract class QtFileType extends LanguageFileType implements INativeFile
   }
 
   @NotNull
+  @NonNls
   @Override
   public String getName() {
     return myName;
   }
 
   @NotNull
+  @Label
   @Override
   public String getDescription() {
     return myDescription;
@@ -68,10 +73,11 @@ public abstract class QtFileType extends LanguageFileType implements INativeFile
       return false;
     }
     try {
-      Runtime.getRuntime().exec(new String[] { qtTool, file.getPath() } );
+      Runtime.getRuntime().exec(new String[]{qtTool, file.getPath()});
     }
     catch (IOException e) {
-      Messages.showErrorDialog(project, "Failed to run Qt Designer: " + e.getMessage(), "Error");
+      Messages.showErrorDialog(project, PyBundle.message("qt.error.failed.run.qt.designer", e.getMessage()),
+                               PyBundle.message("qt.run.designer.error"));
     }
     return true;
   }
@@ -90,7 +96,7 @@ public abstract class QtFileType extends LanguageFileType implements INativeFile
         return tool;
       }
       return findToolInPackage(toolName, module, "PySide");
-   }
+    }
     // TODO
     return null;
   }

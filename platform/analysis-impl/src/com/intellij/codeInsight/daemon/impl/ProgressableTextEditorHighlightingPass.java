@@ -18,7 +18,7 @@ package com.intellij.codeInsight.daemon.impl;
 
 import com.intellij.codeHighlighting.TextEditorHighlightingPass;
 import com.intellij.codeInspection.ex.GlobalInspectionContextBase;
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -26,20 +26,18 @@ import com.intellij.openapi.progress.util.ProgressWrapper;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * @author cdr
- */
 public abstract class ProgressableTextEditorHighlightingPass extends TextEditorHighlightingPass {
   private volatile boolean myFinished;
   private volatile long myProgressLimit;
   private final AtomicLong myProgressCount = new AtomicLong();
   private volatile long myNextChunkThreshold; // the value myProgressCount should exceed to generate next fireProgressAdvanced event
-  private final String myPresentableName;
+  private final @Nls String myPresentableName;
   protected final PsiFile myFile;
   @Nullable private final Editor myEditor;
   @NotNull final TextRange myRestrictRange;
@@ -47,8 +45,8 @@ public abstract class ProgressableTextEditorHighlightingPass extends TextEditorH
   HighlightingSession myHighlightingSession;
 
   protected ProgressableTextEditorHighlightingPass(@NotNull Project project,
-                                                   @Nullable final Document document,
-                                                   @NotNull String presentableName,
+                                                   @NotNull Document document,
+                                                   @NotNull @Nls String presentableName,
                                                    @Nullable PsiFile file,
                                                    @Nullable Editor editor,
                                                    @NotNull TextRange restrictRange,
@@ -60,6 +58,9 @@ public abstract class ProgressableTextEditorHighlightingPass extends TextEditorH
     myEditor = editor;
     myRestrictRange = restrictRange;
     myHighlightInfoProcessor = highlightInfoProcessor;
+    if (file != null && InjectedLanguageManager.getInstance(project).isInjectedFragment(file)) {
+      throw new IllegalArgumentException("File must be top-level but " + file + " is an injected fragment");
+    }
   }
 
   @Override
@@ -72,12 +73,12 @@ public abstract class ProgressableTextEditorHighlightingPass extends TextEditorH
   }
 
   @Override
-  public final void doCollectInformation(@NotNull final ProgressIndicator progress) {
+  public final void doCollectInformation(@NotNull ProgressIndicator progress) {
     GlobalInspectionContextBase.assertUnderDaemonProgress();
     myFinished = false;
     if (myFile != null) {
-      myHighlightingSession =
-        HighlightingSessionImpl.getOrCreateHighlightingSession(myFile, (DaemonProgressIndicator)ProgressWrapper.unwrapAll(progress), getColorsScheme());
+      DaemonProgressIndicator daemonProgressIndicator = (DaemonProgressIndicator)ProgressWrapper.unwrapAll(progress);
+      myHighlightingSession = HighlightingSessionImpl.getOrCreateHighlightingSession(myFile, daemonProgressIndicator, getColorsScheme());
     }
     try {
       collectInformationWithProgress(progress);
@@ -125,6 +126,7 @@ public abstract class ProgressableTextEditorHighlightingPass extends TextEditorH
   }
 
   @Nullable("null means do not show progress")
+  @Nls
   protected String getPresentableName() {
     return myPresentableName;
   }
@@ -150,21 +152,13 @@ public abstract class ProgressableTextEditorHighlightingPass extends TextEditorH
     }
   }
 
-  void waitForHighlightInfosApplied() {
-    ApplicationManager.getApplication().assertIsDispatchThread();
-    HighlightingSessionImpl session = (HighlightingSessionImpl)myHighlightingSession;
-    if (session != null) {
-      session.waitForHighlightInfosApplied();
-    }
-  }
-
   static class EmptyPass extends TextEditorHighlightingPass {
-    EmptyPass(final Project project, @Nullable final Document document) {
+    EmptyPass(@NotNull Project project, @NotNull Document document) {
       super(project, document, false);
     }
 
     @Override
-    public void doCollectInformation(@NotNull final ProgressIndicator progress) {
+    public void doCollectInformation(@NotNull ProgressIndicator progress) {
     }
 
     @Override

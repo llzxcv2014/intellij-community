@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.openapi.roots.impl;
 
@@ -24,20 +24,17 @@ public interface DirectoryIndexExcludePolicy {
 
   /**
    * @deprecated Override {@link #getExcludeUrlsForProject()} instead
-   *
    */
   @Deprecated
-  @NotNull
-  default VirtualFile[] getExcludeRootsForProject() {
+  default VirtualFile @NotNull [] getExcludeRootsForProject() {
     return VirtualFile.EMPTY_ARRAY;
   }
 
   /**
    * Supply all file urls (existing as well as not yet created) that should be treated as 'excluded'
    */
-  @NotNull
   @Contract(pure = true)
-  default String[] getExcludeUrlsForProject() {
+  default String @NotNull [] getExcludeUrlsForProject() {
     return ContainerUtil.map2Array(getExcludeRootsForProject(), String.class, VirtualFile::getUrl);
   }
 
@@ -47,12 +44,10 @@ public interface DirectoryIndexExcludePolicy {
     return null;
   }
 
-  @NotNull
   @Contract(pure = true)
-  VirtualFilePointer[] getExcludeRootsForModule(@NotNull ModuleRootModel rootModel);
+  default VirtualFilePointer @NotNull [] getExcludeRootsForModule(@NotNull ModuleRootModel rootModel) { return VirtualFilePointer.EMPTY_ARRAY;}
 
-  @NotNull
-  static DirectoryIndexExcludePolicy[] getExtensions(@NotNull AreaInstance areaInstance) {
+  static DirectoryIndexExcludePolicy @NotNull [] getExtensions(@NotNull AreaInstance areaInstance) {
     return EP_NAME.getExtensions(areaInstance);
   }
 }

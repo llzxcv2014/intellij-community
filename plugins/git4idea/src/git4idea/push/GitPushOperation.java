@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.push;
 
 import com.intellij.dvcs.DvcsUtil;
@@ -35,6 +35,7 @@ import git4idea.commands.GitStandardProgressAnalyzer;
 import git4idea.config.GitVcsSettings;
 import git4idea.config.UpdateMethod;
 import git4idea.history.GitHistoryUtils;
+import git4idea.i18n.GitBundle;
 import git4idea.merge.MergeChangeCollector;
 import git4idea.push.GitPushParamsImpl.ForceWithLeaseReference;
 import git4idea.repo.GitBranchTrackInfo;
@@ -160,7 +161,8 @@ public class GitPushOperation {
           }
 
           if (beforePushLabel == null) { // put the label only before the very first update
-            beforePushLabel = LocalHistory.getInstance().putSystemLabel(myProject, "Before push");
+            beforePushLabel = LocalHistory.getInstance().putSystemLabel(myProject,
+                                                                        GitBundle.message("push.local.history.system.label.before"));
           }
           Collection<GitRepository> rootsToUpdate = getRootsToUpdate(updateSettings, result.rejected.keySet());
           LOG.debug("roots to update: " + rootsToUpdate);
@@ -177,7 +179,7 @@ public class GitPushOperation {
     }
     finally {
       if (beforePushLabel != null) {
-        afterPushLabel = LocalHistory.getInstance().putSystemLabel(myProject, "After push");
+        afterPushLabel = LocalHistory.getInstance().putSystemLabel(myProject, GitBundle.message("push.local.history.system.label.after"));
       }
       for (GitRepository repository : myPushSpecs.keySet()) {
         repository.update();
@@ -344,7 +346,7 @@ public class GitPushOperation {
   private void collectUpdatedFiles(@NotNull UpdatedFiles updatedFiles, @NotNull GitRepository repository,
                                    @NotNull String preUpdatePosition) {
     try {
-      new MergeChangeCollector(myProject, repository.getRoot(), new GitRevisionNumber(preUpdatePosition)).collect(updatedFiles);
+      new MergeChangeCollector(myProject, repository, new GitRevisionNumber(preUpdatePosition)).collect(updatedFiles);
     }
     catch (VcsException e) {
       LOG.info(e);
@@ -437,7 +439,7 @@ public class GitPushOperation {
                                    @NotNull UpdateMethod updateMethod,
                                    boolean checkForRebaseOverMergeProblem) {
     GitUpdateProcess updateProcess = new GitUpdateProcess(myProject, myProgressIndicator,
-                                                          new HashSet<>(rootsToUpdate), UpdatedFiles.create(),
+                                                          new HashSet<>(rootsToUpdate), UpdatedFiles.create(), null,
                                                           checkForRebaseOverMergeProblem, false);
     GitUpdateResult updateResult = updateProcess.update(updateMethod);
     Map<GitRepository, HashRange> ranges = updateProcess.getUpdatedRanges();

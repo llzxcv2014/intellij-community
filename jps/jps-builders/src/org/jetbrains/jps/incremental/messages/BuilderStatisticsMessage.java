@@ -16,18 +16,16 @@
 package org.jetbrains.jps.incremental.messages;
 
 import com.intellij.openapi.util.text.StringUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.incremental.Utils;
 
-/**
- * @author nik
- */
 public class BuilderStatisticsMessage extends BuildMessage {
   private final String myBuilderName;
   private final int myNumberOfProcessedSources;
   private final long myElapsedTimeMs;
 
-  public BuilderStatisticsMessage(String builderName, int numberOfProcessedSources, long elapsedTimeMs) {
+  public BuilderStatisticsMessage(@Nls String builderName, int numberOfProcessedSources, long elapsedTimeMs) {
     super(createText(builderName, numberOfProcessedSources, elapsedTimeMs), Kind.INFO);
     myBuilderName = builderName;
     myNumberOfProcessedSources = numberOfProcessedSources;

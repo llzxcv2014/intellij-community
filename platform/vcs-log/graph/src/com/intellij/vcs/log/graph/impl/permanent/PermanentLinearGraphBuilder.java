@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.vcs.log.graph.impl.permanent;
 
@@ -15,15 +15,15 @@ import java.util.*;
 
 import static com.intellij.vcs.log.graph.impl.permanent.DuplicateParentFixer.fixDuplicateParentCommits;
 
-public class PermanentLinearGraphBuilder<CommitId> {
+public final class PermanentLinearGraphBuilder<CommitId> {
 
   @NotNull private final List<? extends GraphCommit<CommitId>> myCommits;
   @NotNull private final Flags mySimpleNodes;
 
   private final int myNodesCount;
 
-  @NotNull private final int[] myNodeToEdgeIndex;
-  @NotNull private final int[] myLongEdges;
+  private final int @NotNull [] myNodeToEdgeIndex;
+  private final int @NotNull [] myLongEdges;
   // downCommitId -> List of upNodeIndex
   @NotNull private final Map<CommitId, List<Integer>> upAdjacentNodes = new HashMap<>();
 

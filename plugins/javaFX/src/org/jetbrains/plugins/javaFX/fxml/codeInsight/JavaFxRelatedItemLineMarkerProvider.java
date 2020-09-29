@@ -15,7 +15,6 @@
  */
 package org.jetbrains.plugins.javaFX.fxml.codeInsight;
 
-import com.intellij.codeHighlighting.Pass;
 import com.intellij.codeInsight.daemon.GutterIconNavigationHandler;
 import com.intellij.codeInsight.daemon.RelatedItemLineMarkerInfo;
 import com.intellij.codeInsight.daemon.RelatedItemLineMarkerProvider;
@@ -35,6 +34,7 @@ import com.intellij.ui.awt.RelativePoint;
 import com.intellij.util.Function;
 import com.intellij.util.Functions;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.plugins.javaFX.JavaFXBundle;
 import org.jetbrains.plugins.javaFX.fxml.FxmlConstants;
 import org.jetbrains.plugins.javaFX.fxml.JavaFxFileTypeFactory;
 import org.jetbrains.plugins.javaFX.fxml.JavaFxPsiUtil;
@@ -49,7 +49,7 @@ public class JavaFxRelatedItemLineMarkerProvider extends RelatedItemLineMarkerPr
   private static final Logger LOG = Logger.getInstance(JavaFxRelatedItemLineMarkerProvider.class);
 
   @Override
-  protected void collectNavigationMarkers(@NotNull PsiElement element, @NotNull final Collection<? super RelatedItemLineMarkerInfo> result) {
+  protected void collectNavigationMarkers(@NotNull PsiElement element, final @NotNull Collection<? super RelatedItemLineMarkerInfo<?>> result) {
     PsiElement f;
     if (element instanceof PsiIdentifier && (f = element.getParent()) instanceof PsiField) {
       final PsiField field = (PsiField)f;
@@ -70,9 +70,9 @@ public class JavaFxRelatedItemLineMarkerProvider extends RelatedItemLineMarkerPr
           if (targets.isEmpty()) return;
 
           result.add(new RelatedItemLineMarkerInfo<>((PsiIdentifier)element, element.getTextRange(),
-                                                     AllIcons.FileTypes.Xml, Pass.LINE_MARKERS, null,
+                                                     AllIcons.FileTypes.Xml, null,
                                                      new JavaFXIdIconNavigationHandler(), GutterIconRenderer.Alignment.LEFT,
-                                                     targets));
+                                                     ()->targets));
         }
       }
     }
@@ -115,7 +115,8 @@ public class JavaFxRelatedItemLineMarkerProvider extends RelatedItemLineMarkerPr
         return;
       }
       final JBPopup popup = NavigationUtil
-        .getPsiElementPopup(relatedItems.toArray(PsiElement.EMPTY_ARRAY), "<html>Choose component with fx:id <b>" + fieldName.getText() + "<b></html>");
+        .getPsiElementPopup(relatedItems.toArray(PsiElement.EMPTY_ARRAY),
+                            JavaFXBundle.message("popup.title.choose.component.with.fx.id", fieldName.getText()));
       popup.show(new RelativePoint(e));
     }
   }

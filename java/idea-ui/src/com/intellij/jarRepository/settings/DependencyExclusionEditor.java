@@ -1,7 +1,9 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.jarRepository.settings;
 
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.openapi.ui.DialogBuilder;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.ui.CheckboxTree;
 import com.intellij.ui.CheckboxTreeBase;
 import com.intellij.ui.CheckedTreeNode;
@@ -44,8 +46,10 @@ class DependencyExclusionEditor {
         if (!(userObject instanceof Artifact)) return;
 
         Artifact artifact = (Artifact)userObject;
-        getTextRenderer().append(artifact.getGroupId() + ":" + artifact.getArtifactId(), SimpleTextAttributes.REGULAR_ATTRIBUTES, true);
-        getTextRenderer().append(":" + artifact.getVersion(), SimpleTextAttributes.GRAYED_ATTRIBUTES, true);
+        @NlsSafe final String groupArtifactFragment = artifact.getGroupId() + ":" + artifact.getArtifactId();
+        getTextRenderer().append(groupArtifactFragment, SimpleTextAttributes.REGULAR_ATTRIBUTES, true);
+        @NlsSafe final String versionFragment = ":" + artifact.getVersion();
+        getTextRenderer().append(versionFragment, SimpleTextAttributes.GRAYED_ATTRIBUTES, true);
       }
     }, myRootNode, policy);
     myDependenciesTree.setRootVisible(false);
@@ -57,7 +61,7 @@ class DependencyExclusionEditor {
     TreeUtil.expandAll(myDependenciesTree);
     DialogBuilder dialogBuilder =
       new DialogBuilder(myMainPanel)
-        .title("Include Transitive Dependencies")
+        .title(JavaUiBundle.message("dialog.title.include.transitive.dependencies"))
         .centerPanel(new JBScrollPane(myDependenciesTree));
     dialogBuilder.setPreferredFocusComponent(myDependenciesTree);
 

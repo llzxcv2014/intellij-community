@@ -1,18 +1,21 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util;
 
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Arrays;
+import java.util.*;
 
 @SuppressWarnings("MethodOverridesStaticMethodOfSuperclass")
-public class ExceptionUtil extends ExceptionUtilRt {
+public final class ExceptionUtil extends ExceptionUtilRt {
   private ExceptionUtil() { }
 
   @NotNull
@@ -27,8 +30,29 @@ public class ExceptionUtil extends ExceptionUtilRt {
     return ExceptionUtilRt.findCause(e, klass);
   }
 
-  public static boolean causedBy(Throwable e, Class klass) {
+  public static boolean causedBy(Throwable e, Class<?> klass) {
     return ExceptionUtilRt.causedBy(e, klass);
+  }
+
+  /**
+   * If there are matching throwables both in causes of the {@code error} and in suppressed throwables, causes are guaranteed to be first.
+   */
+  public static <T> List<T> findCauseAndSuppressed(@NotNull Throwable error, @NotNull Class<T> klass) {
+    Collection<Throwable> allThrowables = new LinkedHashSet<>();
+    Deque<Throwable> deque = new ArrayDeque<>();
+    deque.add(error);
+    while (!deque.isEmpty()) {
+      Throwable t = deque.removeFirst();
+      if (allThrowables.add(t)) {
+        for (Throwable cause = t.getCause(); cause != null; cause = cause.getCause()) {
+          deque.addLast(cause);
+        }
+        for (Throwable s : t.getSuppressed()) {
+          deque.addLast(s);
+        }
+      }
+    }
+    return ContainerUtil.filterIsInstance(allThrowables, klass);
   }
 
   @NotNull
@@ -49,6 +73,7 @@ public class ExceptionUtil extends ExceptionUtilRt {
     return getThrowableText(new Throwable());
   }
 
+  @NlsSafe
   @NotNull
   public static String getThrowableText(@NotNull Throwable t) {
     StringWriter writer = new StringWriter();
@@ -56,11 +81,13 @@ public class ExceptionUtil extends ExceptionUtilRt {
     return writer.getBuffer().toString();
   }
 
+  @NlsSafe
   @NotNull
   public static String getThrowableText(@NotNull Throwable aThrowable, @NotNull String stackFrameSkipPattern) {
     return ExceptionUtilRt.getThrowableText(aThrowable, stackFrameSkipPattern);
   }
 
+  @NlsSafe
   @NotNull
   public static String getUserStackTrace(@NotNull Throwable aThrowable, Logger logger) {
     String result = getThrowableText(aThrowable, "com.intellij.");
@@ -124,7 +151,7 @@ public class ExceptionUtil extends ExceptionUtilRt {
   }
 
   @NotNull
-  public static String getNonEmptyMessage(@NotNull Throwable t, @NotNull String defaultMessage) {
+  public static @NlsSafe String getNonEmptyMessage(@NotNull Throwable t, @NotNull @Nls String defaultMessage) {
     String message = t.getMessage();
     return !StringUtil.isEmptyOrSpaces(message) ? message : defaultMessage;
   }

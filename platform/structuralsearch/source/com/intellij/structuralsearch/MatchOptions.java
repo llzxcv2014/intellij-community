@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch;
 
 import com.intellij.codeInsight.template.impl.TemplateImplUtil;
@@ -6,6 +6,7 @@ import com.intellij.lang.Language;
 import com.intellij.openapi.fileTypes.LanguageFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.JDOMExternalizable;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.search.SearchScope;
 import com.intellij.structuralsearch.impl.matcher.compiler.StringToConstraintsTransformer;
@@ -68,11 +69,12 @@ public class MatchOptions implements JDOMExternalizable {
     myPatternContextId = options.myPatternContextId;
   }
 
+  @NotNull
   public MatchOptions copy() {
     return new MatchOptions(this);
   }
 
-  public void initScope(Project project) {
+  public void initScope(@NotNull Project project) {
     if (scope == null && scopeType != null && scopeDescriptor != null) {
       scope = Scopes.createScope(project, scopeDescriptor, scopeType);
     }
@@ -144,12 +146,11 @@ public class MatchOptions implements JDOMExternalizable {
     pattern = text;
   }
 
-  @NotNull
-  public String getSearchPattern() {
+  public @NlsSafe @NotNull String getSearchPattern() {
     return pattern;
   }
 
-  public void fillSearchCriteria(String criteria) {
+  public void fillSearchCriteria(@NotNull String criteria) {
     if (!variableConstraints.isEmpty()) variableConstraints.clear();
     StringToConstraintsTransformer.transformCriteria(criteria, this);
   }
@@ -160,6 +161,8 @@ public class MatchOptions implements JDOMExternalizable {
   }
 
   public void setScope(SearchScope scope) {
+    scopeType = null;
+    scopeDescriptor = null;
     this.scope = scope;
   }
 
@@ -246,27 +249,26 @@ public class MatchOptions implements JDOMExternalizable {
     if (!pattern.equals(matchOptions.pattern)) return false;
     if (!variableConstraints.equals(matchOptions.variableConstraints)) return false;
     if (myFileType != matchOptions.myFileType) return false;
-    if (!Objects.equals(myDialect, matchOptions.myDialect)) return false;
+    if (!Objects.equals(getDialect(), matchOptions.getDialect())) return false;
     if (!Objects.equals(myPatternContextId, matchOptions.myPatternContextId)) return false;
 
     return true;
   }
 
   public int hashCode() {
-    int result = (looseMatching ? 1 : 0);
+    int result = looseMatching ? 1 : 0;
     result = 29 * result + (recursiveSearch ? 1 : 0);
     result = 29 * result + (caseSensitiveMatch ? 1 : 0);
     result = 29 * result + pattern.hashCode();
     result = 29 * result + variableConstraints.hashCode();
-    if (scope != null) //noinspection deprecation
-      result = 29 * result + scope.hashCode();
+    if (scope != null) result = 29 * result + scope.hashCode();
     if (myFileType != null) result = 29 * result + myFileType.hashCode();
     if (myDialect != null) result = 29 * result + myDialect.hashCode();
     if (myPatternContextId != null) result = 29 * result + myPatternContextId.hashCode();
     return result;
   }
 
-  public void setFileType(LanguageFileType fileType) {
+  public void setFileType(@NotNull LanguageFileType fileType) {
     myFileType = fileType;
   }
 
@@ -291,7 +293,6 @@ public class MatchOptions implements JDOMExternalizable {
   }
 
   public PatternContext getPatternContext() {
-    if (myPatternContextId == null) return null;
     return StructuralSearchUtil.findPatternContextByID(myPatternContextId, getDialect());
   }
 

@@ -16,8 +16,9 @@
 
 package com.intellij.packageDependencies.ui;
 
-import com.intellij.analysis.AnalysisScopeBundle;
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.openapi.progress.util.ProgressIndicatorBase;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.util.Consumer;
 import com.intellij.util.concurrency.EdtExecutorService;
 
@@ -49,7 +50,7 @@ public class PanelProgressIndicator extends ProgressIndicatorBase {
   public void stop() {
     super.stop();
     if (isCanceled()) {
-      JLabel label = new JLabel(AnalysisScopeBundle.message("usage.view.canceled"));
+      JLabel label = new JLabel(CodeInsightBundle.message("usage.view.canceled"));
       label.setHorizontalAlignment(SwingConstants.CENTER);
       myComponentUpdater.consume(label);
     }
@@ -76,7 +77,7 @@ public class PanelProgressIndicator extends ProgressIndicatorBase {
     super.setIndeterminate(indeterminate);
   }
 
-  public void update(final String scanningPackagesMessage, final boolean indeterminate, final double ffraction) {
+  public void update(final @NlsContexts.ProgressText String scanningPackagesMessage, final boolean indeterminate, final double ffraction) {
     if (myPaintInQueue) return;
     checkCanceled();
     myPaintInQueue = true;

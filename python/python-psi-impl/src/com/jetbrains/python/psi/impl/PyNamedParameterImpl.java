@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 /**
  * @author yole
  */
-public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub> implements PyNamedParameter {
+public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub> implements PyNamedParameter, ContributedReferenceHost {
   public PyNamedParameterImpl(ASTNode astNode) {
     super(astNode);
   }
@@ -49,9 +49,8 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
     super(stub, nodeType);
   }
 
-  @NotNull
   @Override
-  public final PsiReference[] getReferences() {
+  public final PsiReference @NotNull [] getReferences() {
     return ReferenceProvidersRegistry.getReferencesFromProviders(this, PsiReferenceService.Hints.NO_HINTS);
   }
 
@@ -151,7 +150,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
     if (stub != null && stub.getDefaultValueText() == null) {
       return null;
     }
-    final ASTNode[] nodes = getNode().getChildren(PythonDialectsTokenSetProvider.INSTANCE.getExpressionTokens());
+    final ASTNode[] nodes = getNode().getChildren(PythonDialectsTokenSetProvider.getInstance().getExpressionTokens());
     if (nodes.length > 0) {
       return (PyExpression)nodes[0].getPsi();
     }
@@ -237,6 +236,14 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
           final PyClass containingClass = func.getContainingClass();
           if (containingClass != null) {
             final PyFunction.Modifier modifier = func.getModifier();
+
+            final PyType genericType = new PyTypingTypeProvider().getGenericType(containingClass, context);
+            if (genericType != null) {
+              return modifier == PyFunction.Modifier.CLASSMETHOD && genericType instanceof PyInstantiableType
+                     ? ((PyInstantiableType<?>)genericType).toClass()
+                     : genericType;
+            }
+
             return new PyClassTypeImpl(containingClass, modifier == PyFunction.Modifier.CLASSMETHOD);
           }
         }
@@ -261,7 +268,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
         // Guess the type from file-local calls
         if (context.allowCallContext(this)) {
           final List<PyType> types = new ArrayList<>();
-          final PyResolveContext resolveContext = PyResolveContext.noImplicits().withTypeEvalContext(context);
+          final PyResolveContext resolveContext = PyResolveContext.defaultContext().withTypeEvalContext(context);
           final PyCallableParameter parameter = PyCallableParameterImpl.psi(this);
 
           processLocalCalls(
@@ -312,7 +319,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
     if (owner != null && name != null) {
       owner.accept(new PyRecursiveElementVisitor() {
         @Override
-        public void visitPyElement(PyElement node) {
+        public void visitPyElement(@NotNull PyElement node) {
           if (parameterWasReassigned.get()) return;
 
           if (node instanceof ScopeOwner && node != owner) {
@@ -341,7 +348,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
         }
 
         @Override
-        public void visitPyIfStatement(PyIfStatement node) {
+        public void visitPyIfStatement(@NotNull PyIfStatement node) {
           if (parameterWasReassigned.get()) return;
 
           final PyExpression ifCondition = node.getIfPart().getCondition();
@@ -357,7 +364,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
         }
 
         @Override
-        public void visitPyCallExpression(PyCallExpression node) {
+        public void visitPyCallExpression(@NotNull PyCallExpression node) {
           if (parameterWasReassigned.get()) return;
 
           Optional
@@ -372,7 +379,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
         }
 
         @Override
-        public void visitPyForStatement(PyForStatement node) {
+        public void visitPyForStatement(@NotNull PyForStatement node) {
           if (parameterWasReassigned.get()) return;
 
           if (isReferenceToParameter(node.getForPart().getSource())) {
@@ -383,7 +390,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
         }
 
         @Override
-        public void visitPyTargetExpression(PyTargetExpression node) {
+        public void visitPyTargetExpression(@NotNull PyTargetExpression node) {
           if (parameterWasReassigned.get()) return;
 
           if (isReferenceToParameter(node)) {
@@ -395,7 +402,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
         }
 
         @Override
-        public void visitPyBinaryExpression(PyBinaryExpression node) {
+        public void visitPyBinaryExpression(@NotNull PyBinaryExpression node) {
           super.visitPyBinaryExpression(node);
 
           if (noneComparison.get() || !node.isOperator(PyNames.IS) && !node.isOperator("isnot")) return;
@@ -448,7 +455,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
             return Collections.emptyList();
           }
         }
-        final PyResolveContext resolveContext = PyResolveContext.noImplicits().withTypeEvalContext(context);
+        final PyResolveContext resolveContext = PyResolveContext.defaultContext().withTypeEvalContext(context);
         return callExpression.multiMapArguments(resolveContext)
           .stream()
           .flatMap(mapping -> mapping.getMappedParameters().entrySet().stream())
@@ -460,7 +467,7 @@ public class PyNamedParameterImpl extends PyBaseElementImpl<PyNamedParameterStub
     return Collections.emptyList();
   }
 
-  private static void processLocalCalls(@NotNull PyFunction function, @NotNull Processor<PyCallExpression> processor) {
+  private static void processLocalCalls(@NotNull PyFunction function, @NotNull Processor<? super PyCallExpression> processor) {
     final PsiFile file = function.getContainingFile();
     final String name = function.getName();
     if (file != null && name != null) {

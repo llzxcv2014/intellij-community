@@ -16,6 +16,7 @@
 package com.intellij.refactoring.move.moveClassesOrPackages;
 
 import com.intellij.ide.util.EditorHelper;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
@@ -29,7 +30,6 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.refactoring.BaseRefactoringProcessor;
 import com.intellij.refactoring.PackageWrapper;
-import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.move.MoveCallback;
 import com.intellij.refactoring.move.MoveClassesOrPackagesCallback;
 import com.intellij.refactoring.move.MoveMultipleElementsViewDescriptor;
@@ -91,13 +91,12 @@ public class MoveClassToInnerProcessor extends BaseRefactoringProcessor {
 
   @Override
   @NotNull
-  protected UsageViewDescriptor createUsageViewDescriptor(@NotNull UsageInfo[] usages) {
+  protected UsageViewDescriptor createUsageViewDescriptor(UsageInfo @NotNull [] usages) {
     return new MoveMultipleElementsViewDescriptor(myClassesToMove, myTargetClass.getQualifiedName());
   }
 
   @Override
-  @NotNull
-  public UsageInfo[] findUsages() {
+  public UsageInfo @NotNull [] findUsages() {
     final List<UsageInfo> usages = new ArrayList<>();
     for (PsiClass classToMove : myClassesToMove) {
       final String newName = myTargetClass.getQualifiedName() + "." + classToMove.getName();
@@ -114,7 +113,7 @@ public class MoveClassToInnerProcessor extends BaseRefactoringProcessor {
   }
 
   @Override
-  protected void refreshElements(@NotNull final PsiElement[] elements) {
+  protected void refreshElements(final PsiElement @NotNull [] elements) {
     ApplicationManager.getApplication().runReadAction(() -> {
       final PsiClass[] classesToMove = new PsiClass[elements.length];
       for (int i = 0; i < classesToMove.length; i++) {
@@ -125,7 +124,7 @@ public class MoveClassToInnerProcessor extends BaseRefactoringProcessor {
   }
 
   @Override
-  protected void performRefactoring(@NotNull UsageInfo[] usages) {
+  protected void performRefactoring(UsageInfo @NotNull [] usages) {
     MoveClassToInnerHandler[] handlers = MoveClassToInnerHandler.EP_NAME.getExtensions();
 
     ArrayList<UsageInfo> usageList = new ArrayList<>(Arrays.asList(usages));
@@ -219,8 +218,9 @@ public class MoveClassToInnerProcessor extends BaseRefactoringProcessor {
   @Override
   @NotNull
   protected String getCommandName() {
-    return RefactoringBundle.message("move.class.to.inner.command.name",
-                                     (myClassesToMove.length > 1 ? "classes " : "class ") + StringUtil.join(myClassesToMove, psiClass -> psiClass.getName(), ", "),
+    return JavaRefactoringBundle.message("move.class.to.inner.command.name",
+                                     myClassesToMove.length,
+                                     StringUtil.join(myClassesToMove, psiClass -> psiClass.getName(), ", "),
                                      myTargetClass.getQualifiedName());
   }
 
@@ -238,7 +238,7 @@ public class MoveClassToInnerProcessor extends BaseRefactoringProcessor {
     for (PsiClass classToMove : myClassesToMove) {
       final PsiClass innerClass = myTargetClass.findInnerClassByName(classToMove.getName(), false);
       if (innerClass != null) {
-        conflicts.putValue(innerClass, RefactoringBundle.message("move.to.inner.duplicate.inner.class",
+        conflicts.putValue(innerClass, JavaRefactoringBundle.message("move.to.inner.duplicate.inner.class",
                                                 CommonRefactoringUtil.htmlEmphasize(myTargetClass.getQualifiedName()),
                                                 CommonRefactoringUtil.htmlEmphasize(classToMove.getName())));
       }
@@ -332,10 +332,8 @@ public class MoveClassToInnerProcessor extends BaseRefactoringProcessor {
       PsiElement container = ConflictsUtil.getContainer(sourceElement);
       if (!myReportedContainers.contains(container)) {
         myReportedContainers.add(container);
-        String targetDescription = (targetElement == myClassToMove)
-                                   ? "Class " + CommonRefactoringUtil.htmlEmphasize(myClassToMove.getName())
-                                   : StringUtil.capitalize(RefactoringUIUtil.getDescription(targetElement, true));
-        final String message = RefactoringBundle.message("element.will.no.longer.be.accessible",
+        String targetDescription = StringUtil.capitalize(RefactoringUIUtil.getDescription(targetElement, true));
+        final String message = JavaRefactoringBundle.message("element.will.no.longer.be.accessible",
                                                          targetDescription,
                                                          RefactoringUIUtil.getDescription(container, true));
         myConflicts.putValue(targetElement, message);

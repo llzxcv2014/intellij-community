@@ -19,6 +19,7 @@ package com.intellij.lang.properties.psi;
 import com.intellij.lang.properties.IProperty;
 import com.intellij.lang.properties.ResourceBundle;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiElement;
@@ -109,7 +110,12 @@ public interface PropertiesFile {
   IProperty addPropertyAfter(@NotNull String key, @NotNull String value, IProperty anchor) throws IncorrectOperationException;
 
   @NotNull
-  IProperty addProperty(@NotNull String key, @NotNull String value);
+  default IProperty addProperty(@NotNull String key, @NotNull String value) {
+    return addProperty(key, value, PropertyKeyValueFormat.PRESENTABLE);
+  }
+
+  @NotNull
+  IProperty addProperty(@NotNull String key, @NotNull String value, @NotNull PropertyKeyValueFormat format);
 
   /**
    * @return Property key to the property value map.
@@ -118,7 +124,7 @@ public interface PropertiesFile {
   @NotNull
   Map<String,String> getNamesMap();
 
-  @NotNull
+  @NotNull @NlsSafe
   String getName();
 
   VirtualFile getVirtualFile();

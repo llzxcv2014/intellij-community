@@ -1,6 +1,7 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.plugins.newui;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.util.text.StringUtil;
@@ -22,7 +23,7 @@ public abstract class SearchResultPanel {
 
   protected final PluginsGroupComponent myPanel;
   private JScrollBar myVerticalScrollBar;
-  private PluginsGroup myGroup = new PluginsGroup("Search Results");
+  private PluginsGroup myGroup = new PluginsGroup(IdeBundle.message("title.search.results"));
   private String myQuery;
   private AtomicBoolean myRunQuery;
   private boolean myEmpty = true;
@@ -38,7 +39,7 @@ public abstract class SearchResultPanel {
     this.tabIndex = tabIndex;
     this.backTabIndex = backTabIndex;
 
-    setEmptyText();
+    setEmptyText("");
 
     if (isProgressMode()) {
       loading(false);
@@ -73,8 +74,8 @@ public abstract class SearchResultPanel {
     return pane;
   }
 
-  protected void setEmptyText() {
-    myPanel.getEmptyText().setText("Nothing found");
+  protected void setEmptyText(@NotNull String query) {
+    myPanel.getEmptyText().setText(IdeBundle.message("empty.text.nothing.found"));
   }
 
   public boolean isEmpty() {
@@ -94,7 +95,7 @@ public abstract class SearchResultPanel {
   public void setQuery(@NotNull String query) {
     assert SwingUtilities.isEventDispatchThread();
 
-    setEmptyText();
+    setEmptyText(query);
 
     if (query.equals(myQuery)) {
       myEmpty = query.isEmpty();
@@ -137,9 +138,13 @@ public abstract class SearchResultPanel {
 
           if (!myGroup.descriptors.isEmpty()) {
             myGroup.titleWithCount();
-            PluginLogo.startBatchMode();
-            myPanel.addLazyGroup(myGroup, myVerticalScrollBar, 100, this::fullRepaint);
-            PluginLogo.endBatchMode();
+            try {
+              PluginLogo.startBatchMode();
+              myPanel.addLazyGroup(myGroup, myVerticalScrollBar, 100, this::fullRepaint);
+            }
+            finally {
+              PluginLogo.endBatchMode();
+            }
           }
 
           myPanel.initialSelection(false);
@@ -191,12 +196,12 @@ public abstract class SearchResultPanel {
     return myPanel instanceof PluginsGroupComponentWithProgress;
   }
 
-  private void removeGroup() {
+  public void removeGroup() {
     if (myGroup.ui != null) {
       myPanel.removeGroup(myGroup);
       fullRepaint();
     }
-    myGroup = new PluginsGroup("Search Results");
+    myGroup = new PluginsGroup(IdeBundle.message("title.search.results"));
   }
 
   public void fullRepaint() {

@@ -1,7 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.ui.breakpoints;
 
-import com.intellij.debugger.DebuggerBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.HelpID;
 import com.intellij.debugger.SourcePosition;
 import com.intellij.debugger.engine.PositionManagerImpl;
@@ -9,6 +9,7 @@ import com.intellij.debugger.impl.DebuggerUtilsEx;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.registry.Registry;
@@ -41,7 +42,7 @@ import java.util.List;
  */
 public class JavaLineBreakpointType extends JavaLineBreakpointTypeBase<JavaLineBreakpointProperties> {
   public JavaLineBreakpointType() {
-    super("java-line", DebuggerBundle.message("line.breakpoints.tab.title"));
+    super("java-line", JavaDebuggerBundle.message("line.breakpoints.tab.title"));
   }
 
   protected JavaLineBreakpointType(@NonNls @NotNull String id, @Nls @NotNull String title) {
@@ -55,7 +56,7 @@ public class JavaLineBreakpointType extends JavaLineBreakpointTypeBase<JavaLineB
 
   //@Override
   public String getDisplayName() {
-    return DebuggerBundle.message("line.breakpoints.tab.title");
+    return JavaDebuggerBundle.message("line.breakpoints.tab.title");
   }
 
   @Override
@@ -188,7 +189,9 @@ public class JavaLineBreakpointType extends JavaLineBreakpointTypeBase<JavaLineB
     @NotNull
     @Override
     public String getText() {
-      return myElement != null ? StringUtil.shortenTextWithEllipsis(myElement.getText(), 100, 0) : "Line";
+      return myElement != null
+             ? StringUtil.shortenTextWithEllipsis(myElement.getText(), 100, 0)
+             : JavaDebuggerBundle.message("breakpoint.variant.text.line");
     }
 
     @Override
@@ -217,7 +220,7 @@ public class JavaLineBreakpointType extends JavaLineBreakpointTypeBase<JavaLineB
     @NotNull
     @Override
     public String getText() {
-      return "Line";
+      return JavaDebuggerBundle.message("breakpoint.variant.text.line");
     }
 
     @Override
@@ -297,6 +300,9 @@ public class JavaLineBreakpointType extends JavaLineBreakpointTypeBase<JavaLineB
       if (element instanceof PsiField) {
         PsiExpression initializer = ((PsiField)element).getInitializer();
         if (initializer != null && !PsiType.NULL.equals(initializer.getType())) {
+          if (DumbService.isDumb(project)) {
+            return true;
+          }
           Object value = JavaPsiFacade.getInstance(project).getConstantEvaluationHelper().computeConstantExpression(initializer);
           return value == null;
         }

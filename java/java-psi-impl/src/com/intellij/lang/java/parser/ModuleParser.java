@@ -15,8 +15,9 @@
  */
 package com.intellij.lang.java.parser;
 
-import com.intellij.codeInsight.daemon.JavaErrorMessages;
+import com.intellij.core.JavaPsiBundle;
 import com.intellij.lang.PsiBuilder;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.JavaTokenType;
 import com.intellij.psi.PsiKeyword;
 import com.intellij.psi.impl.source.tree.ElementType;
@@ -67,27 +68,27 @@ public class ModuleParser {
     }
     else {
       module.drop();
-      parseExtras(builder, JavaErrorMessages.message("expected.module.declaration"));
+      parseExtras(builder, JavaPsiBundle.message("expected.module.declaration"));
       return module;
     }
 
     if (parseName(builder) == null) {
       module.drop();
       if (builder.getTokenType() != null) {
-        parseExtras(builder, JavaErrorMessages.message("expected.module.declaration"));
+        parseExtras(builder, JavaPsiBundle.message("expected.module.declaration"));
       }
       else {
-        error(builder, JavaErrorMessages.message("expected.identifier"));
+        error(builder, JavaPsiBundle.message("expected.identifier"));
       }
       return module;
     }
 
     if (!expect(builder, JavaTokenType.LBRACE)) {
       if (builder.getTokenType() != null) {
-        parseExtras(builder, JavaErrorMessages.message("expected.module.declaration"));
+        parseExtras(builder, JavaPsiBundle.message("expected.module.declaration"));
       }
       else {
-        error(builder, JavaErrorMessages.message("expected.lbrace"));
+        error(builder, JavaPsiBundle.message("expected.lbrace"));
       }
     }
     else {
@@ -97,7 +98,7 @@ public class ModuleParser {
     JavaParserUtil.done(module, JavaElementType.MODULE);
 
     if (builder.getTokenType() != null) {
-      parseExtras(builder, JavaErrorMessages.message("unexpected.tokens"));
+      parseExtras(builder, JavaPsiBundle.message("unexpected.tokens"));
     }
 
     return module;
@@ -111,11 +112,11 @@ public class ModuleParser {
     while (true) {
       IElementType t = builder.getTokenType();
       if (t == JavaTokenType.IDENTIFIER) {
-        if (!idExpected) error(builder, JavaErrorMessages.message("expected.dot"));
+        if (!idExpected) error(builder, JavaPsiBundle.message("expected.dot"));
         idExpected = false;
       }
       else if (t == JavaTokenType.DOT) {
-        if (idExpected) error(builder, JavaErrorMessages.message("expected.identifier"));
+        if (idExpected) error(builder, JavaPsiBundle.message("expected.identifier"));
         idExpected = true;
       }
       else break;
@@ -124,7 +125,7 @@ public class ModuleParser {
     }
 
     if (!empty) {
-      if (idExpected) error(builder, JavaErrorMessages.message("expected.identifier"));
+      if (idExpected) error(builder, JavaPsiBundle.message("expected.identifier"));
       nameElement.done(JavaElementType.MODULE_REFERENCE);
       return nameElement;
     }
@@ -145,7 +146,7 @@ public class ModuleParser {
 
       if (token == JavaTokenType.SEMICOLON) {
         if (invalid != null) {
-          invalid.error(JavaErrorMessages.message("expected.module.statement"));
+          invalid.error(JavaPsiBundle.message("expected.module.statement"));
           invalid = null;
         }
         builder.advanceLexer();
@@ -158,17 +159,17 @@ public class ModuleParser {
         builder.advanceLexer();
       }
       else if (invalid != null) {
-        invalid.errorBefore(JavaErrorMessages.message("expected.module.statement"), statement);
+        invalid.errorBefore(JavaPsiBundle.message("expected.module.statement"), statement);
         invalid = null;
       }
     }
 
     if (invalid != null) {
-      invalid.error(JavaErrorMessages.message("expected.module.statement"));
+      invalid.error(JavaPsiBundle.message("expected.module.statement"));
     }
 
     if (!expect(builder, JavaTokenType.RBRACE) && invalid == null) {
-      error(builder, JavaErrorMessages.message("expected.rbrace"));
+      error(builder, JavaPsiBundle.message("expected.rbrace"));
     }
   }
 
@@ -238,7 +239,7 @@ public class ModuleParser {
       }
     }
     else {
-      error(builder, JavaErrorMessages.message("expected.package.reference"));
+      error(builder, JavaPsiBundle.message("expected.package.reference"));
       hasError = true;
     }
 
@@ -261,7 +262,7 @@ public class ModuleParser {
       semicolon(builder);
     }
     else {
-      error(builder, JavaErrorMessages.message("expected.class.reference"));
+      error(builder, JavaPsiBundle.message("expected.class.reference"));
       expect(builder, JavaTokenType.SEMICOLON);
     }
 
@@ -275,7 +276,7 @@ public class ModuleParser {
     mapAndAdvance(builder, JavaTokenType.PROVIDES_KEYWORD);
 
     if (parseClassOrPackageRef(builder) == null) {
-      error(builder, JavaErrorMessages.message("expected.class.reference"));
+      error(builder, JavaPsiBundle.message("expected.class.reference"));
       hasError = true;
     }
 
@@ -288,10 +289,10 @@ public class ModuleParser {
       if (next == JavaTokenType.IDENTIFIER && !STATEMENT_KEYWORDS.contains(builder.getTokenText())) {
         PsiBuilder.Marker marker = builder.mark();
         builder.advanceLexer();
-        marker.error(JavaErrorMessages.message("expected.with"));
+        marker.error(JavaPsiBundle.message("expected.with"));
       }
       else {
-        error(builder, JavaErrorMessages.message("expected.with"));
+        error(builder, JavaPsiBundle.message("expected.with"));
       }
       hasError = true;
     }
@@ -310,7 +311,7 @@ public class ModuleParser {
   private static PsiBuilder.Marker parseNameRef(PsiBuilder builder) {
     PsiBuilder.Marker name = parseName(builder);
     if (name == null) {
-      error(builder, JavaErrorMessages.message("expected.identifier"));
+      error(builder, JavaPsiBundle.message("expected.identifier"));
     }
     return name;
   }
@@ -320,7 +321,7 @@ public class ModuleParser {
     builder.advanceLexer();
   }
 
-  private static void parseExtras(PsiBuilder builder, @NotNull String message) {
+  private static void parseExtras(PsiBuilder builder, @NotNull @NlsContexts.ParsingError String message) {
     PsiBuilder.Marker extras = builder.mark();
     while (builder.getTokenType() != null) builder.advanceLexer();
     extras.error(message);

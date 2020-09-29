@@ -24,7 +24,7 @@ import com.siyeh.ig.psiutils.FinalUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class MakeFieldFinalFix extends InspectionGadgetsFix {
+public final class MakeFieldFinalFix extends InspectionGadgetsFix {
 
   private final String fieldName;
 
@@ -56,7 +56,7 @@ public class MakeFieldFinalFix extends InspectionGadgetsFix {
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Make final";
+    return InspectionGadgetsBundle.message("make.field.final.fix.family.name");
   }
 
   @Override

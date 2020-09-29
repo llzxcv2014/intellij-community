@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.lang.java.lexer;
 
 import com.intellij.lexer.LexerBase;
@@ -7,27 +7,26 @@ import com.intellij.psi.JavaTokenType;
 import com.intellij.psi.TokenType;
 import com.intellij.psi.impl.source.tree.JavaDocElementType;
 import com.intellij.psi.tree.IElementType;
-import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.containers.CollectionFactory;
 import com.intellij.util.text.CharArrayUtil;
-import com.intellij.util.text.CharSequenceHashingStrategy;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 import static com.intellij.psi.PsiKeyword.*;
 
-public class JavaLexer extends LexerBase {
-  private static final Set<String> KEYWORDS = ContainerUtil.newTroveSet(
+public final class JavaLexer extends LexerBase {
+  private static final Set<String> KEYWORDS = new HashSet<>(Arrays.asList(
     ABSTRACT, BOOLEAN, BREAK, BYTE, CASE, CATCH, CHAR, CLASS, CONST, CONTINUE, DEFAULT, DO, DOUBLE, ELSE, EXTENDS, FINAL, FINALLY,
     FLOAT, FOR, GOTO, IF, IMPLEMENTS, IMPORT, INSTANCEOF, INT, INTERFACE, LONG, NATIVE, NEW, PACKAGE, PRIVATE, PROTECTED, PUBLIC,
     RETURN, SHORT, STATIC, STRICTFP, SUPER, SWITCH, SYNCHRONIZED, THIS, THROW, THROWS, TRANSIENT, TRY, VOID, VOLATILE, WHILE,
-    TRUE, FALSE, NULL);
+    TRUE, FALSE, NULL, NON_SEALED));
 
-  private static final Set<CharSequence> JAVA9_KEYWORDS = ContainerUtil.newTroveSet(
-    CharSequenceHashingStrategy.CASE_SENSITIVE,
-    OPEN, MODULE, REQUIRES, EXPORTS, OPENS, USES, PROVIDES, TRANSITIVE, TO, WITH);
+  private static final Set<CharSequence> JAVA9_KEYWORDS = CollectionFactory.createCharSequenceSet(Arrays.asList(OPEN, MODULE, REQUIRES, EXPORTS, OPENS, USES, PROVIDES, TRANSITIVE, TO, WITH));
 
   public static boolean isKeyword(String id, @NotNull LanguageLevel level) {
     return KEYWORDS.contains(id) ||
@@ -39,12 +38,14 @@ public class JavaLexer extends LexerBase {
     return id != null &&
            (level.isAtLeast(LanguageLevel.JDK_1_9) && JAVA9_KEYWORDS.contains(id) ||
             level.isAtLeast(LanguageLevel.JDK_10) && VAR.contentEquals(id) ||
-            level.isAtLeast(LanguageLevel.JDK_13_PREVIEW) && YIELD.contentEquals(id));
+            level.isAtLeast(LanguageLevel.JDK_14_PREVIEW) && RECORD.contentEquals(id) ||
+            level.isAtLeast(LanguageLevel.JDK_14) && YIELD.contentEquals(id) ||
+            (level.isAtLeast(LanguageLevel.JDK_15_PREVIEW) && (SEALED.contentEquals(id) || PERMITS.contentEquals(id))));
   }
 
   private final _JavaLexer myFlexLexer;
   private CharSequence myBuffer;
-  private @Nullable char[] myBufferArray;
+  private char @Nullable [] myBufferArray;
   private int myBufferIndex;
   private int myBufferEndOffset;
   private int myTokenEndOffset;  // positioned after the last symbol of the current token
@@ -144,6 +145,15 @@ public class JavaLexer extends LexerBase {
         }
         break;
 
+      case '#' :
+        if (myBufferIndex == 0 && myBufferIndex + 1 < myBufferEndOffset && charAt(myBufferIndex + 1) == '!') {
+          myTokenType = JavaTokenType.END_OF_LINE_COMMENT;
+          myTokenEndOffset = getLineTerminator(myBufferIndex + 2);
+        }
+        else {
+          flexLocateToken();
+        }
+        break;
       case '\'':
         myTokenType = JavaTokenType.CHARACTER_LITERAL;
         myTokenEndOffset = getClosingQuote(myBufferIndex + 1, c);

@@ -21,18 +21,16 @@ import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.util.NullableFunction;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.util.List;
 
-/**
- * @author nik
- */
 public abstract class JavaSourceRootDetector extends ProjectStructureDetector {
   @NotNull
   @Override
-  public DirectoryProcessingResult detectRoots(@NotNull File dir, @NotNull File[] children, @NotNull File base,
+  public DirectoryProcessingResult detectRoots(@NotNull File dir, File @NotNull [] children, @NotNull File base,
                                                @NotNull List<DetectedProjectRoot> result) {
     final String fileExtension = getFileExtension();
     if (JavaFileType.DEFAULT_EXTENSION.equals(fileExtension)) {
@@ -87,7 +85,7 @@ public abstract class JavaSourceRootDetector extends ProjectStructureDetector {
   }
 
   @NotNull
-  protected abstract String getLanguageName();
+  protected abstract @Nls(capitalization = Nls.Capitalization.Sentence) String getLanguageName();
 
   @NotNull
   protected abstract String getFileExtension();

@@ -21,7 +21,7 @@ import com.intellij.diff.requests.DiffRequest;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.project.Project;
-import org.jetbrains.annotations.CalledInAwt;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -38,6 +38,14 @@ import java.awt.*;
  * <p>
  * Use {@link DiffExtension} to customize existing diff viewers.
  * Register custom {@link FrameDiffTool} to support custom {@link DiffRequest} or to add new views for default ones.
+ * <p>
+ * <pre>
+ * DiffContent content1 = DiffContentFactory.getInstance().create(project, "Stuff");
+ * DiffContent content2 = DiffContentFactory.getInstance().createClipboardContent(project);
+ * content2.putUserData(DiffUserDataKeys.FORCE_READ_ONLY, true);
+ * SimpleDiffRequest request = new SimpleDiffRequest("Stuff vs Clipboard", content1, content2, "Stuff", "Clipboard");
+ * DiffManager.getInstance().showDiff(project, request);
+ * </pre>
  *
  * @see DiffRequestFactory
  * @see DiffContentFactory
@@ -50,17 +58,19 @@ public abstract class DiffManager {
     return ServiceManager.getService(DiffManager.class);
   }
 
-  //
-  // Usage
-  //
-
-  @CalledInAwt
+  /**
+   * @see com.intellij.diff.requests.SimpleDiffRequest
+   */
+  @RequiresEdt
   public abstract void showDiff(@Nullable Project project, @NotNull DiffRequest request);
 
-  @CalledInAwt
+  @RequiresEdt
   public abstract void showDiff(@Nullable Project project, @NotNull DiffRequest request, @NotNull DiffDialogHints hints);
 
-  @CalledInAwt
+  /**
+   * @see com.intellij.diff.chains.SimpleDiffRequestChain
+   */
+  @RequiresEdt
   public abstract void showDiff(@Nullable Project project, @NotNull DiffRequestChain requests, @NotNull DiffDialogHints hints);
 
   /**
@@ -69,6 +79,6 @@ public abstract class DiffManager {
   @NotNull
   public abstract DiffRequestPanel createRequestPanel(@Nullable Project project, @NotNull Disposable parent, @Nullable Window window);
 
-  @CalledInAwt
+  @RequiresEdt
   public abstract void showMerge(@Nullable Project project, @NotNull MergeRequest request);
 }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.psi.dataFlow.reachingDefs;
 
 import com.intellij.psi.PsiElement;
@@ -10,6 +10,7 @@ import gnu.trove.TIntHashSet;
 import gnu.trove.TIntObjectHashMap;
 import gnu.trove.TIntObjectProcedure;
 import gnu.trove.TObjectIntHashMap;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.lang.psi.GrControlFlowOwner;
@@ -19,9 +20,9 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrStatement;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrVariable;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.blocks.GrClosableBlock;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrReferenceExpression;
-import org.jetbrains.plugins.groovy.lang.psi.controlFlow.VariableDescriptor;
 import org.jetbrains.plugins.groovy.lang.psi.controlFlow.Instruction;
 import org.jetbrains.plugins.groovy.lang.psi.controlFlow.ReadWriteVariableInstruction;
+import org.jetbrains.plugins.groovy.lang.psi.controlFlow.VariableDescriptor;
 import org.jetbrains.plugins.groovy.lang.psi.dataFlow.DFAEngine;
 import org.jetbrains.plugins.groovy.lang.psi.dataFlow.UtilKt;
 import org.jetbrains.plugins.groovy.lang.psi.dataFlow.types.TypeInferenceHelper;
@@ -37,7 +38,7 @@ import static org.jetbrains.plugins.groovy.lang.psi.controlFlow.OrderUtil.revers
 /**
  * @author ven
  */
-public class ReachingDefinitionsCollector {
+public final class ReachingDefinitionsCollector {
   private ReachingDefinitionsCollector() {
   }
 
@@ -45,7 +46,7 @@ public class ReachingDefinitionsCollector {
   public static FragmentVariableInfos obtainVariableFlowInformation(@NotNull final GrStatement first,
                                                                     @NotNull final GrStatement last,
                                                                     @NotNull final GrControlFlowOwner flowOwner,
-                                                                    @NotNull final Instruction[] flow) {
+                                                                    final Instruction @NotNull [] flow) {
 
     final DefinitionMap dfaResult = inferDfaResult(flowOwner, flow);
 
@@ -131,7 +132,7 @@ public class ReachingDefinitionsCollector {
   }
 
   @NotNull
-  private static DefinitionMap inferDfaResult(@NotNull GrControlFlowOwner owner, @NotNull Instruction[] flow) {
+  private static DefinitionMap inferDfaResult(@NotNull GrControlFlowOwner owner, Instruction @NotNull [] flow) {
     TObjectIntHashMap<VariableDescriptor> varIndexes = UtilKt.getVarIndexes(owner);
     final ReachingDefinitionsDfaInstance dfaInstance = new ReachingDefinitionsDfaInstance(flow, varIndexes);
     final ReachingDefinitionsSemilattice lattice = new ReachingDefinitionsSemilattice();
@@ -297,7 +298,7 @@ public class ReachingDefinitionsCollector {
     return result;
   }
 
-  private static Set<Integer> getFragmentOuterBound(@NotNull LinkedHashSet<Integer> fragmentInstructions, @NotNull Instruction[] flow) {
+  private static Set<Integer> getFragmentOuterBound(@NotNull LinkedHashSet<Integer> fragmentInstructions, Instruction @NotNull [] flow) {
     final Set<Integer> result = new HashSet<>();
     for (Integer num : fragmentInstructions) {
       for (Instruction successor : flow[num].allSuccessors()) {
@@ -364,8 +365,9 @@ public class ReachingDefinitionsCollector {
   }
 
   @SuppressWarnings({"UnusedDeclaration"})
+  @NonNls
   private static String dumpDfaResult(ArrayList<TIntObjectHashMap<TIntHashSet>> dfaResult, ReachingDefinitionsDfaInstance dfa) {
-    final StringBuffer buffer = new StringBuffer();
+    @NonNls final StringBuffer buffer = new StringBuffer();
     for (int i = 0; i < dfaResult.size(); i++) {
       TIntObjectHashMap<TIntHashSet> map = dfaResult.get(i);
       buffer.append("At ").append(i).append(":\n");
@@ -432,7 +434,7 @@ public class ReachingDefinitionsCollector {
 
   @NotNull
   private static DefinitionMap postprocess(@NotNull final List<DefinitionMap> dfaResult,
-                                           @NotNull Instruction[] flow,
+                                           Instruction @NotNull [] flow,
                                            @NotNull TObjectIntHashMap<VariableDescriptor> varIndexes) {
     DefinitionMap result = new DefinitionMap();
     for (int i = 0; i < flow.length; i++) {

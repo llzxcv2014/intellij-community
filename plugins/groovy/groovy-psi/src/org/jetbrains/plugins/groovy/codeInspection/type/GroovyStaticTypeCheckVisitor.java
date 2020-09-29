@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.codeInspection.type;
 
 import com.intellij.codeInsight.intention.IntentionAction;
@@ -6,8 +6,10 @@ import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ProblemHighlightType;
-import com.intellij.lang.annotation.Annotation;
+import com.intellij.codeInspection.util.InspectionMessage;
+import com.intellij.lang.annotation.AnnotationBuilder;
 import com.intellij.lang.annotation.AnnotationHolder;
+import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
@@ -57,7 +59,7 @@ public class GroovyStaticTypeCheckVisitor extends GroovyTypeCheckVisitor {
     super.visitVariableDeclaration(variableDeclaration);
   }
 
-  void checkTupleAssignment(@NotNull GrExpression initializer, @NotNull final PsiType[] types) {
+  void checkTupleAssignment(@NotNull GrExpression initializer, final PsiType @NotNull [] types) {
     if (initializer instanceof GrListOrMap && !((GrListOrMap)initializer).isMap()) {
 
       final GrListOrMap initializerList = (GrListOrMap)initializer;
@@ -84,8 +86,8 @@ public class GroovyStaticTypeCheckVisitor extends GroovyTypeCheckVisitor {
 
   @Override
   protected void registerError(@NotNull final PsiElement location,
-                               @NotNull final String description,
-                               @Nullable final LocalQuickFix[] fixes,
+                               @InspectionMessage @NotNull final String description,
+                               final LocalQuickFix @Nullable [] fixes,
                                final ProblemHighlightType highlightType) {
     if (highlightType != ProblemHighlightType.GENERIC_ERROR) return;
     final List<IntentionAction> intentions = new ArrayList<>();
@@ -128,15 +130,17 @@ public class GroovyStaticTypeCheckVisitor extends GroovyTypeCheckVisitor {
   }
 
   protected void registerError(@NotNull final PsiElement location,
-                               @NotNull final String description,
-                               @Nullable final IntentionAction[] fixes,
+                               @NotNull @InspectionMessage final String description,
+                               final IntentionAction @Nullable [] fixes,
                                final ProblemHighlightType highlightType) {
     if (highlightType != ProblemHighlightType.GENERIC_ERROR) return;
-    final Annotation annotation = myHolder.createErrorAnnotation(location, description);
-    if (fixes == null) return;
-    for (IntentionAction intention : fixes) {
-      annotation.registerFix(intention);
+    AnnotationBuilder builder = myHolder.newAnnotation(HighlightSeverity.ERROR, description).range(location);
+    if (fixes != null) {
+      for (IntentionAction intention : fixes) {
+        builder = builder.withFix(intention);
+      }
     }
+    builder.create();
   }
 
   @Override

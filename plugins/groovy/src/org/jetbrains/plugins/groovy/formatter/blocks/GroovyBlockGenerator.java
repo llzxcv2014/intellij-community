@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.formatter.blocks;
 
 import com.intellij.formatting.*;
@@ -27,7 +27,10 @@ import org.jetbrains.plugins.groovy.formatter.processors.GroovyWrappingProcessor
 import org.jetbrains.plugins.groovy.lang.lexer.GroovyTokenTypes;
 import org.jetbrains.plugins.groovy.lang.lexer.TokenSets;
 import org.jetbrains.plugins.groovy.lang.parser.GroovyElementTypes;
-import org.jetbrains.plugins.groovy.lang.psi.*;
+import org.jetbrains.plugins.groovy.lang.psi.GroovyElementVisitor;
+import org.jetbrains.plugins.groovy.lang.psi.GroovyFile;
+import org.jetbrains.plugins.groovy.lang.psi.GroovyFileBase;
+import org.jetbrains.plugins.groovy.lang.psi.GroovyTokenSets;
 import org.jetbrains.plugins.groovy.lang.psi.api.GrArrayInitializer;
 import org.jetbrains.plugins.groovy.lang.psi.api.GrTryResourceList;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.GrListOrMap;
@@ -43,7 +46,7 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.clauses.GrTraditiona
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.*;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrLiteral;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrString;
- import org.jetbrains.plugins.groovy.lang.psi.api.statements.params.GrParameterList;
+import org.jetbrains.plugins.groovy.lang.psi.api.statements.params.GrParameterList;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.GrExtendsClause;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.GrTypeDefinitionBody;
 import org.jetbrains.plugins.groovy.lang.psi.util.GrStringUtil;
@@ -124,8 +127,8 @@ public class GroovyBlockGenerator {
     if (GroovyTokenSets.STRING_LITERALS.contains(elementType) && myBlock.getTextRange().equals(myNode.getTextRange())) {
       String text = myNode.getText();
       if (text.length() > 6) {
-        if (text.substring(0, 3).equals("'''") && text.substring(text.length() - 3).equals("'''") ||
-            text.substring(0, 3).equals("\"\"\"") & text.substring(text.length() - 3).equals("\"\"\"")) {
+        if (text.startsWith("'''") && text.endsWith("'''") ||
+            text.startsWith("\"\"\"") && text.endsWith("\"\"\"")) {
           return generateForMultiLineString();
         }
       }
@@ -137,7 +140,7 @@ public class GroovyBlockGenerator {
         elementType == GroovyTokenTypes.mREGEX_LITERAL ||
         elementType == GroovyTokenTypes.mDOLLAR_SLASH_REGEX_LITERAL) {
       boolean isPlainGString = myNode.getPsi() instanceof GrString && ((GrString)myNode.getPsi()).isPlainString();
-      final FormattingContext context = isPlainGString ? myContext.createContext(true) : myContext;
+      final FormattingContext context = isPlainGString ? myContext.createContext(true, true) : myContext.createContext(false, true);
 
       final ArrayList<Block> subBlocks = new ArrayList<>();
       ASTNode[] children = getGroovyChildren(myNode);
@@ -251,8 +254,8 @@ public class GroovyBlockGenerator {
       {
         Indent indent = getNormalIndent();
         ASTNode parameterListNode = closableBlock.getParameterList().getNode();
-        boolean forbidWrapping = shouldHandleAsSimpleClosure(closableBlock, settings);
-        FormattingContext closureContext = myContext.createContext(forbidWrapping);
+        boolean simpleClosure = shouldHandleAsSimpleClosure(closableBlock, settings);
+        FormattingContext closureContext = myContext.createContext(simpleClosure, simpleClosure);
         ClosureBodyBlock bodyBlock = new ClosureBodyBlock(parameterListNode, indent, Wrap.createWrap(WrapType.NONE, false), closureContext);
         blocks.add(bodyBlock);
       }
@@ -269,8 +272,8 @@ public class GroovyBlockGenerator {
     if (blockPsi instanceof GrClosableBlock) {
       FormattingContext oldContext = myContext;
       try {
-        boolean forbidWrapping = shouldHandleAsSimpleClosure((GrClosableBlock)blockPsi, settings);
-        myContext = myContext.createContext(forbidWrapping);
+        boolean simpleClosure = shouldHandleAsSimpleClosure((GrClosableBlock)blockPsi, settings);
+        myContext = myContext.createContext(simpleClosure, simpleClosure);
         return generateCodeSubBlocks(visibleChildren(myNode));
       } finally {
         myContext = oldContext;
@@ -281,7 +284,9 @@ public class GroovyBlockGenerator {
       return generateCodeSubBlocks(visibleChildren(myNode));
     }
     if (classLevel) {
-      return generateSubBlocks(visibleChildren(myNode), true);
+      List<ASTNode> children = visibleChildren(myNode);
+      calculateAlignments(children, true);
+      return generateSubBlocks(children);
     }
 
     if (blockPsi instanceof GrTraditionalForClause) {
@@ -423,9 +428,8 @@ public class GroovyBlockGenerator {
     return subBlocks;
   }
 
-  List<Block> generateSubBlocks(List<ASTNode> children, boolean classLevel) {
+  List<Block> generateSubBlocks(List<ASTNode> children) {
     final List<Block> subBlocks = new ArrayList<>();
-    calculateAlignments(children, classLevel);
     for (ASTNode childNode : children) {
       subBlocks.add(new GroovyBlock(childNode, getIndent(childNode), getChildWrap(childNode), myContext));
     }

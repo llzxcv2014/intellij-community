@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.intentions.conversions;
 
 import com.intellij.openapi.application.ApplicationManager;
@@ -15,8 +15,8 @@ import com.intellij.refactoring.ui.ConflictsDialog;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.MultiMap;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.plugins.groovy.GroovyBundle;
 import org.jetbrains.plugins.groovy.GroovyLanguage;
-import org.jetbrains.plugins.groovy.intentions.GroovyIntentionsBundle;
 import org.jetbrains.plugins.groovy.intentions.base.Intention;
 import org.jetbrains.plugins.groovy.intentions.base.PsiElementPredicate;
 import org.jetbrains.plugins.groovy.lang.documentation.GroovyPresentationUtil;
@@ -31,9 +31,9 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpres
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrReferenceExpression;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrAccessorMethod;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrMethod;
-import org.jetbrains.plugins.groovy.lang.psi.impl.GrClosureType;
-import org.jetbrains.plugins.groovy.lang.psi.impl.signatures.GrClosureSignatureUtil;
+import org.jetbrains.plugins.groovy.lang.psi.impl.signatures.SignaturesKt;
 import org.jetbrains.plugins.groovy.lang.psi.util.PsiUtil;
+import org.jetbrains.plugins.groovy.lang.typing.GroovyClosureType;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -76,17 +76,17 @@ public class ConvertClosureToMethodIntention extends Intention {
       final PsiElement psiElement = usage.getElement();
       if (PsiUtil.isMethodUsage(psiElement)) continue;
       if (!GroovyLanguage.INSTANCE.equals(psiElement.getLanguage())) {
-        conflicts.putValue(psiElement, GroovyIntentionsBundle.message("closure.is.accessed.outside.of.groovy", fieldName));
+        conflicts.putValue(psiElement, GroovyBundle.message("closure.is.accessed.outside.of.groovy", fieldName));
       }
       else {
         if (psiElement instanceof GrReferenceExpression) {
           fieldUsages.add(psiElement);
           if (PsiUtil.isAccessedForWriting((GrExpression)psiElement)) {
-            conflicts.putValue(psiElement, GroovyIntentionsBundle.message("write.access.to.closure.variable", fieldName));
+            conflicts.putValue(psiElement, GroovyBundle.message("write.access.to.closure.variable", fieldName));
           }
         }
         else if (psiElement instanceof GrArgumentLabel) {
-          conflicts.putValue(psiElement, GroovyIntentionsBundle.message("field.is.used.in.argument.label", fieldName));
+          conflicts.putValue(psiElement, GroovyBundle.message("field.is.used.in.argument.label", fieldName));
         }
       }
     }
@@ -94,14 +94,14 @@ public class ConvertClosureToMethodIntention extends Intention {
     final GrExpression initializer = field.getInitializerGroovy();
     LOG.assertTrue(initializer != null);
     final PsiType type = initializer.getType();
-    LOG.assertTrue(type instanceof GrClosureType);
-    final List<MethodSignature> signatures = GrClosureSignatureUtil.generateAllMethodSignaturesBySignature(
-      fieldName, ((GrClosureType)type).getSignatures()
+    LOG.assertTrue(type instanceof GroovyClosureType);
+    final List<MethodSignature> signatures = SignaturesKt.generateAllMethodSignaturesBySignature(
+      fieldName, ((GroovyClosureType)type).getSignatures()
     );
     for (MethodSignature s : signatures) {
       final PsiMethod method = MethodSignatureUtil.findMethodBySignature(containingClass, s, true);
       if (method != null) {
-        conflicts.putValue(method, GroovyIntentionsBundle.message("method.with.signature.already.exists",
+        conflicts.putValue(method, GroovyBundle.message("method.with.signature.already.exists",
                                                                   GroovyPresentationUtil.getSignaturePresentation(s)));
       }
     }

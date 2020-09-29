@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.diagnostic;
 
 import com.intellij.diagnostic.VMOptions.MemoryKind;
@@ -21,6 +21,7 @@ import org.jetbrains.annotations.NotNull;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
+import java.nio.file.Path;
 
 public class OutOfMemoryDialog extends DialogWrapper {
   private final MemoryKind myMemoryKind;
@@ -55,9 +56,9 @@ public class OutOfMemoryDialog extends DialogWrapper {
     myMessageLabel.setText(DiagnosticBundle.message("diagnostic.out.of.memory.error", memoryKind.optionName));
     myMessageLabel.setBorder(JBUI.Borders.emptyBottom(10));
 
-    File file = VMOptions.getWriteFile();
+    Path file = VMOptions.getWriteFile();
     if (file != null) {
-      mySettingsFileHintLabel.setText(DiagnosticBundle.message("diagnostic.out.of.memory.willBeSavedTo", file.getPath()));
+      mySettingsFileHintLabel.setText(DiagnosticBundle.message("diagnostic.out.of.memory.willBeSavedTo", file.toString()));
       mySettingsFileHintLabel.setBorder(JBUI.Borders.emptyTop(10));
     }
     else {
@@ -144,7 +145,7 @@ public class OutOfMemoryDialog extends DialogWrapper {
   private void snapshot() {
     enableControls(false);
     myDumpMessageLabel.setVisible(true);
-    myDumpMessageLabel.setText("Dumping memory...");
+    myDumpMessageLabel.setText(DiagnosticBundle.message("label.dumping.memory"));
 
     Runnable task = () -> {
       TimeoutUtil.sleep(250);  // to give UI chance to update
@@ -183,9 +184,8 @@ public class OutOfMemoryDialog extends DialogWrapper {
     return myContentPane;
   }
 
-  @NotNull
   @Override
-  protected Action[] createActions() {
+  protected Action @NotNull [] createActions() {
     return myHeapDumpAction != null ? new Action[]{myShutdownAction, myContinueAction, myHeapDumpAction}
                                     : new Action[]{myShutdownAction, myContinueAction};
   }

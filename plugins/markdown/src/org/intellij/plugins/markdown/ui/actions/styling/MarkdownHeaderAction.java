@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.intellij.plugins.markdown.ui.actions.styling;
 
 import com.intellij.openapi.actionSystem.AnAction;
@@ -18,14 +18,13 @@ import com.intellij.psi.tree.TokenSet;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.Function;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
 import org.intellij.plugins.markdown.lang.MarkdownElementTypes;
-import org.intellij.plugins.markdown.lang.MarkdownTokenTypes;
 import org.intellij.plugins.markdown.lang.psi.MarkdownPsiElement;
 import org.intellij.plugins.markdown.lang.psi.MarkdownPsiElementFactory;
 import org.intellij.plugins.markdown.lang.psi.impl.MarkdownHeaderImpl;
 import org.intellij.plugins.markdown.ui.actions.MarkdownActionUtil;
+import org.intellij.plugins.markdown.util.MarkdownPsiUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -75,7 +74,7 @@ public abstract class MarkdownHeaderAction extends AnAction implements DumbAware
       }
 
       for (Caret caret : ContainerUtil.reverse(editor.getCaretModel().getAllCarets())) {
-        PsiElement parent = ObjectUtils.assertNotNull(findParent(psiFile, caret));
+        PsiElement parent = Objects.requireNonNull(findParent(psiFile, caret));
         MarkdownHeaderImpl header = PsiTreeUtil.getParentOfType(parent, MarkdownHeaderImpl.class, false);
 
         if (header != null && header.isValid()) {
@@ -98,11 +97,11 @@ public abstract class MarkdownHeaderAction extends AnAction implements DumbAware
 
     PsiElement first = elements.getFirst();
     PsiElement second = elements.getSecond();
-    if (PsiUtilCore.getElementType(first) == MarkdownTokenTypes.EOL) {
+    if (MarkdownPsiUtil.WhiteSpaces.isNewLine(first)) {
       first = PsiTreeUtil.nextVisibleLeaf(first);
     }
 
-    if (PsiUtilCore.getElementType(second) == MarkdownTokenTypes.EOL) {
+    if (MarkdownPsiUtil.WhiteSpaces.isNewLine(second)) {
       second = PsiTreeUtil.prevVisibleLeaf(second);
     }
 

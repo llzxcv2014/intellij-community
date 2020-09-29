@@ -1,21 +1,6 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.lang.ant.config.execution;
 
-import com.intellij.concurrency.JobScheduler;
 import com.intellij.execution.CantRunException;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
@@ -41,10 +26,12 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.encoding.EncodingProjectManager;
 import com.intellij.openapi.wm.StatusBar;
 import com.intellij.openapi.wm.WindowManager;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.concurrency.FutureResult;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -96,10 +83,10 @@ public final class ExecutionHandler {
   }
 
   /**
-   * @param antBuildListener should not be null. Use {@link com.intellij.lang.ant.config.AntBuildListener#NULL}
+   * @param antBuildListener should not be null. Use {@link AntBuildListener#NULL}
    */
   public static void runBuild(final AntBuildFileBase buildFile,
-                              List<String> targets,
+                              List<@NlsSafe String> targets,
                               @Nullable final AntBuildMessageView buildMessageViewToReuse,
                               final DataContext dataContext,
                               List<BuildFileProperty> additionalProperties, @NotNull final AntBuildListener antBuildListener) {
@@ -107,11 +94,11 @@ public final class ExecutionHandler {
   }
 
   /**
-   * @param antBuildListener should not be null. Use {@link com.intellij.lang.ant.config.AntBuildListener#NULL}
+   * @param antBuildListener should not be null. Use {@link AntBuildListener#NULL}
    */
   @Nullable
   private static FutureResult<ProcessHandler> runBuildImpl(final AntBuildFileBase buildFile,
-                                                          List<String> targets,
+                                                          List<@NlsSafe String> targets,
                                                           @Nullable final AntBuildMessageView buildMessageViewToReuse,
                                                           final DataContext dataContext,
                                                           List<BuildFileProperty> additionalProperties,
@@ -230,7 +217,7 @@ public final class ExecutionHandler {
 
     handler.putUserData(AntRunProfileState.MESSAGE_VIEW, errorView);
     handler.addProcessListener(new ProcessAdapter() {
-      private final StringBuilder myUnprocessedStdErr = new StringBuilder();
+      private final @NlsSafe StringBuilder myUnprocessedStdErr = new StringBuilder();
 
       @Override
       public void onTextAvailable(@NotNull ProcessEvent event, @NotNull Key outputType) {
@@ -309,7 +296,7 @@ public final class ExecutionHandler {
     }
 
     public void start(final long delay) {
-      JobScheduler.getScheduler().schedule(this, delay, TimeUnit.MILLISECONDS);
+      AppExecutorUtil.getAppScheduledExecutorService().schedule(this, delay, TimeUnit.MILLISECONDS);
     }
   }
 

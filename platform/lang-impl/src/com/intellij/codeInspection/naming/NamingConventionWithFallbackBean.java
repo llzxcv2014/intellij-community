@@ -3,7 +3,9 @@
 // found in the LICENSE file.
 package com.intellij.codeInspection.naming;
 
+import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.NonNls;
 
 import javax.swing.*;
 import java.awt.*;
@@ -11,7 +13,7 @@ import java.awt.*;
 public class NamingConventionWithFallbackBean extends NamingConventionBean {
   public boolean inheritDefaultSettings = false;
 
-  public NamingConventionWithFallbackBean(String regex, int minLength, int maxLength, String... predefinedNames) {
+  public NamingConventionWithFallbackBean(@NonNls String regex, int minLength, int maxLength, String... predefinedNames) {
     super(regex, minLength, maxLength, predefinedNames);
   }
 
@@ -41,7 +43,7 @@ public class NamingConventionWithFallbackBean extends NamingConventionBean {
   public JComponent createOptionsPanel() {
     JPanel panel = new JPanel(new BorderLayout());
     JComponent selfOptions = super.createOptionsPanel();
-    JCheckBox inheritCb = new JCheckBox("Use settings of class naming conventions", inheritDefaultSettings);
+    JCheckBox inheritCb = new JCheckBox(InspectionsBundle.message("inspection.naming.conventions.option"), inheritDefaultSettings);
     panel.add(inheritCb, BorderLayout.NORTH);
     inheritCb.addActionListener(e -> {
       inheritDefaultSettings = inheritCb.isSelected();

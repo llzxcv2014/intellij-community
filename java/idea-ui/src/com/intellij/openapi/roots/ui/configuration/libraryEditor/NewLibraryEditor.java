@@ -13,6 +13,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileVisitor;
 import com.intellij.openapi.vfs.impl.LightFilePointer;
 import com.intellij.util.ArrayUtilRt;
+import com.intellij.util.TriConsumer;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.io.URLUtil;
 import org.jetbrains.annotations.NotNull;
@@ -24,9 +25,6 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-/**
- * @author nik
- */
 public class NewLibraryEditor extends LibraryEditorBase {
   private String myLibraryName;
   private final MultiMap<OrderRootType, LightFilePointer> myRoots;
@@ -83,9 +81,8 @@ public class NewLibraryEditor extends LibraryEditorBase {
     return myLibraryName;
   }
 
-  @NotNull
   @Override
-  public String[] getUrls(@NotNull OrderRootType rootType) {
+  public String @NotNull [] getUrls(@NotNull OrderRootType rootType) {
     return pointersToUrls(myRoots.get(rootType));
   }
 
@@ -97,9 +94,8 @@ public class NewLibraryEditor extends LibraryEditorBase {
     return ArrayUtilRt.toStringArray(urls);
   }
 
-  @NotNull
   @Override
-  public VirtualFile[] getFiles(@NotNull OrderRootType rootType) {
+  public VirtualFile @NotNull [] getFiles(@NotNull OrderRootType rootType) {
     List<VirtualFile> result = new ArrayList<>();
     for (LightFilePointer pointer : myRoots.get(rootType)) {
       final VirtualFile file = pointer.getFile();
@@ -120,9 +116,8 @@ public class NewLibraryEditor extends LibraryEditorBase {
     return VfsUtilCore.toVirtualFileArray(result);
   }
 
-  @NotNull
   @Override
-  public String[] getExcludedRootUrls() {
+  public String @NotNull [] getExcludedRootUrls() {
     return pointersToUrls(myExcludedRoots);
   }
 
@@ -267,10 +262,5 @@ public class NewLibraryEditor extends LibraryEditorBase {
         return true;
       }
     });
-  }
-
-  @FunctionalInterface
-  private interface TriConsumer<T, U, P> {
-    void accept(T t, U u, P p);
   }
 }

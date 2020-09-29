@@ -20,6 +20,7 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.FilePath;
@@ -44,8 +45,8 @@ public class GetVersionAction extends AnAction implements DumbAware {
   private static final Logger LOG = Logger.getInstance(GetVersionAction.class);
 
   public GetVersionAction() {
-    super(VcsBundle.message("action.name.get.file.content.from.repository"),
-          VcsBundle.message("action.description.get.file.content.from.repository"), AllIcons.Actions.Download);
+    super(VcsBundle.messagePointer("action.name.get.file.content.from.repository"),
+          VcsBundle.messagePointer("action.description.get.file.content.from.repository"), AllIcons.Actions.Download);
   }
 
   @Override
@@ -110,7 +111,8 @@ public class GetVersionAction extends AnAction implements DumbAware {
       refresh = () -> vf.refresh(false, false);
     }
     if (refresh != null) {
-      ProgressManager.getInstance().runProcessWithProgressSynchronously(refresh, "Refreshing Files...", false, project);
+      ProgressManager.getInstance().runProcessWithProgressSynchronously(refresh,
+                                                                        VcsBundle.message("history.refreshing.files.progress.title"), false, project);
     }
   }
 
@@ -119,7 +121,7 @@ public class GetVersionAction extends AnAction implements DumbAware {
   }
 
   @NotNull
-  private static String createGetActionTitle(@NotNull FilePath filePath, @NotNull VcsFileRevision revision) {
+  private static @NlsContexts.Label String createGetActionTitle(@NotNull FilePath filePath, @NotNull VcsFileRevision revision) {
     return VcsBundle.message("action.name.for.file.get.version", filePath.getPath(), revision.getRevisionNumber());
   }
 
@@ -151,14 +153,12 @@ public class GetVersionAction extends AnAction implements DumbAware {
   }
 
   private static class MyWriteVersionTask extends Task.Backgroundable {
-    @NotNull private final Project myProject;
     @NotNull private final FilePath myFilePath;
     @NotNull private final VcsFileRevision myRevision;
     @Nullable private final VirtualFile myFile;
 
     MyWriteVersionTask(@NotNull Project project, @NotNull FilePath filePath, @NotNull VcsFileRevision revision) {
       super(project, VcsBundle.message("show.diff.progress.title"));
-      myProject = project;
       myFilePath = filePath;
       myRevision = revision;
       myFile = filePath.getVirtualFile();

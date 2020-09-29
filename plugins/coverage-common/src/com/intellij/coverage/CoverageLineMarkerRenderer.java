@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.coverage;
 
@@ -45,6 +31,7 @@ import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.options.colors.pages.GeneralColorsPage;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.rt.coverage.data.LineCoverage;
@@ -101,9 +88,9 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
     if (myLineNumber > -1) return myLineNumber;
     return editor.xyToLogicalPosition(mousePosition).line;
   }
-  
+
   @Override
-  public void paint(Editor editor, Graphics g, Rectangle r) {
+  public void paint(@NotNull Editor editor, @NotNull Graphics g, @NotNull Rectangle r) {
     final TextAttributes color = editor.getColorsScheme().getAttributes(myKey);
     Color bgColor = color.getBackgroundColor();
     if (bgColor == null) {
@@ -299,7 +286,7 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
     GotoPreviousCoveredLineAction(final Editor editor, final int lineNumber) {
       super(editor, lineNumber);
       ActionUtil.copyFrom(this, IdeActions.ACTION_PREVIOUS_OCCURENCE);
-      getTemplatePresentation().setText("Previous Coverage Mark");
+      getTemplatePresentation().setText(CoverageBundle.message("coverage.previous.mark"));
     }
 
     @Override
@@ -313,7 +300,7 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
       super.update(e);
       final String nextChange = getNextChange();
       if (nextChange != null) {
-        e.getPresentation().setText("Previous " + nextChange);
+        e.getPresentation().setText(CoverageBundle.message("coverage.previous.place", nextChange));
       }
     }
   }
@@ -323,7 +310,7 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
     GotoNextCoveredLineAction(final Editor editor, final int lineNumber) {
       super(editor, lineNumber);
       copyFrom(ActionManager.getInstance().getAction(IdeActions.ACTION_NEXT_OCCURENCE));
-      getTemplatePresentation().setText("Next Coverage Mark");
+      getTemplatePresentation().setText(CoverageBundle.message("coverage.next.mark"));
     }
 
     @Override
@@ -337,7 +324,7 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
       super.update(e);
       final String nextChange = getNextChange();
       if (nextChange != null) {
-        e.getPresentation().setText("Next " + nextChange);
+        e.getPresentation().setText(CoverageBundle.message("coverage.next.place", nextChange));
       }
     }
   }
@@ -398,11 +385,11 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
         if (lineData != null) {
           switch (lineData.getStatus()) {
             case LineCoverage.NONE:
-              return "Uncovered";
+              return CoverageBundle.message("coverage.next.change.uncovered");
             case LineCoverage.PARTIAL:
-              return "Partial Covered";
+              return CoverageBundle.message("coverage.next.change.partial.covered");
             case LineCoverage.FULL:
-              return "Fully Covered";
+              return CoverageBundle.message("coverage.next.change.fully.covered");
           }
         }
       }
@@ -415,12 +402,12 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
     }
   }
 
-  private class EditCoverageColorsAction extends AnAction {
+  private final class EditCoverageColorsAction extends AnAction {
     private final Editor myEditor;
     private final int myLineNumber;
 
     private EditCoverageColorsAction(Editor editor, int lineNumber) {
-      super("Edit Coverage Colors", "Edit coverage colors", AllIcons.General.Settings);
+      super(CoverageBundle.message("coverage.edit.colors.action.name"), CoverageBundle.message("coverage.edit.colors.description"), AllIcons.General.Settings);
       myEditor = editor;
       myLineNumber = lineNumber;
     }
@@ -433,7 +420,8 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
       final GeneralColorsPage colorsPage = new GeneralColorsPage();
-      String fullDisplayName = "Editor | " + ApplicationBundle.message("title.colors.and.fonts") + " | " + colorsPage.getDisplayName();
+      String fullDisplayName = CoverageBundle
+        .message("configurable.name.editor.colors.page", ApplicationBundle.message("title.colors.and.fonts"), colorsPage.getDisplayName());
       final ColorAndFontOptions colorAndFontOptions = new ColorAndFontOptions(){
         @Override
         protected List<ColorAndFontPanelFactory> createPanelFactories() {
@@ -445,6 +433,7 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
               return NewColorAndFontPanel.create(preview, colorsPage.getDisplayName(), options, null, colorsPage);
             }
 
+            @NlsContexts.ConfigurableName
             @NotNull
             @Override
             public String getPanelDisplayName() {
@@ -476,6 +465,6 @@ public class CoverageLineMarkerRenderer implements ActiveGutterRenderer, LineMar
   @NotNull
   @Override
   public String getAccessibleName() {
-    return "marker: code coverage";
+    return CoverageBundle.message("marker.code.coverage");
   }
 }

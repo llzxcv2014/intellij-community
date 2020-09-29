@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xdebugger.impl.breakpoints;
 
 import com.intellij.configurationStore.ComponentSerializationUtil;
@@ -13,6 +13,7 @@ import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.JDOMUtil;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.UserDataHolderBase;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
@@ -20,7 +21,7 @@ import com.intellij.pom.Navigatable;
 import com.intellij.ui.ColorUtil;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.LayeredIcon;
-import com.intellij.util.ui.JBUI;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.xdebugger.XDebugSession;
 import com.intellij.xdebugger.XDebuggerBundle;
 import com.intellij.xdebugger.XExpression;
@@ -37,16 +38,15 @@ import com.intellij.xdebugger.impl.actions.EditBreakpointAction;
 import com.intellij.xml.CommonXmlStrings;
 import com.intellij.xml.util.XmlStringUtil;
 import org.jdom.Element;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.List;
+import java.util.Objects;
 
-/**
- * @author nik
- */
 public class XBreakpointBase<Self extends XBreakpoint<P>, P extends XBreakpointProperties, S extends BreakpointState> extends UserDataHolderBase implements XBreakpoint<P>, Comparable<Self> {
   @NonNls private static final String BR_NBSP = "<br>" + CommonXmlStrings.NBSP;
   private final XBreakpointType<Self, P> myType;
@@ -199,7 +199,7 @@ public class XBreakpointBase<Self extends XBreakpoint<P>, P extends XBreakpointP
 
   @Override
   public void setLogExpression(@Nullable final String expression) {
-    if (!Comparing.equal(getLogExpression(), expression)) {
+    if (!Objects.equals(getLogExpression(), expression)) {
       myLogExpression = XExpressionImpl.fromText(expression);
       fireBreakpointChanged();
     }
@@ -231,7 +231,7 @@ public class XBreakpointBase<Self extends XBreakpoint<P>, P extends XBreakpointP
 
   @Override
   public void setCondition(@Nullable final String condition) {
-    if (!Comparing.equal(condition, getCondition())) {
+    if (!Objects.equals(condition, getCondition())) {
       myCondition = XExpressionImpl.fromText(condition);
       fireBreakpointChanged();
     }
@@ -303,6 +303,7 @@ public class XBreakpointBase<Self extends XBreakpoint<P>, P extends XBreakpointP
     myState.setGroup(StringUtil.nullize(group));
   }
 
+  @NlsSafe
   public String getUserDescription() {
     return myState.getDescription();
   }
@@ -338,8 +339,9 @@ public class XBreakpointBase<Self extends XBreakpoint<P>, P extends XBreakpointP
   }
 
   @NotNull
+  @Nls
   public String getDescription() {
-    @NonNls StringBuilder builder = new StringBuilder();
+    StringBuilder builder = new StringBuilder();
     builder.append(CommonXmlStrings.HTML_START).append(CommonXmlStrings.BODY_START);
     builder.append(XBreakpointUtil.getDisplayText(this));
 
@@ -401,6 +403,7 @@ public class XBreakpointBase<Self extends XBreakpoint<P>, P extends XBreakpointP
     }
 
     builder.append(CommonXmlStrings.BODY_END).append(CommonXmlStrings.HTML_END);
+    //noinspection HardCodedStringLiteral
     return builder.toString();
   }
 
@@ -414,7 +417,7 @@ public class XBreakpointBase<Self extends XBreakpoint<P>, P extends XBreakpointP
       LayeredIcon newIcon = new LayeredIcon(2);
       newIcon.setIcon(icon, 0);
       newIcon.setIcon(AllIcons.Debugger.Question_badge, 1, 10, 6);
-      myIcon = JBUI.scale(newIcon);
+      myIcon = JBUIScale.scaleIcon(newIcon);
     }
     else {
       myIcon = icon;
@@ -522,7 +525,9 @@ public class XBreakpointBase<Self extends XBreakpoint<P>, P extends XBreakpointP
     @Override
     public String getAccessibleName() {
       // [tav] todo: add "hit" state
-      return "icon: " + getType().getTitle() + (getCondition() != null ? " conditional" : "") + (!isEnabled() ? " disabled" : "");
+      return XDebuggerBundle.message("accessible.name.icon.0.1.2", getType().getTitle(),
+                                     getCondition() != null ? " " + XDebuggerBundle.message("accessible.name.icon.conditional") : "",
+                                     !isEnabled() ? " " + XDebuggerBundle.message("accessible.name.icon.disabled") : "");
     }
 
     @Override

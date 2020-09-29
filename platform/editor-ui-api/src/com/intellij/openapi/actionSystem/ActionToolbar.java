@@ -1,6 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.actionSystem;
 
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.util.ui.JBUI;
 import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.NotNull;
@@ -33,6 +34,25 @@ public interface ActionToolbar {
    */
   int AUTO_LAYOUT_POLICY = 2;
 
+  /**
+   * Constraint that's passed to <code>Container.add</code> when ActionButton is added to the toolbar.
+   */
+  String ACTION_BUTTON_CONSTRAINT = "Constraint.ActionButton";
+
+  /**
+   * Constraint that's passed to <code>Container.add</code> when a custom component is added to the toolbar.
+   */
+  String CUSTOM_COMPONENT_CONSTRAINT = "Constraint.CustomComponent";
+
+  /**
+   * Constraint that's passed to <code>Container.add</code> when a Separator is added to the toolbar.
+   */
+  String SEPARATOR_CONSTRAINT = "Constraint.Separator";
+
+  /**
+   * Constraint that's passed to <code>Container.add</code> when a secondary action is added to the toolbar.
+   */
+  String SECONDARY_ACTION_CONSTRAINT = "Constraint.SecondaryAction";
 
   @MagicConstant(intValues = {NOWRAP_LAYOUT_POLICY, WRAP_LAYOUT_POLICY, AUTO_LAYOUT_POLICY})
   @interface LayoutPolicy {
@@ -107,7 +127,7 @@ public interface ActionToolbar {
 
   void setReservePlaceAutoPopupIcon(boolean reserve);
 
-  void setSecondaryActionsTooltip(@NotNull String secondaryActionsTooltip);
+  void setSecondaryActionsTooltip(@NotNull @NlsContexts.Tooltip String secondaryActionsTooltip);
 
   void setSecondaryActionsIcon(Icon icon);
 

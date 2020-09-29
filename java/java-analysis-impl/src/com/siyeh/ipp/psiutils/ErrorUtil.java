@@ -21,8 +21,9 @@ import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiLiteralExpression;
 import com.intellij.psi.util.PsiLiteralUtil;
 import com.intellij.psi.util.PsiUtilCore;
+import org.jetbrains.annotations.NotNull;
 
-public class ErrorUtil {
+public final class ErrorUtil {
 
   private ErrorUtil() {
   }
@@ -52,7 +53,7 @@ public class ErrorUtil {
     private boolean containsErrorElement = false;
 
     @Override
-    public void visitErrorElement(PsiErrorElement element) {
+    public void visitErrorElement(@NotNull PsiErrorElement element) {
       containsErrorElement = true;
       stopWalking();
     }

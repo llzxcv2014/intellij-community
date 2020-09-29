@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.impl.local;
 
 import com.intellij.execution.configurations.PathEnvironmentVariableUtil;
@@ -13,6 +13,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
@@ -31,7 +32,7 @@ import static com.intellij.openapi.util.Pair.pair;
 
 /** An experiment; please do not use (unless you're certain about what you're doing). */
 @ApiStatus.Experimental
-public class DirectoryAccessChecker {
+public final class DirectoryAccessChecker {
   private DirectoryAccessChecker() { }
 
   private static final Logger LOG = Logger.getInstance(DirectoryAccessChecker.class);
@@ -39,8 +40,13 @@ public class DirectoryAccessChecker {
   private static final Path USER_HOME_DIR = Paths.get(System.getProperty("user.home"));
   private static final long REFRESH_RATE_MS = 60_000;
 
-  private static volatile DirectoryFilter instance = IS_ENABLED ? getChain() : DirectoryFilter.ACCEPTING_FILTER;
-  private static volatile long instanceEOL = 0;
+  private static volatile DirectoryFilter instance;
+  private static volatile long instanceEOL;
+  static {
+    instance = DirectoryFilter.ACCEPTING_FILTER;
+    instanceEOL = 0;
+    refresh();
+  }
 
   public static @NotNull FilenameFilter getFileFilter(File directory) {
     return !IS_ENABLED || directory.toPath().startsWith(USER_HOME_DIR) ? DirectoryFilter.ACCEPTING_FILTER : instance;
@@ -73,7 +79,7 @@ public class DirectoryAccessChecker {
     DirectoryFilter ACCEPTING_FILTER = (dir, name) -> true;
   }
 
-  private static class LinuxDirectoryFilter implements DirectoryFilter {
+  private static final class LinuxDirectoryFilter implements DirectoryFilter {
     private static final FileSystem NFS = new NFS();
     private static final FileSystem CIFS = new CIFS();
 
@@ -238,7 +244,7 @@ public class DirectoryAccessChecker {
         else if (o.startsWith("port")) port = getValue(o);
       }
 
-      List<String> command = new ArrayList<>();
+      @NonNls List<String> command = new ArrayList<>();
       command.add(clientPath);
       command.add(fsSpec);
       if (StringUtil.isNotEmpty(authFile)) {

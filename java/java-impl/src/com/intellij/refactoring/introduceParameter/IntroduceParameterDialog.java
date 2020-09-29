@@ -1,11 +1,13 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.introduceParameter;
 
 import com.intellij.codeInspection.AnonymousCanBeLambdaInspection;
 import com.intellij.codeInspection.LambdaCanBeMethodReferenceInspection;
 import com.intellij.ide.util.PropertiesComponent;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.JavaCodeStyleSettings;
 import com.intellij.psi.util.PsiUtil;
@@ -29,7 +31,6 @@ public class IntroduceParameterDialog extends RefactoringDialog {
   private TypeSelector myTypeSelector;
   private NameSuggestionsManager myNameSuggestionsManager;
 
-  private final Project myProject;
   private final PsiFile myFile;
   private final List<? extends UsageInfo> myClassMembersList;
   private final int myOccurenceNumber;
@@ -47,7 +48,6 @@ public class IntroduceParameterDialog extends RefactoringDialog {
 
   private final NameSuggestionsGenerator myNameSuggestionsGenerator;
   private final TypeSelectorManager myTypeSelectorManager;
-  private static final String REFACTORING_NAME = RefactoringBundle.message("introduce.parameter.title");
   private NameSuggestionsField.DataChanged myParameterNameChangedListener;
 
   private final IntroduceParameterSettingsPanel myPanel;
@@ -66,7 +66,6 @@ public class IntroduceParameterDialog extends RefactoringDialog {
                            final boolean mustBeFinal) {
     super(project, true);
     myPanel = new IntroduceParameterSettingsPanel(onLocalVariable, onExpression, methodToReplaceIn, parametersToRemove);
-    myProject = project;
     myFile = methodToReplaceIn.getContainingFile();
     myClassMembersList = classMembersList;
     myOccurenceNumber = occurences.length;
@@ -83,7 +82,7 @@ public class IntroduceParameterDialog extends RefactoringDialog {
     myMethodToSearchFor = methodToSearchFor;
     myNameSuggestionsGenerator = generator;
     myTypeSelectorManager = typeSelectorManager;
-    setTitle(REFACTORING_NAME);
+    setTitle(getRefactoringName());
     init();
     myPanel.updateTypeSelector();
   }
@@ -134,7 +133,7 @@ public class IntroduceParameterDialog extends RefactoringDialog {
     gbConstraints.weightx = 0;
     gbConstraints.weighty = 0;
     gbConstraints.gridy = 0;
-    JLabel type = new JLabel(RefactoringBundle.message("parameter.of.type"));
+    JLabel type = new JLabel(JavaRefactoringBundle.message("parameter.of.type"));
     panel.add(type, gbConstraints);
 
     gbConstraints.insets = JBUI.insets(4, 4, 4, 8);
@@ -194,7 +193,7 @@ public class IntroduceParameterDialog extends RefactoringDialog {
     gbConstraints.insets = JBUI.insets(4, 0, 4, 8);
 
     gbConstraints.gridy++;
-    myCbDeclareFinal = new NonFocusableCheckBox(RefactoringBundle.message("declare.final"));
+    myCbDeclareFinal = new NonFocusableCheckBox(JavaRefactoringBundle.message("declare.final"));
 
     final Boolean settingsFinals = settings.INTRODUCE_PARAMETER_CREATE_FINALS;
     myCbDeclareFinal.setSelected(settingsFinals == null ?
@@ -212,7 +211,7 @@ public class IntroduceParameterDialog extends RefactoringDialog {
     gbConstraints.gridy++;
     myPanel.createDelegateCb(gbConstraints, panel);
 
-    myCbCollapseToLambda = new NonFocusableCheckBox(RefactoringBundle.message("introduce.parameter.convert.lambda"));
+    myCbCollapseToLambda = new NonFocusableCheckBox(JavaRefactoringBundle.message("introduce.parameter.convert.lambda"));
     final PsiAnonymousClass anonymClass = myExpression instanceof PsiNewExpression ? ((PsiNewExpression)myExpression).getAnonymousClass()
                                                                                    : null;
     myCbCollapseToLambda.setVisible(anonymClass != null && AnonymousCanBeLambdaInspection.isLambdaForm(anonymClass, false, Collections.emptySet()));
@@ -290,7 +289,7 @@ public class IntroduceParameterDialog extends RefactoringDialog {
   protected void canRun() throws ConfigurationException {
     String name = getParameterName();
     if (!PsiNameHelper.getInstance(myProject).isIdentifier(name)) {
-      throw new ConfigurationException("\'" + name + "\' is invalid parameter name");
+      throw new ConfigurationException(RefactoringBundle.message("refactoring.introduce.parameter.invalid.name", name));
     }
   }
 
@@ -323,5 +322,9 @@ public class IntroduceParameterDialog extends RefactoringDialog {
     public void setGenerateDelegate(boolean delegate) {
       myCbGenerateDelegate.setSelected(delegate);
     }
+  }
+
+  private static @NlsContexts.DialogTitle String getRefactoringName() {
+    return RefactoringBundle.message("introduce.parameter.title");
   }
 }

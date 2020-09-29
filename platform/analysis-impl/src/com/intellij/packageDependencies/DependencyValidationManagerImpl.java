@@ -1,8 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.packageDependencies;
 
+import com.intellij.analysis.AnalysisBundle;
 import com.intellij.icons.AllIcons;
-import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.components.MainConfigurationStateSplitter;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
@@ -17,34 +17,26 @@ import com.intellij.ui.IconManager;
 import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.UIUtil;
-import gnu.trove.THashMap;
 import org.jdom.Element;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @State(
   name = "DependencyValidationManager",
   storages = @Storage(value = "scopes", stateSplitter = DependencyValidationManagerImpl.ScopesStateSplitter.class)
 )
 public final class DependencyValidationManagerImpl extends DependencyValidationManager {
-  private static final Icon ourSharedScopeIcon = new IconLoader.LazyIcon() {
-    @NotNull
-    @Override
-    protected Icon compute() {
-      return IconManager.getInstance().createLayered(AllIcons.Ide.LocalScope, AllIcons.Nodes.Shared);
-    }
-  };
+  private static final Icon ourSharedScopeIcon = IconLoader.createLazy(() -> {
+    return IconManager.getInstance().createLayered(AllIcons.Ide.LocalScope, AllIcons.Nodes.Shared);
+  });
 
-  private static class State {
+  private static final class State {
     private final List<DependencyRule> rules = new ArrayList<>();
-    private final Map<String, PackageSet> unnamedScopes = new THashMap<>();
+    private final Map<String, PackageSet> unnamedScopes = new HashMap<>();
   }
 
   private State myState = new State();
@@ -102,8 +94,7 @@ public final class DependencyValidationManagerImpl extends DependencyValidationM
   }
 
   @Override
-  @NotNull
-  public DependencyRule[] getViolatorDependencyRules(@NotNull PsiFile from, @NotNull PsiFile to) {
+  public DependencyRule @NotNull [] getViolatorDependencyRules(@NotNull PsiFile from, @NotNull PsiFile to) {
     ArrayList<DependencyRule> result = new ArrayList<>();
     for (DependencyRule dependencyRule : myState.rules) {
       if (dependencyRule.isForbiddenToUse(from, to)) {
@@ -113,9 +104,8 @@ public final class DependencyValidationManagerImpl extends DependencyValidationM
     return result.toArray(new DependencyRule[0]);
   }
 
-  @NotNull
   @Override
-  public DependencyRule[] getApplicableRules(@NotNull PsiFile file) {
+  public DependencyRule @NotNull [] getApplicableRules(@NotNull PsiFile file) {
     ArrayList<DependencyRule> result = new ArrayList<>();
     for (DependencyRule dependencyRule : myState.rules) {
       if (dependencyRule.isApplicable(file)) {
@@ -141,9 +131,8 @@ public final class DependencyValidationManagerImpl extends DependencyValidationM
     return myState.unnamedScopes;
   }
 
-  @NotNull
   @Override
-  public DependencyRule[] getAllRules() {
+  public DependencyRule @NotNull [] getAllRules() {
     List<DependencyRule> rules = myState.rules;
     return rules.toArray(new DependencyRule[0]);
   }
@@ -165,7 +154,7 @@ public final class DependencyValidationManagerImpl extends DependencyValidationM
   }
 
   private void appendUnnamedScope(@NotNull NamedScope fromScope, @NotNull State state) {
-    if (getScope(fromScope.getName()) == null) {
+    if (getScope(fromScope.getScopeId()) == null) {
       final PackageSet packageSet = fromScope.getValue();
       if (packageSet != null && !state.unnamedScopes.containsKey(packageSet.getText())) {
         state.unnamedScopes.put(packageSet.getText(), packageSet);
@@ -176,7 +165,7 @@ public final class DependencyValidationManagerImpl extends DependencyValidationM
   @NotNull
   @Override
   public String getDisplayName() {
-    return IdeBundle.message("shared.scopes.node.text");
+    return AnalysisBundle.message("shared.scopes.node.text");
   }
 
   @Override
@@ -196,15 +185,15 @@ public final class DependencyValidationManagerImpl extends DependencyValidationM
 
     final NamedScope[] scopes = getEditableScopes();
     Arrays.sort(scopes, (s1, s2) -> {
-      final String name1 = s1.getName();
-      final String name2 = s2.getName();
-      if (Comparing.equal(name1, name2)){
+      final String name1 = s1.getScopeId();
+      final String name2 = s2.getScopeId();
+      if (Objects.equals(name1, name2)){
         return 0;
       }
       final List<String> order = myNamedScopeManager.myOrderState.myOrder;
       final int i1 = order.indexOf(name1);
       final int i2 = order.indexOf(name2);
-      return i1 > i2 ? 1 : -1;
+      return i1 - i2;
     });
     super.setScopes(scopes);
 
@@ -265,8 +254,8 @@ public final class DependencyValidationManagerImpl extends DependencyValidationM
 
   @Override
   @Nullable
-  public NamedScope getScope(@Nullable String name) {
-    return getScope(name, myState);
+  public NamedScope getScope(@Nullable String scopeId) {
+    return getScope(scopeId, myState);
   }
 
   private NamedScope getScope(@Nullable String name, @NotNull State state) {
@@ -290,8 +279,8 @@ public final class DependencyValidationManagerImpl extends DependencyValidationM
     NamedScope toScope = rule.getToScope();
     if (fromScope == null || toScope == null) return null;
     Element ruleElement = new Element(DENY_RULE_KEY);
-    ruleElement.setAttribute(FROM_SCOPE_KEY, fromScope.getName());
-    ruleElement.setAttribute(TO_SCOPE_KEY, toScope.getName());
+    ruleElement.setAttribute(FROM_SCOPE_KEY, fromScope.getScopeId());
+    ruleElement.setAttribute(TO_SCOPE_KEY, toScope.getScopeId());
     ruleElement.setAttribute(IS_DENY_KEY, Boolean.valueOf(rule.isDenyRule()).toString());
     return ruleElement;
   }
@@ -369,12 +358,12 @@ public final class DependencyValidationManagerImpl extends DependencyValidationM
   }
 
   @Override
-  public void setScopes(@NotNull NamedScope[] scopes) {
+  public void setScopes(NamedScope @NotNull [] scopes) {
     super.setScopes(scopes);
     final List<String> order = myNamedScopeManager.myOrderState.myOrder;
     order.clear();
     for (NamedScope scope : scopes) {
-      order.add(scope.getName());
+      order.add(scope.getScopeId());
     }
   }
 }

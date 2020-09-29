@@ -15,10 +15,12 @@
  */
 package com.intellij.refactoring.ui;
 
-import com.intellij.ui.ListCellRendererWrapper;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.util.Iconable;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.PsiClass;
-import com.intellij.refactoring.RefactoringBundle;
+import com.intellij.ui.ListCellRendererWrapper;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -52,17 +54,18 @@ public class ClassCellRenderer extends ListCellRendererWrapper<PsiClass> {
     }
   }
 
+  @Nls
   private static String getClassText(@NotNull PsiClass aClass) {
-    String qualifiedName = aClass.getQualifiedName();
+    @NlsSafe String qualifiedName = aClass.getQualifiedName();
     if (qualifiedName != null) {
       return qualifiedName;
     }
 
-    String name = aClass.getName();
+    @NlsSafe String name = aClass.getName();
     if (name != null) {
       return name;
     }
 
-    return RefactoringBundle.message("anonymous.class.text");
+    return JavaRefactoringBundle.message("anonymous.class.text");
   }
 }

@@ -1,10 +1,12 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.siyeh.ig.style;
 
 import com.intellij.codeInsight.Nullability;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.dataFlow.NullabilityUtil;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
@@ -52,7 +54,8 @@ public class ObjectsEqualsCanBeSimplifiedInspection extends AbstractBaseJavaLoca
               return;
             }
           }
-          holder.registerProblem(nameElement, InspectionsBundle.message("inspection.objects.equals.can.be.simplified.message", "equals()"),
+          @NlsSafe final String message = JavaAnalysisBundle.message("inspection.can.be.replaced.with.message", "equals()");
+          holder.registerProblem(nameElement, message,
                                  new ReplaceWithEqualsFix(false));
         }
       }
@@ -61,7 +64,7 @@ public class ObjectsEqualsCanBeSimplifiedInspection extends AbstractBaseJavaLoca
         PsiType type1 = arg1.getType();
         PsiType type2 = arg2.getType();
         if (type1 instanceof PsiPrimitiveType && type1.equals(type2) && !TypeConversionUtil.isFloatOrDoubleType(type1)) {
-          holder.registerProblem(nameElement, InspectionsBundle.message("inspection.objects.equals.can.be.simplified.message", "=="),
+          holder.registerProblem(nameElement, JavaAnalysisBundle.message("inspection.can.be.replaced.with.message", "=="),
                                  new ReplaceWithEqualsFix(true));
           return true;
         }
@@ -70,7 +73,7 @@ public class ObjectsEqualsCanBeSimplifiedInspection extends AbstractBaseJavaLoca
     };
   }
 
-  private static class ReplaceWithEqualsFix implements LocalQuickFix {
+  private static final class ReplaceWithEqualsFix implements LocalQuickFix {
     final boolean myEquality;
 
     private ReplaceWithEqualsFix(boolean equality) {

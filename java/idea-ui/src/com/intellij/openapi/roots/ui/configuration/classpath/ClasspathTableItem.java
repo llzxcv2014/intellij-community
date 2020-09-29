@@ -18,11 +18,9 @@ package com.intellij.openapi.roots.ui.configuration.classpath;
 import com.intellij.openapi.roots.*;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.StructureConfigurableContext;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsContexts;
 import org.jetbrains.annotations.Nullable;
 
-/**
-* @author nik
-*/
 class ClasspathTableItem<T extends OrderEntry> {
   @Nullable protected final T myEntry;
   private final boolean myRemovable;
@@ -92,7 +90,7 @@ class ClasspathTableItem<T extends OrderEntry> {
   }
 
   @Nullable
-  public String getTooltipText() {
+  public @NlsContexts.Tooltip String getTooltipText() {
     return null;
   }
 

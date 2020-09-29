@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.highlighting
 
 import org.jetbrains.plugins.groovy.codeInspection.assignment.GroovyAssignabilityCheckInspection
@@ -34,11 +34,9 @@ class GrInspectionTest extends GrHighlightingTestBase {
     doTest(inspection)
   }
 
-  void testInaccessibleConstructorCall() { doTest(new GroovyAccessibilityInspection()) }
-
   void testRangeType() { doTest(new GroovyRangeTypeCheckInspection()) }
 
-  void testResolveMetaClass() { doTest(new GroovyAccessibilityInspection()) }
+  void testResolveMetaClass() { doTest() }
 
   void testResultOfAssignmentUsed() { doTest(new GroovyResultOfAssignmentUsedInspection(inspectClosures: true)) }
 
@@ -56,15 +54,15 @@ class GrInspectionTest extends GrHighlightingTestBase {
     testHighlighting('''\
 class Foo {
 
-  boolean <warning descr="getter 'getX' clashes with getter 'isX'">getX</warning>() { true }
-  boolean <warning descr="getter 'isX' clashes with getter 'getX'">isX</warning>() { false }
+  boolean <warning descr="Clash occurred: 'Getter getX' with 'Getter isX'">getX</warning>() { true }
+  boolean <warning descr="Clash occurred: 'Getter isX' with 'Getter getX'">isX</warning>() { false }
 
   boolean getY() {true}
 
   boolean isZ() {false}
 
-  boolean <warning descr="method getFoo(int x) clashes with getter 'isFoo'">getFoo</warning>(int x = 5){}
-  boolean <warning descr="getter 'isFoo' clashes with method getFoo(int x)">isFoo</warning>(){}
+  boolean <warning descr="Clash occurred: 'Method getFoo(int x)' with 'Getter isFoo'">getFoo</warning>(int x = 5){}
+  boolean <warning descr="Clash occurred: 'Getter isFoo' with 'Method getFoo(int x)'">isFoo</warning>(){}
 }
 
 def result = new Foo().x''', true, false, false, ClashingGettersInspection)
@@ -157,42 +155,6 @@ print 2
     myFixture.enableInspections(new GrPackageInspection())
     myFixture.testHighlighting(true, false, false, 'abc/foo.groovy')
   }
-
-  void testStaticImportProperty() {
-    myFixture.addFileToProject('Foo.groovy', '''\
-class Foo {
-  static def foo = 2
-  private static def bar = 3
-
-  private static def baz = 4
-
-  private static def getBaz() {baz}
-}
-''')
-    testHighlighting('''\
-import static Foo.foo
-import static Foo.bar
-import static Foo.baz
-
-print foo+<warning descr="Access to 'bar' exceeds its access rights">bar</warning>+<warning descr="Access to 'baz' exceeds its access rights">baz</warning>
-''', GroovyAccessibilityInspection)
-  }
-
-  void testStaticImportCapsProperty() {
-    myFixture.addFileToProject('Foo.groovy', '''\
-class Foo {
-  static def FOO = 2
-  private static def BAR = 2
-}
-''')
-    testHighlighting('''\
-import static Foo.FOO
-import static Foo.BAR
-
-print FOO + <warning descr="Access to 'BAR' exceeds its access rights">BAR</warning>
-''', GroovyAccessibilityInspection)
-  }
-
 
   void testUntypedAccess() { doTest(new GroovyUntypedAccessInspection()) }
 

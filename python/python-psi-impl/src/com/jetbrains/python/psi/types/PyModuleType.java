@@ -2,7 +2,6 @@
 package com.jetbrains.python.psi.types;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.roots.FileIndexFacade;
@@ -21,10 +20,10 @@ import com.intellij.util.containers.ContainerUtil;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.codeInsight.PyCustomMember;
 import com.jetbrains.python.codeInsight.completion.PyCompletionUtilsKt;
-import com.jetbrains.python.codeInsight.mlcompletion.PyCompletionMlElementInfo;
-import com.jetbrains.python.codeInsight.mlcompletion.PyCompletionMlElementKind;
 import com.jetbrains.python.codeInsight.controlflow.ScopeOwner;
 import com.jetbrains.python.codeInsight.dataflow.scope.ScopeUtil;
+import com.jetbrains.python.codeInsight.mlcompletion.PyCompletionMlElementInfo;
+import com.jetbrains.python.codeInsight.mlcompletion.PyCompletionMlElementKind;
 import com.jetbrains.python.psi.*;
 import com.jetbrains.python.psi.impl.PyImportedModule;
 import com.jetbrains.python.psi.impl.ResolveResultList;
@@ -32,10 +31,7 @@ import com.jetbrains.python.psi.resolve.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 
 import static com.jetbrains.python.psi.PyUtil.inSameFile;
@@ -151,7 +147,7 @@ public class PyModuleType implements PyType { // Modules don't descend from obje
       return;
     }
 
-    final Set<String> seen = Sets.newHashSet();
+    final Set<String> seen = new HashSet<String>();
     if (!processImplicitlyImportedByImportElements(anchor, footHold,
                                                    importElements, name -> filter.test(name) && seen.add(name),
                                                    resultProcessor)) {
@@ -414,13 +410,13 @@ public class PyModuleType implements PyType { // Modules don't descend from obje
 
     final Set<String> namesAlready = context.get(CTX_NAMES);
     final PointInImport point = ResolveImportUtil.getPointInImport(location);
-    final PyResolveContext resolveContext = PyResolveContext.noImplicits().withTypeEvalContext(typeEvalContext);
+    final PyResolveContext resolveContext = PyResolveContext.defaultContext().withTypeEvalContext(typeEvalContext);
 
     for (PyModuleMembersProvider provider : PyModuleMembersProvider.EP_NAME.getExtensionList()) {
       for (PyCustomMember member : provider.getMembers(myModule, point, typeEvalContext)) {
         final String name = member.getName();
-        if (namesAlready != null) {
-          namesAlready.add(name);
+        if (namesAlready != null && !namesAlready.add(name)) {
+          continue;
         }
         if (PyUtil.isClassPrivateName(name)) {
           continue;
@@ -562,5 +558,10 @@ public class PyModuleType implements PyType { // Modules don't descend from obje
   @NotNull
   public static Set<String> getPossibleInstanceMembers() {
     return MODULE_MEMBERS;
+  }
+
+  @Override
+  public @Nullable PyQualifiedNameOwner getDeclarationElement() {
+    return PyPsiFacade.getInstance(myModule.getProject()).createClassByQName("types.ModuleType", myModule);
   }
 }

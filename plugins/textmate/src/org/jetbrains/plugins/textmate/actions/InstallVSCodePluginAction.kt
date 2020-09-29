@@ -35,6 +35,7 @@ import java.awt.event.MouseEvent
 import java.io.BufferedReader
 import java.io.File
 
+@Suppress("HardCodedStringLiteral")
 class InstallVSCodePluginAction : AnAction(), DumbAware {
   override fun actionPerformed(e: AnActionEvent) {
     val project = e.project ?: return
@@ -75,7 +76,7 @@ class InstallVSCodePluginAction : AnAction(), DumbAware {
     })
 
     object : DoubleClickListener() {
-      override fun onDoubleClick(event: MouseEvent?): Boolean {
+      override fun onDoubleClick(event: MouseEvent): Boolean {
         if (list.selectedValue == null) return true
         install(project, list.selectedValue, popup)
         return true
@@ -141,7 +142,7 @@ class InstallVSCodePluginAction : AnAction(), DumbAware {
         DownloadUtil.downloadAtomically(indicator, "${selectedValue.url}/Microsoft.VisualStudio.Services.VSIXPackage", temp)
 
         indicator.text = "Unzipping $selectedValue..."
-        val extensionDir = File(File(PathManager.getConfigPath(), "vscode"), selectedValue.name)
+        val extensionDir = PathManager.getConfigDir().resolve("vscode").resolve(selectedValue.name).toFile()
         ZipUtil.extract(temp, extensionDir, null)
 
         indicator.text = "Applying $selectedValue"

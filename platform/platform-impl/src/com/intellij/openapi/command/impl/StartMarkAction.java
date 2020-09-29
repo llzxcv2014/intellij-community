@@ -1,6 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.command.impl;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.command.undo.BasicUndoableAction;
 import com.intellij.openapi.command.undo.DocumentReference;
 import com.intellij.openapi.command.undo.DocumentReferenceManager;
@@ -9,15 +10,17 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
-public class StartMarkAction extends BasicUndoableAction {
+public final class StartMarkAction extends BasicUndoableAction {
   public static final Key<StartMarkAction> START_MARK_ACTION_KEY = Key.create("current.inplace.refactorings.mark");
-  private String myCommandName;
+  private @NlsContexts.Command String myCommandName;
   private boolean myGlobal;
   private Document myDocument;
 
-  private StartMarkAction(Editor editor, String commandName) {
+  private StartMarkAction(Editor editor, @NlsContexts.Command String commandName) {
     super(DocumentReferenceManager.getInstance().create(editor.getDocument()));
     myCommandName = commandName;
     myDocument = editor.getDocument();
@@ -40,11 +43,11 @@ public class StartMarkAction extends BasicUndoableAction {
     return myGlobal;
   }
 
-  public String getCommandName() {
+  public @NlsContexts.Command String getCommandName() {
     return myCommandName;
   }
 
-  public void setCommandName(String commandName) {
+  public void setCommandName(@NlsContexts.Command String commandName) {
     myCommandName = commandName;
   }
 
@@ -53,8 +56,10 @@ public class StartMarkAction extends BasicUndoableAction {
   }
 
   @TestOnly
-  public static void checkCleared(Project project) {
-    if (project == null) return;
+  public static void checkCleared(@Nullable Project project) {
+    if (project == null) {
+      return;
+    }
     try {
       StartMarkAction markAction = project.getUserData(START_MARK_ACTION_KEY);
       assert markAction == null : markAction.myDocument;
@@ -64,7 +69,7 @@ public class StartMarkAction extends BasicUndoableAction {
     }
   }
 
-  public static StartMarkAction start(Editor editor, Project project, String commandName) throws AlreadyStartedException {
+  public static StartMarkAction start(Editor editor, Project project, @NlsContexts.Command String commandName) throws AlreadyStartedException {
     final StartMarkAction existingMark = project.getUserData(START_MARK_ACTION_KEY);
     if (existingMark != null) {
       throw new AlreadyStartedException(existingMark.myCommandName,
@@ -96,7 +101,7 @@ public class StartMarkAction extends BasicUndoableAction {
     public AlreadyStartedException(String commandName,
                                    Document document,
                                    DocumentReference[] documentRefs) {
-      super("Unable to start inplace refactoring:\n"+ commandName + " is not finished yet.");
+      super("Unable to start inplace refactoring:\n" + IdeBundle.message("dialog.message.command.not.finished.yet", commandName));
       myAffectedDocuments = documentRefs;
       myDocument = document;
     }

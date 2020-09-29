@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.testAssistant;
 
 import com.intellij.codeInsight.daemon.GutterIconNavigationHandler;
@@ -12,6 +12,7 @@ import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.components.JBList;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.idea.devkit.DevKitBundle;
 import org.jetbrains.idea.devkit.testAssistant.vfs.TestDataGroupVirtualFile;
 
 import javax.swing.*;
@@ -82,7 +83,7 @@ public class TestDataNavigationHandler implements GutterIconNavigationHandler<Ps
    * @param point point where the popup will be shown.
    */
   private static void showNavigationPopup(Project project, List<TestDataFile> filePaths, RelativePoint point) {
-    Collections.sort(filePaths, Comparator.comparing(TestDataFile::getName, String.CASE_INSENSITIVE_ORDER));
+    filePaths.sort(Comparator.comparing(TestDataFile::getName, String.CASE_INSENSITIVE_ORDER));
 
     List<TestDataNavigationElement> elementsToDisplay = new ArrayList<>();
     List<TestDataNavigationElement> nonExistingElementsToDisplay = new ArrayList<>();
@@ -103,7 +104,7 @@ public class TestDataNavigationHandler implements GutterIconNavigationHandler<Ps
 
     JList<TestDataNavigationElement> list = new JBList<>(elementsToDisplay);
     list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-    list.setCellRenderer(new ColoredListCellRenderer<TestDataNavigationElement>() {
+    list.setCellRenderer(new ColoredListCellRenderer<>() {
       @Override
       protected void customizeCellRenderer(@NotNull JList list, TestDataNavigationElement element, int index,
                                            boolean selected, boolean hasFocus) {
@@ -118,7 +119,7 @@ public class TestDataNavigationHandler implements GutterIconNavigationHandler<Ps
         if (selectedElement != null) {
           selectedElement.performAction(project);
         }
-      }).setTitle("Test Data").createPopup().show(point);
+      }).setTitle(DevKitBundle.message("testdata.popup.navigation.title")).createPopup().show(point);
   }
 
   private static void consumeElementsToDisplay(@NotNull Project project,

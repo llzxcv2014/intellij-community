@@ -18,7 +18,6 @@ package org.intellij.plugins.relaxNG.compact.psi.impl;
 
 import com.intellij.codeInsight.CodeInsightUtilCore;
 import com.intellij.codeInsight.daemon.EmptyResolveMessageProvider;
-import com.intellij.codeInsight.daemon.XmlErrorMessages;
 import com.intellij.codeInsight.template.Expression;
 import com.intellij.codeInsight.template.Template;
 import com.intellij.codeInsight.template.TemplateManager;
@@ -43,6 +42,8 @@ import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.scope.PsiScopeProcessor;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.util.IncorrectOperationException;
+import com.intellij.xml.psi.XmlPsiBundle;
+import org.intellij.plugins.relaxNG.RelaxngBundle;
 import org.intellij.plugins.relaxNG.compact.RncElementTypes;
 import org.intellij.plugins.relaxNG.compact.RncFileType;
 import org.intellij.plugins.relaxNG.compact.RncTokenTypes;
@@ -149,12 +150,13 @@ public class RncNameImpl extends RncElementImpl implements RncName, PsiReference
   @Override
   @NotNull
   public String getUnresolvedMessagePattern() {
-    return "Unresolved namespace prefix ''{0}''";
+    //The format substitution is performed at the call site
+    //noinspection UnresolvedPropertyKey
+    return RelaxngBundle.message("relaxng.annotator.unresolved-namespace-prefix");
   }
 
-  @Nullable
   @Override
-  public LocalQuickFix[] getQuickFixes() {
+  public LocalQuickFix @Nullable [] getQuickFixes() {
     if (getPrefix() != null) {
       return new LocalQuickFix[] { new CreateDeclFix(this) };
     }
@@ -213,13 +215,13 @@ public class RncNameImpl extends RncElementImpl implements RncName, PsiReference
     @Override
     @NotNull
     public String getName() {
-      return "Create " + StringUtil.toLowerCase(myReference.getKind().name()) + " declaration '" + myReference.getPrefix() + "'";
+      return RelaxngBundle.message("relaxng.quickfix.create-declaration.name", StringUtil.toLowerCase(myReference.getKind().name()), myReference.getPrefix());
     }
 
     @Override
     @NotNull
     public String getFamilyName() {
-      return XmlErrorMessages.message("create.namespace.declaration.quickfix.family");
+      return XmlPsiBundle.message("xml.quickfix.create.namespace.declaration.family");
     }
 
     @Override

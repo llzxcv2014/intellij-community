@@ -31,7 +31,7 @@ public class MethodListDlg extends DialogWrapper {
     super(parent, false);
     createList(psiClass.getAllMethods(), filter);
     myWholePanel.add(ScrollPaneFactory.createScrollPane(myList));
-    myList.setCellRenderer(new ColoredListCellRenderer<PsiMethod>() {
+    myList.setCellRenderer(new ColoredListCellRenderer<>() {
       @Override
       protected void customizeCellRenderer(@NotNull final JList<? extends PsiMethod> list,
                                            @NotNull final PsiMethod psiMethod,
@@ -53,7 +53,7 @@ public class MethodListDlg extends DialogWrapper {
     myList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
     new DoubleClickListener() {
       @Override
-      protected boolean onDoubleClick(MouseEvent e) {
+      protected boolean onDoubleClick(@NotNull MouseEvent e) {
         MethodListDlg.this.close(OK_EXIT_CODE);
         return true;
       }

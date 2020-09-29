@@ -3,6 +3,7 @@
 package com.intellij.util.xml.converters;
 
 import com.intellij.codeInsight.daemon.EmptyResolveMessageProvider;
+import com.intellij.codeInspection.util.InspectionMessage;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.DelimitedListProcessor;
@@ -44,6 +45,7 @@ public abstract class DelimitedListConverter<T> extends ResolvingConverter<List<
   @Nullable
   protected abstract PsiElement resolveReference(@Nullable final T t, final ConvertContext context);
 
+  @InspectionMessage
   protected abstract String getUnresolvedMessage(String value);
 
   @Override
@@ -104,10 +106,9 @@ public abstract class DelimitedListConverter<T> extends ResolvingConverter<List<
   }
 
   @Override
-  @NotNull
-  public PsiReference[] createReferences(final GenericDomValue<List<T>> genericDomValue,
-                                         final PsiElement element,
-                                         final ConvertContext context) {
+  public PsiReference @NotNull [] createReferences(final GenericDomValue<List<T>> genericDomValue,
+                                                   final PsiElement element,
+                                                   final ConvertContext context) {
 
     final String text = genericDomValue.getRawText();
     if (text == null) {
@@ -184,8 +185,7 @@ public abstract class DelimitedListConverter<T> extends ResolvingConverter<List<
     }
 
     @Override
-    @NotNull
-    public Object[] getVariants() {
+    public Object @NotNull [] getVariants() {
       return getReferenceVariants(myContext, myGenericDomValue);
     }
 

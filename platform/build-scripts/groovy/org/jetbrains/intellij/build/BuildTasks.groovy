@@ -21,9 +21,7 @@ import org.codehaus.gant.GantBinding
 import org.jetbrains.intellij.build.impl.BuildTasksImpl
 import org.jetbrains.intellij.build.impl.BuildUtils
 import org.jetbrains.jps.idea.IdeaProjectLoader
-/**
- * @author nik
- */
+
 @CompileStatic
 abstract class BuildTasks {
   /**
@@ -49,6 +47,12 @@ abstract class BuildTasks {
    * directory.
    */
   abstract void buildNonBundledPlugins(List<String> mainPluginModules)
+
+  /**
+   * Generates a JSON file containing mapping between files in the product distribution and modules and libraries in the project configuration
+   * @see org.jetbrains.intellij.build.impl.projectStructureMapping.ProjectStructureMapping
+   */
+  abstract void generateProjectStructureMapping(File targetFile)
 
   abstract void compileProjectAndTests(List<String> includingTestsInModules)
 
@@ -84,9 +88,15 @@ abstract class BuildTasks {
   static void buildProduct(String productPropertiesClassName, List<String> groovyRootRelativePaths,
                            String communityHomeRelativePath, Script gantScript,
                            ProprietaryBuildTools proprietaryBuildTools = ProprietaryBuildTools.DUMMY) {
-    BuildContext context = createBuildContextFromProduct(productPropertiesClassName, groovyRootRelativePaths,
-      communityHomeRelativePath, gantScript, proprietaryBuildTools)
-    create(context).buildDistributions()
+    try {
+      BuildContext context = createBuildContextFromProduct(productPropertiesClassName, groovyRootRelativePaths,
+                                                           communityHomeRelativePath, gantScript, proprietaryBuildTools)
+      create(context).buildDistributions()
+    } catch (Throwable ex) {
+      // Print exception trace in any case. Sometimes exception handling at higher level may skip printing stacktraces.
+      ex.printStackTrace()
+      throw ex
+    }
   }
 
   static void compileModulesFromProduct(String productPropertiesClassName, List<String> groovyRootRelativePaths,
@@ -101,15 +111,25 @@ abstract class BuildTasks {
   @CompileDynamic
   static BuildContext createBuildContextFromProduct(String productPropertiesClassName, List<String> groovyRootRelativePaths,
                                                     String communityHomeRelativePath, Script gantScript,
-                                                    ProprietaryBuildTools proprietaryBuildTools = ProprietaryBuildTools.DUMMY) {
+                                                    ProprietaryBuildTools proprietaryBuildTools,
+                                                    BuildOptions buildOptions) {
     String projectHome = IdeaProjectLoader.guessHome(gantScript)
     GantBinding binding = (GantBinding) gantScript.binding
     groovyRootRelativePaths.each {
       BuildUtils.addToClassPath("$projectHome/$it", binding.ant)
     }
     ProductProperties productProperties = (ProductProperties) Class.forName(productPropertiesClassName).constructors[0].newInstance(projectHome)
+
     BuildContext context = BuildContext.createContext("$projectHome/$communityHomeRelativePath", projectHome,
-                                                      productProperties, proprietaryBuildTools)
+                                                      productProperties, proprietaryBuildTools, buildOptions)
     return context
+  }
+
+  @CompileDynamic
+  static BuildContext createBuildContextFromProduct(String productPropertiesClassName, List<String> groovyRootRelativePaths,
+                                                    String communityHomeRelativePath, Script gantScript,
+                                                    ProprietaryBuildTools proprietaryBuildTools = ProprietaryBuildTools.DUMMY) {
+    return createBuildContextFromProduct(productPropertiesClassName, groovyRootRelativePaths,
+                                         communityHomeRelativePath, gantScript, proprietaryBuildTools, new BuildOptions())
   }
 }

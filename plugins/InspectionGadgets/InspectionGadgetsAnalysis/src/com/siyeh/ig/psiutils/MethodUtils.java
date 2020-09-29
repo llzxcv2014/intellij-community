@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.siyeh.ig.psiutils;
 
 import com.intellij.codeInsight.AnnotationUtil;
@@ -9,27 +9,26 @@ import com.intellij.psi.search.searches.ClassInheritorsSearch;
 import com.intellij.psi.search.searches.OverridingMethodsSearch;
 import com.intellij.psi.search.searches.SuperMethodsSearch;
 import com.intellij.psi.util.InheritanceUtil;
-import com.intellij.psi.util.MethodSignatureBackedByPsiMethod;
-import com.intellij.psi.util.MethodSignatureUtil;
-import com.intellij.psi.util.PsiUtil;
+import com.intellij.psi.util.*;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.JavaPsiConstructorUtil;
 import com.intellij.util.Query;
 import com.siyeh.HardcodedMethodConstants;
 import one.util.streamex.StreamEx;
-import org.jetbrains.annotations.Contract;
-import org.jetbrains.annotations.NonNls;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.*;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class MethodUtils {
+public final class MethodUtils {
 
   private MethodUtils() {}
+
+  public static boolean isInsideMethodBody(@NotNull PsiElement element, @Nullable PsiMethod method) {
+    return method != null && PsiTreeUtil.isAncestor(method.getBody(), element, true);
+  }
 
   public static boolean isCopyConstructor(@Nullable PsiMethod constructor) {
     if (constructor == null || !constructor.isConstructor()) {
@@ -113,7 +112,7 @@ public class MethodUtils {
     @NonNls @Nullable String containingClassName,
     @Nullable PsiType returnType,
     @Nullable Pattern methodNamePattern,
-    @Nullable PsiType... parameterTypes) {
+    PsiType @Nullable ... parameterTypes) {
     if (methodNamePattern != null) {
       final String name = method.getName();
       final Matcher matcher = methodNamePattern.matcher(name);
@@ -141,7 +140,7 @@ public class MethodUtils {
     @NonNls @Nullable String containingClassName,
     @Nullable PsiType returnType,
     @NonNls @Nullable String methodName,
-    @Nullable PsiType... parameterTypes) {
+    PsiType @Nullable ... parameterTypes) {
     final String name = method.getName();
     if (methodName != null && !methodName.equals(name)) {
       return false;
@@ -152,7 +151,7 @@ public class MethodUtils {
   private static boolean methodMatches(@NotNull PsiMethod method,
                                        @NonNls @Nullable String containingClassName,
                                        @Nullable PsiType returnType,
-                                       @Nullable PsiType... parameterTypes) {
+                                       PsiType @Nullable ... parameterTypes) {
     if (parameterTypes != null) {
       final PsiParameterList parameterList = method.getParameterList();
       if (parameterList.getParametersCount() != parameterTypes.length) {
@@ -190,7 +189,7 @@ public class MethodUtils {
     @NonNls @Nullable String containingClassName,
     @NonNls @Nullable String returnTypeString,
     @NonNls @Nullable String methodName,
-    @NonNls @Nullable String... parameterTypeStrings) {
+    @NonNls String @Nullable ... parameterTypeStrings) {
     final Project project = method.getProject();
     final JavaPsiFacade psiFacade = JavaPsiFacade.getInstance(project);
     final PsiElementFactory factory = psiFacade.getElementFactory();
@@ -311,7 +310,7 @@ public class MethodUtils {
       }
       if (statement instanceof PsiReturnStatement) {
         final PsiReturnStatement returnStatement = (PsiReturnStatement)statement;
-        final PsiExpression returnValue = ParenthesesUtils.stripParentheses(returnStatement.getReturnValue());
+        final PsiExpression returnValue = PsiUtil.skipParenthesizedExprDown(returnStatement.getReturnValue());
         if (returnValue == null || returnValue instanceof PsiLiteralExpression) {
           return true;
         }
@@ -340,7 +339,7 @@ public class MethodUtils {
     return true;
   }
 
-  public static boolean hasInThrows(@NotNull PsiMethod method, @NotNull String... exceptions) {
+  public static boolean hasInThrows(@NotNull PsiMethod method, String @NotNull ... exceptions) {
     if (exceptions.length == 0) {
       throw new IllegalArgumentException("no exceptions specified");
     }

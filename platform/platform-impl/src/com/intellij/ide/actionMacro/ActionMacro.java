@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actionMacro;
 
 import com.intellij.ide.IdeBundle;
@@ -9,6 +9,7 @@ import com.intellij.openapi.editor.actionSystem.TypedAction;
 import com.intellij.openapi.ui.playback.commands.KeyCodeTypeCommand;
 import com.intellij.openapi.ui.playback.commands.TypeCommand;
 import com.intellij.openapi.util.Couple;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import org.intellij.lang.annotations.JdkConstants;
 import org.jdom.Element;
@@ -18,9 +19,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * @author max
- */
 public class ActionMacro {
   private String myName;
 
@@ -51,6 +49,7 @@ public class ActionMacro {
     myName = name;
   }
 
+  @NlsSafe
   public String getName() {
     return myName;
   }

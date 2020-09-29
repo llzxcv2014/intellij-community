@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
 import com.intellij.notification.impl.NotificationsConfigurationImpl;
@@ -10,10 +10,7 @@ import com.intellij.openapi.util.SystemInfo;
 import com.intellij.util.SystemProperties;
 import org.jetbrains.annotations.NotNull;
 
-/**
- * @author mike
- */
-public class SystemNotificationsImpl extends SystemNotifications {
+public final class SystemNotificationsImpl extends SystemNotifications {
   interface Notifier {
     void notify(@NotNull String name, @NotNull String title, @NotNull String description);
   }
@@ -33,7 +30,7 @@ public class SystemNotificationsImpl extends SystemNotifications {
   private static Notifier getPlatformNotifier() {
     try {
       if (SystemInfo.isMac) {
-        if (SystemInfo.isMacOSMountainLion && SystemProperties.getBooleanProperty("ide.mac.mountain.lion.notifications.enabled", true)) {
+        if (SystemProperties.getBooleanProperty("ide.mac.mountain.lion.notifications.enabled", true)) {
           return MountainLionNotifications.getInstance();
         }
         else {

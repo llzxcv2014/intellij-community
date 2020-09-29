@@ -1,18 +1,14 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.extensions;
 
-import com.intellij.ide.plugins.IdeaPluginDescriptor;
-import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.Date;
-import java.util.List;
 
-public final class DefaultPluginDescriptor implements IdeaPluginDescriptor {
-  @NotNull
-  private final PluginId myPluginId;
+public final class DefaultPluginDescriptor implements PluginDescriptor {
+  private final @NotNull PluginId myPluginId;
   private final ClassLoader myPluginClassLoader;
 
   public DefaultPluginDescriptor(@NotNull String pluginId) {
@@ -31,8 +27,7 @@ public final class DefaultPluginDescriptor implements IdeaPluginDescriptor {
   }
 
   @Override
-  @NotNull
-  public PluginId getPluginId() {
+  public @NotNull PluginId getPluginId() {
     return myPluginId;
   }
 
@@ -42,13 +37,12 @@ public final class DefaultPluginDescriptor implements IdeaPluginDescriptor {
   }
 
   @Override
-  public File getPath() {
+  public Path getPluginPath() {
     return null;
   }
 
-  @Nullable
   @Override
-  public String getDescription() {
+  public @Nullable String getDescription() {
     return null;
   }
 
@@ -62,16 +56,19 @@ public final class DefaultPluginDescriptor implements IdeaPluginDescriptor {
     return null;
   }
 
-  @Nullable
   @Override
-  public String getProductCode() {
+  public @Nullable String getProductCode() {
     return null;
   }
 
-  @Nullable
   @Override
-  public Date getReleaseDate() {
+  public @Nullable Date getReleaseDate() {
     return null;
+  }
+
+  @Override
+  public boolean isLicenseOptional() {
+    return false;
   }
 
   @Override
@@ -79,15 +76,8 @@ public final class DefaultPluginDescriptor implements IdeaPluginDescriptor {
     return 0;
   }
 
-  @NotNull
   @Override
-  public PluginId[] getDependentPluginIds() {
-    return PluginId.EMPTY_ARRAY;
-  }
-
-  @NotNull
-  @Override
-  public PluginId[] getOptionalDependentPluginIds() {
+  public PluginId @NotNull [] getOptionalDependentPluginIds() {
     return PluginId.EMPTY_ARRAY;
   }
 
@@ -108,12 +98,6 @@ public final class DefaultPluginDescriptor implements IdeaPluginDescriptor {
 
   @Override
   public String getCategory() {
-    return null;
-  }
-
-  @Nullable
-  @Override
-  public List<Element> getActionDescriptionElements() {
     return null;
   }
 

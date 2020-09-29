@@ -5,6 +5,7 @@ import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.options.FontSize;
 import com.intellij.openapi.options.Scheme;
 import com.intellij.openapi.options.SchemeMetaInfo;
+import com.intellij.openapi.util.NlsSafe;
 import org.jdom.Element;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -14,6 +15,7 @@ import java.awt.*;
 
 public interface EditorColorsScheme extends Cloneable, TextAttributesScheme, Scheme, SchemeMetaInfo {
   @NonNls String DEFAULT_SCHEME_NAME = "Default";
+  @NonNls String DEFAULT_SCHEME_ALIAS = "Classic Light";
 
   void setName(String name);
 
@@ -44,6 +46,7 @@ public interface EditorColorsScheme extends Cloneable, TextAttributesScheme, Sch
   FontPreferences getFontPreferences();
   void setFontPreferences(@NotNull FontPreferences preferences);
 
+  @NlsSafe
   String getEditorFontName();
 
   void setEditorFontName(String fontName);
@@ -59,16 +62,18 @@ public interface EditorColorsScheme extends Cloneable, TextAttributesScheme, Sch
   void setEditorFontSize(int fontSize);
 
   /**
-   * @deprecated stored in application level property
+   * @deprecated Quick documentation component's font size is stored in application level property, and can be obtained
+   * using {@link com.intellij.codeInsight.documentation.DocumentationComponent#getQuickDocFontSize()}.
    */
   @Deprecated
-  FontSize getQuickDocFontSize();
+  default FontSize getQuickDocFontSize() { return FontSize.SMALL; }
 
   /**
-   * @deprecated stored in application level property
+   * @deprecated Quick documentation component's font size is stored in application level property, and can be set
+   * using {@link com.intellij.codeInsight.documentation.DocumentationComponent#setQuickDocFontSize(FontSize)}.
    */
   @Deprecated
-  void setQuickDocFontSize(@NotNull FontSize fontSize);
+  default void setQuickDocFontSize(@NotNull FontSize fontSize) {}
 
   @NotNull
   Font getFont(EditorFontType key);
@@ -86,6 +91,10 @@ public interface EditorColorsScheme extends Cloneable, TextAttributesScheme, Sch
    * Sets line spacing. Note, that this method checks that {@code lineSpacing} is within bounds and could change it if it is
    * more than {@link com.intellij.application.options.EditorFontsConstants#getMaxEditorLineSpacing()} or less than
    * {@link com.intellij.application.options.EditorFontsConstants#getMinEditorLineSpacing()}
+   * <p>
+   * Currently, changing line spacing does not change the editor's scrolling position (in pixels), so the viewport's logical
+   * location can change as a result.
+   *
    * @see com.intellij.application.options.EditorFontsConstants
    */
   void setLineSpacing(float lineSpacing);
@@ -106,6 +115,7 @@ public interface EditorColorsScheme extends Cloneable, TextAttributesScheme, Sch
   default void setUseAppFontPreferencesInEditor() {}
   default boolean isUseAppFontPreferencesInEditor() {return false;}
 
+  @NlsSafe
   String getConsoleFontName();
 
   void setConsoleFontName(String fontName);

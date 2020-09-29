@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn.history;
 
 import com.intellij.openapi.vcs.FilePath;
@@ -9,8 +9,7 @@ import org.jetbrains.idea.svn.SvnUtil;
 import org.jetbrains.idea.svn.api.Url;
 import org.jetbrains.idea.svn.commandLine.SvnBindException;
 
-public class SvnRepositoryLocation implements RepositoryLocation {
-
+public final class SvnRepositoryLocation implements RepositoryLocation {
   private final String myUrlValue;
   @Nullable private final Url myUrl;
   @Nullable private final Url myRepositoryUrl;
@@ -55,14 +54,6 @@ public class SvnRepositoryLocation implements RepositoryLocation {
   @Nullable
   public FilePath getRoot() {
     return myRoot;
-  }
-
-  @Override
-  public void onBeforeBatch() {
-  }
-
-  @Override
-  public void onAfterBatch() {
   }
 
   @Nullable

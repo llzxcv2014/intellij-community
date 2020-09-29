@@ -3,9 +3,12 @@
 package com.intellij.refactoring.ui;
 
 import com.intellij.codeInsight.highlighting.ReadWriteAccessDetector;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.fileEditor.FileEditorLocation;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.text.HtmlBuilder;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.refactoring.RefactoringBundle;
@@ -17,11 +20,13 @@ import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import javax.swing.event.HyperlinkEvent;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
@@ -30,13 +35,15 @@ import java.util.regex.Pattern;
 
 public class ConflictsDialog extends DialogWrapper{
   private static final int SHOW_CONFLICTS_EXIT_CODE = 4;
+  private static final int MAX_CONFLICTS_SHOWN = 20;
+  @NonNls private static final String EXPAND_LINK = "expand";
 
   protected final String[] myConflictDescriptions;
   protected MultiMap<PsiElement, String> myElementConflictDescription;
   private final Project myProject;
   private Runnable myDoRefactoringRunnable;
   private final boolean myCanShowConflictsInView;
-  private String myCommandName;
+  @NlsContexts.Command private String myCommandName;
 
   public ConflictsDialog(@NotNull Project project, @NotNull MultiMap<PsiElement, String> conflictDescriptions) {
     this(project, conflictDescriptions, null, true, true);
@@ -82,8 +89,7 @@ public class ConflictsDialog extends DialogWrapper{
   }
 
   @Override
-  @NotNull
-  protected Action[] createActions(){
+  protected Action @NotNull [] createActions(){
     final Action okAction = getOKAction();
     boolean showUsagesButton = myElementConflictDescription != null && myCanShowConflictsInView;
 
@@ -107,11 +113,16 @@ public class ConflictsDialog extends DialogWrapper{
 
     panel.add(new JLabel(RefactoringBundle.message("the.following.problems.were.found")), BorderLayout.NORTH);
 
-    @NonNls StringBuilder buf = new StringBuilder();
-    for (String description : myConflictDescriptions) {
-      buf.append(description);
-      buf.append("<br><br>");
+    HtmlBuilder buf = new HtmlBuilder();
+
+    for (int i = 0; i < Math.min(myConflictDescriptions.length, MAX_CONFLICTS_SHOWN); i++) {
+      buf.appendRaw(myConflictDescriptions[i]).br().br();
     }
+
+    if (myConflictDescriptions.length > MAX_CONFLICTS_SHOWN) {
+      buf.appendLink(EXPAND_LINK, RefactoringBundle.message("show.more.conflicts.link"));
+    }
+
     JEditorPane messagePane = new JEditorPane();
     messagePane.setEditorKit(UIUtil.getHTMLEditorKit());
     messagePane.setText(buf.toString());
@@ -120,6 +131,12 @@ public class ConflictsDialog extends DialogWrapper{
                                                                 ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS,
                                                                 ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
     scrollPane.setPreferredSize(JBUI.size(500, 400));
+    messagePane.addHyperlinkListener(e -> {
+      if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED && 
+          EXPAND_LINK.equals(e.getDescription())) {
+        messagePane.setText(StringUtil.join(myConflictDescriptions, "<br><br>"));
+      }
+    });
     panel.add(scrollPane, BorderLayout.CENTER);
 
     if (getOKAction().isEnabled()) {
@@ -129,7 +146,7 @@ public class ConflictsDialog extends DialogWrapper{
     return panel;
   }
 
-  public void setCommandName(String commandName) {
+  public void setCommandName(@NlsContexts.Command String commandName) {
     myCommandName = commandName;
   }
 
@@ -153,13 +170,13 @@ public class ConflictsDialog extends DialogWrapper{
 
 
     MyShowConflictsInUsageViewAction() {
-      super("Show Conflicts in View");
+      super(RefactoringBundle.message("action.show.conflicts.in.view.text"));
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
       final UsageViewPresentation presentation = new UsageViewPresentation();
-      final String codeUsagesString = "Conflicts";
+      final String codeUsagesString = RefactoringBundle.message("conflicts.tab.name");
       presentation.setCodeUsagesString(codeUsagesString);
       presentation.setTabName(codeUsagesString);
       presentation.setTabText(codeUsagesString);
@@ -180,7 +197,7 @@ public class ConflictsDialog extends DialogWrapper{
           isWrite = access != ReadWriteAccessDetector.Access.Read;
         }
 
-        for (final String conflictDescription : myElementConflictDescription.get(element)) {
+        for (final @NlsContexts.Tooltip String conflictDescription : myElementConflictDescription.get(element)) {
           final UsagePresentation usagePresentation = new DescriptionOnlyUsage(conflictDescription).getPresentation();
           Usage usage = isRead || isWrite ? new ReadWriteAccessUsageInfo2UsageAdapter(new UsageInfo(element), isRead, isWrite) {
             @NotNull
@@ -205,15 +222,17 @@ public class ConflictsDialog extends DialogWrapper{
         usageView.addPerformOperationAction(
           doRefactoringRunnable,
           myCommandName != null ? myCommandName : RefactoringBundle.message("retry.command"),
-          "Unable to perform refactoring. There were changes in code after the usages have been found.", RefactoringBundle.message("usageView.doAction"));
+          LangBundle.message("conflicts.dialog.message.unable.to.perform.refactoring.changes.in.code.after.usages.have.been.found"),
+          RefactoringBundle.message("usageView.doAction"));
       }
       close(SHOW_CONFLICTS_EXIT_CODE);
     }
 
     private class DescriptionOnlyUsage implements Usage {
-      private final String myConflictDescription;
+      private final @NlsContexts.Tooltip String myConflictDescription;
 
-      DescriptionOnlyUsage(@NotNull String conflictDescription) {
+      DescriptionOnlyUsage(@NotNull @NlsContexts.Tooltip String conflictDescription) {
+        //noinspection HardCodedStringLiteral
         myConflictDescription = StringUtil.unescapeXmlEntities(conflictDescription)
           .replaceAll("<code>", "")
           .replaceAll("</code>", "")
@@ -222,8 +241,12 @@ public class ConflictsDialog extends DialogWrapper{
       }
 
       DescriptionOnlyUsage() {
-        myConflictDescription =
-          Pattern.compile("<[^<>]*>").matcher(StringUtil.join(new LinkedHashSet<>(myElementConflictDescription.get(null)), "\n")).replaceAll("");
+        myConflictDescription = getEscapedDescription(StringUtil.join(new LinkedHashSet<>(myElementConflictDescription.get(null)), "\n"));
+      }
+
+      @Contract(pure = true)
+      private String getEscapedDescription(String conflictsMessage) {
+        return Pattern.compile("<[^<>]*>").matcher(conflictsMessage).replaceAll("");
       }
 
       @Override
@@ -231,8 +254,7 @@ public class ConflictsDialog extends DialogWrapper{
       public UsagePresentation getPresentation() {
         return new UsagePresentation() {
           @Override
-          @NotNull
-          public TextChunk[] getText() {
+          public TextChunk @NotNull [] getText() {
             return new TextChunk[] {new TextChunk(SimpleTextAttributes.REGULAR_ATTRIBUTES.toTextAttributes(), myConflictDescription)};
           }
 

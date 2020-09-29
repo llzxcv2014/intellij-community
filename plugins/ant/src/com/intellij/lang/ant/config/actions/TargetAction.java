@@ -25,19 +25,26 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
 import java.util.List;
 
-public final class TargetAction extends DumbAwareAction {
-  public static final String DEFAULT_TARGET_NAME = AntBundle.message("ant.target.name.default.target");
+import static com.intellij.openapi.util.NlsActions.ActionDescription;
+import static com.intellij.openapi.util.NlsActions.ActionText;
 
+public final class TargetAction extends DumbAwareAction {
   private final String myBuildName;
   private final List<String> myTargets;
   private final String myDebugString;
 
-  public TargetAction(final AntBuildFile buildFile, final String displayName, final List<String> targets, final String description) {
+  public TargetAction(final AntBuildFile buildFile,
+                      final @ActionText String displayName,
+                      final List<@NlsSafe String> targets,
+                      final @ActionDescription String description) {
     Presentation templatePresentation = getTemplatePresentation();
     templatePresentation.setText(displayName, false);
     templatePresentation.setDescription(description);
@@ -48,7 +55,7 @@ public final class TargetAction extends DumbAwareAction {
                     "; Project: " + buildFile.getProject().getPresentableUrl();
   }
 
-  public String toString() {
+  public @NonNls String toString() {
     return myDebugString;
   }
 
@@ -60,7 +67,7 @@ public final class TargetAction extends DumbAwareAction {
     for (final AntBuildFile buildFile : AntConfiguration.getInstance(project).getBuildFileList()) {
       final String name = buildFile.getPresentableName();
       if (name != null && myBuildName.equals(name)) {
-        final List<String> targets = myTargets.size() == 1 && DEFAULT_TARGET_NAME.equals(myTargets.iterator().next()) ? Collections.emptyList() : myTargets;
+        final List<String> targets = myTargets.size() == 1 && getDefaultTargetName().equals(myTargets.iterator().next()) ? Collections.emptyList() : myTargets;
         ExecutionHandler.runBuild((AntBuildFileBase)buildFile, targets, null, e.getDataContext(), Collections.emptyList(), AntBuildListener.NULL);
         return;
       }
@@ -68,7 +75,11 @@ public final class TargetAction extends DumbAwareAction {
   }
 
   @Override
-  public String getTemplateText() {
-    return "Ant Target";
+  public @Nls String getTemplateText() {
+    return AntBundle.message("action.ant.target.text");
+  }
+
+  public static @Nls String getDefaultTargetName() {
+    return AntBundle.message("ant.target.name.default.target");
   }
 }

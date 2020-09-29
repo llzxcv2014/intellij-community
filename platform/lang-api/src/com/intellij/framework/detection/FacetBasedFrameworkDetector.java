@@ -22,6 +22,7 @@ import com.intellij.openapi.roots.ModifiableRootModel;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ui.EmptyIcon;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,17 +34,15 @@ import java.util.Set;
 
 /**
  * Implementation of {@link FrameworkDetector} for frameworks configured via facets
- *
- * @author nik
  */
 public abstract class FacetBasedFrameworkDetector<F extends Facet, C extends FacetConfiguration> extends FrameworkDetector {
   private static final Logger LOG = Logger.getInstance(FacetBasedFrameworkDetector.class);
 
-  protected FacetBasedFrameworkDetector(String detectorId) {
+  protected FacetBasedFrameworkDetector(@NonNls String detectorId) {
     super(detectorId);
   }
 
-  protected FacetBasedFrameworkDetector(@NotNull String detectorId, int detectorVersion) {
+  protected FacetBasedFrameworkDetector(@NonNls @NotNull String detectorId, int detectorVersion) {
     super(detectorId, detectorVersion);
   }
 
@@ -86,7 +85,7 @@ public abstract class FacetBasedFrameworkDetector<F extends Facet, C extends Fac
   }
 
   @Override
-  public FrameworkType getFrameworkType() {
+  public @NotNull FrameworkType getFrameworkType() {
     FacetType<F, C> type = getFacetType();
     //noinspection ConstantConditions todo[nik] remove later: this is added to find implementations which incorrectly return 'null' from 'getFacetType'
     LOG.assertTrue(type != null, "'getFacetType' returns 'null' in " + getClass());

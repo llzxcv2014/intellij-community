@@ -1,6 +1,7 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.search;
 
+import com.intellij.java.indexing.JavaIndexingBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.QueryExecutorBase;
 import com.intellij.openapi.application.ReadAction;
@@ -19,12 +20,12 @@ import com.intellij.psi.search.searches.ClassInheritorsSearch;
 import com.intellij.psi.search.searches.DirectClassInheritorsSearch;
 import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.ConcurrencyUtil;
-import com.intellij.util.Function;
 import com.intellij.util.Processor;
-import com.intellij.util.containers.Predicate;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class JavaClassInheritorsSearcher extends QueryExecutorBase<PsiClass, ClassInheritorsSearch.SearchParameters> {
   @Override
@@ -38,8 +39,8 @@ public class JavaClassInheritorsSearcher extends QueryExecutorBase<PsiClass, Cla
       progress.pushState();
       String className = ReadAction.compute(baseClass::getName);
       progress.setText(className != null ?
-                       PsiBundle.message("psi.search.inheritors.of.class.progress", className) :
-                       PsiBundle.message("psi.search.inheritors.progress"));
+                       JavaIndexingBundle.message("psi.search.inheritors.of.class.progress", className) :
+                       JavaIndexingBundle.message("psi.search.inheritors.progress"));
     }
 
     try {
@@ -110,7 +111,7 @@ public class JavaClassInheritorsSearcher extends QueryExecutorBase<PsiClass, Cla
           ProgressManager.checkCanceled();
           PsiAnchor pointer = ReadAction.compute(() -> PsiAnchor.create(subClass));
           // append found result to subClasses as early as possible to allow other waiting threads to continue
-          processor.consume(pointer);
+          processor.accept(pointer);
           return true;
         });
 

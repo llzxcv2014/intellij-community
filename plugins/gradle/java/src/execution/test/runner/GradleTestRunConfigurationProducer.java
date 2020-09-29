@@ -1,10 +1,12 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.execution.test.runner;
 
+import com.intellij.execution.RunnerAndConfigurationSettings;
 import com.intellij.execution.actions.ConfigurationContext;
 import com.intellij.execution.actions.ConfigurationFromContext;
 import com.intellij.execution.actions.RunConfigurationProducer;
 import com.intellij.execution.configurations.ConfigurationType;
+import com.intellij.execution.configurations.RunConfiguration;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.ExternalProjectInfo;
@@ -24,6 +26,7 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
+import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -48,7 +51,7 @@ import static org.jetbrains.plugins.gradle.settings.TestRunner.*;
  * @author Vladislav.Soroka
  */
 public abstract class GradleTestRunConfigurationProducer extends RunConfigurationProducer<ExternalSystemRunConfiguration> {
-  private static final List<String> TEST_SOURCE_SET_TASKS = Arrays.asList("cleanTest", "test");
+  private static final List<String> TEST_SOURCE_SET_TASKS = Collections.singletonList("test");
 
   protected static final Logger LOG = Logger.getInstance(GradleTestRunConfigurationProducer.class);
 
@@ -90,8 +93,41 @@ public abstract class GradleTestRunConfigurationProducer extends RunConfiguratio
       final GradleRunConfiguration gradleRunConfiguration = (GradleRunConfiguration)configuration;
       gradleRunConfiguration.setScriptDebugEnabled(false);
     }
-    return doSetupConfigurationFromContext(configuration, context, sourceElement);
+    boolean result = doSetupConfigurationFromContext(configuration, context, sourceElement);
+    restoreDefaultScriptParametersIfNeeded(configuration, context);
+    return result;
   }
+
+  protected Runnable addCheckForTemplateParams(@NotNull ConfigurationFromContext configuration,
+                         @NotNull ConfigurationContext context,
+                         @NotNull Runnable startRunnable) {
+    return () -> {
+      restoreDefaultScriptParametersIfNeeded(configuration.getConfiguration(), context);
+      startRunnable.run();
+    };
+  }
+
+  protected void restoreDefaultScriptParametersIfNeeded(@NotNull RunConfiguration configuration,
+                                                        @NotNull ConfigurationContext context) {
+    RunnerAndConfigurationSettings template = context.getRunManager().getConfigurationTemplate(getConfigurationFactory());
+    final RunConfiguration original = template.getConfiguration();
+    if (original instanceof ExternalSystemRunConfiguration
+        && configuration instanceof ExternalSystemRunConfiguration) {
+      ExternalSystemRunConfiguration originalRC = (ExternalSystemRunConfiguration)original;
+      ExternalSystemRunConfiguration configurationRC = (ExternalSystemRunConfiguration)configuration;
+      String currentParams = configurationRC.getSettings().getScriptParameters();
+      String defaultParams = originalRC.getSettings().getScriptParameters();
+
+      if (!StringUtil.isEmptyOrSpaces(defaultParams)) {
+        if (!StringUtil.isEmptyOrSpaces(currentParams)) {
+          configurationRC.getSettings().setScriptParameters(currentParams + " " + defaultParams);
+        } else {
+          configurationRC.getSettings().setScriptParameters(defaultParams);
+        }
+      }
+    }
+  }
+
 
   protected abstract boolean doSetupConfigurationFromContext(ExternalSystemRunConfiguration configuration,
                                                              ConfigurationContext context,
@@ -179,8 +215,7 @@ public abstract class GradleTestRunConfigurationProducer extends RunConfiguratio
         if (FileUtil.isAncestor(sourceFolder, sourcePath, false)) {
           String testName = testData.getTestName();
           String testTaskName = testData.getTestTaskName();
-          String clearTestTaskName = testData.getCleanTestTaskName();
-          List<String> tasks = ContainerUtil.newArrayList(clearTestTaskName, testTaskName);
+          List<String> tasks = new SmartList<>(testTaskName);
           testTasks.add(new TasksToRun.Impl(testName, tasks));
         }
       }
@@ -235,7 +270,7 @@ public abstract class GradleTestRunConfigurationProducer extends RunConfiguratio
 
     if (taskNode == null) return ContainerUtil.emptyList();
     String taskName = StringUtil.trimStart(taskNode.getData().getName(), taskPrefix);
-    tasks = Arrays.asList("clean" + StringUtil.capitalize(taskName), taskName);
+    tasks = Collections.singletonList(taskName);
     return ContainerUtil.map(tasks, task -> taskPrefix + task);
   }
 

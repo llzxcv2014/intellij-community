@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.ui;
 
 import com.intellij.openapi.diagnostic.Logger;
@@ -10,7 +10,6 @@ import com.intellij.util.text.CharSequenceReader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
@@ -74,7 +73,7 @@ public class TextTransferable implements Transferable {
 
   @Override
   public Object getTransferData(@NotNull DataFlavor flavor) throws UnsupportedFlavorException {
-    if (flavor.getMimeType().startsWith("text/html;")) {
+    if (flavor.getMimeType().startsWith("text/html;")) {  // NON-NLS
       return myHtmlContent.toString();
     }
     else if (flavor.equals(DataFlavor.plainTextFlavor)) {
@@ -90,7 +89,7 @@ public class TextTransferable implements Transferable {
   public static class ColoredStringBuilder implements ColoredTextContainer {
     private final StringBuilder builder = new StringBuilder();
 
-    public void appendTo(@NotNull StringBuilder... subBuilders) {
+    public void appendTo(StringBuilder @NotNull ... subBuilders) {
       for (StringBuilder subBuilder : subBuilders) {
         subBuilder.append(builder);
       }
@@ -100,19 +99,6 @@ public class TextTransferable implements Transferable {
     @Override
     public void append(@NotNull String fragment, @NotNull SimpleTextAttributes attributes) {
       builder.append(fragment);
-    }
-
-    @Override
-    public void append(@NotNull String fragment, @NotNull SimpleTextAttributes attributes, Object tag) {
-      builder.append(fragment);
-    }
-
-    @Override
-    public void setIcon(@Nullable Icon icon) {
-    }
-
-    @Override
-    public void setToolTipText(@Nullable String text) {
     }
 
     public StringBuilder getBuilder() {

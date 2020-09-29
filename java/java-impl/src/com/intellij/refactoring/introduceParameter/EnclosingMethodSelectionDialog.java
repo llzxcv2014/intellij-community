@@ -2,8 +2,10 @@
 
 package com.intellij.refactoring.introduceParameter;
 
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.PsiMethod;
 import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.ui.MethodCellRenderer;
@@ -19,22 +21,21 @@ import java.util.List;
 public class EnclosingMethodSelectionDialog extends DialogWrapper {
   private final List<PsiMethod> myEnclosingMethods;
 
-  private JList myEnclosingMethodsList;
-  private final JCheckBox myCbReplaceInstanceOf = new JCheckBox(RefactoringBundle.message("use.interface.superclass.in.instanceof"));
-  private static final String REFACTORING_NAME = RefactoringBundle.message("introduce.parameter.title");
+  private JList<PsiMethod> myEnclosingMethodsList;
+  private final JCheckBox myCbReplaceInstanceOf = new JCheckBox(JavaRefactoringBundle.message("use.interface.superclass.in.instanceof"));
 
   EnclosingMethodSelectionDialog(Project project, List<PsiMethod> enclosingMethods) {
     super(project, true);
 
     myEnclosingMethods = enclosingMethods;
 
-    setTitle(REFACTORING_NAME);
+    setTitle(getRefactoringName());
     init();
   }
 
   public PsiMethod getSelectedMethod() {
     if(myEnclosingMethodsList != null) {
-      return (PsiMethod) myEnclosingMethodsList.getSelectedValue();
+      return myEnclosingMethodsList.getSelectedValue();
     }
     else {
       return null;
@@ -42,8 +43,7 @@ public class EnclosingMethodSelectionDialog extends DialogWrapper {
   }
 
   @Override
-  @NotNull
-  protected Action[] createActions() {
+  protected Action @NotNull [] createActions() {
     return new Action[]{getOKAction(), getCancelAction()/*, getHelpAction()*/};
   }
 
@@ -67,10 +67,10 @@ public class EnclosingMethodSelectionDialog extends DialogWrapper {
     gbConstraints.gridheight = 1;
     gbConstraints.fill = GridBagConstraints.BOTH;
     gbConstraints.anchor = GridBagConstraints.WEST;
-    panel.add(new JLabel(RefactoringBundle.message("introduce.parameter.to.method")), gbConstraints);
+    panel.add(new JLabel(JavaRefactoringBundle.message("introduce.parameter.to.method")), gbConstraints);
 
     gbConstraints.weighty = 1;
-    myEnclosingMethodsList = new JBList(myEnclosingMethods.toArray());
+    myEnclosingMethodsList = new JBList<>(myEnclosingMethods);
     myEnclosingMethodsList.setCellRenderer(new MethodCellRenderer());
     myEnclosingMethodsList.getSelectionModel().setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
@@ -100,4 +100,7 @@ public class EnclosingMethodSelectionDialog extends DialogWrapper {
     return null;
   }
 
+  private static @NlsContexts.DialogTitle String getRefactoringName() {
+    return RefactoringBundle.message("introduce.parameter.title");
+  }
 }

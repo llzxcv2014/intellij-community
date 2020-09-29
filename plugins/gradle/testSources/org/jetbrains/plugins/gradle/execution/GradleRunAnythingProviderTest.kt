@@ -1,6 +1,7 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.execution
 
+import org.assertj.core.api.Assertions.assertThat
 import org.jetbrains.plugins.gradle.importing.GradleBuildScriptBuilderEx
 import org.jetbrains.plugins.gradle.importing.GradleSettingScriptBuilder
 import org.junit.Test
@@ -105,7 +106,11 @@ class GradleRunAnythingProviderTest : GradleRunAnythingProviderTestCase() {
     withVariantsFor("") {
       assertCollection(it, getGradleOptions())
       assertCollection(it, getRootProjectTasks(), getRootProjectTasks(":"), !getRootProjectTasks(":module:"))
-      assertCollection(it, getCommonTasks(), getCommonTasks(":"), getCommonTasks(":module:"))
+      if (isGradleNewerOrSameAs("6.5.1")) {
+        assertCollection(it, getCommonTasks(), getCommonTasks(":"), getCommonTasks(":module:") - ":module:prepareKotlinBuildScriptModel")
+      } else {
+        assertCollection(it, getCommonTasks(), getCommonTasks(":"), getCommonTasks(":module:"))
+      }
       assertCollection(it, "taskP", ":taskP", !":module:taskP")
       assertCollection(it, "taskM", !":taskM", ":module:taskM")
       assertCollection(it, !"taskC", !":taskC", !":module:taskC")
@@ -114,7 +119,11 @@ class GradleRunAnythingProviderTest : GradleRunAnythingProviderTestCase() {
     withVariantsFor("", "project") {
       assertCollection(it, getGradleOptions())
       assertCollection(it, getRootProjectTasks(), getRootProjectTasks(":"), !getRootProjectTasks(":module:"))
-      assertCollection(it, getCommonTasks(), getCommonTasks(":"), getCommonTasks(":module:"))
+      if (isGradleNewerOrSameAs("6.5.1")) {
+        assertCollection(it, getCommonTasks(), getCommonTasks(":"), getCommonTasks(":module:") - ":module:prepareKotlinBuildScriptModel")
+      } else {
+        assertCollection(it, getCommonTasks(), getCommonTasks(":"), getCommonTasks(":module:"))
+      }
       assertCollection(it, "taskP", ":taskP", !":module:taskP")
       assertCollection(it, "taskM", !":taskM", ":module:taskM")
       assertCollection(it, !"taskC", !":taskC", !":module:taskC")
@@ -123,7 +132,13 @@ class GradleRunAnythingProviderTest : GradleRunAnythingProviderTestCase() {
     withVariantsFor("", "project.module") {
       assertCollection(it, getGradleOptions())
       assertCollection(it, !getRootProjectTasks(), !getRootProjectTasks(":"), !getRootProjectTasks(":module:"))
-      assertCollection(it, getCommonTasks(), getCommonTasks(":"), !getCommonTasks(":module:"))
+      if (isGradleNewerOrSameAs("6.5.1")) {
+        assertCollection(it, getCommonTasks() - "prepareKotlinBuildScriptModel",
+                         getCommonTasks(":") - ":prepareKotlinBuildScriptModel",
+                         !getCommonTasks(":module:"))
+      } else {
+        assertCollection(it, getCommonTasks(), getCommonTasks(":"), !getCommonTasks(":module:"))
+      }
       assertCollection(it, !"taskP", !":taskP", !":module:taskP")
       assertCollection(it, "taskM", ":taskM", !":module:taskM")
       assertCollection(it, !"taskC", !":taskC", !":module:taskC")
@@ -132,7 +147,11 @@ class GradleRunAnythingProviderTest : GradleRunAnythingProviderTestCase() {
     withVariantsFor("", "composite") {
       assertCollection(it, getGradleOptions())
       assertCollection(it, getRootProjectTasks(), getRootProjectTasks(":"), !getRootProjectTasks(":module:"))
-      assertCollection(it, getCommonTasks(), getCommonTasks(":"), getCommonTasks(":module:"))
+      if (isGradleNewerOrSameAs("6.5.1")) {
+        assertCollection(it, getCommonTasks(), getCommonTasks(":"), getCommonTasks(":module:") - ":module:prepareKotlinBuildScriptModel")
+      } else {
+        assertCollection(it, getCommonTasks(), getCommonTasks(":"), getCommonTasks(":module:"))
+      }
       assertCollection(it, !"taskP", !":taskP", !":module:taskP")
       assertCollection(it, !"taskM", !":taskM", !":module:taskM")
       assertCollection(it, "taskC", ":taskC", !":module:taskC")
@@ -141,11 +160,149 @@ class GradleRunAnythingProviderTest : GradleRunAnythingProviderTestCase() {
     withVariantsFor("", "composite.module") {
       assertCollection(it, getGradleOptions())
       assertCollection(it, !getRootProjectTasks(), !getRootProjectTasks(":"), !getRootProjectTasks(":module:"))
-      assertCollection(it, getCommonTasks(), getCommonTasks(":"), !getCommonTasks(":module:"))
+      if (isGradleNewerOrSameAs("6.5.1")) {
+        assertCollection(it, getCommonTasks() - "prepareKotlinBuildScriptModel",
+                         getCommonTasks(":") - ":prepareKotlinBuildScriptModel",
+                         !getCommonTasks(":module:"))
+      } else {
+        assertCollection(it, getCommonTasks(), getCommonTasks(":"), !getCommonTasks(":module:"))
+      }
       assertCollection(it, !"taskP", !":taskP", !":module:taskP")
       assertCollection(it, !"taskM", !":taskM", !":module:taskM")
       assertCollection(it, !"taskC", !":taskC", !":module:taskC")
       assertCollection(it, "taskCM", ":taskCM", !":module:taskCM")
     }
+  }
+
+  @Test
+  fun `test running commands with build options and tasks arguments`() {
+    importProject(
+      "tasks.create('taskWithArgs', ArgsTask) {\n" +
+      "    doLast {\n" +
+      "        println myArgs\n" +
+      "    }\n" +
+      "}\n" +
+      "class ArgsTask extends DefaultTask {\n" +
+      "    @Input\n" +
+      "    @Option(option = 'my_args', description = '')\n" +
+      "    String myArgs\n" +
+      "}"
+    )
+    executeAndWait("help")
+      .assertExecutionTree(
+        "-\n" +
+        " -successful\n" +
+        "  :help"
+      )
+
+    executeAndWait("--unknown-option help")
+      .assertExecutionTree(
+        "-\n" +
+        " -failed\n" +
+        "  Unknown command-line option '--unknown-option'"
+      )
+
+    executeAndWait("taskWithArgs")
+      .assertExecutionTree(
+        "-\n" +
+        " -failed\n" +
+        "  :taskWithArgs\n" +
+        "  No value has been specified for property 'myArgs'"
+      )
+
+    // test known build CLI option before tasks and with task quoted argument with apostrophe (')
+    // (<build_option> <task> <arg>='<arg_value>')
+    executeAndWait("-q taskWithArgs --my_args='test args'")
+      .assertExecutionTree(
+        "-\n" +
+        " -successful\n" +
+        "  :taskWithArgs"
+      )
+      .assertExecutionTreeNode(
+        "successful",
+        {
+          assertThat(it).matches(
+            "(\\d+):(\\d+):(\\d+)( AM| PM)?: Executing tasks 'taskWithArgs --my_args='test args' --quiet'...\n" +
+            "\n" +
+            "(?:Starting Gradle Daemon...\n" +
+            "Gradle Daemon started in .* ms\n)?" +
+            "test args\n" +
+            "(\\d+):(\\d+):(\\d+)( AM| PM)?: Tasks execution finished 'taskWithArgs --my_args='test args' --quiet'.\n"
+          )
+        }
+      )
+      .assertExecutionTreeNode(
+        ":taskWithArgs",
+        {
+          assertEmpty(it) // tasks output routing is not available for quiet mode
+        }
+      )
+
+    // test known build CLI option before tasks and with task quoted argument with quote (")
+    // (<build_option> <task> <arg>="<arg_value>")
+    executeAndWait("--info taskWithArgs --my_args=\"test args\"")
+      .assertExecutionTree(
+        "-\n" +
+        " -successful\n" +
+        "  :taskWithArgs"
+      )
+      .assertExecutionTreeNode(
+        ":taskWithArgs",
+        {
+          assertThat(it).matches(
+            "> Task :taskWithArgs\n" +
+            "Caching disabled for task ':taskWithArgs' because:\n" +
+            "  Build cache is disabled\n" +
+            "Task ':taskWithArgs' is not up-to-date because:\n" +
+            "  Task has not declared any outputs despite executing actions.\n" +
+            "test args\n" +
+            ":taskWithArgs \\(Thread\\[.*\\]\\) completed. Took (\\d+).(\\d+) secs.\n\n"
+          )
+        }
+      )
+
+    // test with task argument and known build CLI option after tasks
+    // (<task> <arg>=<arg_value> <build_option>)
+    executeAndWait("taskWithArgs --my_args=test_args --quiet")
+      .assertExecutionTree(
+        "-\n" +
+        " -successful\n" +
+        "  :taskWithArgs"
+      )
+      .assertExecutionTreeNode(
+        "successful",
+        {
+          assertThat(it).matches(
+            "(\\d+):(\\d+):(\\d+)( AM| PM)?: Executing tasks 'taskWithArgs --my_args=test_args --quiet'...\n" +
+            "\n" +
+            "(?:Starting Gradle Daemon...\n" +
+            "Gradle Daemon started in .* ms\n)?" +
+            "test_args\n" +
+            "(\\d+):(\\d+):(\\d+)( AM| PM)?: Tasks execution finished 'taskWithArgs --my_args=test_args --quiet'.\n"
+          )
+        }
+      )
+
+    // test with task argument and known build CLI option after tasks
+    // (<task> <arg> <arg_value> <build_option>)
+    executeAndWait("taskWithArgs --my_args test_args --quiet")
+      .assertExecutionTree(
+        "-\n" +
+        " -successful\n" +
+        "  :taskWithArgs"
+      )
+      .assertExecutionTreeNode(
+        "successful",
+        {
+          assertThat(it).matches(
+            "(\\d+):(\\d+):(\\d+)( AM| PM)?: Executing tasks 'taskWithArgs --my_args test_args --quiet'...\n" +
+            "\n" +
+            "(?:Starting Gradle Daemon...\n" +
+            "Gradle Daemon started in .* ms\n)?" +
+            "test_args\n" +
+            "(\\d+):(\\d+):(\\d+)( AM| PM)?: Tasks execution finished 'taskWithArgs --my_args test_args --quiet'.\n"
+          )
+        }
+      )
   }
 }

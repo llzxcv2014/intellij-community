@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xdebugger.impl.breakpoints;
 
 import com.intellij.codeInsight.folding.impl.FoldingUtil;
@@ -24,6 +24,7 @@ import com.intellij.xdebugger.impl.XSourcePositionImpl;
 import com.intellij.xdebugger.impl.breakpoints.ui.BreakpointItem;
 import com.intellij.xdebugger.impl.breakpoints.ui.BreakpointPanelProvider;
 import one.util.streamex.StreamEx;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,18 +35,17 @@ import java.util.List;
 
 import static org.jetbrains.concurrency.Promises.rejectedPromise;
 
-/**
- * @author nik
- */
-public class XBreakpointUtil {
+public final class XBreakpointUtil {
   private XBreakpointUtil() {
   }
 
+  @Nls
   public static <B extends XBreakpoint> String getShortText(B breakpoint) {
     //noinspection unchecked
     return StringUtil.shortenTextWithEllipsis(StringUtil.notNullize(breakpoint.getType().getShortText(breakpoint)), 70, 5);
   }
 
+  @Nls
   public static <B extends XBreakpoint> String getDisplayText(@NotNull B breakpoint) {
     //noinspection unchecked
     return breakpoint.getType().getDisplayText(breakpoint);
@@ -56,7 +56,7 @@ public class XBreakpointUtil {
     return breakpointTypes().filter(breakpointType -> id.equals(breakpointType.getId())).findFirst().orElse(null);
   }
 
-  public static StreamEx<XBreakpointType> breakpointTypes() {
+  public static @NotNull StreamEx<XBreakpointType> breakpointTypes() {
     return StreamEx.of(XBreakpointType.EXTENSION_POINT_NAME.getExtensionList());
   }
 

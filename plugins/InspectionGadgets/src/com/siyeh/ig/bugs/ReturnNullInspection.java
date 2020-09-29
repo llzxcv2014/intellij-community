@@ -2,7 +2,7 @@
 package com.siyeh.ig.bugs;
 
 import com.intellij.codeInsight.*;
-import com.intellij.codeInspection.AnnotateMethodFix;
+import com.intellij.codeInsight.intention.AddAnnotationPsiFix;
 import com.intellij.codeInspection.CommonQuickFixBundle;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.dataFlow.DfaPsiUtil;
@@ -21,6 +21,7 @@ import com.siyeh.ig.psiutils.ExpressionUtils;
 import com.siyeh.ig.psiutils.TypeUtils;
 import org.intellij.lang.annotations.Pattern;
 import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,13 +33,13 @@ public class ReturnNullInspection extends BaseInspection {
   private static final CallMatcher.Simple MAP_COMPUTE =
     CallMatcher.instanceCall("java.util.Map", "compute", "computeIfPresent", "computeIfAbsent");
 
-  @SuppressWarnings({"PublicField"})
+  @SuppressWarnings("PublicField")
   public boolean m_reportObjectMethods = true;
-  @SuppressWarnings({"PublicField"})
+  @SuppressWarnings("PublicField")
   public boolean m_reportArrayMethods = true;
-  @SuppressWarnings({"PublicField"})
+  @SuppressWarnings("PublicField")
   public boolean m_reportCollectionMethods = true;
-  @SuppressWarnings({"PublicField"})
+  @SuppressWarnings("PublicField")
   public boolean m_ignorePrivateMethods = false;
 
   @Override
@@ -61,12 +62,6 @@ public class ReturnNullInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("return.of.null.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message(
       "return.of.null.problem.descriptor");
@@ -80,23 +75,17 @@ public class ReturnNullInspection extends BaseInspection {
       return null;
     }
 
-    final PsiElement element = PsiTreeUtil.getParentOfType(elt, PsiMethod.class, PsiLambdaExpression.class);
-    if (element instanceof PsiLambdaExpression) {
-      return null;
-    }
-    if (element instanceof PsiMethod) {
-      final PsiMethod method = (PsiMethod)element;
-      final PsiType type = method.getReturnType();
-      if (TypeUtils.isOptional(type)) {
-        // don't suggest to annotate Optional methods as Nullable
-        return new ReplaceWithEmptyOptionalFix(((PsiClassType)type).rawType().getCanonicalText());
-      }
+    final PsiMethod method = PsiTreeUtil.getParentOfType(elt, PsiMethod.class, false, PsiLambdaExpression.class);
+    if (method == null) return null;
+    final PsiType type = method.getReturnType();
+    if (TypeUtils.isOptional(type)) {
+      // don't suggest to annotate Optional methods as Nullable
+      return new ReplaceWithEmptyOptionalFix(((PsiClassType)type).rawType().getCanonicalText());
     }
 
     final NullableNotNullManager manager = NullableNotNullManager.getInstance(elt.getProject());
-    return new DelegatingFix(new AnnotateMethodFix(
-      manager.getDefaultNullable(),
-      ArrayUtilRt.toStringArray(manager.getNotNulls())));
+    return new DelegatingFix(new AddAnnotationPsiFix(manager.getDefaultNullable(), method,
+                                                     ArrayUtilRt.toStringArray(manager.getNotNulls())));
   }
 
   @Override
@@ -136,8 +125,7 @@ public class ReturnNullInspection extends BaseInspection {
       PsiReplacementUtil.replaceExpression(literalExpression, getReplacementText());
     }
 
-    @NotNull
-    private String getReplacementText() {
+    private @NonNls @NotNull String getReplacementText() {
       return myTypeText + "." + (OptionalUtil.GUAVA_OPTIONAL.equals(myTypeText) ? "absent" : "empty") + "()";
     }
   }

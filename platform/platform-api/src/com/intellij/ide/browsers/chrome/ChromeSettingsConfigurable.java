@@ -1,20 +1,7 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.browsers.chrome;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.options.Configurable;
@@ -32,9 +19,8 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
 
-/**
- * @author nik
- */
+import static com.intellij.ide.SpecialConfigFiles.CHROME_USER_DATA;
+
 public class ChromeSettingsConfigurable implements Configurable {
   private final ChromeSettings mySettings;
   private JPanel myMainPanel;
@@ -46,7 +32,8 @@ public class ChromeSettingsConfigurable implements Configurable {
 
   public ChromeSettingsConfigurable(@NotNull ChromeSettings settings) {
     mySettings = settings;
-    myUserDataDirField.addBrowseFolderListener("Select User Data Directory", "Specifies the directory that user data (your \"profile\") is kept in", null,
+    myUserDataDirField.addBrowseFolderListener(IdeBundle.message("chooser.title.select.user.data.directory"), IdeBundle
+                                                 .message("chooser.description.specifies.user.data.directory"), null,
                                                FileChooserDescriptorFactory.createSingleFolderDescriptor());
     myUseCustomProfileCheckBox.addActionListener(new ActionListener() {
       @Override
@@ -110,7 +97,7 @@ public class ChromeSettingsConfigurable implements Configurable {
   }
 
   private static String getDefaultUserDataPath() {
-    File dir = new File(PathManager.getConfigPath(), "chrome-user-data");
+    File dir = new File(PathManager.getConfigPath(), CHROME_USER_DATA);
     try {
       return FileUtil.toSystemIndependentName(dir.getCanonicalPath());
     }
@@ -122,7 +109,7 @@ public class ChromeSettingsConfigurable implements Configurable {
   @Nls
   @Override
   public String getDisplayName() {
-    return "Chrome Settings";
+    return IdeBundle.message("configurable.ChromeSettingsConfigurable.display.name");
   }
 
   @Override

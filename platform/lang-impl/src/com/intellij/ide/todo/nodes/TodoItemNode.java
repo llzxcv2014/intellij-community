@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ide.todo.nodes;
 
@@ -75,7 +75,7 @@ public final class TodoItemNode extends BaseToDoNode<SmartTodoItemPointer> imple
 
   @Override
   @NotNull
-  public Collection<AbstractTreeNode> getChildren() {
+  public Collection<AbstractTreeNode<?>> getChildren() {
     return Collections.emptyList();
   }
 
@@ -184,10 +184,6 @@ public final class TodoItemNode extends BaseToDoNode<SmartTodoItemPointer> imple
     }
   }
 
-  public int getRowCount() {
-    return myAdditionalLines.size() + 1;
-  }
-
   @Override
   public String getTestPresentation() {
     return "Item: " + getValue().getTodoItem().getTextRange();
@@ -203,7 +199,7 @@ public final class TodoItemNode extends BaseToDoNode<SmartTodoItemPointer> imple
     return myAdditionalLines;
   }
 
-  private static class AdditionalTodoLine implements HighlightedRegionProvider {
+  private static final class AdditionalTodoLine implements HighlightedRegionProvider {
     private final String myText;
     private final List<HighlightedRegion> myHighlights;
 

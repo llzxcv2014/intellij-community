@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.search;
 
 import com.intellij.lang.ASTNode;
@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import static com.intellij.openapi.util.text.StringUtil.isEscapedBackslash;
 
-public class LowLevelSearchUtil {
+public final class LowLevelSearchUtil {
   private static final Logger LOG = Logger.getInstance(LowLevelSearchUtil.class);
 
   // TRUE/FALSE -> injected psi has been discovered and processor returned true/false;
@@ -131,8 +131,7 @@ public class LowLevelSearchUtil {
     return processElementsAtOffsets(scope, searcher, processInjectedPsi, progress, occurrences, processor);
   }
 
-  @NotNull
-  static int[] getTextOccurrencesInScope(@NotNull PsiElement scope, @NotNull StringSearcher searcher) {
+  static int @NotNull [] getTextOccurrencesInScope(@NotNull PsiElement scope, @NotNull StringSearcher searcher) {
     ProgressManager.checkCanceled();
 
     PsiFile file = scope.getContainingFile();
@@ -163,7 +162,7 @@ public class LowLevelSearchUtil {
                                           @NotNull StringSearcher searcher,
                                           boolean processInjectedPsi,
                                           @NotNull ProgressIndicator progress,
-                                          @NotNull int[] offsetsInScope,
+                                          int @NotNull [] offsetsInScope,
                                           @NotNull TextOccurenceProcessor processor) {
     if (offsetsInScope.length == 0) {
       return true;
@@ -185,7 +184,7 @@ public class LowLevelSearchUtil {
   }
 
   static boolean processOffsets(@NotNull ASTNode node,
-                                @NotNull int[] offsetsInNode,
+                                int @NotNull [] offsetsInNode,
                                 @NotNull ProgressIndicator progress,
                                 @NotNull NodeTextOccurrenceProcessor processor) {
     final int scopeStartOffset = node.getStartOffset();
@@ -264,11 +263,10 @@ public class LowLevelSearchUtil {
     return true;
   }
 
-  @NotNull
-  private static int[] getTextOccurrences(@NotNull CharSequence text,
-                                          int startOffset,
-                                          int endOffset,
-                                          @NotNull StringSearcher searcher) {
+  private static int @NotNull [] getTextOccurrences(@NotNull CharSequence text,
+                                                    int startOffset,
+                                                    int endOffset,
+                                                    @NotNull StringSearcher searcher) {
     if (endOffset > text.length()) {
       throw new IllegalArgumentException("end: " + endOffset + " > length: " + text.length());
     }

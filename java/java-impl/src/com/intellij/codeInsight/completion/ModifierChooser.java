@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.completion;
 
+import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.*;
 import com.intellij.psi.filters.FilterPositionUtil;
 import com.intellij.psi.impl.source.jsp.jspJava.JspClassLevelDeclarationStatement;
@@ -15,14 +16,18 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * @author ik
- */
-public class ModifierChooser {
+public final class ModifierChooser {
   private static final String[][] CLASS_MODIFIERS = {
     {PsiKeyword.PUBLIC},
     {PsiKeyword.FINAL, PsiKeyword.ABSTRACT}
   };
+
+  private static final String[][] CLASS_15_MODIFIERS = {
+    {PsiKeyword.PUBLIC},
+    {PsiKeyword.FINAL, PsiKeyword.ABSTRACT},
+    {PsiKeyword.FINAL, PsiKeyword.SEALED, PsiKeyword.NON_SEALED}
+  };
+
   private static final String[][] CLASS_MEMBER_MODIFIERS = {
     {PsiKeyword.PUBLIC, PsiKeyword.PROTECTED, PsiKeyword.PRIVATE},
     {PsiKeyword.STATIC},
@@ -32,6 +37,25 @@ public class ModifierChooser {
     {PsiKeyword.STRICTFP},
     {PsiKeyword.VOLATILE},
     {PsiKeyword.TRANSIENT}
+  };
+
+  private static final String[][] CLASS_15_MEMBER_MODIFIERS = {
+    {PsiKeyword.PUBLIC, PsiKeyword.PROTECTED, PsiKeyword.PRIVATE},
+    {PsiKeyword.STATIC},
+    {PsiKeyword.FINAL, PsiKeyword.ABSTRACT},
+    {PsiKeyword.SEALED, PsiKeyword.NON_SEALED},
+    {PsiKeyword.NATIVE},
+    {PsiKeyword.SYNCHRONIZED},
+    {PsiKeyword.STRICTFP},
+    {PsiKeyword.VOLATILE},
+    {PsiKeyword.TRANSIENT}
+  };
+
+  private static final String[][] INTERFACE_15_MEMBER_MODIFIERS = {
+    {PsiKeyword.PUBLIC, PsiKeyword.PROTECTED, PsiKeyword.PRIVATE},
+    {PsiKeyword.STATIC, PsiKeyword.DEFAULT},
+    {PsiKeyword.FINAL, PsiKeyword.ABSTRACT},
+    {PsiKeyword.SEALED, PsiKeyword.NON_SEALED}
   };
 
   private static final String[][] INTERFACE_9_MEMBER_MODIFIERS = {
@@ -60,7 +84,7 @@ public class ModifierChooser {
     PsiElement scope = position.getParent();
     while (scope != null) {
       if (scope instanceof PsiJavaFile) {
-        return addClassModifiers(list);
+        return addClassModifiers(list, scope);
       }
       if (scope instanceof PsiClass) {
         return addMemberModifiers(list, ((PsiClass)scope).isInterface(), scope);
@@ -72,15 +96,18 @@ public class ModifierChooser {
     return ArrayUtilRt.EMPTY_STRING_ARRAY;
   }
 
-  public static String[] addClassModifiers(PsiModifierList list) {
-    return addKeywords(list, CLASS_MODIFIERS);
+  public static String[] addClassModifiers(PsiModifierList list, @NotNull PsiElement scope) {
+    return addKeywords(list, PsiUtil.getLanguageLevel(scope).isAtLeast(LanguageLevel.JDK_15_PREVIEW) ? CLASS_15_MODIFIERS : CLASS_MODIFIERS);
   }
 
   public static String[] addMemberModifiers(PsiModifierList list, final boolean inInterface, @NotNull PsiElement position) {
-    return addKeywords(list, inInterface ? getInterfaceMemberModifiers(position) : CLASS_MEMBER_MODIFIERS);
+    return addKeywords(list, inInterface ? getInterfaceMemberModifiers(position) : getClassMemberModifiers(position));
   }
 
   private static String[][] getInterfaceMemberModifiers(@NotNull PsiElement list) {
+    if (PsiUtil.getLanguageLevel(list).isAtLeast(LanguageLevel.JDK_15_PREVIEW)) {
+      return INTERFACE_15_MEMBER_MODIFIERS;
+    }
     if (PsiUtil.isLanguageLevel9OrHigher(list)) {
       return INTERFACE_9_MEMBER_MODIFIERS;
     }
@@ -88,6 +115,13 @@ public class ModifierChooser {
       return INTERFACE_8_MEMBER_MODIFIERS;
     }
     return INTERFACE_MEMBER_MODIFIERS;
+  }
+
+  private static String[][] getClassMemberModifiers(@NotNull PsiElement list) {
+    if (PsiUtil.getLanguageLevel(list).isAtLeast(LanguageLevel.JDK_15_PREVIEW)) {
+      return CLASS_15_MEMBER_MODIFIERS;
+    }
+    return CLASS_MEMBER_MODIFIERS;
   }
 
   private static String[] addKeywords(PsiModifierList list, String[][] keywordSets) {

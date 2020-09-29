@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.util.importProject;
 
 import com.intellij.framework.detection.impl.FrameworkDetectionProcessor;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.ide.util.projectWizard.importSources.DetectedContentRoot;
 import com.intellij.ide.util.projectWizard.importSources.DetectedProjectRoot;
 import com.intellij.ide.util.projectWizard.importSources.DetectedSourceRoot;
@@ -11,23 +12,21 @@ import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.module.ModuleType;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileSystemUtil;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.containers.FileCollectionFactory;
 import com.intellij.util.containers.MultiMap;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-/**
- * @author nik
- */
 public class RootDetectionProcessor {
   private static final Logger LOG = Logger.getInstance(RootDetectionProcessor.class);
   private final File myBaseDir;
@@ -82,7 +81,7 @@ public class RootDetectionProcessor {
       myDetectedRoots[i] = new ArrayList<>();
     }
 
-    Set<File> parentDirectories = new THashSet<>(FileUtil.FILE_HASHING_STRATEGY);
+    Set<File> parentDirectories = FileCollectionFactory.createCanonicalFileSet();
     File parent = myBaseDir.getParentFile();
     while (parent != null) {
       parentDirectories.add(parent);
@@ -109,7 +108,8 @@ public class RootDetectionProcessor {
       if (myProgressIndicator.isCanceled()) {
         return parentsToSkip;
       }
-      myProgressIndicator.setText2(dir.getPath());
+      @NlsSafe final String path = dir.getPath();
+      myProgressIndicator.setText2(path);
     }
 
     if (FileSystemUtil.isSymLink(dir)) {
@@ -215,7 +215,7 @@ public class RootDetectionProcessor {
   private List<DetectedRootData> detectRoots() {
     Map<ProjectStructureDetector, List<DetectedProjectRoot>> roots = runDetectors();
     if (myProgressIndicator != null) {
-      myProgressIndicator.setText2("Processing " + roots.values().size() + " project roots...");
+      myProgressIndicator.setText2(JavaUiBundle.message("progress.text.processing.0.project.roots", roots.values().size()));
     }
 
     Map<File, DetectedRootData> rootData = new LinkedHashMap<>();

@@ -27,9 +27,6 @@ import org.jetbrains.jps.model.serialization.facet.JpsFacetConfigurationSerializ
 import java.util.Collections;
 import java.util.List;
 
-/**
- * @author nik
- */
 public class JpsAppEngineModelSerializerExtension extends JpsModelSerializerExtension {
   @NotNull
   @Override
@@ -49,11 +46,6 @@ public class JpsAppEngineModelSerializerExtension extends JpsModelSerializerExte
                                                         JpsModule module) {
       return new JpsAppEngineModuleExtensionImpl(
         XmlSerializer.deserialize(facetConfigurationElement, AppEngineModuleExtensionProperties.class));
-    }
-
-    @Override
-    protected void saveExtension(JpsAppEngineModuleExtension extension, Element facetConfigurationTag, JpsModule module) {
-      XmlSerializer.serializeInto(((JpsAppEngineModuleExtensionImpl)extension).getProperties(), facetConfigurationTag);
     }
   }
 }

@@ -9,13 +9,12 @@ import com.intellij.diff.tools.util.base.TextDiffViewerUtil.IgnorePolicySettingA
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.Separator;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
-
-import static com.intellij.openapi.util.text.StringUtil.notNullize;
 
 public class TextDiffProviderBase implements TextDiffProvider {
   private final IgnorePolicySettingAction myIgnorePolicySettingAction;
@@ -24,8 +23,8 @@ public class TextDiffProviderBase implements TextDiffProvider {
   public TextDiffProviderBase(@NotNull TextDiffSettings settings,
                               @NotNull Runnable rediff,
                               @NotNull Disposable disposable,
-                              @NotNull IgnorePolicy[] ignorePolicies,
-                              @NotNull HighlightPolicy[] highlightPolicies) {
+                              IgnorePolicy @NotNull [] ignorePolicies,
+                              HighlightPolicy @NotNull [] highlightPolicies) {
     myIgnorePolicySettingAction = new MyIgnorePolicySettingAction(settings, ignorePolicies);
     myHighlightPolicySettingAction = new MyHighlightPolicySettingAction(settings, highlightPolicies);
     settings.addListener(new MyListener(rediff), disposable);
@@ -59,11 +58,13 @@ public class TextDiffProviderBase implements TextDiffProvider {
   }
 
 
+  @Nls
   @Nullable
   protected String getText(@NotNull IgnorePolicy option) {
     return null;
   }
 
+  @Nls
   @Nullable
   protected String getText(@NotNull HighlightPolicy option) {
     return null;
@@ -72,31 +73,35 @@ public class TextDiffProviderBase implements TextDiffProvider {
 
   private class MyIgnorePolicySettingAction extends IgnorePolicySettingAction {
     MyIgnorePolicySettingAction(@NotNull TextDiffSettings settings,
-                                       @NotNull IgnorePolicy[] ignorePolicies) {
+                                       IgnorePolicy @NotNull [] ignorePolicies) {
       super(settings, ignorePolicies);
     }
 
     @NotNull
     @Override
     protected String getText(@NotNull IgnorePolicy option) {
-      return notNullize(TextDiffProviderBase.this.getText(option), super.getText(option));
+      String text = TextDiffProviderBase.this.getText(option);
+      if (text != null) return text;
+      return super.getText(option);
     }
   }
 
   private class MyHighlightPolicySettingAction extends HighlightPolicySettingAction {
     MyHighlightPolicySettingAction(@NotNull TextDiffSettings settings,
-                                          @NotNull HighlightPolicy[] highlightPolicies) {
+                                          HighlightPolicy @NotNull [] highlightPolicies) {
       super(settings, highlightPolicies);
     }
 
     @NotNull
     @Override
     protected String getText(@NotNull HighlightPolicy option) {
-      return notNullize(TextDiffProviderBase.this.getText(option), super.getText(option));
+      String text = TextDiffProviderBase.this.getText(option);
+      if (text != null) return text;
+      return super.getText(option);
     }
   }
 
-  private static class MyListener implements TextDiffSettings.Listener {
+  private static class MyListener extends TextDiffSettings.Listener.Adapter {
     @NotNull private final Runnable myRediff;
 
     MyListener(@NotNull Runnable rediff) {

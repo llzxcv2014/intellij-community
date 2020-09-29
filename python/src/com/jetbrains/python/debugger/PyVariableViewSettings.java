@@ -17,10 +17,13 @@ package com.jetbrains.python.debugger;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.util.NlsActions.ActionText;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.xdebugger.frame.XCompositeNode;
 import com.intellij.xdebugger.frame.XDebuggerTreeNodeHyperlink;
+import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.debugger.settings.PyDebuggerSettings;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,20 +32,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PyVariableViewSettings {
-  public static final String LOADING_TIMED_OUT = "Loading timed out";
-  public static final String ON_DEMAND_LINK_TEXT = "Switch to loading on demand";
-  public static final String WARNING_MESSAGE = "The values of several variables couldn't be loaded  ";
-
   public static class SimplifiedView extends ToggleAction {
     private final PyDebugProcess myProcess;
-    private final String myText;
+    private final @ActionText String myText;
     private volatile boolean mySimplifiedView;
 
     public SimplifiedView(@Nullable PyDebugProcess debugProcess) {
-      super("", "Disables watching classes, functions and modules objects", null);
+      super("", PyBundle.message("debugger.simplified.view.description"), null);
       mySimplifiedView = PyDebuggerSettings.getInstance().isSimplifiedView();
       myProcess = debugProcess;
-      myText = "Simplified Variables View";
+      myText = PyBundle.message("debugger.simplified.view.text");
     }
 
     @Override
@@ -74,8 +73,10 @@ public class PyVariableViewSettings {
     if (debuggerSettings.getValuesPolicy() == PyDebugValue.ValuesPolicy.ON_DEMAND) return;
 
     node.setMessage(
-      WARNING_MESSAGE, AllIcons.General.BalloonWarning, SimpleTextAttributes.REGULAR_ATTRIBUTES,
-      new XDebuggerTreeNodeHyperlink(ON_DEMAND_LINK_TEXT) {
+      PyBundle.message("debugger.variables.view.warning.message"),
+      AllIcons.General.BalloonWarning,
+      SimpleTextAttributes.REGULAR_ATTRIBUTES,
+      new XDebuggerTreeNodeHyperlink(PyBundle.message("debugger.variables.view.switch.to.loading.on.demand")) {
         private boolean linkClicked = false;
 
         @Override
@@ -91,7 +92,7 @@ public class PyVariableViewSettings {
             return "";
           }
           else {
-            return ON_DEMAND_LINK_TEXT;
+            return PyBundle.message("debugger.variables.view.switch.to.loading.on.demand");
           }
         }
       });
@@ -102,13 +103,16 @@ public class PyVariableViewSettings {
     private final List<ValuesPolicyListener> myValuesPolicyListeners = new ArrayList<>();
 
     public VariablesPolicyGroup() {
-      super("Variables Loading Policy", true);
+      super(PyBundle.message("debugger.variables.loading.policy"), true);
       myValuesPolicyActions
-        .add(new PolicyAction("Synchronously", "Load variable values synchronously", PyDebugValue.ValuesPolicy.SYNC, this));
+        .add(new PolicyAction(PyBundle.message("debugger.variables.loading.synchronously.text"),
+                              PyBundle.message("debugger.variables.loading.synchronously.description"), PyDebugValue.ValuesPolicy.SYNC, this));
       myValuesPolicyActions
-        .add(new PolicyAction("Asynchronously", "Load variable values asynchronously", PyDebugValue.ValuesPolicy.ASYNC, this));
+        .add(new PolicyAction(PyBundle.message("debugger.variables.loading.asynchronously.text"),
+                              PyBundle.message("debugger.variables.loading.asynchronously.description"), PyDebugValue.ValuesPolicy.ASYNC, this));
       myValuesPolicyActions
-        .add(new PolicyAction("On demand", "Load variable values on demand", PyDebugValue.ValuesPolicy.ON_DEMAND, this));
+        .add(new PolicyAction(PyBundle.message("debugger.variables.loading.on.demand.text"),
+                              PyBundle.message("debugger.variables.loading.on.demand.description"), PyDebugValue.ValuesPolicy.ON_DEMAND, this));
 
       for (AnAction action : myValuesPolicyActions) {
         add(action);
@@ -138,13 +142,13 @@ public class PyVariableViewSettings {
   }
 
   public static class PolicyAction extends ToggleAction {
-    @NotNull private final String myText;
+    @NotNull private final @ActionText String myText;
     @NotNull private final PyDebugValue.ValuesPolicy myPolicy;
     @NotNull private final VariablesPolicyGroup myActionGroup;
     private volatile boolean isEnabled;
 
-    public PolicyAction(@NotNull String text,
-                        @NotNull String description,
+    public PolicyAction(@NotNull @Nls String text,
+                        @NotNull @Nls String description,
                         @NotNull PyDebugValue.ValuesPolicy policy,
                         @NotNull VariablesPolicyGroup actionGroup) {
       super("", description, null);

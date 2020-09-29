@@ -1,7 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.fileEditor.impl.text;
 
 import com.intellij.codeHighlighting.BackgroundEditorHighlighter;
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.structureView.StructureViewBuilder;
 import com.intellij.lang.Language;
 import com.intellij.openapi.diagnostic.Logger;
@@ -22,6 +23,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.pom.Navigatable;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,11 +45,12 @@ public class TextEditorImpl extends UserDataHolderBase implements TextEditor {
   @NotNull protected final VirtualFile myFile;
   private final AsyncEditorLoader myAsyncLoader;
 
-  TextEditorImpl(@NotNull final Project project, @NotNull final VirtualFile file, final TextEditorProvider provider) {
+  TextEditorImpl(@NotNull Project project, @NotNull VirtualFile file, @NotNull TextEditorProvider provider) {
     myProject = project;
     myFile = file;
     myChangeSupport = new PropertyChangeSupport(this);
     myComponent = createEditorComponent(project, file);
+    applyTextEditorCustomizers();
 
     TransientEditorState state = myFile.getUserData(TRANSIENT_EDITOR_STATE_KEY);
     if (state != null) {
@@ -91,7 +94,7 @@ public class TextEditorImpl extends UserDataHolderBase implements TextEditor {
   }
 
   @NotNull
-  protected TextEditorComponent createEditorComponent(final Project project, final VirtualFile file) {
+  protected TextEditorComponent createEditorComponent(@NotNull Project project, @NotNull VirtualFile file) {
     return new TextEditorComponent(project, file, this);
   }
 
@@ -137,7 +140,7 @@ public class TextEditorImpl extends UserDataHolderBase implements TextEditor {
   @Override
   @NotNull
   public String getName() {
-    return "Text";
+    return IdeBundle.message("tab.title.text");
   }
 
   @Override
@@ -147,12 +150,12 @@ public class TextEditorImpl extends UserDataHolderBase implements TextEditor {
   }
 
   @Override
-  public void setState(@NotNull final FileEditorState state) {
+  public void setState(@NotNull FileEditorState state) {
     setState(state, false);
   }
 
   @Override
-  public void setState(@NotNull final FileEditorState state, boolean exactState) {
+  public void setState(@NotNull FileEditorState state, boolean exactState) {
     if (state instanceof TextEditorState) {
       myAsyncLoader.setEditorState((TextEditorState)state, exactState);
     }
@@ -170,7 +173,6 @@ public class TextEditorImpl extends UserDataHolderBase implements TextEditor {
 
   @Override
   public void selectNotify() {
-    myComponent.selectNotify();
   }
 
   @Override
@@ -181,17 +183,17 @@ public class TextEditorImpl extends UserDataHolderBase implements TextEditor {
     myComponent.updateModifiedProperty();
   }
 
-  void firePropertyChange(final String propertyName, final Object oldValue, final Object newValue) {
+  void firePropertyChange(@NotNull String propertyName, Object oldValue, Object newValue) {
     myChangeSupport.firePropertyChange(propertyName, oldValue, newValue);
   }
 
   @Override
-  public void addPropertyChangeListener(@NotNull final PropertyChangeListener listener) {
+  public void addPropertyChangeListener(@NotNull PropertyChangeListener listener) {
     myChangeSupport.addPropertyChangeListener(listener);
   }
 
   @Override
-  public void removePropertyChangeListener(@NotNull final PropertyChangeListener listener) {
+  public void removePropertyChangeListener(@NotNull PropertyChangeListener listener) {
     myChangeSupport.removePropertyChangeListener(listener);
   }
 
@@ -220,25 +222,32 @@ public class TextEditorImpl extends UserDataHolderBase implements TextEditor {
   }
 
   @Override
-  public void navigateTo(@NotNull final Navigatable navigatable) {
+  public void navigateTo(@NotNull Navigatable navigatable) {
     ((OpenFileDescriptor)navigatable).navigateIn(getEditor());
   }
 
   @Override
+  @NonNls
   public String toString() {
     return "Editor: "+myComponent.getFile();
+  }
+
+  private void applyTextEditorCustomizers() {
+    for (TextEditorCustomizer customizer : TextEditorCustomizer.EP.getExtensionList()) {
+      customizer.customize(this);
+    }
   }
 
   private static class TransientEditorState {
     private boolean softWrapsEnabled;
 
-    private static TransientEditorState forEditor(Editor editor) {
+    private static @NotNull TransientEditorState forEditor(@NotNull Editor editor) {
       TransientEditorState state = new TransientEditorState();
       state.softWrapsEnabled = editor.getSettings().isUseSoftWraps();
       return state;
     }
 
-    private void applyTo(Editor editor) {
+    private void applyTo(@NotNull Editor editor) {
       editor.getSettings().setUseSoftWraps(softWrapsEnabled);
     }
   }

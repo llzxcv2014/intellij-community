@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes.committed;
 
 import com.intellij.openapi.vcs.ChangeListColumn;
@@ -68,6 +68,7 @@ public class ColumnFilteringStrategy implements ChangeListFilteringStrategy {
     myProviderClass = providerClass;
   }
 
+  @NotNull
   @Override
   public CommittedChangesFilterKey getKey() {
     return new CommittedChangesFilterKey(toString(), CommittedChangesFilterPriority.USER);
@@ -84,18 +85,18 @@ public class ColumnFilteringStrategy implements ChangeListFilteringStrategy {
   }
 
   @Override
-  public void setFilterBase(List<? extends CommittedChangeList> changeLists) {
+  public void setFilterBase(@NotNull List<? extends CommittedChangeList> changeLists) {
     myPreferredSelection = null;
     appendFilterBase(changeLists);
   }
 
   @Override
-  public void addChangeListener(final ChangeListener listener) {
+  public void addChangeListener(@NotNull ChangeListener listener) {
     myListeners.add(listener);
   }
 
   @Override
-  public void removeChangeListener(final ChangeListener listener) {
+  public void removeChangeListener(@NotNull ChangeListener listener) {
     myListeners.remove(listener);
   }
 
@@ -109,7 +110,7 @@ public class ColumnFilteringStrategy implements ChangeListFilteringStrategy {
   }
 
   @Override
-  public void appendFilterBase(List<? extends CommittedChangeList> changeLists) {
+  public void appendFilterBase(@NotNull List<? extends CommittedChangeList> changeLists) {
     final Object[] oldSelection = myModel.isEmpty() ? myPreferredSelection : myValueList.getSelectedValues();
 
     myModel.addNext(changeLists, ourConvertorInstance);
@@ -134,7 +135,7 @@ public class ColumnFilteringStrategy implements ChangeListFilteringStrategy {
 
   @Override
   @NotNull
-  public List<CommittedChangeList> filterChangeLists(List<? extends CommittedChangeList> changeLists) {
+  public List<CommittedChangeList> filterChangeLists(@NotNull List<? extends CommittedChangeList> changeLists) {
     final Object[] selection = myValueList.getSelectedValues();
     if (myValueList.getSelectedIndex() == 0 || selection.length == 0) {
       return new ArrayList<>(changeLists);
@@ -154,7 +155,7 @@ public class ColumnFilteringStrategy implements ChangeListFilteringStrategy {
     return result;
   }
 
-  private static class MyListModel extends AbstractListModel {
+  private static final class MyListModel extends AbstractListModel {
     private volatile String[] myValues;
 
     private MyListModel() {

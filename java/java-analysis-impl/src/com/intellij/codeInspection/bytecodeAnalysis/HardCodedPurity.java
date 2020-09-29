@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.bytecodeAnalysis;
 
 import com.intellij.openapi.util.Couple;
@@ -33,6 +33,8 @@ class HardCodedPurity {
     new Member("java/lang/StringBuffer", "toString", "()Ljava/lang/String;"),
     // Often used in generated code since Java 9; to avoid too many equations
     new Member("java/util/Objects", "requireNonNull", "(Ljava/lang/Object;)Ljava/lang/Object;"),
+    // Caches hashCode, but it's better to suppose it's pure
+    new Member("java/lang/String", "hashCode", "()I"),
     // Native
     new Member("java/lang/Object", "getClass", "()Ljava/lang/Class;"),
     new Member("java/lang/Class", "getComponentType", "()Ljava/lang/Class;"),
@@ -44,13 +46,13 @@ class HardCodedPurity {
     new Member("java/lang/Double", "longBitsToDouble", "(J)D")
   );
   private static final Map<Member, Set<EffectQuantum>> solutions = new HashMap<>();
-  private static final Set<EffectQuantum> thisChange = Collections.singleton(EffectQuantum.ThisChangeQuantum);
+  private static final Set<EffectQuantum> thisChange = Set.of(EffectQuantum.ThisChangeQuantum);
 
   static {
     // Native
     solutions.put(new Member("java/lang/System", "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V"),
-                  Collections.singleton(new EffectQuantum.ParamChangeQuantum(2)));
-    solutions.put(new Member("java/lang/Object", "hashCode", "()I"), Collections.emptySet());
+                  Set.of(new EffectQuantum.ParamChangeQuantum(2)));
+    solutions.put(new Member("java/lang/Object", "hashCode", "()I"), Set.of());
   }
 
   static HardCodedPurity getInstance() {
@@ -132,8 +134,8 @@ class HardCodedPurity {
       return super.isPureMethod(method);
     }
   }
-  
-  private static class Holder {
+
+  private static final class Holder {
     static final HardCodedPurity INSTANCE = AGGRESSIVE_HARDCODED_PURITY ? new AggressiveHardCodedPurity() : new HardCodedPurity();
   }
 }

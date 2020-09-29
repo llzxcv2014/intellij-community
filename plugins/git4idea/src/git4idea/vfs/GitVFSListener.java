@@ -1,12 +1,12 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.vfs;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.VcsException;
@@ -34,7 +34,7 @@ import java.util.*;
 import static com.intellij.util.containers.ContainerUtil.map;
 import static com.intellij.util.containers.ContainerUtil.map2Map;
 
-public class GitVFSListener extends VcsVFSListener {
+public final class GitVFSListener extends VcsVFSListener {
 
   private GitVFSListener(@NotNull GitVcs vcs) {
     super(vcs);
@@ -76,13 +76,13 @@ public class GitVFSListener extends VcsVFSListener {
                                           @NotNull Map<VirtualFile, VirtualFile> copyFromMap,
                                           @NotNull ExecuteAddCallback executeAddCallback) {
     saveUnsavedVcsIgnoreFiles();
-    // Filter added files before further processing
-    Map<VirtualFile, List<VirtualFile>> sortedFiles = GitUtil.sortFilesByGitRootIgnoringMissing(myProject, addedFiles);
-    final HashSet<VirtualFile> retainedFiles = new HashSet<>();
     final ProgressManager progressManager = ProgressManager.getInstance();
     progressManager.run(new Task.Backgroundable(myProject, GitBundle.getString("vfs.listener.checking.ignored"), true) {
       @Override
       public void run(@NotNull ProgressIndicator pi) {
+        // Filter added files before further processing
+        Map<VirtualFile, List<VirtualFile>> sortedFiles = GitUtil.sortFilesByGitRootIgnoringMissing(myProject, addedFiles);
+        final HashSet<VirtualFile> retainedFiles = new HashSet<>();
         for (Map.Entry<VirtualFile, List<VirtualFile>> e : sortedFiles.entrySet()) {
           VirtualFile root = e.getKey();
           List<VirtualFile> files = e.getValue();
@@ -178,7 +178,7 @@ public class GitVFSListener extends VcsVFSListener {
     for (MovedFileInfo movedInfo : movedFiles) {
       String oldPath = movedInfo.myOldPath;
       String newPath = movedInfo.myNewPath;
-      if (!SystemInfo.isFileSystemCaseSensitive && GitUtil.isCaseOnlyChange(oldPath, newPath)) {
+      if (!movedInfo.isCaseSensitive() && GitUtil.isCaseOnlyChange(oldPath, newPath)) {
         toForceMove.add(movedInfo);
       }
       else {
@@ -187,7 +187,7 @@ public class GitVFSListener extends VcsVFSListener {
       }
     }
     LOG.debug("performMoveRename. \ntoAdd: " + toAdd + "\ntoRemove: " + toRemove + "\ntoForceMove: " + toForceMove);
-    GitVcs.runInBackground(new Task.Backgroundable(myProject, "Moving Files...") {
+    GitVcs.runInBackground(new Task.Backgroundable(myProject, GitBundle.getString("progress.title.moving.files")) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         try {
@@ -283,7 +283,7 @@ public class GitVFSListener extends VcsVFSListener {
   }
 
   private void performBackgroundOperation(@NotNull Collection<? extends FilePath> files,
-                                          @NotNull String operationTitle,
+                                          @NotNull @NlsContexts.ProgressTitle String operationTitle,
                                           @NotNull LongOperationPerRootExecutor executor) {
     Map<VirtualFile, List<FilePath>> sortedFiles = GitUtil.sortFilePathsByGitRootIgnoringMissing(myProject, files);
 

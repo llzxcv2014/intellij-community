@@ -20,7 +20,7 @@ import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.ui.RunContentDescriptor;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.util.treeView.WeighedItem;
-import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -38,31 +38,22 @@ public class RunDashboardRunConfigurationStatus implements WeighedItem {
   public static final RunDashboardRunConfigurationStatus CONFIGURED = new RunDashboardRunConfigurationStatus(
     ExecutionBundle.message("run.dashboard.configured.group.name"), AllIcons.General.Settings, 40);
 
-  private final String myName;
+  private final @Nls String myName;
   private final Icon myIcon;
   private final int myWeight;
 
-  public RunDashboardRunConfigurationStatus(String name, Icon icon, int weight) {
+  public RunDashboardRunConfigurationStatus(@Nls String name, Icon icon, int weight) {
     myName = name;
     myIcon = icon;
     myWeight = weight;
   }
 
-  public String getName() {
+  public @Nls String getName() {
     return myName;
   }
 
   public Icon getIcon() {
     return myIcon;
-  }
-
-  /**
-   * @deprecated Use {@link #getWeight()} instead.
-   */
-  @Deprecated
-  @ApiStatus.ScheduledForRemoval(inVersion = "2020.1")
-  public int getPriority() {
-    return getWeight();
   }
 
   @Override

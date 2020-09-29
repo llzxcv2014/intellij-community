@@ -1,40 +1,49 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.configurable;
 
 import com.intellij.application.options.colors.fileStatus.FileStatusColorsConfigurable;
+import com.intellij.openapi.extensions.BaseExtensionPointName;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurableEP;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SearchableConfigurable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.registry.Registry;
+import com.intellij.openapi.vcs.AbstractVcs;
 import com.intellij.openapi.vcs.ProjectLevelVcsManager;
 import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vcs.VcsConfigurableProvider;
-import com.intellij.openapi.vcs.changes.ChangeListManagerImpl;
 import com.intellij.openapi.vcs.changes.conflicts.ChangelistConflictConfigurable;
 import com.intellij.openapi.vcs.changes.ui.IgnoredSettingsPanel;
-import com.intellij.openapi.vcs.impl.VcsDescriptor;
+import com.intellij.openapi.vcs.impl.VcsEP;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import static com.intellij.openapi.options.ex.ConfigurableWrapper.wrapConfigurable;
-import static com.intellij.util.ObjectUtils.notNull;
 import static com.intellij.util.containers.ContainerUtil.addIfNotNull;
-import static com.intellij.util.containers.ContainerUtil.map2Set;
 
-public class VcsManagerConfigurable extends SearchableConfigurable.Parent.Abstract implements Configurable.NoScroll {
+public final class VcsManagerConfigurable extends SearchableConfigurable.Parent.Abstract
+  implements Configurable.NoScroll, Configurable.WithEpDependencies {
   @NotNull private final Project myProject;
   private VcsDirectoryConfigurationPanel myMappings;
   private VcsGeneralConfigurationConfigurable myGeneralPanel;
 
   public VcsManagerConfigurable(@NotNull Project project) {
     myProject = project;
+  }
+
+  @Override
+  public @NotNull Collection<BaseExtensionPointName<?>> getDependencies() {
+    return Arrays.asList(
+      VcsEP.EP_NAME, VcsConfigurableProvider.EP_NAME
+    );
   }
 
   @Override
@@ -108,7 +117,7 @@ public class VcsManagerConfigurable extends SearchableConfigurable.Parent.Abstra
     }
     result.add(new IssueNavigationConfigurationPanel(myProject));
     if (!myProject.isDefault()) {
-      result.add(new ChangelistConflictConfigurable(ChangeListManagerImpl.getInstanceImpl(myProject)));
+      result.add(new ChangelistConflictConfigurable(myProject));
     }
     result.add(new CommitDialogConfigurable(myProject));
     result.add(new ShelfProjectConfigurable(myProject));
@@ -118,10 +127,10 @@ public class VcsManagerConfigurable extends SearchableConfigurable.Parent.Abstra
 
     result.add(new FileStatusColorsConfigurable());
 
-    Set<String> projectConfigurableIds = map2Set(Configurable.PROJECT_CONFIGURABLE.getExtensionList(myProject), ep -> ep.id);
-    for (VcsDescriptor descriptor : ProjectLevelVcsManager.getInstance(myProject).getAllVcss()) {
-      if (!projectConfigurableIds.contains(getVcsConfigurableId(descriptor.getDisplayName()))) {
-        result.add(wrapConfigurable(new VcsConfigurableEP(myProject, descriptor)));
+    for (AbstractVcs vcs : ProjectLevelVcsManager.getInstance(myProject).getAllSupportedVcss()) {
+      Configurable configurable = vcs.getConfigurable();
+      if (configurable != null) {
+        result.add(wrapConfigurable(new VcsConfigurableEP(myProject, vcs, configurable)));
       }
     }
 
@@ -134,22 +143,22 @@ public class VcsManagerConfigurable extends SearchableConfigurable.Parent.Abstra
   }
 
   @NotNull
-  public static String getVcsConfigurableId(@NotNull String displayName) {
-    return "vcs." + displayName;
+  @NonNls
+  private static String getVcsConfigurableId(@NotNull String vcsName) {
+    return "vcs." + vcsName;
   }
 
   private static class VcsConfigurableEP extends ConfigurableEP<Configurable> {
-
     private static final int WEIGHT = -500;
 
-    @NotNull private final VcsDescriptor myDescriptor;
+    private final Configurable myConfigurable;
 
-    VcsConfigurableEP(@NotNull Project project, @NotNull VcsDescriptor descriptor) {
+    VcsConfigurableEP(@NotNull Project project, @NotNull AbstractVcs vcs, @NonNls Configurable configurable) {
       super(project);
 
-      myDescriptor = descriptor;
-      displayName = descriptor.getDisplayName();
-      id = getVcsConfigurableId(descriptor.getDisplayName());
+      myConfigurable = configurable;
+      displayName = vcs.getDisplayName();
+      id = getVcsConfigurableId(vcs.getName());
       groupWeight = WEIGHT;
     }
 
@@ -159,7 +168,7 @@ public class VcsManagerConfigurable extends SearchableConfigurable.Parent.Abstra
       return new ObjectProducer() {
         @Override
         protected Object createElement() {
-          return notNull(ProjectLevelVcsManager.getInstance(getProject()).findVcsByName(myDescriptor.getName())).getConfigurable();
+          return myConfigurable;
         }
 
         @Override

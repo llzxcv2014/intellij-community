@@ -18,6 +18,7 @@ package com.intellij.refactoring.memberPushDown;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.PsiElement;
 import com.intellij.refactoring.BaseRefactoringProcessor;
@@ -58,7 +59,7 @@ public class PushDownProcessor<MemberInfo extends MemberInfoBase<Member>,
 
   @Override
   @NotNull
-  protected UsageViewDescriptor createUsageViewDescriptor(@NotNull UsageInfo[] usages) {
+  protected UsageViewDescriptor createUsageViewDescriptor(UsageInfo @NotNull [] usages) {
     return new PushDownUsageViewDescriptor<>((Klass)myPushDownData.getSourceClass(), myPushDownData.getMembersToMove());
   }
 
@@ -79,7 +80,7 @@ public class PushDownProcessor<MemberInfo extends MemberInfoBase<Member>,
 
   @Nullable
   @Override
-  protected RefactoringEventData getAfterData(@NotNull UsageInfo[] usages) {
+  protected RefactoringEventData getAfterData(UsageInfo @NotNull [] usages) {
     final List<PsiElement> elements = new ArrayList<>();
     for (UsageInfo usage : usages) {
       elements.add(usage.getElement());
@@ -90,8 +91,7 @@ public class PushDownProcessor<MemberInfo extends MemberInfoBase<Member>,
   }
 
   @Override
-  @NotNull
-  protected UsageInfo[] findUsages() {
+  protected UsageInfo @NotNull [] findUsages() {
     final List<PsiElement> inheritors = myDelegate.findInheritors(myPushDownData);
     return ContainerUtil.map2Array(inheritors, UsageInfo.EMPTY_ARRAY, myDelegate::createUsageInfo);
   }
@@ -135,7 +135,7 @@ public class PushDownProcessor<MemberInfo extends MemberInfoBase<Member>,
   }
 
   @Override
-  protected void refreshElements(@NotNull PsiElement[] elements) {
+  protected void refreshElements(PsiElement @NotNull [] elements) {
     if(elements.length == 1) {
       myPushDownData.setSourceClass(elements[0]);
     }
@@ -145,7 +145,7 @@ public class PushDownProcessor<MemberInfo extends MemberInfoBase<Member>,
   }
 
   @Override
-  protected void performRefactoring(@NotNull UsageInfo[] usages) {
+  protected void performRefactoring(UsageInfo @NotNull [] usages) {
     try {
       pushDownToClasses(usages);
       myDelegate.removeFromSourceClass(myPushDownData);
@@ -155,7 +155,7 @@ public class PushDownProcessor<MemberInfo extends MemberInfoBase<Member>,
     }
   }
 
-  public void pushDownToClasses(@NotNull UsageInfo[] usages) {
+  public void pushDownToClasses(UsageInfo @NotNull [] usages) {
     myDelegate.prepareToPush(myPushDownData);
     final PsiElement sourceClass = myPushDownData.getSourceClass();
     if (mySubClassData != null) {
@@ -179,7 +179,7 @@ public class PushDownProcessor<MemberInfo extends MemberInfoBase<Member>,
 
   @NotNull
   @Override
-  protected String getCommandName() {
+  protected @NlsContexts.DialogTitle String getCommandName() {
     return RefactoringBundle.message("push.members.down.title");
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.build;
 
 import com.intellij.openapi.application.ReadAction;
@@ -6,10 +6,10 @@ import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleServiceManager;
 import com.intellij.openapi.module.ModuleType;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -52,7 +52,7 @@ public class PluginBuildConfiguration implements PersistentStateComponent<Plugin
 
   @Nullable
   public static PluginBuildConfiguration getInstance(@NotNull Module module) {
-    return ModuleType.is(module, PluginModuleType.getInstance()) ? ModuleServiceManager.getService(module, PluginBuildConfiguration.class) : null;
+    return ModuleType.is(module, PluginModuleType.getInstance()) ? module.getService(PluginBuildConfiguration.class) : null;
   }
 
   static class State {
@@ -140,7 +140,7 @@ public class PluginBuildConfiguration implements PersistentStateComponent<Plugin
   }
 
   @NotNull
-  public String getPluginXmlPath() {
+  public @NlsSafe String getPluginXmlPath() {
     String url = getPluginXmlUrl();
     if (url == null) {
       return getDefaultLocation();
@@ -166,12 +166,12 @@ public class PluginBuildConfiguration implements PersistentStateComponent<Plugin
         VfsUtilCore.pathToUrl(manifestPath), myModule, null));
     }
     else {
-      WriteAction.run(()-> myManifestFilePointer = VirtualFilePointerManager.getInstance().create(manifest, myModule, null));
+      ReadAction.run(()-> myManifestFilePointer = VirtualFilePointerManager.getInstance().create(manifest, myModule, null));
     }
   }
 
   @Nullable
-  public String getManifestPath() {
+  public @NlsSafe String getManifestPath() {
     return myManifestFilePointer != null ? FileUtil.toSystemDependentName(myManifestFilePointer.getPresentableUrl()) : null;
   }
 

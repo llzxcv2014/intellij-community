@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.daemon.impl;
 
 import com.intellij.codeInsight.daemon.ImplicitUsageProvider;
@@ -12,6 +12,7 @@ import com.intellij.find.findUsages.*;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.FindSuperElementsHelper;
 import com.intellij.psi.impl.source.PsiClassImpl;
@@ -24,12 +25,13 @@ import com.intellij.usageView.UsageInfo;
 import com.intellij.util.Processor;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 
-public class UnusedSymbolUtil {
+public final class UnusedSymbolUtil {
 
   public static boolean isInjected(@NotNull Project project, @NotNull PsiModifierListOwner modifierListOwner) {
     return EntryPointsManagerBase.getInstance(project).isEntryPoint(modifierListOwner);
@@ -77,7 +79,7 @@ public class UnusedSymbolUtil {
 
   @Nullable
   public static HighlightInfo createUnusedSymbolInfo(@NotNull PsiElement element,
-                                                     @NotNull String message,
+                                                     @NotNull @NlsContexts.DetailedDescription String message,
                                                      @NotNull final HighlightInfoType highlightInfoType) {
     HighlightInfo info = HighlightInfo.newHighlightInfo(highlightInfoType).range(element).descriptionAndTooltip(message).group(
       GeneralHighlightingPass.POST_UPDATE_ALL).create();
@@ -178,7 +180,7 @@ public class UnusedSymbolUtil {
     return sure;
   }
 
-  private static void log(String s) {
+  private static void log(@NonNls String s) {
     //System.out.println(s);
   }
 
@@ -202,9 +204,7 @@ public class UnusedSymbolUtil {
         useScope = GlobalSearchScope.projectScope(project).uniteWith((GlobalSearchScope)useScope);
       }
 
-      // if we've resolved all references, find usages will be fast
-      PsiSearchHelper.SearchCostResult cheapEnough = RefResolveService.ENABLED && RefResolveService.getInstance(project).isUpToDate() ? PsiSearchHelper.SearchCostResult.FEW_OCCURRENCES :
-                                                     searchHelper.isCheapEnoughToSearch(name, (GlobalSearchScope)useScope, ignoreFile, progress);
+      PsiSearchHelper.SearchCostResult cheapEnough = searchHelper.isCheapEnoughToSearch(name, (GlobalSearchScope)useScope, ignoreFile, progress);
       if (cheapEnough == PsiSearchHelper.SearchCostResult.TOO_MANY_OCCURRENCES
           // try to search for private and package-private members unconditionally - they are unlikely to have millions of usages
           && (member.hasModifierProperty(PsiModifier.PUBLIC) || member.hasModifierProperty(PsiModifier.PROTECTED))) {

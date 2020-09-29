@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInsight.actions;
 
@@ -8,11 +8,12 @@ import com.intellij.lang.LanguageImportStatements;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.EditorActivityManager;
 import com.intellij.openapi.editor.ex.EditorSettingsExternalizable;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
-import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.ReadonlyStatusHandler;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
@@ -28,7 +29,6 @@ import java.util.Arrays;
 
 public class OptimizeImportsAction extends AnAction {
   private static final @NonNls String HELP_ID = "editing.manageImports";
-  private static final String NO_IMPORTS_OPTIMIZED = "No unused imports found";
   private static boolean myProcessVcsChangedFilesInTests;
 
   public OptimizeImportsAction() {
@@ -40,7 +40,7 @@ public class OptimizeImportsAction extends AnAction {
     actionPerformedImpl(event.getDataContext());
   }
 
-  public static void actionPerformedImpl(final DataContext dataContext) {
+  public static void actionPerformedImpl(@NotNull DataContext dataContext) {
     final Project project = CommonDataKeys.PROJECT.getData(dataContext);
     if (project == null) {
       return;
@@ -66,7 +66,7 @@ public class OptimizeImportsAction extends AnAction {
       }
       return;
     }
-    else{
+    else {
       Project projectContext = PlatformDataKeys.PROJECT_CONTEXT.getData(dataContext);
       Module moduleContext = LangDataKeys.MODULE_CONTEXT.getData(dataContext);
 
@@ -75,11 +75,11 @@ public class OptimizeImportsAction extends AnAction {
         final boolean hasChanges;
         if (moduleContext != null) {
           text = CodeInsightBundle.message("process.scope.module", moduleContext.getName());
-          hasChanges = FormatChangedTextUtil.hasChanges(moduleContext);
+          hasChanges = VcsFacade.getInstance().hasChanges(moduleContext);
         }
         else {
           text = CodeInsightBundle.message("process.scope.project", projectContext.getPresentableUrl());
-          hasChanges = FormatChangedTextUtil.hasChanges(projectContext);
+          hasChanges = VcsFacade.getInstance().hasChanges(projectContext);
         }
         Boolean isProcessVcsChangedText = isProcessVcsChangedText(project, text, hasChanges);
         if (isProcessVcsChangedText == null) {
@@ -115,7 +115,7 @@ public class OptimizeImportsAction extends AnAction {
     boolean processOnlyVcsChangedFiles = false;
     if (!ApplicationManager.getApplication().isUnitTestMode() && file == null && dir != null) {
       String message = CodeInsightBundle.message("process.scope.directory", dir.getName());
-      OptimizeImportsDialog dialog = new OptimizeImportsDialog(project, message, FormatChangedTextUtil.hasChanges(dir));
+      OptimizeImportsDialog dialog = new OptimizeImportsDialog(project, message, VcsFacade.getInstance().hasChanges(dir));
       dialog.show();
       if (!dialog.isOK()) {
         return;
@@ -127,17 +127,17 @@ public class OptimizeImportsAction extends AnAction {
     if (processDirectory){
       new OptimizeImportsProcessor(project, dir, true, processOnlyVcsChangedFiles).run();
     }
-    else{
-      final OptimizeImportsProcessor optimizer = new OptimizeImportsProcessor(project, file);
+    else {
+      OptimizeImportsProcessor optimizer = new OptimizeImportsProcessor(project, file);
       if (editor != null && EditorSettingsExternalizable.getInstance().isShowNotificationAfterOptimizeImports()) {
         optimizer.setCollectInfo(true);
         optimizer.setPostRunnable(() -> {
           LayoutCodeInfoCollector collector = optimizer.getInfoCollector();
           if (collector != null) {
             String info = collector.getOptimizeImportsNotification();
-            if (!editor.isDisposed() && editor.getComponent().isShowing()) {
-              String message = info != null ? info : NO_IMPORTS_OPTIMIZED;
-              FileInEditorProcessor.showHint(editor, StringUtil.capitalize(message), null);
+            if (!editor.isDisposed() && EditorActivityManager.getInstance().isVisible(editor)) {
+              String message = info != null ? info : CodeInsightBundle.message("hint.text.no.unused.imports.found");
+              FileInEditorProcessor.showHint(editor, message, null);
             }
           }
         });
@@ -216,11 +216,11 @@ public class OptimizeImportsAction extends AnAction {
     return true;
   }
 
-  private static boolean isOptimizeImportsAvailable(final PsiFile file) {
+  private static boolean isOptimizeImportsAvailable(@NotNull PsiFile file) {
     return !LanguageImportStatements.INSTANCE.forFile(file).isEmpty();
   }
 
-  private static Boolean isProcessVcsChangedText(Project project, String text, boolean hasChanges) {
+  private static Boolean isProcessVcsChangedText(Project project, @NlsContexts.Label String text, boolean hasChanges) {
     if (ApplicationManager.getApplication().isUnitTestMode()) {
       return myProcessVcsChangedFilesInTests;
     }
@@ -241,11 +241,11 @@ public class OptimizeImportsAction extends AnAction {
   private static class OptimizeImportsDialog extends DialogWrapper {
     private final boolean myContextHasChanges;
 
-    private final String myText;
+    private final @NlsContexts.Label String myText;
     private JCheckBox myOnlyVcsCheckBox;
     private final LastRunReformatCodeOptionsProvider myLastRunOptions;
 
-    OptimizeImportsDialog(Project project, String text, boolean hasChanges) {
+    OptimizeImportsDialog(Project project, @NlsContexts.Label String text, boolean hasChanges) {
       super(project, false);
       myText = text;
       myContextHasChanges = hasChanges;
@@ -255,7 +255,7 @@ public class OptimizeImportsAction extends AnAction {
       init();
     }
 
-    public boolean isProcessOnlyVcsChangedFiles() {
+    boolean isProcessOnlyVcsChangedFiles() {
       return myOnlyVcsCheckBox.isSelected();
     }
 

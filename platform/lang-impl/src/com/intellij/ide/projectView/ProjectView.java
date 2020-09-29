@@ -1,11 +1,10 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ide.projectView;
 
 import com.intellij.ide.SelectInTarget;
 import com.intellij.ide.projectView.impl.AbstractProjectViewPane;
 import com.intellij.openapi.actionSystem.DataKey;
-import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.module.UnloadedModuleDescription;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.ActionCallback;
@@ -23,8 +22,8 @@ public abstract class ProjectView {
    */
   public static final DataKey<List<UnloadedModuleDescription>> UNLOADED_MODULES_CONTEXT_KEY = DataKey.create("context.unloaded.modules.list");
 
-  public static ProjectView getInstance(Project project) {
-    return ServiceManager.getService(project, ProjectView.class);
+  public static ProjectView getInstance(@NotNull Project project) {
+    return project.getService(ProjectView.class);
   }
 
   public abstract void select(Object element, VirtualFile file, boolean requestFocus);
@@ -121,14 +120,15 @@ public abstract class ProjectView {
 
   /**
    * e.g. {@link com.intellij.ide.projectView.impl.ProjectViewPane#ID}
-   * @see com.intellij.ide.projectView.impl.AbstractProjectViewPane#getId()
+   * @see AbstractProjectViewPane#getId()
    */
   public abstract String getCurrentViewId();
 
   public abstract void selectPsiElement(@NotNull PsiElement element, boolean requestFocus);
 
   public abstract boolean isManualOrder(String paneId);
-  public abstract void setManualOrder(@NotNull String paneId, final boolean enabled);
+
+  public abstract void setManualOrder(@NotNull String paneId, boolean enabled);
 
   public abstract boolean isSortByType(String paneId);
   public abstract void setSortByType(@NotNull String paneId, final boolean sortByType);
@@ -140,4 +140,6 @@ public abstract class ProjectView {
 
   @NotNull
   public abstract Collection<SelectInTarget> getSelectInTargets();
+
+  public abstract @NotNull String getDefaultViewId();
 }

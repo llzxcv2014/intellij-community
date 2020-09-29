@@ -1,16 +1,15 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.externalSystem.service.project.wizard;
 
 import com.intellij.ide.util.projectWizard.ModuleBuilder;
 import com.intellij.openapi.externalSystem.model.ExternalSystemDataKeys;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
-import com.intellij.openapi.externalSystem.service.project.manage.ExternalProjectsManagerImpl;
 import com.intellij.openapi.externalSystem.settings.ExternalProjectSettings;
 import com.intellij.openapi.externalSystem.util.ExternalSystemBundle;
 import com.intellij.openapi.externalSystem.util.ExternalSystemUiUtil;
-import com.intellij.openapi.module.ModifiableModuleModel;
-import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,15 +32,8 @@ public abstract class AbstractExternalModuleBuilder<S extends ExternalProjectSet
     myIcon = icon == null ? super.getNodeIcon() : icon;
   }
 
-  @Nullable
   @Override
-  public Module commitModule(@NotNull Project project, @Nullable ModifiableModuleModel model) {
-    ExternalProjectsManagerImpl.disableProjectWatcherAutoUpdate(project);
-    return super.commitModule(project, model);
-  }
-
-  @Override
-  public String getBuilderId() {
+  public @NonNls String getBuilderId() {
     return getClass().getName();
   }
 
@@ -51,6 +43,7 @@ public abstract class AbstractExternalModuleBuilder<S extends ExternalProjectSet
   }
 
   @Override
+  @Nls(capitalization = Nls.Capitalization.Sentence)
   public String getDescription() {
     return ExternalSystemBundle.message("module.type.description", myExternalSystemId.getReadableName());
   }

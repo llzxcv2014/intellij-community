@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.encoding;
 
 import com.intellij.concurrency.JobSchedulerImpl;
@@ -23,30 +23,24 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectLocator;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.util.Comparing;
-import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.UserDataHolderEx;
-import com.intellij.openapi.vfs.CharsetToolkit;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.concurrency.BoundedTaskExecutor;
+import com.intellij.util.messages.MessageBus;
 import com.intellij.util.xmlb.annotations.Attribute;
-import gnu.trove.Equality;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.ide.PooledThreadExecutor;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.beans.PropertyChangeSupport;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,30 +49,28 @@ import java.util.concurrent.atomic.AtomicInteger;
 @State(name = "Encoding", storages = @Storage("encoding.xml"))
 public class EncodingManagerImpl extends EncodingManager implements PersistentStateComponent<EncodingManagerImpl.State>, Disposable {
   private static final Logger LOG = Logger.getInstance(EncodingManagerImpl.class);
-  private static final Equality<Reference<Document>> REFERENCE_EQUALITY = new Equality<Reference<Document>>() {
-    @Override
-    public boolean equals(Reference<Document> o1, Reference<Document> o2) {
-      Object v1 = o1 == null ? REFERENCE_EQUALITY : o1.get();
-      Object v2 = o2 == null ? REFERENCE_EQUALITY : o2.get();
-      return v1 == v2;
-    }
-  };
-  private final PropertyChangeSupport myPropertyChangeSupport = new PropertyChangeSupport(this);
 
-  static class State {
-    @NotNull
-    private Charset myDefaultEncoding = StandardCharsets.UTF_8;
+  static final class State {
+    private @NotNull EncodingReference myDefaultEncoding = new EncodingReference(StandardCharsets.UTF_8);
+    private @NotNull EncodingReference myDefaultConsoleEncoding = EncodingReference.DEFAULT;
 
     @Attribute("default_encoding")
     @NotNull
     public String getDefaultCharsetName() {
-      return myDefaultEncoding == ChooseFileEncodingAction.NO_ENCODING ? "" : myDefaultEncoding.name();
+      return myDefaultEncoding.getCharset() == null ? "" : myDefaultEncoding.getCharset().name();
     }
 
     public void setDefaultCharsetName(@NotNull String name) {
-      myDefaultEncoding = name.isEmpty()
-                          ? ChooseFileEncodingAction.NO_ENCODING
-                          : ObjectUtils.notNull(CharsetToolkit.forName(name), CharsetToolkit.getDefaultSystemCharset());
+      myDefaultEncoding = new EncodingReference(StringUtil.nullize(name));
+    }
+
+    @Attribute("default_console_encoding")
+    public @NotNull String getDefaultConsoleEncodingName() {
+      return myDefaultConsoleEncoding.getCharset() == null ? "" : myDefaultConsoleEncoding.getCharset().name();
+    }
+
+    public void setDefaultConsoleEncodingName(@NotNull String name) {
+      myDefaultConsoleEncoding = new EncodingReference(StringUtil.nullize(name));
     }
   }
 
@@ -87,7 +79,7 @@ public class EncodingManagerImpl extends EncodingManager implements PersistentSt
   private static final Key<Charset> CACHED_CHARSET_FROM_CONTENT = Key.create("CACHED_CHARSET_FROM_CONTENT");
 
   private final ExecutorService changedDocumentExecutor = AppExecutorUtil.createBoundedApplicationPoolExecutor(
-    "EncodingManagerImpl Document Pool", PooledThreadExecutor.INSTANCE, JobSchedulerImpl.getJobPoolParallelism(), this);
+    "EncodingManagerImpl Document Pool", AppExecutorUtil.getAppExecutorService(), JobSchedulerImpl.getJobPoolParallelism(), this);
 
   private final AtomicBoolean myDisposed = new AtomicBoolean();
 
@@ -145,13 +137,13 @@ public class EncodingManagerImpl extends EncodingManager implements PersistentSt
     }
   }
 
-  private void setCachedCharsetFromContent(Charset charset, Charset oldCached, @NotNull Document document) {
+  private static void setCachedCharsetFromContent(Charset charset, Charset oldCached, @NotNull Document document) {
     document.putUserData(CACHED_CHARSET_FROM_CONTENT, charset);
-    firePropertyChange(document, PROP_CACHED_ENCODING_CHANGED, oldCached, charset);
+    firePropertyChange(document, PROP_CACHED_ENCODING_CHANGED, oldCached, charset, null);
   }
 
   @Nullable("returns null if charset set cannot be determined from content")
-  Charset computeCharsetFromContent(@NotNull final VirtualFile virtualFile) {
+  static Charset computeCharsetFromContent(@NotNull final VirtualFile virtualFile) {
     final Document document = FileDocumentManager.getInstance().getDocument(virtualFile);
     if (document == null) {
       return null;
@@ -194,7 +186,7 @@ public class EncodingManagerImpl extends EncodingManager implements PersistentSt
     }
   }
 
-  private static class DocumentEncodingDetectRequest implements Runnable {
+  private static final class DocumentEncodingDetectRequest implements Runnable {
     private final Reference<Document> ref;
     @NotNull private final AtomicBoolean myDisposed;
 
@@ -232,7 +224,7 @@ public class EncodingManagerImpl extends EncodingManager implements PersistentSt
   @Override
   @NotNull
   public Collection<Charset> getFavorites() {
-    Collection<Charset> result = new THashSet<>();
+    Collection<Charset> result = new HashSet<>();
     Project[] projects = ProjectManager.getInstance().getOpenProjects();
     for (Project project : projects) {
       result.addAll(EncodingProjectManager.getInstance(project).getFavorites());
@@ -252,6 +244,7 @@ public class EncodingManagerImpl extends EncodingManager implements PersistentSt
   }
 
   public void clearDocumentQueue() {
+    if (((BoundedTaskExecutor)changedDocumentExecutor).isEmpty()) return;
     if (ApplicationManager.getApplication().isWriteAccessAllowed()) {
       throw new IllegalStateException("Must not call clearDocumentQueue() from under write action because some queued detectors require read action");
     }
@@ -304,7 +297,7 @@ public class EncodingManagerImpl extends EncodingManager implements PersistentSt
   @Override
   @NotNull
   public Charset getDefaultCharset() {
-    return myState.myDefaultEncoding == ChooseFileEncodingAction.NO_ENCODING ? CharsetToolkit.getDefaultSystemCharset() : myState.myDefaultEncoding;
+    return myState.myDefaultEncoding.dereference();
   }
 
   @Override
@@ -334,17 +327,31 @@ public class EncodingManagerImpl extends EncodingManager implements PersistentSt
   }
 
   @Override
-  public void addPropertyChangeListener(@NotNull final PropertyChangeListener listener, @NotNull Disposable parentDisposable) {
-    myPropertyChangeSupport.addPropertyChangeListener(listener);
-    Disposer.register(parentDisposable, () -> removePropertyChangeListener(listener));
+  public @NotNull Charset getDefaultConsoleEncoding() {
+    return myState.myDefaultConsoleEncoding.dereference();
   }
 
-  private void removePropertyChangeListener(@NotNull PropertyChangeListener listener){
-    myPropertyChangeSupport.removePropertyChangeListener(listener);
+  /**
+   * @return default console encoding reference
+   */
+  public @NotNull EncodingReference getDefaultConsoleEncodingReference() {
+    return myState.myDefaultConsoleEncoding;
   }
 
-  void firePropertyChange(@Nullable Document document, @NotNull String propertyName, final Object oldValue, final Object newValue) {
-    Object source = document == null ? this : document;
-    myPropertyChangeSupport.firePropertyChange(new PropertyChangeEvent(source, propertyName, oldValue, newValue));
+  /**
+   * @param encodingReference default console encoding reference
+   */
+  public void setDefaultConsoleEncodingReference(@NotNull EncodingReference encodingReference) {
+    myState.myDefaultConsoleEncoding = encodingReference;
+  }
+
+  static void firePropertyChange(@Nullable Document document,
+                                 @NotNull String propertyName,
+                                 final Object oldValue,
+                                 final Object newValue,
+                                 @Nullable Project project) {
+    MessageBus messageBus = (project != null ? project : ApplicationManager.getApplication()).getMessageBus();
+    EncodingManagerListener publisher = messageBus.syncPublisher(EncodingManagerListener.ENCODING_MANAGER_CHANGES);
+    publisher.propertyChanged(document, propertyName, oldValue, newValue);
   }
 }

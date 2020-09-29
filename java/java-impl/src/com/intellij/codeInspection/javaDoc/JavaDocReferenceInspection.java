@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.javaDoc;
 
 import com.intellij.codeHighlighting.HighlightDisplayLevel;
@@ -9,8 +9,10 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.codeInsight.lookup.LookupManager;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.ui.SingleCheckboxOptionsPanel;
+import com.intellij.codeInspection.util.InspectionMessage;
 import com.intellij.ide.DataManager;
 import com.intellij.ide.util.FQNameCellRenderer;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Editor;
@@ -39,7 +41,8 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
   @Nullable
   @Override
   public JComponent createOptionsPanel() {
-    return new SingleCheckboxOptionsPanel("<html>Report inaccessible symbols<br>(javadoc tool may be unable to create hyperlink)", this, "REPORT_INACCESSIBLE");
+    return new SingleCheckboxOptionsPanel(
+      JavaBundle.message("checkbox.html.report.inaccessible.symbols"), this, "REPORT_INACCESSIBLE");
   }
 
   private static LocalQuickFix createAddQualifierFix(PsiJavaCodeReferenceElement reference) {
@@ -51,10 +54,10 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
     return new RenameReferenceQuickFix(unboundParams);
   }
 
-  private String getResolveErrorMessage(@NotNull PsiReference reference,
-                                        PsiElement resolved,
-                                        @NotNull PsiElement context,
-                                        CharSequence referenceText) {
+  private @InspectionMessage String getResolveErrorMessage(@NotNull PsiReference reference,
+                                                           PsiElement resolved,
+                                                           @NotNull PsiElement context,
+                                                           CharSequence referenceText) {
     if (resolved == null && reference instanceof PsiPolyVariantReference) {
       return getResolveErrorMessage(((PsiPolyVariantReference)reference).multiResolve(false), context, referenceText);
     }
@@ -62,9 +65,9 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
     return getResolveErrorMessage(resolved, context, referenceText);
   }
 
-  private String getResolveErrorMessage(@NotNull ResolveResult[] resolveResults, @NotNull PsiElement context, CharSequence referenceText) {
+  private @InspectionMessage String getResolveErrorMessage(ResolveResult @NotNull [] resolveResults, @NotNull PsiElement context, CharSequence referenceText) {
     if (resolveResults.length == 0) {
-      return InspectionsBundle.message("inspection.javadoc.problem.cannot.resolve", "<code>" + referenceText + "</code>");
+      return JavaBundle.message("inspection.javadoc.problem.cannot.resolve", "<code>" + referenceText + "</code>");
     }
 
     boolean allAccessible = !REPORT_INACCESSIBLE ||
@@ -73,16 +76,16 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
                               .allMatch(element -> isAccessible(element, context));
 
     return allAccessible ? null :
-           InspectionsBundle.message("inspection.javadoc.problem.inaccessible", "<code>" + referenceText + "</code>");
+           JavaBundle.message("inspection.javadoc.problem.inaccessible", "<code>" + referenceText + "</code>");
   }
 
-  private String getResolveErrorMessage(PsiElement resolved, @NotNull PsiElement context, CharSequence referenceText) {
+  private @InspectionMessage String getResolveErrorMessage(PsiElement resolved, @NotNull PsiElement context, CharSequence referenceText) {
     if (resolved == null) {
-      return InspectionsBundle.message("inspection.javadoc.problem.cannot.resolve", "<code>" + referenceText + "</code>");
+      return JavaBundle.message("inspection.javadoc.problem.cannot.resolve", "<code>" + referenceText + "</code>");
     }
 
     if (REPORT_INACCESSIBLE && !isAccessible(resolved, context)) {
-      return InspectionsBundle.message("inspection.javadoc.problem.inaccessible", "<code>" + referenceText + "</code>");
+      return JavaBundle.message("inspection.javadoc.problem.inaccessible", "<code>" + referenceText + "</code>");
     }
 
     return null;
@@ -123,7 +126,8 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
     if (textOffset == value.getTextRange().getEndOffset()) return;
     PsiDocTagValue valueElement = tag.getValueElement();
     if (valueElement == null) return;
-    CharSequence paramName = value.getContainingFile().getViewProvider().getContents().subSequence(textOffset, value.getTextRange().getEndOffset());
+    String paramName = value.getContainingFile().getViewProvider()
+      .getContents().subSequence(textOffset, value.getTextRange().getEndOffset()).toString();
 
     String message = getResolveErrorMessage(reference, element, context, paramName);
     if (message == null) {
@@ -149,6 +153,11 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
       }
     }
     fixes.add(new RemoveTagFix(tagName, paramName));
+    if (isOnTheFly && element != null && REPORT_INACCESSIBLE) {
+      fixes.add(new SetInspectionOptionFix(this, "REPORT_INACCESSIBLE", 
+                                           JavaBundle.message("disable.report.inaccessible.symbols.fix"), 
+                                           false));
+    }
 
     holder.registerProblem(holder.getManager().createProblemDescriptor(valueElement, reference.getRangeInElement(), message,
                                                                        ProblemHighlightType.LIKE_UNKNOWN_SYMBOL, isOnTheFly, fixes.toArray(LocalQuickFix.EMPTY_ARRAY)));
@@ -157,12 +166,6 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
   @Override
   public boolean isEnabledByDefault() {
     return true;
-  }
-
-  @NotNull
-  @Override
-  public String getDisplayName() {
-    return InspectionsBundle.message("inspection.javadoc.ref.display.name");
   }
 
   @NotNull
@@ -258,7 +261,7 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
       }
 
       @Override
-      public void visitElement(PsiElement element) {
+      public void visitElement(@NotNull PsiElement element) {
         for (PsiElement child = element.getFirstChild(); child != null; child = child.getNextSibling()) {
           child.accept(this);
         }
@@ -276,7 +279,12 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
     @Override
     @NotNull
     public String getFamilyName() {
-      return "Change to ...";
+      return JavaBundle.message("quickfix.family.change.javadoc.to");
+    }
+
+    @Override
+    public boolean startInWriteAction() {
+      return false;
     }
 
     @Override
@@ -324,7 +332,7 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
     public void applyFix(@NotNull final Project project, @NotNull final ProblemDescriptor descriptor) {
       PsiJavaCodeReferenceElement element = PsiTreeUtil.getParentOfType(descriptor.getPsiElement(), PsiJavaCodeReferenceElement.class);
       if (element != null) {
-        Collections.sort(originalClasses, new PsiProximityComparator(element.getElement()));
+        originalClasses.sort(new PsiProximityComparator(element.getElement()));
         DataManager.getInstance()
                    .getDataContextFromFocusAsync()
                    .onSuccess(dataContext ->
@@ -349,9 +357,9 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
 
   private static class RemoveTagFix implements LocalQuickFix {
     private final String myTagName;
-    private final CharSequence myParamName;
+    private final String myParamName;
 
-    RemoveTagFix(String tagName, CharSequence paramName) {
+    RemoveTagFix(String tagName, String paramName) {
       myTagName = tagName;
       myParamName = paramName;
     }
@@ -359,13 +367,13 @@ public class JavaDocReferenceInspection extends LocalInspectionTool {
     @NotNull
     @Override
     public String getName() {
-      return "Remove @" + myTagName + " " + myParamName;
+      return JavaBundle.message("quickfix.text.remove.javadoc.0.1", myTagName, myParamName);
     }
 
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Remove tag";
+      return JavaBundle.message("quickfix.family.remove.javadoc.tag");
     }
 
     @Override

@@ -21,16 +21,14 @@ import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.ListPopup;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.vcs.ProjectLevelVcsManager;
 import com.intellij.openapi.vcs.VcsRoot;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.util.Consumer;
 import com.intellij.util.containers.ContainerUtil;
-import com.intellij.vcs.log.VcsLogDataKeys;
-import com.intellij.vcs.log.VcsLogDataPack;
-import com.intellij.vcs.log.VcsLogUi;
-import com.intellij.vcs.log.VcsRef;
+import com.intellij.vcs.log.*;
 import com.intellij.vcs.log.data.VcsLogData;
 import com.intellij.vcs.log.statistics.VcsLogUsageTriggerCollector;
 import com.intellij.vcs.log.ui.MainVcsLogUi;
@@ -39,6 +37,8 @@ import com.intellij.vcs.log.ui.VcsLogUiEx;
 import com.intellij.vcs.log.ui.filter.BranchPopupBuilder;
 import com.intellij.vcs.log.util.VcsLogUtil;
 import com.intellij.vcs.log.visible.filters.VcsLogFilterObject;
+import com.intellij.vcs.log.visible.filters.VcsLogFiltersKt;
+import git4idea.i18n.GitBundle;
 import git4idea.repo.GitRepositoryManager;
 import org.jetbrains.annotations.NotNull;
 
@@ -74,10 +74,13 @@ public class DeepCompareAction extends ToggleAction implements DumbAware {
       VcsLogUsageTriggerCollector.triggerUsage(e, this);
 
       VcsLogDataPack dataPack = ui.getDataPack();
-      String singleBranchName = VcsLogUtil.getSingleFilteredBranch(ui.getFilterUi().getFilters(), dataPack.getRefs());
+      String singleBranchName = DeepComparator.getComparedBranchFromFilters(ui.getFilterUi().getFilters(), dataPack.getRefs());
       if (singleBranchName == null) {
         selectBranchAndPerformAction(ui, e, selectedBranch -> {
-          ui.getFilterUi().setFilter(VcsLogFilterObject.fromBranch(selectedBranch));
+          VcsLogFilterCollection collection = ui.getFilterUi().getFilters();
+          collection = VcsLogFiltersKt.without(collection, VcsLogBranchLikeFilter.class);
+          collection = VcsLogFiltersKt.with(collection, VcsLogFilterObject.fromBranch(selectedBranch));
+          ui.getFilterUi().setFilters(collection);
           dc.startTask(dataPack, selectedBranch);
         }, getGitRoots(project, ui));
         return;
@@ -97,7 +100,7 @@ public class DeepCompareAction extends ToggleAction implements DumbAware {
     ActionGroup actionGroup = new BranchPopupBuilder(dataPack, visibleRoots, null) {
       @NotNull
       @Override
-      protected AnAction createAction(@NotNull String name, @NotNull Collection<? extends VcsRef> refs) {
+      protected AnAction createAction(@NotNull @NlsActions.ActionText String name, @NotNull Collection<? extends VcsRef> refs) {
         return new DumbAwareAction(name) {
           @Override
           public void actionPerformed(@NotNull AnActionEvent e) {
@@ -106,8 +109,11 @@ public class DeepCompareAction extends ToggleAction implements DumbAware {
         };
       }
     }.build();
-    ListPopup popup = JBPopupFactory.getInstance()
-      .createActionGroupPopup("Select Source Branch", actionGroup, event.getDataContext(), false, false, false, null, -1, null);
+    ListPopup popup =
+      JBPopupFactory.getInstance().createActionGroupPopup(GitBundle.message("git.log.cherry.picked.highlighter.select.branch.popup"),
+                                                          actionGroup, event.getDataContext(),
+                                                          false, false, false,
+                                                          null, -1, null);
     InputEvent inputEvent = event.getInputEvent();
     if (inputEvent instanceof MouseEvent) {
       popup.show(new RelativePoint((MouseEvent)inputEvent));

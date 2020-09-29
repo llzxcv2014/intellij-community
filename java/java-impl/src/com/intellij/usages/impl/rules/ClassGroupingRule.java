@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2013 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.usages.impl.rules;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
@@ -23,6 +9,7 @@ import com.intellij.openapi.actionSystem.DataSink;
 import com.intellij.openapi.actionSystem.TypeSafeDataProvider;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.util.Iconable;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vcs.FileStatus;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
@@ -40,13 +27,10 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
-/**
- * @author max
- */
-public class ClassGroupingRule extends SingleParentUsageGroupingRule implements DumbAware {
+class ClassGroupingRule extends SingleParentUsageGroupingRule implements DumbAware {
   @Nullable
   @Override
-  protected UsageGroup getParentGroupFor(@NotNull Usage usage, @NotNull UsageTarget[] targets) {
+  protected UsageGroup getParentGroupFor(@NotNull Usage usage, UsageTarget @NotNull [] targets) {
     if (!(usage instanceof PsiElementUsage)) {
       return null;
     }
@@ -63,9 +47,8 @@ public class ClassGroupingRule extends SingleParentUsageGroupingRule implements 
           .getInstance(containingFile.getProject()).getInjectionHost(containingFile);
     do {
       containingClass = PsiTreeUtil.getParentOfType(containingClass, PsiClass.class, true);
-      if (containingClass == null || ((PsiClass)containingClass).getQualifiedName() != null) break;
     }
-    while (true);
+    while (containingClass != null && ((PsiClass)containingClass).getQualifiedName() == null);
 
     if (containingClass == null) {
       // check whether the element is in the import list
@@ -106,8 +89,8 @@ public class ClassGroupingRule extends SingleParentUsageGroupingRule implements 
   }
 
   private static class ClassUsageGroup implements UsageGroup, TypeSafeDataProvider {
-    private final SmartPsiElementPointer myClassPointer;
-    private final String myText;
+    private final SmartPsiElementPointer<PsiClass> myClassPointer;
+    private final @NlsSafe String myText;
     private final String myQName;
     private final Icon myIcon;
 
@@ -122,7 +105,7 @@ public class ClassGroupingRule extends SingleParentUsageGroupingRule implements 
     public void update() {
     }
 
-    private static String createText(PsiClass aClass) {
+    private static @NlsSafe String createText(PsiClass aClass) {
       String text = aClass.getName();
       PsiClass containingClass = aClass.getContainingClass();
       while (containingClass != null) {
@@ -149,7 +132,7 @@ public class ClassGroupingRule extends SingleParentUsageGroupingRule implements 
     }
 
     private PsiClass getPsiClass() {
-      return (PsiClass)myClassPointer.getElement();
+      return myClassPointer.getElement();
     }
 
     @Override

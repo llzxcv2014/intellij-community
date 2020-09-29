@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.blockingCallsDetection;
 
 import com.intellij.analysis.JvmAnalysisBundle;
@@ -21,7 +21,6 @@ import com.intellij.psi.PsiMethod;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
 import one.util.streamex.StreamEx;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.uast.UCallExpression;
@@ -43,13 +42,6 @@ public class BlockingMethodInNonBlockingContextInspection extends AbstractBaseUa
   @Override
   public JComponent createOptionsPanel() {
     return new OptionsPanel();
-  }
-
-  @Nls
-  @NotNull
-  @Override
-  public String getDisplayName() {
-    return JvmAnalysisBundle.message("jvm.inspections.blocking.method.display.name");
   }
 
   @NotNull
@@ -77,7 +69,7 @@ public class BlockingMethodInNonBlockingContextInspection extends AbstractBaseUa
            myNonBlockingContextCheckers.stream().anyMatch(extension -> extension.isApplicable(file));
   }
 
-  private class OptionsPanel extends JPanel {
+  private final class OptionsPanel extends JPanel {
     private OptionsPanel() {
       super(new BorderLayout());
       final Splitter mainPanel = new Splitter(true);
@@ -138,7 +130,7 @@ public class BlockingMethodInNonBlockingContextInspection extends AbstractBaseUa
     }
 
     @Override
-    public void visitElement(PsiElement element) {
+    public void visitElement(@NotNull PsiElement element) {
       super.visitElement(element);
       UCallExpression callExpression = AnalysisUastUtil.getUCallExpression(element);
       if (callExpression == null) return;

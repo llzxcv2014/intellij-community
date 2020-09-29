@@ -49,7 +49,7 @@ public class MockPsiFile extends MockPsiElement implements PsiFile {
   }
 
   @Override
-  public boolean processChildren(@NotNull final PsiElementProcessor<PsiFileSystemItem> processor) {
+  public boolean processChildren(final @NotNull PsiElementProcessor<? super PsiFileSystemItem> processor) {
     return true;
   }
 
@@ -114,8 +114,7 @@ public class MockPsiFile extends MockPsiElement implements PsiFile {
   }
 
   @Override
-  @NotNull
-  public PsiFile[] getPsiRoots() {
+  public PsiFile @NotNull [] getPsiRoots() {
     return new PsiFile[]{this};
   }
 
@@ -131,8 +130,7 @@ public class MockPsiFile extends MockPsiElement implements PsiFile {
   }
 
   @Override
-  @NotNull
-  public PsiElement[] getChildren() {
+  public PsiElement @NotNull [] getChildren() {
     return PsiElement.EMPTY_ARRAY;
   }
 
@@ -205,8 +203,7 @@ public class MockPsiFile extends MockPsiElement implements PsiFile {
   }
 
   @Override
-  @NotNull
-  public char[] textToCharArray() {
+  public char @NotNull [] textToCharArray() {
     return ArrayUtilRt.EMPTY_CHAR_ARRAY;
   }
 
@@ -303,8 +300,7 @@ public class MockPsiFile extends MockPsiElement implements PsiFile {
   }
 
   @Override
-  @NotNull
-  public PsiReference[] getReferences() {
+  public PsiReference @NotNull [] getReferences() {
     return PsiReference.EMPTY_ARRAY;
   }
 

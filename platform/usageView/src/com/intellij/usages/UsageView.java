@@ -1,10 +1,9 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.usages;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.DataKey;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.search.SearchScope;
 import com.intellij.usageView.UsageInfo;
 import org.jetbrains.annotations.NotNull;
@@ -15,9 +14,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
-/**
- * @author max
- */
 public interface UsageView extends Disposable {
   /**
    * Returns {@link UsageTarget} to look usages for
@@ -38,9 +34,9 @@ public interface UsageView extends Disposable {
 
   void appendUsage(@NotNull Usage usage);
   void removeUsage(@NotNull Usage usage);
-  void includeUsages(@NotNull Usage[] usages);
-  void excludeUsages(@NotNull Usage[] usages);
-  void selectUsages(@NotNull Usage[] usages);
+  void includeUsages(Usage @NotNull [] usages);
+  void excludeUsages(Usage @NotNull [] usages);
+  void selectUsages(Usage @NotNull [] usages);
 
   void close();
   boolean isSearchInProgress();
@@ -66,12 +62,15 @@ public interface UsageView extends Disposable {
 
   void setAdditionalComponent(@Nullable JComponent component);
 
-  void addPerformOperationAction(@NotNull Runnable processRunnable, @NotNull String commandName, String cannotMakeString, @NotNull String shortDescription);
+  void addPerformOperationAction(@NotNull Runnable processRunnable,
+                                 @Nullable @NlsContexts.Command String commandName,
+                                 @NotNull @NlsContexts.DialogMessage String cannotMakeString,
+                                 @NotNull @NlsContexts.Button String shortDescription);
 
   /**
    * @param checkReadOnlyStatus if false, check is performed inside processRunnable
    */
-  void addPerformOperationAction(@NotNull Runnable processRunnable, @NotNull String commandName, String cannotMakeString, @NotNull String shortDescription, boolean checkReadOnlyStatus);
+  void addPerformOperationAction(@NotNull Runnable processRunnable, @Nullable String commandName, @NotNull String cannotMakeString, @NotNull String shortDescription, boolean checkReadOnlyStatus);
 
   @NotNull
   UsageViewPresentation getPresentation();
@@ -96,7 +95,6 @@ public interface UsageView extends Disposable {
     return getComponent();
   }
 
-
   int getUsagesCount();
 
   /**
@@ -106,7 +104,7 @@ public interface UsageView extends Disposable {
    */
   void removeUsagesBulk(@NotNull Collection<? extends Usage> usages);
 
-  default void addExcludeListener(@NotNull Disposable disposable, @NotNull ExcludeListener listener){}
+  default void addExcludeListener(@NotNull Disposable disposable, @NotNull ExcludeListener listener) {}
 
   @FunctionalInterface
   interface ExcludeListener {

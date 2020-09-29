@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.impl.local;
 
 import com.intellij.execution.process.OSProcessHandler;
@@ -10,10 +10,7 @@ import com.intellij.openapi.application.ApplicationBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.ShutDownTracker;
-import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.CharsetToolkit;
 import com.intellij.openapi.vfs.local.FileWatcherNotificationSink;
@@ -24,7 +21,6 @@ import com.intellij.util.TimeoutUtil;
 import com.intellij.util.io.BaseDataReader;
 import com.intellij.util.io.BaseOutputReader;
 import com.sun.jna.Platform;
-import one.util.streamex.StreamEx;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
@@ -35,13 +31,11 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * @author dslomov
- */
 public class NativeFileWatcherImpl extends PluggableFileWatcher {
   private static final Logger LOG = Logger.getInstance(NativeFileWatcherImpl.class);
 
@@ -133,32 +127,49 @@ public class NativeFileWatcherImpl extends PluggableFileWatcher {
   /**
    * Subclasses should override this method to provide a custom binary to run.
    */
-  @Nullable
-  protected File getExecutable() {
+  protected @Nullable File getExecutable() {
+    return getFSNotifierExecutable();
+  }
+
+  public static @Nullable File getFSNotifierExecutable() {
     String customPath = System.getProperty(PROPERTY_WATCHER_EXECUTABLE_PATH);
     if (customPath != null) {
-      File customFile = PathManager.findBinFile(customPath);
-      return customFile != null ? customFile : new File(customPath);
+      Path customFile = PathManager.findBinFile(customPath);
+      return customFile != null ? customFile.toFile() : new File(customPath);
     }
 
     String[] names = ArrayUtil.EMPTY_STRING_ARRAY;
     if (SystemInfo.isWindows) {
-      if ("win32-x86".equals(Platform.RESOURCE_PREFIX)) names = new String[]{"fsnotifier.exe"};
-      else if ("win32-x86-64".equals(Platform.RESOURCE_PREFIX)) names = new String[]{"fsnotifier64.exe", "fsnotifier.exe"};
+      if ("win32-x86".equals(Platform.RESOURCE_PREFIX)) {
+        names = new String[]{"fsnotifier.exe"};
+      }
+      else if ("win32-x86-64".equals(Platform.RESOURCE_PREFIX)) {
+        names = new String[]{"fsnotifier64.exe", "fsnotifier.exe"};
+      }
     }
     else if (SystemInfo.isMac) {
       names = new String[]{"fsnotifier"};
     }
     else if (SystemInfo.isLinux) {
-      if ("linux-x86".equals(Platform.RESOURCE_PREFIX)) names = new String[]{"fsnotifier"};
-      else if ("linux-x86-64".equals(Platform.RESOURCE_PREFIX)) names = new String[]{"fsnotifier64"};
+      if ("linux-x86".equals(Platform.RESOURCE_PREFIX)) {
+        names = new String[]{"fsnotifier"};
+      }
+      else if ("linux-x86-64".equals(Platform.RESOURCE_PREFIX)) {
+        names = new String[]{"fsnotifier64"};
+      }
     }
-    return StreamEx.of(names).map(PathManager::findBinFile).nonNull().findFirst().orElse(null);
+    for (String name : names) {
+      Path file = PathManager.findBinFile(name);
+      if (file != null) {
+        return file.toFile();
+      }
+    }
+    return null;
   }
 
   /* internal stuff */
 
-  private void notifyOnFailure(String cause, @Nullable NotificationListener listener) {
+  private void notifyOnFailure(@NlsContexts.NotificationContent String cause, @Nullable NotificationListener listener) {
     myNotificationSink.notifyUserOnFailure(cause, listener);
   }
 
@@ -172,7 +183,7 @@ public class NativeFileWatcherImpl extends PluggableFileWatcher {
     }
 
     if (myStartAttemptCount.incrementAndGet() > MAX_PROCESS_LAUNCH_ATTEMPT_COUNT) {
-      notifyOnFailure(ApplicationBundle.message("watcher.failed.to.start"), null);
+      notifyOnFailure(ApplicationBundle.message("watcher.bailed.out.10x"), null);
       return;
     }
 
@@ -202,12 +213,18 @@ public class NativeFileWatcherImpl extends PluggableFileWatcher {
         try { writeLine(EXIT_COMMAND); }
         catch (IOException ignore) { }
         if (!processHandler.waitFor(10)) {
-          ApplicationManager.getApplication().executeOnPooledThread(() -> {
+          Runnable r = () -> {
             if (!processHandler.waitFor(500)) {
               LOG.warn("File watcher is still alive. Doing a force quit.");
               processHandler.destroyProcess();
             }
-          });
+          };
+          if (myIsShuttingDown) {
+            new Thread(r, "fsnotifier shutdown").start();
+          }
+          else {
+            ApplicationManager.getApplication().executeOnPooledThread(r);
+          }
         }
       }
 
@@ -218,7 +235,7 @@ public class NativeFileWatcherImpl extends PluggableFileWatcher {
   private void setWatchRoots(List<String> recursive, List<String> flat, boolean restart) {
     if (myProcessHandler == null || myProcessHandler.isProcessTerminated()) return;
 
-    if (ApplicationManager.getApplication().isDisposeInProgress()) {
+    if (ApplicationManager.getApplication().isDisposed()) {
       recursive = flat = Collections.emptyList();
     }
 
@@ -273,7 +290,7 @@ public class NativeFileWatcherImpl extends PluggableFileWatcher {
   @SuppressWarnings("SpellCheckingInspection")
   private enum WatcherOp { GIVEUP, RESET, UNWATCHEABLE, REMAP, MESSAGE, CREATE, DELETE, STATS, CHANGE, DIRTY, RECDIRTY }
 
-  private class MyProcessHandler extends OSProcessHandler {
+  private final class MyProcessHandler extends OSProcessHandler {
     private final BufferedWriter myWriter;
     private WatcherOp myLastOp;
     private final List<String> myLines = new ArrayList<>();
@@ -289,9 +306,8 @@ public class NativeFileWatcherImpl extends PluggableFileWatcher {
       myWriter.flush();
     }
 
-    @NotNull
     @Override
-    protected BaseOutputReader.Options readerOptions() {
+    protected @NotNull BaseOutputReader.Options readerOptions() {
       return READER_OPTIONS;
     }
 
@@ -348,8 +364,9 @@ public class NativeFileWatcherImpl extends PluggableFileWatcher {
         }
       }
       else if (myLastOp == WatcherOp.MESSAGE) {
-        LOG.warn(line);
-        notifyOnFailure(line, NotificationListener.URL_OPENING_LISTENER);
+        String localized = Objects.requireNonNullElse(ApplicationBundle.INSTANCE.messageOrNull(line), line); //NON-NLS
+        LOG.warn(localized);
+        notifyOnFailure(localized, NotificationListener.URL_OPENING_LISTENER);
         myLastOp = null;
       }
       else if (myLastOp == WatcherOp.REMAP || myLastOp == WatcherOp.UNWATCHEABLE) {

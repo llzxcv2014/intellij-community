@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.zmlx.hg4idea.log;
 
 import com.intellij.openapi.Disposable;
@@ -20,6 +20,7 @@ import com.intellij.vcs.log.*;
 import com.intellij.vcs.log.impl.LogDataImpl;
 import com.intellij.vcs.log.util.UserNameRegex;
 import com.intellij.vcs.log.util.VcsUserUtil;
+import org.jetbrains.annotations.CalledInAny;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.zmlx.hg4idea.HgFileRevision;
@@ -103,11 +104,10 @@ public final class HgLogProvider implements VcsLogProvider {
                           });
   }
 
-  @NotNull
   @Override
-  public List<? extends VcsCommitMetadata> readMetadata(@NotNull VirtualFile root, @NotNull List<String> hashes)
+  public void readMetadata(@NotNull VirtualFile root, @NotNull List<String> hashes, @NotNull Consumer<? super VcsCommitMetadata> consumer)
     throws VcsException {
-    return HgHistoryUtil.readCommitMetadata(myProject, root, hashes);
+    HgHistoryUtil.readCommitMetadata(myProject, root, hashes, consumer);
   }
 
   @NotNull
@@ -180,7 +180,7 @@ public final class HgLogProvider implements VcsLogProvider {
   @NotNull
   @Override
   public Disposable subscribeToRootRefreshEvents(@NotNull final Collection<? extends VirtualFile> roots, @NotNull final VcsLogRefresher refresher) {
-    MessageBusConnection connection = myProject.getMessageBus().connect(myProject);
+    MessageBusConnection connection = myProject.getMessageBus().connect();
     connection.subscribe(HgVcs.STATUS_TOPIC, new HgUpdater() {
       @Override
       public void update(Project project, @Nullable VirtualFile root) {
@@ -315,8 +315,9 @@ public final class HgLogProvider implements VcsLogProvider {
 
   @Nullable
   @Override
+  @CalledInAny
   public String getCurrentBranch(@NotNull VirtualFile root) {
-    HgRepository repository = getHgRepoManager(myProject).getRepositoryForRoot(root);
+    HgRepository repository = getHgRepoManager(myProject).getRepositoryForRootQuick(root);
     if (repository == null) return null;
     return repository.getCurrentBranchName();
   }

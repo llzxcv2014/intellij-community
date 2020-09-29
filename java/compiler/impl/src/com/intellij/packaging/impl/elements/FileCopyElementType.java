@@ -16,6 +16,7 @@
 package com.intellij.packaging.impl.elements;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.compiler.JavaCompilerBundle;
 import com.intellij.openapi.fileChooser.FileChooser;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.project.Project;
@@ -30,13 +31,10 @@ import javax.swing.*;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
-* @author nik
-*/
 public class FileCopyElementType extends PackagingElementType<FileCopyPackagingElement> {
 
   FileCopyElementType() {
-    super("file-copy", "File");
+    super("file-copy", JavaCompilerBundle.messagePointer("file.title"));
   }
 
   @Override

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.dom.impl;
 
 import com.intellij.icons.AllIcons;
@@ -74,7 +74,7 @@ public class ActionOrGroupPresentationProvider extends PresentationProvider<Acti
     // icon field initializer may not be available if there're no attached sources for containing class
     if (referenceFound) {
       String value = iconAttrValue.getValue();
-      Icon icon = IconLoader.findIcon(value, false);
+      Icon icon = IconLoader.findIcon(value, ActionOrGroupPresentationProvider.class, false, false);
       if (icon != null) {
         return icon;
       }
@@ -96,7 +96,7 @@ public class ActionOrGroupPresentationProvider extends PresentationProvider<Acti
     }
 
     ProjectIconsAccessor iconsAccessor = ProjectIconsAccessor.getInstance(resolved.getProject());
-    VirtualFile iconFile = iconsAccessor.resolveIconFile(expression.getPsi());
+    VirtualFile iconFile = iconsAccessor.resolveIconFile(expression);
     return iconFile == null ? null : iconsAccessor.getIcon(iconFile);
   }
 }

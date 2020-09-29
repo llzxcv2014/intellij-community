@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.diff.tools.util;
 
 import com.intellij.codeInsight.breadcrumbs.FileBreadcrumbsCollector;
@@ -35,10 +35,14 @@ import com.intellij.ui.components.breadcrumbs.Crumb;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Function;
 import com.intellij.util.concurrency.NonUrgentExecutor;
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.xml.breadcrumbs.NavigatableCrumb;
 import gnu.trove.TIntFunction;
-import org.jetbrains.annotations.*;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.util.List;
@@ -63,14 +67,14 @@ public class FoldingModelSupport {
 
   protected final int myCount;
   @Nullable protected final Project myProject;
-  @NotNull protected final EditorEx[] myEditors;
+  protected final EditorEx @NotNull [] myEditors;
 
   @NotNull protected final List<FoldedGroup> myFoldings = new ArrayList<>();
 
   private boolean myDuringSynchronize;
   private final boolean[] myShouldUpdateLineNumbers;
 
-  public FoldingModelSupport(@Nullable Project project, @NotNull EditorEx[] editors, @NotNull Disposable disposable) {
+  public FoldingModelSupport(@Nullable Project project, EditorEx @NotNull [] editors, @NotNull Disposable disposable) {
     myProject = project;
     myEditors = editors;
     myCount = myEditors.length;
@@ -142,22 +146,22 @@ public class FoldingModelSupport {
     updateLineNumbers(true);
   }
 
-  private static class FoldingBuilder extends FoldingBuilderBase {
-    @NotNull private final EditorEx[] myEditors;
+  protected static int[] countLines(EditorEx @NotNull [] editors) {
+    return ReadAction.compute(() -> {
+      int[] lineCount = new int[editors.length];
+      for (int i = 0; i < editors.length; i++) {
+        lineCount[i] = getLineCount(editors[i].getDocument());
+      }
+      return lineCount;
+    });
+  }
 
-    private FoldingBuilder(@NotNull EditorEx[] editors, @NotNull Settings settings) {
+  private static final class FoldingBuilder extends FoldingBuilderBase {
+    private final EditorEx @NotNull [] myEditors;
+
+    private FoldingBuilder(EditorEx @NotNull [] editors, @NotNull Settings settings) {
       super(countLines(editors), settings);
       myEditors = editors;
-    }
-
-    private static int[] countLines(@NotNull EditorEx[] editors) {
-      return ReadAction.compute(() -> {
-        int[] lineCount = new int[editors.length];
-        for (int i = 0; i < editors.length; i++) {
-          lineCount[i] = getLineCount(editors[i].getDocument());
-        }
-        return lineCount;
-      });
     }
 
     @Nullable
@@ -169,7 +173,7 @@ public class FoldingModelSupport {
 
   protected abstract static class FoldingBuilderBase {
     @NotNull private final Settings mySettings;
-    @NotNull private final int[] myLineCount;
+    private final int @NotNull [] myLineCount;
     private final int myCount;
 
     @NotNull private final List<Data.Group> myGroups = new ArrayList<>();
@@ -280,7 +284,7 @@ public class FoldingModelSupport {
     int offset = document.getLineStartOffset(lineNumber);
 
     FileBreadcrumbsCollector collector = FileBreadcrumbsCollector.findBreadcrumbsCollector(project, virtualFile);
-    List<Crumb> crumbs = ContainerUtil.newArrayList(collector.computeCrumbs(virtualFile, document, offset, null));
+    List<Crumb> crumbs = ContainerUtil.newArrayList(collector.computeCrumbs(virtualFile, document, offset, true));
     if (crumbs.isEmpty()) return null;
 
     String description = StringUtil.join(crumbs, it -> it.getText(), " > ");
@@ -292,7 +296,7 @@ public class FoldingModelSupport {
     return new FoldedRangeDescription(description, anchorLine);
   }
 
-  protected static class FoldedRangeDescription {
+  protected static final class FoldedRangeDescription {
     @NotNull private final String description;
     private final int anchorLine;
 
@@ -662,7 +666,7 @@ public class FoldingModelSupport {
     }
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public void updateContext(@NotNull UserDataHolder context, @NotNull final Settings settings) {
     ApplicationManager.getApplication().assertIsDispatchThread();
     if (myFoldings.isEmpty()) return; // do not rewrite cache by initial state
@@ -670,7 +674,7 @@ public class FoldingModelSupport {
   }
 
   @NotNull
-  @CalledInAwt
+  @RequiresEdt
   private FoldingCache getFoldingCache(@NotNull Settings settings) {
     //noinspection unchecked
     List<FoldedGroupState>[] result = new List[myCount];
@@ -707,7 +711,7 @@ public class FoldingModelSupport {
           int line2 = document.getLineNumber(region.getEndOffset()) + 1;
           collapsed = new LineRange(line1, line2);
           collapsedDescription = ContainerUtil.map(folding.myDescriptions,
-                                                   it -> it != null ? it.get() : null,
+                                                   it -> it != null ? it.getCachedDescription() : null,
                                                    ArrayUtil.EMPTY_STRING_ARRAY);
           break;
         }
@@ -722,15 +726,15 @@ public class FoldingModelSupport {
 
   private static class FoldingCache {
     public final boolean expandByDefault;
-    @NotNull public final List<FoldedGroupState>[] ranges;
+    public final List<FoldedGroupState> @NotNull [] ranges;
 
-    FoldingCache(@NotNull List<FoldedGroupState>[] ranges, boolean expandByDefault) {
+    FoldingCache(List<FoldedGroupState> @NotNull [] ranges, boolean expandByDefault) {
       this.ranges = ranges;
       this.expandByDefault = expandByDefault;
     }
   }
 
-  public static class Data {
+  public static final class Data {
     @NotNull private final List<Group> groups;
     @NotNull private final DescriptionComputer descriptionComputer;
 
@@ -739,7 +743,7 @@ public class FoldingModelSupport {
       this.descriptionComputer = descriptionComputer;
     }
 
-    private static class Group {
+    private static final class Group {
       @NotNull public final List<Block> blocks;
 
       private Group(@NotNull List<Block> blocks) {
@@ -747,13 +751,13 @@ public class FoldingModelSupport {
       }
     }
 
-    private static class Block {
-      @NotNull public final LineRange[] ranges;
+    private static final class Block {
+      public final LineRange @NotNull [] ranges;
 
       /**
        * WARN: arrays can have nullable values (ex: when unchanged fragments in editors have different length due to ignore policy)
        */
-      private Block(@NotNull LineRange[] ranges) {
+      private Block(LineRange @NotNull [] ranges) {
         this.ranges = ranges;
       }
     }
@@ -770,9 +774,9 @@ public class FoldingModelSupport {
   private static class FoldedGroupState {
     @Nullable public final LineRange expanded;
     @Nullable public final LineRange collapsed;
-    @Nullable public final String[] collapsedDescription;
+    public final String @Nullable [] collapsedDescription;
 
-    FoldedGroupState(@Nullable LineRange expanded, @Nullable LineRange collapsed, @Nullable String[] collapsedDescription) {
+    FoldedGroupState(@Nullable LineRange expanded, @Nullable LineRange collapsed, String @Nullable [] collapsedDescription) {
       assert expanded != null || collapsed != null;
 
       this.expanded = expanded;
@@ -844,17 +848,17 @@ public class FoldingModelSupport {
    * These regions will be collapsed/expanded synchronously, see {@link MyFoldingListener}.
    */
   protected class FoldedBlock {
-    @NotNull private final FoldRegion[] myRegions;
-    @NotNull private final int[] myLines;
+    private final FoldRegion @NotNull [] myRegions;
+    private final int @NotNull [] myLines;
 
     @NotNull private final List<RangeHighlighter> myHighlighters = new ArrayList<>(myCount);
 
-    @NotNull private final LazyDescription[] myDescriptions;
+    private final LazyDescription @NotNull [] myDescriptions;
     private final ProgressIndicator myDescriptionsIndicator = new EmptyProgressIndicator();
 
-    public FoldedBlock(@NotNull FoldRegion[] regions,
+    public FoldedBlock(FoldRegion @NotNull [] regions,
                        @NotNull DescriptionComputer descriptionComputer,
-                       @Nullable String[] cachedDescriptions) {
+                       String @Nullable [] cachedDescriptions) {
       assert regions.length == myCount;
       assert cachedDescriptions == null || cachedDescriptions.length == myCount;
       myRegions = regions;
@@ -947,7 +951,7 @@ public class FoldingModelSupport {
       }
 
       @Override
-      @CalledInAwt
+      @RequiresEdt
       public String compute() {
         if (!myLoadingStarted) {
           myLoadingStarted = true;
@@ -958,7 +962,7 @@ public class FoldingModelSupport {
               if (result.description != null) repaintEditor();
             })
             .withDocumentsCommitted(myProject)
-            .cancelWith(myDescriptionsIndicator)
+            .wrapProgress(myDescriptionsIndicator)
             .submit(NonUrgentExecutor.getInstance());
         }
         return myDescription.description;
@@ -972,7 +976,7 @@ public class FoldingModelSupport {
       }
 
       @Nullable
-      @CalledInBackground
+      @RequiresBackgroundThread
       private String computeDescription() {
         try {
           ProgressManager.checkCanceled();
@@ -1000,14 +1004,14 @@ public class FoldingModelSupport {
       }
 
       @Nullable
-      @CalledInAwt
-      public String get() {
+      @RequiresEdt
+      public String getCachedDescription() {
         return myDescription.description;
       }
     }
   }
 
-  private static class RangeDescription {
+  private static final class RangeDescription {
     @Nullable public final String description;
 
     private RangeDescription(@Nullable String description) {

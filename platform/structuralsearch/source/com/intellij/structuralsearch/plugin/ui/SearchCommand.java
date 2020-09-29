@@ -1,15 +1,14 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch.plugin.ui;
 
 import com.intellij.find.FindManager;
-import com.intellij.find.FindProgressIndicator;
 import com.intellij.find.FindSettings;
 import com.intellij.find.impl.FindManagerImpl;
+import com.intellij.notification.NotificationGroup;
+import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.progress.util.AbstractProgressIndicatorExBase;
-import com.intellij.openapi.util.Factory;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
@@ -22,16 +21,18 @@ import com.intellij.util.Processor;
 import org.jetbrains.annotations.NotNull;
 
 public class SearchCommand {
+  @NotNull
   protected final SearchContext mySearchContext;
+  @NotNull
   protected final Configuration myConfiguration;
-  private MatchingProcess process;
   private FindUsagesProcessPresentation myProcessPresentation;
 
-  public SearchCommand(Configuration configuration, SearchContext searchContext) {
+  public SearchCommand(@NotNull Configuration configuration, @NotNull SearchContext searchContext) {
     myConfiguration = configuration;
     mySearchContext = searchContext;
   }
 
+  @NotNull
   protected UsageViewContext createUsageViewContext() {
     final Runnable searchStarter = () -> new SearchCommand(myConfiguration, mySearchContext).startSearching();
     return new UsageViewContext(myConfiguration, mySearchContext, searchStarter);
@@ -47,34 +48,12 @@ public class SearchCommand {
     myProcessPresentation.setShowNotFoundMessage(true);
     myProcessPresentation.setShowPanelIfOnlyOneUsage(true);
 
-    myProcessPresentation.setProgressIndicatorFactory(
-      new Factory<ProgressIndicator>() {
-        @Override
-        public ProgressIndicator create() {
-          FindProgressIndicator indicator = new FindProgressIndicator(mySearchContext.getProject(), presentation.getScopeText());
-          indicator.addStateDelegate(new AbstractProgressIndicatorExBase(){
-            @Override
-            public void cancel() {
-              super.cancel();
-              stopAsyncSearch();
-            }
-          });
-          return indicator;
-        }
-      }
-    );
-
     PsiDocumentManager.getInstance(mySearchContext.getProject()).commitAllDocuments();
     final ConfigurableUsageTarget target = context.getTarget();
     ((FindManagerImpl)FindManager.getInstance(mySearchContext.getProject())).getFindUsagesManager().addToHistory(target);
     UsageViewManager.getInstance(mySearchContext.getProject()).searchAndShowUsages(
       new UsageTarget[]{target},
-      () -> new UsageSearcher() {
-        @Override
-        public void generate(@NotNull final Processor<Usage> processor) {
-          findUsages(processor);
-        }
-      },
+      () -> processor -> findUsages(processor),
       myProcessPresentation,
       presentation,
       new UsageViewManager.UsageViewStateListener() {
@@ -90,7 +69,7 @@ public class SearchCommand {
     );
   }
 
-  public void findUsages(final Processor<? super Usage> processor) {
+  public void findUsages(@NotNull Processor<? super Usage> processor) {
     final ProgressIndicator progress = ProgressManager.getInstance().getProgressIndicator();
     progress.setIndeterminate(false);
 
@@ -98,13 +77,12 @@ public class SearchCommand {
       int count;
 
       @Override
-      public void setMatchingProcess(MatchingProcess _process) {
-        process = _process;
+      public void setMatchingProcess(@NotNull MatchingProcess _process) {
         findStarted();
       }
 
       @Override
-      public void processFile(PsiFile element) {
+      public void processFile(@NotNull PsiFile element) {
         final VirtualFile virtualFile = element.getVirtualFile();
         if (virtualFile != null)
           progress.setText(SSRBundle.message("looking.in.progress.message", virtualFile.getPresentableName()));
@@ -123,7 +101,7 @@ public class SearchCommand {
       }
 
       @Override
-      public void newMatch(MatchResult result) {
+      public void newMatch(@NotNull MatchResult result) {
         UsageInfo info;
 
         if (MatchResult.MULTI_LINE_MATCH.equals(result.getName())) {
@@ -166,22 +144,19 @@ public class SearchCommand {
     };
 
     try {
-      new Matcher(mySearchContext.getProject()).findMatches(sink, myConfiguration.getMatchOptions());
+      new Matcher(mySearchContext.getProject(), myConfiguration.getMatchOptions()).findMatches(sink);
     }
     catch (StructuralSearchException e) {
       myProcessPresentation.setShowNotFoundMessage(false);
+      final NotificationGroup notificationGroup = NotificationGroupManager.getInstance().getNotificationGroup(UIUtil.SSR_NOTIFICATION_GROUP_ID);
       //noinspection InstanceofCatchParameter
-      UIUtil.SSR_NOTIFICATION_GROUP.createNotification(NotificationType.ERROR)
-                                   .setContent(e instanceof StructuralSearchScriptException
-                                               ? SSRBundle.message("search.script.problem", e.getCause())
-                                               : SSRBundle.message("search.template.problem", e.getMessage()))
-                                   .setImportant(true)
-                                   .notify(mySearchContext.getProject());
+      notificationGroup.createNotification(NotificationType.ERROR)
+        .setContent(e instanceof StructuralSearchScriptException
+                    ? SSRBundle.message("search.script.problem", e.getCause())
+                    : SSRBundle.message("search.template.problem", e.getMessage()))
+        .setImportant(true)
+        .notify(mySearchContext.getProject());
     }
-  }
-
-  public void stopAsyncSearch() {
-    if (process != null) process.stop();
   }
 
   protected void findStarted() {

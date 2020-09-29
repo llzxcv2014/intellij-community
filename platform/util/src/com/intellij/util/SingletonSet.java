@@ -1,20 +1,7 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util;
 
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.SingletonIterator;
 import gnu.trove.TObjectHashingStrategy;
 import org.jetbrains.annotations.NotNull;
@@ -50,15 +37,13 @@ public class SingletonSet<E> implements Set<E> {
     return new SingletonIterator<>(theElement);
   }
 
-  @NotNull
   @Override
-  public Object[] toArray() {
+  public Object @NotNull [] toArray() {
     return new Object[]{theElement};
   }
 
-  @NotNull
   @Override
-  public <T> T[] toArray(@NotNull T[] a) {
+  public <T> T @NotNull [] toArray(T @NotNull [] a) {
     if (a.length == 0) {
       a = ArrayUtil.newArray(ArrayUtil.getComponentType(a), 1);
     }
@@ -117,8 +102,7 @@ public class SingletonSet<E> implements Set<E> {
 
   @NotNull
   protected TObjectHashingStrategy<E> getStrategy() {
-    //noinspection unchecked
-    return TObjectHashingStrategy.CANONICAL;
+    return ContainerUtil.canonicalStrategy();
   }
 
   @NotNull
@@ -126,7 +110,7 @@ public class SingletonSet<E> implements Set<E> {
     return new CustomStrategySingletonSet<>(o, strategy);
   }
 
-  private static class CustomStrategySingletonSet<E> extends SingletonSet<E> {
+  private static final class CustomStrategySingletonSet<E> extends SingletonSet<E> {
     @NotNull private final TObjectHashingStrategy<E> strategy;
 
     private CustomStrategySingletonSet(E e, @NotNull final TObjectHashingStrategy<E> strategy) {

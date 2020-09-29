@@ -15,7 +15,6 @@
  */
 package com.intellij.testIntegration.createTest;
 
-import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.CodeInsightUtil;
 import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInsight.daemon.impl.analysis.ImportsHighlightUtil;
@@ -24,6 +23,7 @@ import com.intellij.ide.fileTemplates.FileTemplate;
 import com.intellij.ide.fileTemplates.FileTemplateDescriptor;
 import com.intellij.ide.fileTemplates.FileTemplateManager;
 import com.intellij.ide.fileTemplates.FileTemplateUtil;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory;
@@ -55,6 +55,7 @@ public class JavaTestGenerator implements TestGenerator {
   public JavaTestGenerator() {
   }
 
+  @SuppressWarnings("Convert2Diamond")//due to internal java compiler error in corretto 11.0.7
   @Override
   public PsiElement generateTest(final Project project, final CreateTestDialog d) {
     return PostprocessReformattingAspect.getInstance(project).postponeFormattingInside(
@@ -232,8 +233,8 @@ public class JavaTestGenerator implements TestGenerator {
 
   private static void showErrorLater(final Project project, final String targetClassName) {
     ApplicationManager.getApplication().invokeLater(() -> Messages.showErrorDialog(project,
-                                                                               CodeInsightBundle.message("intention.error.cannot.create.class.message", targetClassName),
-                                                                               CodeInsightBundle.message("intention.error.cannot.create.class.title")));
+                                                                               JavaBundle.message("intention.error.cannot.create.class.message", targetClassName),
+                                                                               JavaBundle.message("intention.error.cannot.create.class.title")));
   }
 
   private static PsiMethod generateMethod(@NotNull TestIntegrationUtils.MethodKind methodKind,
@@ -252,6 +253,6 @@ public class JavaTestGenerator implements TestGenerator {
 
   @Override
   public String toString() {
-    return CodeInsightBundle.message("intention.create.test.dialog.java");
+    return JavaBundle.message("intention.create.test.dialog.java");
   }
 }

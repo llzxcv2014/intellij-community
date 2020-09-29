@@ -1,53 +1,40 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.build;
 
 import com.intellij.build.events.*;
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.nls.NlsMessages;
 import com.intellij.ide.projectView.PresentationData;
+import com.intellij.ide.util.treeView.PresentableNodeDescriptor;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.NullableLazyValue;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.pom.Navigatable;
 import com.intellij.ui.AnimatedIcon;
 import com.intellij.ui.SimpleTextAttributes;
-import com.intellij.ui.treeStructure.CachingSimpleNode;
-import com.intellij.ui.treeStructure.SimpleNode;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static com.intellij.util.ui.EmptyIcon.ICON_16;
 
 /**
  * @author Vladislav.Soroka
  */
-public class ExecutionNode extends CachingSimpleNode {
+public class ExecutionNode extends PresentableNodeDescriptor<ExecutionNode> {
   private static final Icon NODE_ICON_OK = AllIcons.RunConfigurations.TestPassed;
   private static final Icon NODE_ICON_ERROR = AllIcons.RunConfigurations.TestError;
   private static final Icon NODE_ICON_WARNING = AllIcons.General.Warning;
@@ -56,47 +43,46 @@ public class ExecutionNode extends CachingSimpleNode {
   private static final Icon NODE_ICON_STATISTICS = ICON_16;
   private static final Icon NODE_ICON_SIMPLE = ICON_16;
   private static final Icon NODE_ICON_DEFAULT = ICON_16;
-  private static final Icon NODE_ICON_RUNNING = new AnimatedIcon.FS();
+  private static final Icon NODE_ICON_RUNNING = new AnimatedIcon.Default();
 
-  private final Collection<ExecutionNode> myChildrenList = new ConcurrentLinkedDeque<>();
+  private final List<ExecutionNode> myChildrenList = new ArrayList<>(); // Accessed from the async model thread only.
+  private List<ExecutionNode> myVisibleChildrenList = null;  // Accessed from the async model thread only.
   private final AtomicInteger myErrors = new AtomicInteger();
   private final AtomicInteger myWarnings = new AtomicInteger();
   private final AtomicInteger myInfos = new AtomicInteger();
-  private long startTime;
-  private long endTime;
+  private final ExecutionNode myParentNode;
+  private volatile long startTime;
+  private volatile long endTime;
   @Nullable
-  private String myTitle;
+  private @BuildEventsNls.Title String myTitle;
   @Nullable
-  private String myTooltip;
+  private @BuildEventsNls.Hint String myHint;
   @Nullable
-  private String myHint;
+  private volatile EventResult myResult;
+  private final boolean myAutoExpandNode;
+  private final Supplier<Boolean> myIsCorrectThread;
   @Nullable
-  private EventResult myResult;
-  private boolean myAutoExpandNode;
+  private volatile Navigatable myNavigatable;
   @Nullable
-  private Navigatable myNavigatable;
-  @Nullable
-  private NullableLazyValue<Icon> myPreferredIconValue;
-  @Nullable
-  private Predicate<ExecutionNode> myFilter;
-  private volatile boolean myVisible = true;
+  private volatile NullableLazyValue<Icon> myPreferredIconValue;
+  private Predicate<? super ExecutionNode> myFilter;
+  private boolean myAlwaysLeaf;
 
-  public ExecutionNode(Project aProject, ExecutionNode parentNode) {
+  public ExecutionNode(Project aProject, ExecutionNode parentNode, boolean isAutoExpandNode, @NotNull Supplier<Boolean> isCorrectThread) {
     super(aProject, parentNode);
+    myName = "";
+    myParentNode = parentNode;
+    myAutoExpandNode = isAutoExpandNode;
+    myIsCorrectThread = isCorrectThread;
   }
 
-  @Override
-  protected SimpleNode[] buildChildren() {
-    Stream<ExecutionNode> stream = myChildrenList.stream();
-    stream = stream.filter(node -> node.myVisible);
-    if (myFilter != null) {
-      stream = stream.filter(myFilter);
-    }
-    return stream.toArray(SimpleNode[]::new);
+  private boolean nodeIsVisible(ExecutionNode node) {
+    return myFilter == null || myFilter.test(node);
   }
 
   @Override
   protected void update(@NotNull PresentationData presentation) {
+    assert myIsCorrectThread.get();
     setIcon(getCurrentIcon());
     presentation.setPresentableText(myName);
     presentation.setIcon(getIcon());
@@ -115,9 +101,6 @@ public class ExecutionNode extends CachingSimpleNode {
       }
       presentation.addText(hint, SimpleTextAttributes.GRAY_ATTRIBUTES);
     }
-    if (myTooltip != null) {
-      presentation.setTooltip(myTooltip);
-    }
   }
 
   @Override
@@ -126,104 +109,155 @@ public class ExecutionNode extends CachingSimpleNode {
   }
 
   public void setName(String name) {
+    assert myIsCorrectThread.get();
     myName = name;
   }
 
   @Nullable
   public String getTitle() {
+    assert myIsCorrectThread.get();
     return myTitle;
   }
 
-  public void setTitle(@Nullable String title) {
+  public void setTitle(@BuildEventsNls.Title @Nullable String title) {
+    assert myIsCorrectThread.get();
     myTitle = title;
   }
 
-  @Nullable
-  public String getTooltip() {
-    return myTooltip;
-  }
-
-  public void setTooltip(@Nullable String tooltip) {
-    myTooltip = tooltip;
-  }
-
-  @Nullable
-  public String getHint() {
-    return myHint;
-  }
-
-  public void setHint(@Nullable String hint) {
+  public void setHint(@BuildEventsNls.Hint @Nullable String hint) {
+    assert myIsCorrectThread.get();
     myHint = hint;
   }
 
-  public void add(ExecutionNode node) {
+  public void add(@NotNull ExecutionNode node) {
+    assert myIsCorrectThread.get();
     myChildrenList.add(node);
     node.setFilter(myFilter);
-    cleanUpCache();
+    if (myVisibleChildrenList != null) {
+      if (nodeIsVisible(node)) {
+        myVisibleChildrenList.add(node);
+      }
+    }
   }
 
   void removeChildren() {
+    assert myIsCorrectThread.get();
     myChildrenList.clear();
+    if (myVisibleChildrenList != null) {
+      myVisibleChildrenList.clear();
+    }
     myErrors.set(0);
     myWarnings.set(0);
     myInfos.set(0);
     myResult = null;
-    cleanUpCache();
   }
 
+  // Note: invoked from the EDT.
   @Nullable
-  public String getDuration() {
+  public @Nls String getDuration() {
     if (startTime == endTime) return null;
     if (isRunning()) {
-      final long duration = startTime == 0 ? 0 : System.currentTimeMillis() - startTime;
-      String durationText = StringUtil.formatDurationApproximate(duration);
-      int index = durationText.indexOf("s ");
-      if (index != -1) {
-        durationText = durationText.substring(0, index + 1);
+      long duration = startTime == 0 ? 0 : System.currentTimeMillis() - startTime;
+      if (duration > 1000) {
+        duration -= duration % 1000;
       }
-      return durationText;
+      return NlsMessages.formatDurationApproximate(duration);
     }
     else {
-      return isSkipped(myResult) ? null : StringUtil.formatDuration(endTime - startTime);
+      return isSkipped(myResult) ? null : NlsMessages.formatDuration(endTime - startTime);
     }
   }
 
   public long getStartTime() {
+    assert myIsCorrectThread.get();
     return startTime;
   }
 
   public void setStartTime(long startTime) {
+    assert myIsCorrectThread.get();
     this.startTime = startTime;
   }
 
   public long getEndTime() {
+    assert myIsCorrectThread.get();
     return endTime;
   }
 
-  public void setEndTime(long endTime) {
+  public ExecutionNode setEndTime(long endTime) {
+    assert myIsCorrectThread.get();
     this.endTime = endTime;
+    return reapplyParentFilterIfRequired(null);
+  }
+
+  private ExecutionNode reapplyParentFilterIfRequired(@Nullable ExecutionNode result) {
+    assert myIsCorrectThread.get();
+    if (myParentNode != null) {
+      List<ExecutionNode> parentVisibleChildrenList = myParentNode.myVisibleChildrenList;
+      if (parentVisibleChildrenList != null) {
+        Predicate<? super ExecutionNode> filter = myParentNode.myFilter;
+        if (filter != null) {
+          boolean wasPresent = parentVisibleChildrenList.contains(this);
+          boolean shouldBePresent = filter.test(this);
+          if (shouldBePresent != wasPresent) {
+            if (shouldBePresent) {
+              myParentNode.maybeReapplyFilter();
+            }
+            else {
+              parentVisibleChildrenList.remove(this);
+            }
+            result = myParentNode;
+          }
+        }
+      }
+      return myParentNode.reapplyParentFilterIfRequired(result);
+    }
+    return result;
+  }
+
+  @NotNull
+  public List<ExecutionNode> getChildList() {
+    assert myIsCorrectThread.get();
+    List<ExecutionNode> visibleList = myVisibleChildrenList;
+    return Objects.requireNonNullElse(visibleList, myChildrenList);
   }
 
   @Nullable
-  public Predicate<ExecutionNode> getFilter() {
+  public ExecutionNode getParent() {
+    return myParentNode;
+  }
+
+  @Override
+  public ExecutionNode getElement() {
+    return this;
+  }
+
+  public Predicate<? super ExecutionNode> getFilter() {
+    assert myIsCorrectThread.get();
     return myFilter;
   }
 
-  public void setFilter(@Nullable Predicate<ExecutionNode> filter) {
+  public void setFilter(@Nullable Predicate<? super ExecutionNode> filter) {
+    assert myIsCorrectThread.get();
     myFilter = filter;
     for (ExecutionNode node : myChildrenList) {
       node.setFilter(myFilter);
     }
-    cleanUpCache();
+    if (filter == null) {
+      myVisibleChildrenList = null;
+    }
+    else {
+      if (myVisibleChildrenList == null) {
+        myVisibleChildrenList = Collections.synchronizedList(new ArrayList<>());
+      }
+      maybeReapplyFilter();
+    }
   }
 
-  public void setVisible(boolean visible) {
-    if (myVisible != visible) {
-      myVisible = visible;
-      SimpleNode parent = getParent();
-      if (parent instanceof CachingSimpleNode) {
-        ((CachingSimpleNode)parent).cleanUpCache();
-      }
+  private void maybeReapplyFilter() {
+    assert myIsCorrectThread.get();
+    if (myVisibleChildrenList != null) {
+      myVisibleChildrenList.clear();
+      myChildrenList.stream().filter(it -> nodeIsVisible(it)).forEachOrdered(myVisibleChildrenList::add);
     }
   }
 
@@ -252,23 +286,28 @@ public class ExecutionNode extends CachingSimpleNode {
     return myResult;
   }
 
-  public void setResult(@Nullable EventResult result) {
+  public ExecutionNode setResult(@Nullable EventResult result) {
+    assert myIsCorrectThread.get();
     myResult = result;
-    if (myFilter != null) {
-      cleanUpCache();
-    }
+    return reapplyParentFilterIfRequired(null);
   }
 
-  @Override
   public boolean isAutoExpandNode() {
-    return myAutoExpandNode || (myFilter != null && (isRunning() || isFailed()));
+    return myAutoExpandNode;
   }
 
-  public void setAutoExpandNode(boolean autoExpandNode) {
-    myAutoExpandNode = autoExpandNode;
+  @ApiStatus.Experimental
+  public boolean isAlwaysLeaf() {
+    return myAlwaysLeaf;
+  }
+
+  @ApiStatus.Experimental
+  public void setAlwaysLeaf(boolean alwaysLeaf) {
+    myAlwaysLeaf = alwaysLeaf;
   }
 
   public void setNavigatable(@Nullable Navigatable navigatable) {
+    assert myIsCorrectThread.get();
     myNavigatable = navigatable;
   }
 
@@ -290,7 +329,7 @@ public class ExecutionNode extends CachingSimpleNode {
   }
 
   public void setIconProvider(Supplier<? extends Icon> iconProvider) {
-    myPreferredIconValue = new NullableLazyValue<Icon>() {
+    myPreferredIconValue = new NullableLazyValue<>() {
       @Nullable
       @Override
       protected Icon compute() {
@@ -299,7 +338,12 @@ public class ExecutionNode extends CachingSimpleNode {
     };
   }
 
-  public void reportChildMessageKind(MessageEvent.Kind kind) {
+  /**
+   * @return the top most node whose parent structure has changed. Returns null if only node itself needs to be updated.
+   */
+  @Nullable
+  public ExecutionNode reportChildMessageKind(MessageEvent.Kind kind) {
+    assert myIsCorrectThread.get();
     if (kind == MessageEvent.Kind.ERROR) {
       myErrors.incrementAndGet();
     }
@@ -309,35 +353,41 @@ public class ExecutionNode extends CachingSimpleNode {
     else if (kind == MessageEvent.Kind.INFO) {
       myInfos.incrementAndGet();
     }
+    return reapplyParentFilterIfRequired(null);
   }
 
   @Nullable
   @ApiStatus.Experimental
   ExecutionNode findFirstChild(@NotNull Predicate<? super ExecutionNode> filter) {
+    assert myIsCorrectThread.get();
+    //noinspection SSBasedInspection
     return myChildrenList.stream().filter(filter).findFirst().orElse(null);
   }
 
-  private String getCurrentHint() {
-    String hint = myHint;
+  private @BuildEventsNls.Hint String getCurrentHint() {
+    assert myIsCorrectThread.get();
     int warnings = myWarnings.get();
     int errors = myErrors.get();
     if (warnings > 0 || errors > 0) {
-      if (hint == null) {
-        hint = "";
-      }
-      SimpleNode parent = getParent();
-      hint += parent == null || parent.getParent() == null ? (isRunning() ? "  " : " with ") : " ";
-      if (errors > 0) {
-        hint += (errors + " " + StringUtil.pluralize("error", errors));
-        if (warnings > 0) {
-          hint += ", ";
+      String errorHint = errors > 0 ? LangBundle.message("build.event.message.errors", errors) : "";
+      String warningHint = warnings > 0 ? LangBundle.message("build.event.message.warnings", warnings) : "";
+      String issuesHint = !errorHint.isEmpty() && !warningHint.isEmpty() ? errorHint + ", " + warningHint : errorHint + warningHint;
+      ExecutionNode parent = getParent();
+      if (parent == null || parent.getParent() == null) {
+        if (isRunning()) {
+          return StringUtil.notNullize(myHint) + "  " + issuesHint;
+        }
+        else {
+          return LangBundle.message("build.event.message.with", StringUtil.notNullize(myHint), issuesHint);
         }
       }
-      if (warnings > 0) {
-        hint += (warnings + " " + StringUtil.pluralize("warning", warnings));
+      else {
+        return StringUtil.notNullize(myHint) + " " + issuesHint;
       }
     }
-    return hint;
+    else {
+      return myHint;
+    }
   }
 
   private Icon getCurrentIcon() {

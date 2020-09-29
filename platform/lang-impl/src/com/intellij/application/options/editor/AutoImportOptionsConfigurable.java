@@ -17,7 +17,9 @@
 package com.intellij.application.options.editor;
 
 import com.intellij.openapi.application.ApplicationBundle;
+import com.intellij.openapi.extensions.BaseExtensionPointName;
 import com.intellij.openapi.options.CompositeConfigurable;
+import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.Configurable.VariableProjectAppLevel;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.containers.ContainerUtil;
@@ -27,6 +29,8 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -34,7 +38,7 @@ import java.util.List;
  */
 public class AutoImportOptionsConfigurable
   extends CompositeConfigurable<AutoImportOptionsProvider>
-  implements EditorOptionsProvider, VariableProjectAppLevel {
+  implements EditorOptionsProvider, VariableProjectAppLevel, Configurable.WithEpDependencies {
 
   private final Project myProject;
   private JPanel myPanel;
@@ -64,16 +68,19 @@ public class AutoImportOptionsConfigurable
   @Override
   public JComponent createComponent() {
     myProvidersPanel.removeAll();
-    for (int i = 0; i < getConfigurables().size(); i++) {
-      AutoImportOptionsProvider provider = getConfigurables().get(i);
-      myProvidersPanel.add(provider.createComponent(), new GridBagConstraints(0, i, 1, 1, 0, 0,
-                                                                              GridBagConstraints.NORTH,
-                                                                              GridBagConstraints.HORIZONTAL, JBUI.emptyInsets(), 0, 0));
+    List<AutoImportOptionsProvider> providers = getConfigurables();
+    for (int i = 0; i < providers.size(); i++) {
+      AutoImportOptionsProvider provider = providers.get(i);
+      JComponent component = provider.createComponent();
+      assert component != null: "AutoImportOptionsProvider " + provider.getClass() + " has a null component.";
+      myProvidersPanel.add(component, new GridBagConstraints(0, i, 1, 1, 0, 0,
+                                                             GridBagConstraints.NORTH,
+                                                             GridBagConstraints.HORIZONTAL, JBUI.emptyInsets(), 0, 0));
     }
-    myProvidersPanel.add(Box.createVerticalGlue(), new GridBagConstraints(0, getConfigurables().size(), 1, 1, 0, 1,
+    myProvidersPanel.add(Box.createVerticalGlue(), new GridBagConstraints(0, providers.size(), 1, 1, 0, 1,
                                                                           GridBagConstraints.NORTH,
                                                                           GridBagConstraints.BOTH, JBUI.emptyInsets(), 0, 0));
-    myProvidersPanel.add(Box.createVerticalGlue(), new GridBagConstraints(1, 0, getConfigurables().size() + 1, 1, 1, 0,
+    myProvidersPanel.add(Box.createVerticalGlue(), new GridBagConstraints(1, 0, providers.size() + 1, 1, 1, 0,
                                                                           GridBagConstraints.NORTH,
                                                                           GridBagConstraints.BOTH, JBUI.emptyInsets(), 0, 0));
     return myPanel;
@@ -88,5 +95,11 @@ public class AutoImportOptionsConfigurable
   @Override
   public boolean isProjectLevel() {
     return false;
+  }
+
+  @NotNull
+  @Override
+  public Collection<BaseExtensionPointName<?>> getDependencies() {
+    return Collections.singleton(AutoImportOptionsProviderEP.EP_NAME);
   }
 }

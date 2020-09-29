@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.magicConstant;
 
 import com.intellij.codeInsight.AnnotationUtil;
@@ -6,10 +6,10 @@ import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.JavaConstantExpressionEvaluator;
-import com.intellij.psi.impl.cache.impl.id.IdIndex;
 import com.intellij.psi.javadoc.PsiDocComment;
 import com.intellij.psi.javadoc.PsiDocTag;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.search.PsiSearchHelper;
 import com.intellij.psi.util.*;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.IncorrectOperationException;
@@ -25,7 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-public class MagicConstantUtils {
+public final class MagicConstantUtils {
   private static AllowedValues getAllowedValuesFromMagic(@NotNull PsiType type,
                                                          @NotNull PsiAnnotation magic,
                                                          @NotNull PsiManager manager) {
@@ -124,10 +124,8 @@ public class MagicConstantUtils {
         if (values != null) return values;
       }
 
-      PsiJavaCodeReferenceElement ref = annotation.getNameReferenceElement();
-      PsiElement resolved = ref == null ? null : ref.resolve();
-      if (!(resolved instanceof PsiClass) || !((PsiClass)resolved).isAnnotationType()) continue;
-      PsiClass aClass = (PsiClass)resolved;
+      PsiClass aClass = annotation.resolveAnnotationType();
+      if (aClass == null) continue;
 
       if (visited == null) visited = new THashSet<>();
       if (!visited.add(aClass)) continue;
@@ -138,8 +136,7 @@ public class MagicConstantUtils {
     return parseBeanInfo(element, manager);
   }
 
-  @NotNull
-  private static PsiAnnotation[] getAllAnnotations(@NotNull PsiModifierListOwner element) {
+  private static PsiAnnotation @NotNull [] getAllAnnotations(@NotNull PsiModifierListOwner element) {
     PsiModifierListOwner realElement = getSourceElement(element);
     return CachedValuesManager.getCachedValue(realElement, () ->
       CachedValueProvider.Result.create(AnnotationUtil.getAllAnnotations(realElement, true, null, false),
@@ -240,7 +237,9 @@ public class MagicConstantUtils {
 
   private static boolean containsBeanInfoText(@NotNull PsiFile file) {
     return CachedValuesManager.getCachedValue(file, () ->
-      CachedValueProvider.Result.create(IdIndex.hasIdentifierInFile(file, "beaninfo"), file));
+      CachedValueProvider.Result.create(PsiSearchHelper.getInstance(file.getProject()).hasIdentifierInFile(file, "beaninfo") &&
+                                        PsiSearchHelper.getInstance(file.getProject()).hasIdentifierInFile(file, "enum"),
+                                        file));
   }
 
   static boolean same(@NotNull PsiElement e1, @NotNull PsiElement e2, @NotNull PsiManager manager) {
@@ -260,11 +259,11 @@ public class MagicConstantUtils {
   }
 
   public static class AllowedValues {
-    @NotNull private final PsiAnnotationMemberValue[] values;
+    private final PsiAnnotationMemberValue @NotNull [] values;
     private final boolean canBeOred;
     private final boolean resolvesToZero; //true if one if the values resolves to literal 0, e.g. "int PLAIN = 0"
 
-    AllowedValues(@NotNull PsiAnnotationMemberValue[] values, boolean canBeOred) {
+    AllowedValues(PsiAnnotationMemberValue @NotNull [] values, boolean canBeOred) {
       this.values = values;
       this.canBeOred = canBeOred;
       resolvesToZero = resolvesToZero();
@@ -318,8 +317,7 @@ public class MagicConstantUtils {
         value -> Arrays.stream(other.values).anyMatch(otherValue -> same(value, otherValue, manager)));
     }
 
-    @NotNull
-    public PsiAnnotationMemberValue[] getValues() {
+    public PsiAnnotationMemberValue @NotNull [] getValues() {
       return values;
     }
 

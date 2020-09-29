@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actions.searcheverywhere;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.SearchTopHitProvider;
 import com.intellij.ide.actions.ActivateToolWindowAction;
 import com.intellij.ide.actions.GotoActionAction;
@@ -29,6 +30,7 @@ import com.intellij.util.IconUtil;
 import com.intellij.util.Processor;
 import com.intellij.util.ui.EmptyIcon;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -39,6 +41,7 @@ import java.util.function.Consumer;
 
 public class TopHitSEContributor implements SearchEverywhereContributor<Object> {
 
+  public static final int TOP_HIT_ELEMENT_PRIORITY = 15000;
   private final Collection<SearchTopHitProvider> myTopHitProviders = Arrays.asList(SearchTopHitProvider.EP_NAME.getExtensions());
 
   private final Project myProject;
@@ -60,7 +63,7 @@ public class TopHitSEContributor implements SearchEverywhereContributor<Object> 
   @NotNull
   @Override
   public String getGroupName() {
-    return "Top Hit";
+    return IdeBundle.message("search.everywhere.group.name.top.hit");
   }
 
   @Override
@@ -122,6 +125,11 @@ public class TopHitSEContributor implements SearchEverywhereContributor<Object> 
     return false;
   }
 
+  @Override
+  public int getElementPriority(@NotNull Object element, @NotNull String searchPattern) {
+    return TOP_HIT_ELEMENT_PRIORITY;
+  }
+
   @NotNull
   @Override
   public ListCellRenderer<? super Object> getElementsRenderer() {
@@ -181,7 +189,7 @@ public class TopHitSEContributor implements SearchEverywhereContributor<Object> 
     mySearchStringSetter.accept(str);
   }
 
-  private static class TopHitRenderer extends ColoredListCellRenderer<Object> {
+  private static final class TopHitRenderer extends ColoredListCellRenderer<Object> {
 
     private final Project myProject;
 
@@ -273,6 +281,7 @@ public class TopHitSEContributor implements SearchEverywhereContributor<Object> 
     return o instanceof OptionDescription;
   }
 
+  @Nls
   private static String getSettingText(OptionDescription value) {
     String hit = value.getHit();
     if (hit == null) {

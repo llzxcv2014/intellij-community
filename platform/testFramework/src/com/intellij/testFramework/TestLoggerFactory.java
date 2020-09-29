@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.testFramework;
 
 import com.intellij.openapi.Disposable;
@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 import static com.intellij.openapi.application.PathManager.PROPERTY_LOG_PATH;
 
 @SuppressWarnings({"CallToPrintStackTrace", "UseOfSystemOutOrSystemErr"})
-public class TestLoggerFactory implements Logger.Factory {
+public final class TestLoggerFactory implements Logger.Factory {
   private static final String SYSTEM_MACRO = "$SYSTEM_DIR$";
   private static final String APPLICATION_MACRO = "$APPLICATION_DIR$";
   private static final String LOG_DIR_MACRO = "$LOG_DIR$";
@@ -135,7 +135,7 @@ public class TestLoggerFactory implements Logger.Factory {
     }
   }
 
-  public static void enableDebugLogging(@NotNull Disposable parentDisposable, @NotNull String... categories) {
+  public static void enableDebugLogging(@NotNull Disposable parentDisposable, String @NotNull ... categories) {
     for (String category : categories) {
       final Logger logger = Logger.getInstance(category);
       logger.setLevel(Level.DEBUG);

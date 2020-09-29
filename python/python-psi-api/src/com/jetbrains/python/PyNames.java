@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python;
 
 import com.google.common.collect.ImmutableMap;
@@ -31,7 +17,7 @@ import java.util.regex.Pattern;
  * @author dcheryasov
  */
 @NonNls
-public class PyNames {
+public final class PyNames {
   public static final String SITE_PACKAGES = "site-packages";
   /**
    * int type
@@ -74,6 +60,7 @@ public class PyNames {
   @NonNls public static final String PYTHON_MODULE_ID = "PYTHON_MODULE";
   public static final String TESTCASE_SETUP_NAME = "setUp";
   public static final String PY_DOCSTRING_ID = "PyDocstring";
+  public static final String END_WILDCARD = ".*";
 
   private PyNames() {
   }
@@ -158,6 +145,7 @@ public class PyNames {
   public static final String ABC_SET = "Set";
   public static final String ABC_MUTABLE_SET = "MutableSet";
   public static final String PATH_LIKE = "PathLike";
+  public static final String BUILTIN_PATH_LIKE = "_PathLike";
 
   public static final String AWAITABLE = "Awaitable";
   public static final String ASYNC_ITERABLE = "AsyncIterable";

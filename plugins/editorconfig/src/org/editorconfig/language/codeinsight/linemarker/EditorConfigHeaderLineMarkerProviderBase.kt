@@ -1,7 +1,6 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.editorconfig.language.codeinsight.linemarker
 
-import com.intellij.codeHighlighting.Pass
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProvider
 import com.intellij.codeInsight.daemon.impl.PsiElementListNavigator
@@ -13,12 +12,13 @@ import org.editorconfig.language.messages.EditorConfigBundle
 import org.editorconfig.language.psi.EditorConfigHeader
 import org.editorconfig.language.util.headers.EditorConfigHeaderOverrideSearcherBase
 import org.editorconfig.language.util.headers.EditorConfigHeaderOverrideSearcherBase.OverrideSearchResult
+import org.jetbrains.annotations.Nls
 import java.awt.event.MouseEvent
 import javax.swing.Icon
 
 abstract class EditorConfigHeaderLineMarkerProviderBase : LineMarkerProvider {
   final override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? = null
-  final override fun collectSlowLineMarkers(elements: List<PsiElement>, result: MutableCollection<LineMarkerInfo<PsiElement>>) {
+  final override fun collectSlowLineMarkers(elements: List<PsiElement>, result: MutableCollection<in LineMarkerInfo<*>>) {
     val headers = elements.mapNotNull { it as? EditorConfigHeader }
     if (headers.isEmpty()) return
 
@@ -51,7 +51,6 @@ abstract class EditorConfigHeaderLineMarkerProviderBase : LineMarkerProvider {
       identifier,
       identifier.textRange,
       icon,
-      Pass.LINE_MARKERS,
       createTooltipProvider(searchResults),
       createNavigationHandler(searchResults),
       GutterIconRenderer.Alignment.RIGHT
@@ -61,5 +60,5 @@ abstract class EditorConfigHeaderLineMarkerProviderBase : LineMarkerProvider {
   abstract val searcher: EditorConfigHeaderOverrideSearcherBase
   abstract fun createTooltipProvider(searchResults: List<OverrideSearchResult>): (PsiElement) -> String
   abstract fun getIcon(isPartial: Boolean, element: PsiElement): Icon
-  abstract fun getFindUsagesTitle(isPartial: Boolean, element: PsiElement): String
+  abstract @Nls fun getFindUsagesTitle(isPartial: Boolean, element: PsiElement): String
 }

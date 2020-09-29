@@ -1,23 +1,11 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.daemon.impl.analysis;
 
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.*;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.PsiFormatUtil;
@@ -26,6 +14,7 @@ import com.intellij.psi.util.PsiUtil;
 import com.intellij.psi.util.TypeConversionUtil;
 import com.intellij.util.JavaPsiConstructorUtil;
 import com.intellij.util.ObjectUtils;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,7 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class JavaHighlightUtil {
+public final class JavaHighlightUtil {
   public static boolean isSerializable(@NotNull PsiClass aClass) {
     return isSerializable(aClass, "java.io.Serializable");
   }
@@ -48,7 +37,7 @@ public class JavaHighlightUtil {
   public static boolean isSerializationRelatedMethod(@NotNull PsiMethod method, @Nullable PsiClass containingClass) {
     if (containingClass == null) return false;
     if (method.isConstructor()) {
-      if (isSerializable(containingClass, "java.io.Externalizable") && 
+      if (isSerializable(containingClass, "java.io.Externalizable") &&
           method.getParameterList().isEmpty() &&
           method.hasModifierProperty(PsiModifier.PUBLIC)) {
         return true;
@@ -58,29 +47,33 @@ public class JavaHighlightUtil {
     if (method.hasModifierProperty(PsiModifier.STATIC)) return false;
     @NonNls String name = method.getName();
     PsiParameter[] parameters = method.getParameterList().getParameters();
-    PsiType returnType = method.getReturnType();
     if ("readObjectNoData".equals(name)) {
+      PsiType returnType = method.getReturnType();
       return parameters.length == 0 && TypeConversionUtil.isVoidType(returnType) && isSerializable(containingClass);
     }
     if ("readObject".equals(name)) {
+      PsiType returnType = method.getReturnType();
       return parameters.length == 1
              && parameters[0].getType().equalsToText("java.io.ObjectInputStream")
              && TypeConversionUtil.isVoidType(returnType) && method.hasModifierProperty(PsiModifier.PRIVATE)
              && isSerializable(containingClass);
     }
     if ("readResolve".equals(name)) {
+      PsiType returnType = method.getReturnType();
       return parameters.length == 0
              && returnType != null
              && returnType.equalsToText(CommonClassNames.JAVA_LANG_OBJECT)
              && (containingClass.hasModifierProperty(PsiModifier.ABSTRACT) || isSerializable(containingClass));
     }
     if ("writeReplace".equals(name)) {
+      PsiType returnType = method.getReturnType();
       return parameters.length == 0
              && returnType != null
              && returnType.equalsToText(CommonClassNames.JAVA_LANG_OBJECT)
              && (containingClass.hasModifierProperty(PsiModifier.ABSTRACT) || isSerializable(containingClass));
     }
     if ("writeObject".equals(name)) {
+      PsiType returnType = method.getReturnType();
       return parameters.length == 1
              && TypeConversionUtil.isVoidType(returnType)
              && parameters[0].getType().equalsToText("java.io.ObjectOutputStream")
@@ -102,7 +95,7 @@ public class JavaHighlightUtil {
   }
 
   @Nullable
-  public static PsiType sameType(@NotNull PsiExpression[] expressions) {
+  public static PsiType sameType(PsiExpression @NotNull [] expressions) {
     PsiType type = null;
     for (PsiExpression expression : expressions) {
       final PsiType currentType;
@@ -123,7 +116,7 @@ public class JavaHighlightUtil {
   }
 
   @NotNull
-  public static String formatMethod(@NotNull PsiMethod method) {
+  public static @NlsSafe String formatMethod(@NotNull PsiMethod method) {
     return PsiFormatUtil.formatMethod(method, PsiSubstitutor.EMPTY, PsiFormatUtilBase.SHOW_NAME | PsiFormatUtilBase.SHOW_PARAMETERS,
                                       PsiFormatUtilBase.SHOW_TYPE);
   }
@@ -174,21 +167,27 @@ public class JavaHighlightUtil {
   }
 
   @Nullable
-  public static String checkPsiTypeUseInContext(@NotNull PsiType type, @NotNull PsiElement context) {
+  public static @Nls String checkPsiTypeUseInContext(@NotNull PsiType type, @NotNull PsiElement context) {
     if (type instanceof PsiPrimitiveType) return null;
     if (type instanceof PsiArrayType) return checkPsiTypeUseInContext(((PsiArrayType) type).getComponentType(), context);
     if (PsiUtil.resolveClassInType(type) != null) return null;
     if (type instanceof PsiClassType) return checkClassType((PsiClassType)type, context);
-    return "Invalid Java type";
+    return invalidJavaTypeMessage();
   }
 
   @NotNull
-  private static String checkClassType(@NotNull PsiClassType type, @NotNull PsiElement context) {
+  @Nls
+  public static String invalidJavaTypeMessage() {
+    return JavaAnalysisBundle.message("error.message.invalid.java.type");
+  }
+
+  @NotNull
+  private static @Nls String checkClassType(@NotNull PsiClassType type, @NotNull PsiElement context) {
     String className = PsiNameHelper.getQualifiedClassName(type.getCanonicalText(false), true);
     if (classExists(context, className)) {
       return getClassInaccessibleMessage(context, className);
     }
-    return "Invalid Java type";
+    return invalidJavaTypeMessage();
   }
 
   private static boolean classExists(@NotNull PsiElement context, @NotNull String className) {
@@ -196,9 +195,13 @@ public class JavaHighlightUtil {
   }
 
   @NotNull
+  @Nls
   private static String getClassInaccessibleMessage(@NotNull PsiElement context, @NotNull String className) {
     Module module = ModuleUtilCore.findModuleForPsiElement(context);
-    return "Class '" + className + "' is not accessible " + (module == null ? "here" : "from module '" + module.getName() + "'");
+    if (module == null) {
+      return JavaAnalysisBundle.message("message.class.inaccessible", className);
+    }
+    return JavaAnalysisBundle.message("message.class.inaccessible.from.module", className, module.getName());
   }
 
   static class ConstructorVisitorInfo {

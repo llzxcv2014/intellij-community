@@ -42,13 +42,6 @@ public class DoubleCheckedLockingInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "double.checked.locking.display.name");
-  }
-
-  @Override
-  @NotNull
   protected String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message(
       "double.checked.locking.problem.descriptor");
@@ -72,7 +65,7 @@ public class DoubleCheckedLockingInspection extends BaseInspection {
     return new DoubleCheckedLockingFix(field);
   }
 
-  private static class DoubleCheckedLockingFix extends InspectionGadgetsFix {
+  private static final class DoubleCheckedLockingFix extends InspectionGadgetsFix {
 
     private final String myFieldName;
 
@@ -89,7 +82,7 @@ public class DoubleCheckedLockingInspection extends BaseInspection {
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Make field volatile";
+      return InspectionGadgetsBundle.message("double.checked.locking.fix.family.name");
     }
 
     @Override

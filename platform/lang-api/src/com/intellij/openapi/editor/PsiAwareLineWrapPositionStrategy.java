@@ -49,7 +49,7 @@ public abstract class PsiAwareLineWrapPositionStrategy implements LineWrapPositi
    * @param nonVirtualOnly  defines if current PSI-aware logic should be exploited only for 'real wrap' position requests
    * @param enabledTypes    target element/token types where line wrapping is allowed
    */
-  public PsiAwareLineWrapPositionStrategy(boolean nonVirtualOnly, @NotNull IElementType ... enabledTypes) {
+  public PsiAwareLineWrapPositionStrategy(boolean nonVirtualOnly, IElementType @NotNull ... enabledTypes) {
     myEnabledTypes = TokenSet.create(enabledTypes);
     myNonVirtualOnly = nonVirtualOnly;
     if (enabledTypes.length <= 0) {
@@ -176,13 +176,13 @@ public abstract class PsiAwareLineWrapPositionStrategy implements LineWrapPositi
       return result;
     } 
     
-    PsiElement parent = element.getParent();
+    PsiElement parent = getParentWithinFile(element);
     if (parent == null) {
       return null;
     }
 
     PsiElement parentSibling = null;
-    for (; parent != null && parentSibling == null; parent = parent.getParent()) {
+    for (; parent != null && parentSibling == null; parent = getParentWithinFile(parent)) {
       parentSibling = parent.getPrevSibling();
     }
 
@@ -192,5 +192,11 @@ public abstract class PsiAwareLineWrapPositionStrategy implements LineWrapPositi
 
     result = parentSibling.getLastChild();
     return result == null ? parentSibling : result;
+  }
+
+  @Nullable
+  private static PsiElement getParentWithinFile(@NotNull PsiElement element) {
+    PsiElement parent = element.getParent();
+    return parent == null || parent instanceof PsiFile ? null : parent;
   }
 }

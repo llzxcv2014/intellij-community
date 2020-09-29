@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.ui.customization;
 
 import com.intellij.icons.AllIcons;
@@ -16,10 +16,7 @@ import com.intellij.openapi.keymap.impl.ui.ActionsTreeUtil;
 import com.intellij.openapi.keymap.impl.ui.Group;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
-import com.intellij.openapi.util.Comparing;
-import com.intellij.openapi.util.Couple;
-import com.intellij.openapi.util.DefaultJDOMExternalizer;
-import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.ex.WindowManagerEx;
@@ -28,6 +25,7 @@ import com.intellij.util.ImageLoader;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.JBImageIcon;
 import org.jdom.Element;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -55,7 +53,7 @@ public final class CustomActionsSchema implements PersistentStateComponent<Eleme
   private static final Map<String, String> ourAdditionalIdToName = new ConcurrentHashMap<>();
 
   private final Map<String, String> myIconCustomizations = new HashMap<>();
-  private final Map<String, String> myIdToName = new LinkedHashMap<>();
+  private final Map<String, @Nls String> myIdToName = new LinkedHashMap<>();
   private final Map<String, ActionGroup> myIdToActionGroup = new HashMap<>();
 
   private List<ActionUrl> myActions = new ArrayList<>();
@@ -64,38 +62,38 @@ public final class CustomActionsSchema implements PersistentStateComponent<Eleme
   private int myModificationStamp = 0;
 
   public CustomActionsSchema() {
-    myIdToName.put(IdeActions.GROUP_MAIN_MENU, ActionsTreeUtil.MAIN_MENU_TITLE);
-    myIdToName.put(IdeActions.GROUP_MAIN_TOOLBAR, ActionsTreeUtil.MAIN_TOOLBAR);
-    myIdToName.put(IdeActions.GROUP_EDITOR_POPUP, ActionsTreeUtil.EDITOR_POPUP);
-    myIdToName.put(IdeActions.GROUP_EDITOR_GUTTER, "Editor Gutter Popup Menu");
-    myIdToName.put(IdeActions.GROUP_EDITOR_TAB_POPUP, ActionsTreeUtil.EDITOR_TAB_POPUP);
-    myIdToName.put(IdeActions.GROUP_PROJECT_VIEW_POPUP, ActionsTreeUtil.PROJECT_VIEW_POPUP);
-    myIdToName.put(IdeActions.GROUP_SCOPE_VIEW_POPUP, "Scope View Popup Menu");
-    myIdToName.put(IdeActions.GROUP_FAVORITES_VIEW_POPUP, ActionsTreeUtil.FAVORITES_POPUP);
-    myIdToName.put(IdeActions.GROUP_COMMANDER_POPUP, ActionsTreeUtil.COMMANDER_POPUP);
-    myIdToName.put(IdeActions.GROUP_J2EE_VIEW_POPUP, ActionsTreeUtil.J2EE_POPUP);
-    myIdToName.put(IdeActions.GROUP_NAVBAR_POPUP, "Navigation Bar");
-    myIdToName.put("NavBarToolBar", "Navigation Bar Toolbar");
+    myIdToName.put(IdeActions.GROUP_MAIN_MENU, ActionsTreeUtil.getMainMenuTitle());
+    myIdToName.put(IdeActions.GROUP_MAIN_TOOLBAR, ActionsTreeUtil.getMainToolbar());
+    myIdToName.put(IdeActions.GROUP_EDITOR_POPUP, ActionsTreeUtil.getEditorPopup());
+    myIdToName.put(IdeActions.GROUP_EDITOR_GUTTER, ActionsTreeUtil.getEditorGutterPopupMenu());
+    myIdToName.put(IdeActions.GROUP_EDITOR_TAB_POPUP, ActionsTreeUtil.getEditorTabPopup());
+    myIdToName.put(IdeActions.GROUP_PROJECT_VIEW_POPUP, ActionsTreeUtil.getProjectViewPopup());
+    myIdToName.put(IdeActions.GROUP_SCOPE_VIEW_POPUP, ActionsTreeUtil.getScopeViewPopupMenu());
+    myIdToName.put(IdeActions.GROUP_FAVORITES_VIEW_POPUP, ActionsTreeUtil.getFavoritesPopup());
+    myIdToName.put(IdeActions.GROUP_COMMANDER_POPUP, ActionsTreeUtil.getCommanderPopup());
+    myIdToName.put(IdeActions.GROUP_J2EE_VIEW_POPUP, ActionsTreeUtil.getJ2EEPopup());
+    myIdToName.put(IdeActions.GROUP_NAVBAR_POPUP, ActionsTreeUtil.getNavigationBarPopupMenu());
+    myIdToName.put("NavBarToolBar", ActionsTreeUtil.getNavigationBarToolbar());
 
-    List<Couple<String>> extList = new ArrayList<>();
+    List<Pair<String, @Nls String>> extList = new ArrayList<>();
     CustomizableActionGroupProvider.CustomizableActionGroupRegistrar registrar =
-      (groupId, groupTitle) -> extList.add(Couple.of(groupId, groupTitle));
+      (groupId, groupTitle) -> extList.add(Pair.create(groupId, groupTitle));
     for (CustomizableActionGroupProvider provider : CustomizableActionGroupProvider.EP_NAME.getExtensions()) {
       provider.registerGroups(registrar);
     }
-    Collections.sort(extList, (o1, o2) -> StringUtil.naturalCompare(o1.second, o2.second));
-    for (Couple<String> couple : extList) {
+    extList.sort((o1, o2) -> StringUtil.naturalCompare(o1.second, o2.second));
+    for (Pair<String, @Nls String> couple : extList) {
       myIdToName.put(couple.first, couple.second);
     }
 
     myIdToName.putAll(ourAdditionalIdToName);
   }
 
-  public static void addSettingsGroup(@NotNull String itemId, @NotNull String itemName) {
+  public static void addSettingsGroup(@NotNull String itemId, @Nls @NotNull String itemName) {
     ourAdditionalIdToName.put(itemId, itemName);
 
     // Need to sync new items with global instance (if it has been created)
-    CustomActionsSchema customActionSchema = ServiceManager.getServiceIfCreated(CustomActionsSchema.class);
+    CustomActionsSchema customActionSchema = ApplicationManager.getApplication().getServiceIfCreated(CustomActionsSchema.class);
     if (customActionSchema != null) {
       customActionSchema.myIdToName.put(itemId, itemName);
     }
@@ -105,7 +103,7 @@ public final class CustomActionsSchema implements PersistentStateComponent<Eleme
     ourAdditionalIdToName.remove(itemId);
 
     // Need to sync new items with global instance (if it has been created)
-    CustomActionsSchema customActionSchema = ServiceManager.getServiceIfCreated(CustomActionsSchema.class);
+    CustomActionsSchema customActionSchema = ApplicationManager.getApplication().getServiceIfCreated(CustomActionsSchema.class);
     if (customActionSchema != null) {
         customActionSchema.myIdToName.remove(itemId);
     }
@@ -147,7 +145,7 @@ public final class CustomActionsSchema implements PersistentStateComponent<Eleme
   }
 
   private void resortActions() {
-    Collections.sort(myActions, ActionUrlComparator.INSTANCE);
+    myActions.sort(ActionUrlComparator.INSTANCE);
   }
 
   public boolean isModified(CustomActionsSchema schema) {
@@ -302,7 +300,7 @@ public final class CustomActionsSchema implements PersistentStateComponent<Eleme
     ActionManager actionManager = ActionManager.getInstance();
     List<String> path = ContainerUtil.newArrayList("root");
 
-    for (Map.Entry<String, String> entry : myIdToName.entrySet()) {
+    for (Map.Entry<String, @Nls String> entry : myIdToName.entrySet()) {
       ActionGroup actionGroup = (ActionGroup)actionManager.getAction(entry.getKey());
       if (actionGroup != null) {
         root.add(ActionsTreeUtil.createNode(ActionsTreeUtil.createCorrectedGroup(actionGroup, entry.getValue(), path, myActions)));
@@ -352,7 +350,7 @@ public final class CustomActionsSchema implements PersistentStateComponent<Eleme
       int index = 0;
       if (groupPath.size() <= actionUrl.getGroupPath().size()) {
         while (index < groupPath.size()) {
-          if (!Comparing.equal(groupPath.get(index), actionUrl.getGroupPath().get(index))) {
+          if (!Objects.equals(groupPath.get(index), actionUrl.getGroupPath().get(index))) {
             break;
           }
           index++;

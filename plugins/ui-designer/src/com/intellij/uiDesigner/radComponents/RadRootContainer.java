@@ -1,7 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.uiDesigner.radComponents;
 
-import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 import com.intellij.psi.codeStyle.SuggestedNameInfo;
 import com.intellij.psi.codeStyle.VariableKind;
@@ -22,10 +22,8 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 /**
  * @author Anton Katilin
@@ -63,7 +61,7 @@ public final class RadRootContainer extends RadContainer implements IRootContain
    */
   @Override
   @Nullable
-  public String getClassToBind(){
+  public @NlsSafe String getClassToBind() {
     return myClassToBind;
   }
 
@@ -156,7 +154,7 @@ public final class RadRootContainer extends RadContainer implements IRootContain
     return myButtonGroups.toArray(new RadButtonGroup[0]);
   }
 
-  public String suggestGroupName() {
+  public @NlsSafe String suggestGroupName() {
     int groupNumber = 1;
     group: while(true) {
       @NonNls String suggestedName = "buttonGroup" + groupNumber;
@@ -275,7 +273,7 @@ public final class RadRootContainer extends RadContainer implements IRootContain
   public void removeInspectionSuppression(final LwInspectionSuppression suppression) {
     for(LwInspectionSuppression existing: myInspectionSuppressions) {
       if (existing.getInspectionId().equals(suppression.getInspectionId()) &&
-        Comparing.equal(existing.getComponentId(), suppression.getComponentId())) {
+          Objects.equals(existing.getComponentId(), suppression.getComponentId())) {
         myInspectionSuppressions.remove(existing);
         break;
       }

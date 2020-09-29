@@ -5,11 +5,7 @@ import com.intellij.openapi.extensions.Extensions
 import com.intellij.testFramework.RunAll
 import com.intellij.util.ThrowableRunnable
 import org.assertj.core.api.Assertions.assertThat
-import org.gradle.tooling.BuildController
 import org.gradle.tooling.GradleConnectionException
-import org.gradle.tooling.model.Model
-import org.gradle.tooling.model.gradle.GradleBuild
-import org.jetbrains.plugins.gradle.GradleManager
 import org.jetbrains.plugins.gradle.model.ProjectImportModelProvider
 import org.jetbrains.plugins.gradle.service.project.AbstractProjectResolverExtension
 import org.jetbrains.plugins.gradle.service.project.GradleProjectResolverExtension
@@ -21,7 +17,7 @@ import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
-class GradleActionWithImportTest: GradleImportingTestCase() {
+class GradleActionWithImportTest : BuildViewMessagesImportingTestCase() {
 
   override fun setUp() {
     super.setUp()
@@ -38,7 +34,7 @@ class GradleActionWithImportTest: GradleImportingTestCase() {
 
   @Test
   @TargetVersions("4.8+")
-  fun testActionExecutionOnImport() {
+  fun `test start tasks can be set by model builder and run on import`() {
     val testFile = File(projectPath, "testFile")
     assertThat(testFile).doesNotExist()
 
@@ -90,23 +86,52 @@ class GradleActionWithImportTest: GradleImportingTestCase() {
     assertThat(testFile)
       .exists()
       .hasContent(randomKey)
+
+    assertSyncViewTreeEquals("-\n" +
+                             " -finished\n" +
+                             "  :importTestTask")
+  }
+
+  @Test
+  fun `test default tasks are not run on import`() {
+    importProject(
+      """
+        defaultTasks "clean", "build"
+        
+        import org.gradle.api.Project;
+        import javax.inject.Inject;
+        import org.gradle.tooling.provider.model.ToolingModelBuilder;
+        import org.gradle.tooling.provider.model.ToolingModelBuilderRegistry;
+        class TestPlugin implements Plugin<Project> {
+          private ToolingModelBuilderRegistry registry;
+
+          @Inject
+          TestPlugin(ToolingModelBuilderRegistry registry) {
+            this.registry = registry;
+          }
+
+          void apply(Project project) {
+            registry.register(new TestModelBuilder());
+          }
+
+          private static class TestModelBuilder implements ToolingModelBuilder {
+            boolean canBuild(String modelName) {
+              return 'java.lang.Object' == modelName;
+            }
+
+          @Override
+          Object buildAll(String modelName, Project project) {
+              return null;
+            }
+          }
+        }
+        apply plugin: TestPlugin
+      """.trimIndent())
+
+    assertSyncViewTreeEquals("-\n" +
+                             " finished")
   }
 }
-
-class TestModelProvider : ProjectImportModelProvider {
-  override fun populateBuildModels(controller: BuildController,
-                                   buildModel: GradleBuild,
-                                   consumer: ProjectImportModelProvider.BuildModelConsumer) {
-    controller.findModel(Object::class.java)
-  }
-
-  override fun populateProjectModels(controller: BuildController,
-                                     module: Model,
-                                     modelConsumer: ProjectImportModelProvider.ProjectModelConsumer) {
-  }
-}
-
-
 
 class TestProjectResolverExtension : AbstractProjectResolverExtension() {
   val buildFinished = CompletableFuture<Boolean>()
@@ -120,7 +145,7 @@ class TestProjectResolverExtension : AbstractProjectResolverExtension() {
   }
 
   override fun getProjectsLoadedModelProvider(): ProjectImportModelProvider {
-    return TestModelProvider()
+    return TestBuildObjectModelProvider()
   }
 
   override fun requiresTaskRunning(): Boolean {

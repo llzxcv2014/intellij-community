@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.formatting;
 
 import com.intellij.codeInsight.CodeInsightBundle;
@@ -23,6 +9,7 @@ import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.SequentialModalProgressTask;
@@ -35,6 +22,7 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public class FormattingProgressTask extends SequentialModalProgressTask implements FormattingProgressCallback {
@@ -45,14 +33,13 @@ public class FormattingProgressTask extends SequentialModalProgressTask implemen
   private static final double TOTAL_WEIGHT =
     Arrays.stream(FormattingStateId.values()).mapToDouble(FormattingStateId::getProgressWeight).sum();
 
-  private final ConcurrentMap<EventType, Collection<Runnable>> myCallbacks = ContainerUtil.newConcurrentMap();
+  private final ConcurrentMap<EventType, Collection<Runnable>> myCallbacks = new ConcurrentHashMap<>();
 
   private final WeakReference<VirtualFile> myFile;
   private final WeakReference<Document>    myDocument;
   private final int                        myFileTextLength;
 
-  @NotNull
-  private FormattingStateId myLastState                       = FormattingStateId.WRAPPING_BLOCKS;
+  private @NotNull FormattingStateId myLastState                       = FormattingStateId.WRAPPING_BLOCKS;
   private long              myDocumentModificationStampBefore = -1;
 
   private int myBlocksToModifyNumber;
@@ -66,8 +53,7 @@ public class FormattingProgressTask extends SequentialModalProgressTask implemen
     addCallback(EventType.CANCEL, new MyCancelCallback());
   }
 
-  @NotNull
-  private static String getTitle(@NotNull PsiFile file) {
+  private static @NotNull @NlsContexts.DialogTitle String getTitle(@NotNull PsiFile file) {
     VirtualFile virtualFile = file.getOriginalFile().getVirtualFile();
     if (virtualFile == null) {
       return CodeInsightBundle.message("reformat.progress.common.text");
@@ -78,7 +64,7 @@ public class FormattingProgressTask extends SequentialModalProgressTask implemen
   }
 
   @Override
-  protected void prepare(@NotNull final SequentialTask task) {
+  protected void prepare(final @NotNull SequentialTask task) {
     UIUtil.invokeAndWaitIfNeeded((Runnable)() -> {
       Document document = myDocument.get();
       if (document != null) {

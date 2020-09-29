@@ -1,4 +1,4 @@
-// Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInsight.daemon.impl.quickfix;
 
@@ -20,6 +20,7 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.psi.*;
@@ -69,12 +70,11 @@ public class RenameWrongRefFix implements IntentionAction, HintAction {
     if (!myRefExpr.isValid() || !BaseIntentionAction.canModify(myRefExpr)) return false;
     PsiElement refName = myRefExpr.getReferenceNameElement();
     if (refName == null) return false;
-    
+
     return !CreateFromUsageUtils.isValidReference(myRefExpr, myUnresolvedOnly);
   }
 
-  @NotNull
-  private LookupElement[] collectItems() {
+  private LookupElement @NotNull [] collectItems() {
     Set<LookupElement> items = new LinkedHashSet<>();
     boolean qualified = myRefExpr.getQualifierExpression() != null;
 
@@ -187,7 +187,7 @@ public class RenameWrongRefFix implements IntentionAction, HintAction {
     return true;
   }
 
-  private class RenameWrongRefQuestionAction implements QuestionAction {
+  private final class RenameWrongRefQuestionAction implements QuestionAction {
     private final LookupElement[] myItems;
     private final Editor myEditor;
 
@@ -198,13 +198,13 @@ public class RenameWrongRefFix implements IntentionAction, HintAction {
 
     @Override
     public boolean execute() {
-      if (myItems.length == 1) {
+      if (myItems.length == 1 && myRefExpr.getTextRange().contains(myEditor.getCaretModel().getOffset())) {
         doFix(myItems[0]);
         return true;
       }
       JBPopupFactory.getInstance()
         .createPopupChooserBuilder(Arrays.asList(myItems))
-        .setTitle("Rename Reference")
+        .setTitle(QuickFixBundle.message("rename.reference"))
         .setRenderer(new DefaultListCellRenderer() {
           @Override
           public Component getListCellRendererComponent(JList<?> list,
@@ -214,7 +214,8 @@ public class RenameWrongRefFix implements IntentionAction, HintAction {
                                                         boolean cellHasFocus) {
             Component component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             if (value instanceof LookupElement) {
-              setText(((LookupElement)value).getLookupString());
+              @NlsSafe String refSuggestion = ((LookupElement)value).getLookupString();
+              setText(refSuggestion);
             }
             return component;
           }

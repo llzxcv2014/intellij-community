@@ -1,9 +1,10 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.intellij.build.images.sync
 
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream
+import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 
@@ -17,22 +18,24 @@ internal fun String.splitNotBlank(delimiter: String): List<String> = this.split(
 
 internal fun String.splitWithTab(): List<String> = this.split("\t".toRegex())
 
-internal fun execute(workingDir: File?, vararg command: String, withTimer: Boolean = false): String {
+internal fun execute(workingDir: Path?, vararg command: String, withTimer: Boolean = false): String {
   val errOutputFile = File.createTempFile("errOutput", "txt")
   val processCall = {
     val process = ProcessBuilder(*command.filter { it.isNotBlank() }.toTypedArray())
-      .directory(workingDir)
+      .directory(workingDir?.toFile())
       .redirectOutput(ProcessBuilder.Redirect.PIPE)
       .redirectError(errOutputFile)
       .apply {
-        environment()["GIT_SSH_COMMAND"] = "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
         environment()["LANG"] = "en_US.UTF-8"
+        if (environment()["GIT_SSH_COMMAND"].isNullOrEmpty()) {
+          environment()["GIT_SSH_COMMAND"] = "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+        }
       }.start()
     val output = process.inputStream.bufferedReader().use { it.readText() }
     process.waitFor(1, TimeUnit.MINUTES)
     val error = errOutputFile.readText().trim()
     if (process.exitValue() != 0) {
-      error("Command ${command.joinToString(" ")} failed in ${workingDir?.absolutePath} with ${process.exitValue()} : $output\n$error")
+      error("Command ${command.joinToString(" ")} failed in ${workingDir?.toAbsolutePath()} with ${process.exitValue()} : $output\n$error")
     }
     output
   }
@@ -49,7 +52,7 @@ internal fun <T> List<T>.split(eachSize: Int): List<List<T>> {
   val result = mutableListOf<List<T>>()
   var start = 0
   while (start < this.size) {
-    val sub = this.subList(start, Math.min(start + eachSize, this.size))
+    val sub = this.subList(start, (start + eachSize).coerceAtMost(this.size))
     if (sub.isNotEmpty()) result += sub
     start += eachSize
   }
@@ -85,8 +88,9 @@ internal fun <T> retry(maxRetries: Int = 20,
       return action()
     }
     catch (e: Exception) {
+      log("$number attempt of $maxRetries has failed with ${e.message}")
       if (number < maxRetries && doRetry(e)) {
-        log("$number attempt of $maxRetries has failed with ${e.message}. Retrying in ${secondsBeforeRetry}s..")
+        log("Retrying in ${secondsBeforeRetry}s..")
         TimeUnit.SECONDS.sleep(secondsBeforeRetry)
       }
       else throw e
@@ -137,4 +141,6 @@ internal inline fun <T> muteStdErr(block: () -> T): T = protectStdErr {
   return block()
 }
 
-internal fun File.isAncestorOf(file: File): Boolean = this == file.parentFile || file.parentFile != null && isAncestorOf(file.parentFile)
+internal fun Path.isAncestorOf(file: Path): Boolean {
+  return file.startsWith(this)
+}

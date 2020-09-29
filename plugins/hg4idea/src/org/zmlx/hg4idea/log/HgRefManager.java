@@ -12,8 +12,10 @@ import com.intellij.vcs.log.impl.SimpleRefGroup;
 import com.intellij.vcs.log.impl.SimpleRefType;
 import com.intellij.vcs.log.impl.SingletonRefGroup;
 import com.intellij.vcs.log.util.VcsLogUtil;
+import org.jetbrains.annotations.CalledInAny;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.zmlx.hg4idea.HgBundle;
 import org.zmlx.hg4idea.branch.HgBranchManager;
 import org.zmlx.hg4idea.branch.HgBranchType;
 import org.zmlx.hg4idea.repo.HgRepository;
@@ -129,8 +131,8 @@ public class HgRefManager implements VcsLogRefManager {
       }
     }
 
-    if (!branches.isEmpty()) result.add(new SimpleRefGroup("Branches", branches, false));
-    if (!bookmarks.isEmpty()) result.add(new SimpleRefGroup("Bookmarks", bookmarks, false));
+    if (!branches.isEmpty()) result.add(new SimpleRefGroup(HgBundle.message("hg.ref.group.name.branches"), branches, false));
+    if (!bookmarks.isEmpty()) result.add(new SimpleRefGroup(HgBundle.message("hg.ref.group.name.bookmarks"), bookmarks, false));
 
     return result;
   }
@@ -183,8 +185,9 @@ public class HgRefManager implements VcsLogRefManager {
   }
 
   @Nullable
+  @CalledInAny
   private HgRepository getRepository(@NotNull VcsRef reference) {
-    return myRepositoryManager.getRepositoryForRoot(reference.getRoot());
+    return myRepositoryManager.getRepositoryForRootQuick(reference.getRoot());
   }
 
   @Override

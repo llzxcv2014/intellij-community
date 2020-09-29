@@ -8,6 +8,7 @@ import com.intellij.codeInsight.intention.AddAnnotationPsiFix;
 import com.intellij.codeInsight.intention.LowPriorityAction;
 import com.intellij.codeInsight.intention.impl.BaseIntentionAction;
 import com.intellij.codeInspection.dataFlow.rangeSet.LongRangeSet;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogBuilder;
@@ -21,6 +22,7 @@ import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.ui.GridBag;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,14 +32,11 @@ import java.awt.*;
 
 public class EditRangeIntention extends BaseIntentionAction implements LowPriorityAction {
   private static final String JETBRAINS_RANGE = "org.jetbrains.annotations.Range";
-  
-  private static final String ourPrompt = "<html>Please specify the value range<p>" +
-                                          "Leave 'from' or 'to' empty if it's unrestricted</html>";
 
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Edit range";
+    return JavaBundle.message("intention.family.edit.range");
   }
 
   @Nullable
@@ -68,7 +67,7 @@ public class EditRangeIntention extends BaseIntentionAction implements LowPriori
     if (owner != null) {
       boolean hasRange = !LongRangeSet.fromPsiElement(owner).equals(LongRangeSet.all());
       String name = ((PsiNamedElement)owner).getName();
-      setText(hasRange ? "Edit range of '" + name + "'" : "Add range to '" + name + "'");
+      setText(hasRange ? JavaBundle.message("intention.text.edit.range.of.0", name) : JavaBundle.message("intention.text.add.range.to.0", name));
       return true;
     }
     return false;
@@ -90,7 +89,7 @@ public class EditRangeIntention extends BaseIntentionAction implements LowPriori
     DocumentAdapter validator = new DocumentAdapter() {
       @Override
       protected void textChanged(@NotNull DocumentEvent e) {
-        Couple<String> errors = getErrorMessages(minText.getText(), maxText.getText(), fromType);
+        Couple<@Nls String> errors = getErrorMessages(minText.getText(), maxText.getText(), fromType);
         if (errors.getFirst() != null || errors.getSecond() != null) {
           builder.setOkActionEnabled(false);
           builder.setErrorText(errors.getFirst(), minText);
@@ -118,21 +117,21 @@ public class EditRangeIntention extends BaseIntentionAction implements LowPriori
     
     GridBag c = new GridBag().setDefaultAnchor(GridBagConstraints.WEST).setDefaultFill(GridBagConstraints.HORIZONTAL)
       .setDefaultInsets(JBUI.insets(2)).setDefaultWeightX(0, 1.0).setDefaultWeightX(1, 3.0).setDefaultWeightY(1.0);
-    panel.add(Messages.configureMessagePaneUi(new JTextPane(), ourPrompt), c.nextLine().next().coverLine());
+    panel.add(Messages.configureMessagePaneUi(new JTextPane(), JavaBundle.message("edit.range.dialog.message")), c.nextLine().next().coverLine());
     
-    JLabel fromLabel = new JLabel("From (inclusive):");
+    JLabel fromLabel = new JLabel(JavaBundle.message("label.from.inclusive"));
     fromLabel.setDisplayedMnemonic('f');
     fromLabel.setLabelFor(minText);
     panel.add(fromLabel, c.nextLine().next());
     panel.add(minText, c.next());
     
-    JLabel toLabel = new JLabel("To (inclusive):");
+    JLabel toLabel = new JLabel(JavaBundle.message("label.to.inclusive"));
     toLabel.setDisplayedMnemonic('t');
     toLabel.setLabelFor(maxText);
     panel.add(toLabel, c.nextLine().next());
     panel.add(maxText, c.next());
 
-    DialogBuilder builder = new DialogBuilder(project).setNorthPanel(panel).title("Edit Range");
+    DialogBuilder builder = new DialogBuilder(project).setNorthPanel(panel).title(JavaBundle.message("dialog.title.edit.range"));
     builder.setPreferredFocusComponent(minText);
     builder.setHelpId("define_range_dialog");
     return builder;
@@ -178,22 +177,22 @@ public class EditRangeIntention extends BaseIntentionAction implements LowPriori
   }
 
   @NotNull
-  private static Couple<String> getErrorMessages(String minText, String maxText, LongRangeSet fromType) {
+  private static Couple<@Nls String> getErrorMessages(String minText, String maxText, LongRangeSet fromType) {
     Long minValue = parseValue(minText, fromType, true);
     Long maxValue = parseValue(maxText, fromType, false);
     String minError = null;
     String maxError = null;
     if (minValue == null) {
-      minError = "Invalid value";
+      minError = JavaBundle.message("edit.range.error.invalid.value");
     } else if (minValue < fromType.min()) {
-      minError = "Should not be less than " + fromType.min();
+      minError = JavaBundle.message("edit.range.value.should.be.less.than", fromType.min());
     }
     if (maxValue == null) {
-      maxError = "Invalid value";
+      maxError = JavaBundle.message("edit.range.error.invalid.value");
     } else if (maxValue > fromType.max()) {
-      maxError = "Should not be bigger than " + fromType.max();
+      maxError = JavaBundle.message("edit.range.value.should.be.bigger.than", fromType.max());
     } else if (minValue != null && maxValue < minValue) {
-      maxError = "Should not be less than 'from'";
+      maxError = JavaBundle.message("edit.range.should.not.be.less.than.from");
     }
     return Couple.of(minError, maxError);
   }

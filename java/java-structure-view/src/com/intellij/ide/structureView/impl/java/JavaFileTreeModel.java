@@ -28,7 +28,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 
-public class JavaFileTreeModel extends TextEditorBasedStructureViewModel implements StructureViewModel.ElementInfoProvider, PlaceHolder<String> {
+public class JavaFileTreeModel extends TextEditorBasedStructureViewModel implements StructureViewModel.ElementInfoProvider, PlaceHolder {
   private static final Collection<NodeProvider> NODE_PROVIDERS = Arrays.asList(new JavaInheritedMembersNodeProvider(),
                                                                                new JavaAnonymousClassesNodeProvider(),
                                                                                new JavaLambdaNodeProvider());
@@ -39,8 +39,7 @@ public class JavaFileTreeModel extends TextEditorBasedStructureViewModel impleme
   }
 
   @Override
-  @NotNull
-  public Filter[] getFilters() {
+  public Filter @NotNull [] getFilters() {
     return new Filter[]{new FieldsFilter(), new PublicElementsFilter()};
   }
 
@@ -51,8 +50,7 @@ public class JavaFileTreeModel extends TextEditorBasedStructureViewModel impleme
   }
 
   @Override
-  @NotNull
-  public Grouper[] getGroupers() {
+  public Grouper @NotNull [] getGroupers() {
     return new Grouper[]{new SuperTypesGrouper(), new PropertiesGrouper()};
   }
 
@@ -68,8 +66,7 @@ public class JavaFileTreeModel extends TextEditorBasedStructureViewModel impleme
   }
 
   @Override
-  @NotNull
-  public Sorter[] getSorters() {
+  public Sorter @NotNull [] getSorters() {
     return new Sorter[] {
       TreeStructureUtil.isInStructureViewPopup(this) ? KindSorter.POPUP_INSTANCE : KindSorter.INSTANCE,
       VisibilitySorter.INSTANCE,
@@ -121,8 +118,7 @@ public class JavaFileTreeModel extends TextEditorBasedStructureViewModel impleme
   }
 
   @Override
-  @NotNull
-  protected Class[] getSuitableClasses() {
+  protected Class @NotNull [] getSuitableClasses() {
     return new Class[]{PsiClass.class, PsiMethod.class, PsiField.class, PsiLambdaExpression.class, PsiJavaFile.class};
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ide.projectView.impl;
 
@@ -11,7 +11,6 @@ import com.intellij.ide.projectView.ProjectView;
 import com.intellij.ide.projectView.ProjectViewSettings;
 import com.intellij.ide.projectView.ViewSettings;
 import com.intellij.ide.projectView.impl.nodes.*;
-import com.intellij.ide.scratch.ScratchProjectViewPane;
 import com.intellij.ide.scratch.ScratchUtil;
 import com.intellij.ide.util.treeView.AbstractTreeBuilder;
 import com.intellij.ide.util.treeView.AbstractTreeNode;
@@ -243,9 +242,9 @@ public class ProjectViewPane extends AbstractProjectViewPSIPane {
     }
   }
 
-  private class ConfigureFilesNestingAction extends DumbAwareAction {
+  private final class ConfigureFilesNestingAction extends DumbAwareAction {
     private ConfigureFilesNestingAction() {
-      super(IdeBundle.message("action.file.nesting.in.project.view"));
+      super(IdeBundle.messagePointer("action.file.nesting.in.project.view"));
     }
 
     @Override
@@ -288,7 +287,7 @@ public class ProjectViewPane extends AbstractProjectViewPSIPane {
            index.getContentRootForFile(file, false) != null ||
            index.isInLibrary(file) ||
            Comparing.equal(file.getParent(), project.getBaseDir()) ||
-           ScratchProjectViewPane.isScratchesMergedIntoProjectTab() && ScratchUtil.isScratch(file);
+           ScratchUtil.isScratch(file);
   }
 
   @Override

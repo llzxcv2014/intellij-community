@@ -1,8 +1,4 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
-/*
- * @author max
- */
 package com.jetbrains.python.psi.impl.stubs;
 
 import com.intellij.lang.ASTNode;
@@ -63,7 +59,7 @@ public class PyAnnotationElementType extends PyStubElementType<PyAnnotationStub,
   @Override
   public boolean shouldCreateStub(ASTNode node) {
     final IElementType parentType = node.getTreeParent().getElementType();
-    return PythonDialectsTokenSetProvider.INSTANCE.getFunctionDeclarationTokens().contains(parentType)
-           || PythonDialectsTokenSetProvider.INSTANCE.getParameterTokens().contains(parentType);
+    return PythonDialectsTokenSetProvider.getInstance().getFunctionDeclarationTokens().contains(parentType)
+           || PythonDialectsTokenSetProvider.getInstance().getParameterTokens().contains(parentType);
   }
 }

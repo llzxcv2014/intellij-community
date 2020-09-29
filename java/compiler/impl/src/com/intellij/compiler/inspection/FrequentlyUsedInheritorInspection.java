@@ -1,10 +1,11 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.compiler.inspection;
 
 import com.intellij.codeInspection.*;
 import com.intellij.compiler.CompilerReferenceService;
 import com.intellij.compiler.backwardRefs.CompilerReferenceServiceEx;
 import com.intellij.compiler.backwardRefs.ReferenceIndexUnavailableException;
+import com.intellij.openapi.compiler.JavaCompilerBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
@@ -26,17 +27,16 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class FrequentlyUsedInheritorInspection extends AbstractBaseJavaLocalInspectionTool {
+public final class FrequentlyUsedInheritorInspection extends AbstractBaseJavaLocalInspectionTool {
   private static final Logger LOG = Logger.getInstance(FrequentlyUsedInheritorInspection.class);
 
   public static final byte MAX_RESULT = 3;
   private static final int PERCENT_THRESHOLD = SystemProperties.getIntProperty("FrequentlyUsedInheritorInspection.percent.threshold", 20);
 
-  @Nullable
   @Override
-  public ProblemDescriptor[] checkClass(@NotNull final PsiClass aClass,
-                                        @NotNull final InspectionManager manager,
-                                        final boolean isOnTheFly) {
+  public ProblemDescriptor @Nullable [] checkClass(@NotNull final PsiClass aClass,
+                                                   @NotNull final InspectionManager manager,
+                                                   final boolean isOnTheFly) {
     if (aClass instanceof PsiTypeParameter || aClass.isEnum()) {
       return null;
     }
@@ -85,7 +85,7 @@ public class FrequentlyUsedInheritorInspection extends AbstractBaseJavaLocalInsp
 
     return new ProblemDescriptor[]{manager
       .createProblemDescriptor(highlightingElement,
-                               "Class can have more common super class",
+                               JavaCompilerBundle.message("class.can.have.more.common.super.class"),
                                isOnTheFly,
                                topInheritorsQuickFix.toArray(LocalQuickFix.EMPTY_ARRAY),
                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING)};
@@ -111,18 +111,21 @@ public class FrequentlyUsedInheritorInspection extends AbstractBaseJavaLocalInsp
     }
   }
 
-  @NotNull
-  private static List<ClassAndInheritorCount> getTopInheritorsUsingCompilerIndices(@NotNull PsiClass aClass,
-                                                                                   @NotNull GlobalSearchScope searchScope,
-                                                                                   @NotNull PsiElement place) {
+  private static @NotNull List<ClassAndInheritorCount> getTopInheritorsUsingCompilerIndices(@NotNull PsiClass aClass,
+                                                                                            @NotNull GlobalSearchScope searchScope,
+                                                                                            @NotNull PsiElement place) {
     String qName = aClass.getQualifiedName();
-    if (qName == null) return Collections.emptyList();
+    if (qName == null) {
+      return Collections.emptyList();
+    }
 
-    final Project project = aClass.getProject();
-    final CompilerReferenceServiceEx compilerRefService = (CompilerReferenceServiceEx)CompilerReferenceService.getInstance(project);
+    Project project = aClass.getProject();
+    CompilerReferenceServiceEx compilerRefService = (CompilerReferenceServiceEx)CompilerReferenceService.getInstanceIfEnabled(project);
     try {
-      int id = compilerRefService.getNameId(qName);
-      if (id == 0) return Collections.emptyList();
+      int id = compilerRefService == null ? 0 : compilerRefService.getNameId(qName);
+      if (id == 0) {
+        return Collections.emptyList();
+      }
       return findInheritors(aClass, new CompilerRef.JavaCompilerClassRef(id), searchScope, place, -1, project, compilerRefService);
     }
     catch (ReferenceIndexUnavailableException e) {
@@ -131,7 +134,7 @@ public class FrequentlyUsedInheritorInspection extends AbstractBaseJavaLocalInsp
   }
 
   private static List<ClassAndInheritorCount> findInheritors(@NotNull PsiClass aClass,
-                                                             @NotNull CompilerRef.JavaCompilerClassRef classAsCompilerRef,
+                                                             @NotNull CompilerRef.CompilerClassHierarchyElementDef classAsCompilerRef,
                                                              @NotNull GlobalSearchScope searchScope,
                                                              @NotNull PsiElement place,
                                                              int hierarchyCardinality,
@@ -194,7 +197,7 @@ public class FrequentlyUsedInheritorInspection extends AbstractBaseJavaLocalInsp
                                                                     CompilerReferenceServiceEx compilerRefService) {
     if (classAndInheritorCount.psi.isInterface()) {
       return findInheritors(classAndInheritorCount.psi,
-                            (CompilerRef.JavaCompilerClassRef)classAndInheritorCount.descriptor,
+                            classAndInheritorCount.descriptor,
                             searchScope,
                             place,
                             hierarchyCardinality,
@@ -211,7 +214,7 @@ public class FrequentlyUsedInheritorInspection extends AbstractBaseJavaLocalInsp
     return index.isInContent(file);
   }
 
-  private static class ClassAndInheritorCount implements Comparable<ClassAndInheritorCount> {
+  private static final class ClassAndInheritorCount implements Comparable<ClassAndInheritorCount> {
     private final PsiClass psi;
     private final CompilerRef.CompilerClassHierarchyElementDef descriptor;
     private final int number;

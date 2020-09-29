@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.search
 
 import com.intellij.lang.Language
@@ -7,12 +7,11 @@ import com.intellij.model.search.impl.LanguageInfo
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.Pair
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.util.component1
+import com.intellij.openapi.util.component2
 import com.intellij.psi.PsiElement
 import com.intellij.util.SmartList
-import com.intellij.util.component1
-import com.intellij.util.component2
 import com.intellij.util.text.StringSearcher
-import gnu.trove.THashSet
 
 internal class InjectionAwareOccurrenceProcessor(
   private val progress: ProgressIndicator,
@@ -21,7 +20,7 @@ internal class InjectionAwareOccurrenceProcessor(
   private val searcher: StringSearcher
 ) : OccurrenceProcessor {
 
-  private val processedInjections = THashSet<PsiElement>()
+  private val processedInjections = HashSet<PsiElement>()
 
   override fun invoke(occurrence: LeafOccurrence): Boolean {
     if (processors.injectionProcessors.isEmpty()) {

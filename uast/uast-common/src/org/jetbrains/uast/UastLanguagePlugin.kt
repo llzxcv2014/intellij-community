@@ -6,15 +6,16 @@ import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.psi.*
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.uast.analysis.UastAnalysisPlugin
+import org.jetbrains.uast.util.ClassSet
+import org.jetbrains.uast.util.classSetOf
 
 interface UastLanguagePlugin {
   companion object {
     val extensionPointName = ExtensionPointName<UastLanguagePlugin>("org.jetbrains.uast.uastLanguagePlugin")
-    private val extensions by lazy(LazyThreadSafetyMode.PUBLICATION) { extensionPointName.extensionList }
 
-    fun getInstances(): Collection<UastLanguagePlugin> = extensions
+    fun getInstances(): Collection<UastLanguagePlugin> = extensionPointName.extensionList
 
-    fun byLanguage(language: Language): UastLanguagePlugin? = extensions.firstOrNull { it.language === language }
+    fun byLanguage(language: Language): UastLanguagePlugin? = extensionPointName.extensionList.firstOrNull { it.language === language }
   }
 
   data class ResolvedMethod(val call: UCallExpression, val method: PsiMethod)
@@ -111,6 +112,21 @@ interface UastLanguagePlugin {
   val analysisPlugin: UastAnalysisPlugin?
     @ApiStatus.Experimental
     get() = null
+
+  /**
+   * Serves for optimization purposes. Helps to filter PSI elements which in principle
+   * can be sources for UAST types of an interest.
+   *
+   * Note: it is already used inside [UastLanguagePlugin] conversion methods implementations
+   * for Java, Kotlin and Scala.
+   *
+   * @return types of possible source PSI elements, which instances in principle
+   *         can be converted to at least one of the specified [uastTypes]
+   *         (or to [UElement] if no type was specified)
+   */
+  @JvmDefault
+  fun getPossiblePsiSourceTypes(vararg uastTypes: Class<out UElement>): ClassSet<PsiElement> =
+    classSetOf(PsiElement::class.java)
 }
 
 inline fun <reified T : UElement> UastLanguagePlugin.convertOpt(element: PsiElement?, parent: UElement?): T? {

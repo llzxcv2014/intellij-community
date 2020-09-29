@@ -1,9 +1,9 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.usages;
 
 import com.intellij.navigation.NavigationItem;
 import com.intellij.navigation.NavigationItemFileStatus;
-import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vcs.FileStatus;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.SmartPointerManager;
@@ -11,13 +11,14 @@ import com.intellij.psi.SmartPsiElementPointer;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
+import java.util.Objects;
 
 /**
  * @author Maxim.Mossienko
  */
 public class PsiElementUsageGroupBase<T extends PsiElement & NavigationItem> implements UsageGroup, NamedPresentably {
   private final SmartPsiElementPointer<T> myElementPointer;
-  private final String myName;
+  private final @NlsSafe String myName;
   private final Icon myIcon;
 
   public PsiElementUsageGroupBase(@NotNull T element, Icon icon) {
@@ -98,7 +99,7 @@ public class PsiElementUsageGroupBase<T extends PsiElement & NavigationItem> imp
     if (isValid() && group.isValid()) {
       return getElement().getManager().areElementsEquivalent(getElement(), group.getElement());
     }
-    return Comparing.equal(myName, ((PsiElementUsageGroupBase)obj).myName);
+    return Objects.equals(myName, ((PsiElementUsageGroupBase)obj).myName);
   }
 
   @Override

@@ -186,8 +186,7 @@ public abstract class ModuleBasedConfiguration<ConfigurationModule extends RunCo
   }
 
   @Override
-  @NotNull
-  public Module[] getModules() {
+  public Module @NotNull [] getModules() {
     Module module = ReadAction.compute(() -> getConfigurationModule().getModule());
     return module == null ? Module.EMPTY_ARRAY : new Module[]{module};
   }
@@ -232,5 +231,10 @@ public abstract class ModuleBasedConfiguration<ConfigurationModule extends RunCo
 
   public boolean isModuleDirMacroSupported() {
     return false;
+  }
+
+  public Module getDefaultModule() {
+    final Module[] modules = ModuleManager.getInstance(getProject()).getModules();
+    return modules.length == 1 ? modules[0] : null;
   }
 }

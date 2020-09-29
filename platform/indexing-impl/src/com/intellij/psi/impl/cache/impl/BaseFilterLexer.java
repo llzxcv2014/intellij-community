@@ -18,6 +18,7 @@ package com.intellij.psi.impl.cache.impl;
 
 import com.intellij.lexer.DelegateLexer;
 import com.intellij.lexer.Lexer;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.impl.cache.impl.id.IdTableBuilding;
 import com.intellij.psi.search.IndexPattern;
 import com.intellij.psi.search.UsageSearchContext;
@@ -30,6 +31,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public abstract class BaseFilterLexer extends DelegateLexer implements IdTableBuilding.ScanWordProcessor {
+  private static final Logger LOG = Logger.getInstance(BaseFilterLexer.class);
+
   private final OccurrenceConsumer myOccurrenceConsumer;
 
   private int myTodoScannedBound = 0;
@@ -37,7 +40,7 @@ public abstract class BaseFilterLexer extends DelegateLexer implements IdTableBu
   private TodoScanningState myTodoScanningState;
   private CharSequence myCachedBufferSequence;
   private char[] myCachedArraySequence;
-  
+
   protected BaseFilterLexer(Lexer originalLexer, OccurrenceConsumer occurrenceConsumer) {
     super(originalLexer);
     myOccurrenceConsumer = occurrenceConsumer;
@@ -51,7 +54,8 @@ public abstract class BaseFilterLexer extends DelegateLexer implements IdTableBu
     if (start >= end) return; // this prevents scanning of the same comment twice
 
     CharSequence input = myCachedBufferSequence.subSequence(start, end);
-    myTodoScanningState = advanceTodoItemsCount(input, myOccurrenceConsumer, myTodoScanningState);
+    if (myTodoScanningState == null) myTodoScanningState = createTodoScanningState(IndexPatternUtil.getIndexPatterns());
+    advanceTodoItemsCount(input, myOccurrenceConsumer, myTodoScanningState);
 
     myTodoScannedBound = end;
   }
@@ -59,52 +63,55 @@ public abstract class BaseFilterLexer extends DelegateLexer implements IdTableBu
   public static class TodoScanningState {
     final IndexPattern[] myPatterns;
     final Matcher[] myMatchers;
-    TIntArrayList myOccurences;
+    final TIntArrayList myOccurrences;
 
     public TodoScanningState(IndexPattern[] patterns, Matcher[] matchers) {
       myPatterns = patterns;
       myMatchers = matchers;
-      myOccurences = new TIntArrayList(1);
+      myOccurrences = new TIntArrayList(1);
     }
   }
 
-  public static TodoScanningState advanceTodoItemsCount(final CharSequence input, final OccurrenceConsumer consumer, TodoScanningState todoScanningState) {
-    if (todoScanningState == null) {
-      IndexPattern[] patterns = IndexPatternUtil.getIndexPatterns();
+  @NotNull
+  public static TodoScanningState createTodoScanningState(IndexPattern[] patterns) {
+    Matcher[] matchers = new Matcher[patterns.length];
+    TodoScanningState todoScanningState = new TodoScanningState(patterns, matchers);
 
-      Matcher[] matchers = new Matcher[patterns.length];
-      todoScanningState = new TodoScanningState(patterns, matchers);
+    for (int i = 0; i < patterns.length; ++i) {
+      Pattern pattern = patterns[i].getOptimizedIndexingPattern();
 
-      for (int i = 0; i < patterns.length; ++i) {
-        Pattern pattern = patterns[i].getOptimizedIndexingPattern();
-
-        if (pattern != null) {
-          matchers[i] = pattern.matcher("");
-        }
+      if (pattern != null) {
+        matchers[i] = pattern.matcher("");
       }
-    } else {
-      todoScanningState.myOccurences.resetQuick();
     }
+    return todoScanningState;
+  }
+
+  public static void advanceTodoItemsCount(CharSequence input, OccurrenceConsumer consumer, TodoScanningState todoScanningState) {
+    todoScanningState.myOccurrences.resetQuick();
 
     for (int i = todoScanningState.myMatchers.length - 1; i >= 0; --i) {
       Matcher matcher = todoScanningState.myMatchers[i];
       if (matcher == null) continue;
       matcher.reset(input);
 
-      while (matcher.find()) {
-        int start = matcher.start();
-        if (start != matcher.end() && todoScanningState.myOccurences.indexOf(start) == -1) {
-          consumer.incTodoOccurrence(todoScanningState.myPatterns[i]);
-          todoScanningState.myOccurences.add(start);
+      try {
+        while (matcher.find()) {
+          int start = matcher.start();
+          if (start != matcher.end() && todoScanningState.myOccurrences.indexOf(start) == -1) {
+            consumer.incTodoOccurrence(todoScanningState.myPatterns[i]);
+            todoScanningState.myOccurrences.add(start);
+          }
         }
       }
+      catch (StackOverflowError error) {
+        LOG.error(error); // do not reindex file, just ignore it
+      }
     }
-
-    return todoScanningState;
   }
 
   @Override
-  public final void run(CharSequence chars, @Nullable char[] charsArray, int start, int end) {
+  public final void run(CharSequence chars, char @Nullable [] charsArray, int start, int end) {
     myOccurrenceConsumer.addOccurrence(chars, charsArray, start, end, myOccurenceMask);
   }
 

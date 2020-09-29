@@ -1,7 +1,6 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.psi.impl;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.intellij.extapi.psi.PsiFileBase;
 import com.intellij.icons.AllIcons;
@@ -57,12 +56,12 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
   @NotNull private volatile SoftReference<ExportedNameCache> myExportedNameCache = new SoftReference<>(null);
   @NotNull private final PsiModificationTracker myModificationTracker;
 
-  private class ExportedNameCache {
+  private final class ExportedNameCache {
     private final List<String> myNameDefinerNegativeCache = new ArrayList<>();
     private long myNameDefinerOOCBModCount = -1;
     private final long myModificationStamp;
     private final Map<String, List<PsiNamedElement>> myNamedElements = Maps.newHashMap();
-    private final List<PyImportedNameDefiner> myImportedNameDefiners = Lists.newArrayList();
+    private final List<PyImportedNameDefiner> myImportedNameDefiners = new ArrayList<>();
 
     private ExportedNameCache(long modificationStamp) {
       myModificationStamp = modificationStamp;
@@ -100,7 +99,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
       Collections.reverse(myImportedNameDefiners);
     }
 
-    private boolean processDeclarations(@NotNull List<PsiElement> elements, @NotNull Processor<PsiElement> processor) {
+    private boolean processDeclarations(@NotNull List<PsiElement> elements, @NotNull Processor<? super PsiElement> processor) {
       for (PsiElement child : elements) {
         if (!processor.process(child)) {
           return false;
@@ -118,7 +117,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
     @NotNull
     private List<RatedResolveResult> multiResolve(@NotNull String name) {
       synchronized (myNameDefinerNegativeCache) {
-        final long modCount = myModificationTracker.getOutOfCodeBlockModificationCount();
+        final long modCount = myModificationTracker.getModificationCount();
         if (modCount != myNameDefinerOOCBModCount) {
           myNameDefinerNegativeCache.clear();
           myNameDefinerOOCBModCount = modCount;
@@ -238,7 +237,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
     if (virtualFile == null) {
       virtualFile = getViewProvider().getVirtualFile();
     }
-    return PyUtil.getLanguageLevelForVirtualFile(getProject(), virtualFile);
+    return PythonLanguageLevelPusher.getLanguageLevelForVirtualFile(getProject(), virtualFile);
   }
 
   @Override
@@ -370,7 +369,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
   @Nullable
   public PsiElement findExportedName(final String name) {
     final List<RatedResolveResult> results = multiResolveName(name);
-    final List<PsiElement> elements = Lists.newArrayList();
+    final List<PsiElement> elements = new ArrayList<>();
     for (RatedResolveResult result : results) {
       final PsiElement element = result.getElement();
       final ImportedResolveResult importedResult = PyUtil.as(result, ImportedResolveResult.class);
@@ -519,14 +518,14 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
     private final Map<String, List<String>> myDunderLike = new HashMap<>();
 
     @Override
-    public void visitPyFile(PyFile node) {
+    public void visitPyFile(@NotNull PyFile node) {
       if (node.getText().contains(PyNames.ALL)) {
         super.visitPyFile(node);
       }
     }
 
     @Override
-    public void visitPyTargetExpression(PyTargetExpression node) {
+    public void visitPyTargetExpression(@NotNull PyTargetExpression node) {
       if (myDynamic) return;
 
       if (PyNames.ALL.equals(node.getName())) {
@@ -556,7 +555,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
     }
 
     @Override
-    public void visitPyAugAssignmentStatement(PyAugAssignmentStatement node) {
+    public void visitPyAugAssignmentStatement(@NotNull PyAugAssignmentStatement node) {
       if (myDynamic || !myFoundDunderAll) return;
 
       if (PyNames.ALL.equals(node.getTarget().getName())) {
@@ -565,7 +564,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
     }
 
     @Override
-    public void visitPyCallExpression(PyCallExpression node) {
+    public void visitPyCallExpression(@NotNull PyCallExpression node) {
       if (myDynamic || !myFoundDunderAll) return;
 
       final PyExpression callee = node.getCallee();
@@ -592,11 +591,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
     }
 
     @Override
-    public void visitPyClass(PyClass node) {
-    }
-
-    @Override
-    public void visitPyFunction(PyFunction node) {
+    public void visitPyClass(@NotNull PyClass node) {
     }
 
     @Nullable
@@ -784,7 +779,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
       @Override
       public Icon getIcon(final boolean open) {
         if (PyUtil.isPackage(PyFileImpl.this)) {
-          return AllIcons.Modules.SourceFolder;
+          return AllIcons.Nodes.Package;
         }
         return PyFileImpl.this.getIcon(0);
       }

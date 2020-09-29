@@ -1,12 +1,17 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.newvfs;
 
+import com.intellij.analysis.AnalysisBundle;
 import com.intellij.ide.highlighter.ArchiveFileType;
 import com.intellij.openapi.fileTypes.FileTypeRegistry;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileAttributes;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.*;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.StandardFileSystems;
+import com.intellij.openapi.vfs.VfsUtilCore;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.impl.ArchiveHandler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -14,6 +19,9 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.function.Function;
+
+import static com.intellij.openapi.util.Pair.pair;
 
 /**
  * Common interface of archive-based file systems (jar://, phar:// etc).
@@ -68,7 +76,7 @@ public abstract class ArchiveFileSystem extends NewVirtualFileSystem {
   }
 
   /**
-   * Strips any separator chars from a root path (obtained via {@link #extractRootPath(String)}) to obtain a path to a local file.
+   * Strips any separator chars from a root (obtained via {@link VfsUtilCore#getRootFile} path to obtain a path to a local file.
    */
   @NotNull
   protected abstract String extractLocalPath(@NotNull String rootPath);
@@ -93,53 +101,57 @@ public abstract class ArchiveFileSystem extends NewVirtualFileSystem {
   @NotNull
   @Override
   public VirtualFile copyFile(Object requestor, @NotNull VirtualFile file, @NotNull VirtualFile newParent, @NotNull String copyName) throws IOException {
-    throw new IOException(VfsBundle.message("jar.modification.not.supported.error", file.getUrl()));
+    throw new IOException(AnalysisBundle.message("jar.modification.not.supported.error", file.getUrl()));
   }
 
   @NotNull
   @Override
   public VirtualFile createChildDirectory(Object requestor, @NotNull VirtualFile parent, @NotNull String dir) throws IOException {
-    throw new IOException(VfsBundle.message("jar.modification.not.supported.error", parent.getUrl()));
+    throw new IOException(AnalysisBundle.message("jar.modification.not.supported.error", parent.getUrl()));
   }
 
   @NotNull
   @Override
   public VirtualFile createChildFile(Object requestor, @NotNull VirtualFile parent, @NotNull String file) throws IOException {
-    throw new IOException(VfsBundle.message("jar.modification.not.supported.error", parent.getUrl()));
+    throw new IOException(AnalysisBundle.message("jar.modification.not.supported.error", parent.getUrl()));
   }
 
   @Override
   public void deleteFile(Object requestor, @NotNull VirtualFile file) throws IOException {
-    throw new IOException(VfsBundle.message("jar.modification.not.supported.error", file.getUrl()));
+    throw new IOException(AnalysisBundle.message("jar.modification.not.supported.error", file.getUrl()));
   }
 
   @Override
   public void moveFile(Object requestor, @NotNull VirtualFile file, @NotNull VirtualFile newParent) throws IOException {
-    throw new IOException(VfsBundle.message("jar.modification.not.supported.error", file.getUrl()));
+    throw new IOException(AnalysisBundle.message("jar.modification.not.supported.error", file.getUrl()));
   }
 
   @Override
   public void renameFile(Object requestor, @NotNull VirtualFile file, @NotNull String newName) throws IOException {
-    throw new IOException(VfsBundle.message("jar.modification.not.supported.error", file.getUrl()));
+    throw new IOException(AnalysisBundle.message("jar.modification.not.supported.error", file.getUrl()));
   }
 
   @NotNull
   protected String getRelativePath(@NotNull VirtualFile file) {
-    String path = file.getPath();
-    String relativePath = path.substring(extractRootPath(path).length());
+    String relativePath = file.getPath().substring(VfsUtilCore.getRootFile(file).getPath().length());
     return StringUtil.trimLeading(relativePath, '/');
   }
+
+  private final Function<VirtualFile, FileAttributes> myAttrGetter = ManagingFS.getInstance().accessDiskWithCheckCanceled(
+    file -> getHandler(file).getAttributes(getRelativePath(file)));
 
   @Nullable
   @Override
   public FileAttributes getAttributes(@NotNull VirtualFile file) {
-    return getHandler(file).getAttributes(getRelativePath(file));
+    return myAttrGetter.apply(file);
   }
 
-  @NotNull
+  private final Function<VirtualFile, String[]> myChildrenGetter = ManagingFS.getInstance().accessDiskWithCheckCanceled(
+    file -> getHandler(file).list(getRelativePath(file)));
+
   @Override
-  public String[] list(@NotNull VirtualFile file) {
-    return getHandler(file).list(getRelativePath(file));
+  public String @NotNull [] list(@NotNull VirtualFile file) {
+    return myChildrenGetter.apply(file);
   }
 
   @Override
@@ -188,10 +200,21 @@ public abstract class ArchiveFileSystem extends NewVirtualFileSystem {
     return ArchiveHandler.DEFAULT_LENGTH;
   }
 
-  @NotNull
+  private final Function<VirtualFile, Pair<byte[], IOException>> myContentGetter = ManagingFS.getInstance().accessDiskWithCheckCanceled(
+    file -> {
+      try {
+        return pair(getHandler(file).contentsToByteArray(getRelativePath(file)), null);
+      }
+      catch (IOException e) {
+        return pair(null, e);
+      }
+    });
+
   @Override
-  public byte[] contentsToByteArray(@NotNull VirtualFile file) throws IOException {
-    return getHandler(file).contentsToByteArray(getRelativePath(file));
+  public byte @NotNull [] contentsToByteArray(@NotNull VirtualFile file) throws IOException {
+    Pair<byte[], IOException> pair = myContentGetter.apply(file);
+    if (pair.second != null) throw pair.second;
+    return pair.first;
   }
 
   @NotNull
@@ -202,18 +225,18 @@ public abstract class ArchiveFileSystem extends NewVirtualFileSystem {
 
   @Override
   public void setTimeStamp(@NotNull VirtualFile file, long timeStamp) throws IOException {
-    throw new IOException(VfsBundle.message("jar.modification.not.supported.error", file.getUrl()));
+    throw new IOException(AnalysisBundle.message("jar.modification.not.supported.error", file.getUrl()));
   }
 
   @Override
   public void setWritable(@NotNull VirtualFile file, boolean writableFlag) throws IOException {
-    throw new IOException(VfsBundle.message("jar.modification.not.supported.error", file.getUrl()));
+    throw new IOException(AnalysisBundle.message("jar.modification.not.supported.error", file.getUrl()));
   }
 
   @NotNull
   @Override
   public OutputStream getOutputStream(@NotNull VirtualFile file, Object requestor, long modStamp, long timeStamp) throws IOException {
-    throw new IOException(VfsBundle.message("jar.modification.not.supported.error", file.getUrl()));
+    throw new IOException(AnalysisBundle.message("jar.modification.not.supported.error", file.getUrl()));
   }
 
   // service methods

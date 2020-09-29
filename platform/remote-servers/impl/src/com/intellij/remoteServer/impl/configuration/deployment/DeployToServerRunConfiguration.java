@@ -13,6 +13,7 @@ import com.intellij.openapi.options.SettingsEditorGroup;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
+import com.intellij.remoteServer.CloudBundle;
 import com.intellij.remoteServer.ServerType;
 import com.intellij.remoteServer.configuration.RemoteServer;
 import com.intellij.remoteServer.configuration.RemoteServersManager;
@@ -33,16 +34,13 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-/**
- * @author nik
- */
 public class DeployToServerRunConfiguration<S extends ServerConfiguration, D extends DeploymentConfiguration> extends RunConfigurationBase<Element>
   implements LocatableConfiguration {
   private static final Logger LOG = Logger.getInstance(DeployToServerRunConfiguration.class);
   private static final String DEPLOYMENT_SOURCE_TYPE_ATTRIBUTE = "type";
   @NonNls public static final String SETTINGS_ELEMENT = "settings";
   private static final SkipDefaultValuesSerializationFilters SERIALIZATION_FILTERS = new SkipDefaultValuesSerializationFilters();
-  private final ServerType<S> myServerType;
+  private final String myServerTypeId;
   private final DeploymentConfigurator<D, S> myDeploymentConfigurator;
   private String myServerName;
   private boolean myDeploymentSourceIsLocked;
@@ -55,7 +53,7 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
                                         ServerType<S> serverType,
                                         DeploymentConfigurator<D, S> deploymentConfigurator) {
     super(project, factory, name);
-    myServerType = serverType;
+    myServerTypeId = serverType.getId();
     myDeploymentConfigurator = deploymentConfigurator;
   }
 
@@ -66,7 +64,10 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
 
   @NotNull
   public ServerType<S> getServerType() {
-    return myServerType;
+    //noinspection unchecked
+    ServerType<S> result = (ServerType<S>)ServerType.EP_NAME.findFirstSafe(next -> next.getId().equals(myServerTypeId));
+    assert result != null : "Server type `" + myServerTypeId + "` had been unloaded already";
+    return result;
   }
 
   public String getServerName() {
@@ -81,14 +82,15 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
   @NotNull
   @Override
   public SettingsEditor<DeployToServerRunConfiguration> getConfigurationEditor() {
+    ServerType<S> serverType = getServerType();
     //noinspection unchecked
     SettingsEditor<DeployToServerRunConfiguration> commonEditor =
-      myDeploymentSourceIsLocked ? new LockedSource(myServerType, myDeploymentConfigurator, getProject(), myDeploymentSource)
-                                 : new AnySource(myServerType, myDeploymentConfigurator, getProject());
+      myDeploymentSourceIsLocked ? new LockedSource(serverType, myDeploymentConfigurator, getProject(), myDeploymentSource)
+                                 : new AnySource(serverType, myDeploymentConfigurator, getProject());
 
 
     SettingsEditorGroup<DeployToServerRunConfiguration> group = new SettingsEditorGroup<>();
-    group.addEditor("Deployment", commonEditor);
+    group.addEditor(CloudBundle.message("DeployToServerRunConfiguration.tab.title.deployment"), commonEditor);
     DeployToServerRunConfigurationExtensionsManager.getInstance().appendEditors(this, group);
     return group;
   }
@@ -98,19 +100,19 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
   public RunProfileState getState(@NotNull Executor executor, @NotNull ExecutionEnvironment env) throws ExecutionException {
     String serverName = getServerName();
     if (serverName == null) {
-      throw new ExecutionException("Server is not specified");
+      throw new ExecutionException(CloudBundle.message("DeployToServerRunConfiguration.error.server.required"));
     }
 
     RemoteServer<S> server = findServer();
     if (server == null) {
-      throw new ExecutionException("Server '" + serverName + " not found");
+      throw new ExecutionException(CloudBundle.message("DeployToServerRunConfiguration.error.server.not.found", serverName));
     }
 
     if (myDeploymentSource == null) {
-      throw new ExecutionException("Deployment is not selected");
+      throw new ExecutionException(CloudBundle.message("DeployToServerRunConfiguration.error.deployment.not.selected"));
     }
 
-    return new DeployToServerState(server, myDeploymentSource, myDeploymentConfiguration, env);
+    return new DeployToServerState<>(server, myDeploymentSource, myDeploymentConfiguration, env);
   }
 
   @Override
@@ -133,7 +135,7 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
       return null;
     }
 
-    return RemoteServersManager.getInstance().findByName(serverName, myServerType);
+    return RemoteServersManager.getInstance().findByName(serverName, getServerType());
   }
 
   public void setServerName(String serverName) {
@@ -195,6 +197,8 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
         LOG.warn("Cannot load deployment source for '" + getName() + "' run configuration: unknown deployment type '" + typeId + "'");
       }
     }
+
+    DeployToServerRunConfigurationExtensionsManager.getInstance().readExternal(this, element);
   }
 
   @Nullable
@@ -207,6 +211,7 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
     return null;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public void writeExternal(@NotNull Element element) throws WriteExternalException {
     ConfigurationState state = new ConfigurationState();
@@ -227,6 +232,8 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
     }
     XmlSerializer.serializeInto(state, element, SERIALIZATION_FILTERS);
     super.writeExternal(element);
+
+    DeployToServerRunConfigurationExtensionsManager.getInstance().writeExternal(this, element);
   }
 
   @Override
@@ -256,7 +263,7 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
   @Override
   public void onNewConfigurationCreated() {
     if (getServerName() == null) {
-      RemoteServer<?> server = ContainerUtil.getFirstItem(RemoteServersManager.getInstance().getServers(myServerType));
+      RemoteServer<?> server = ContainerUtil.getFirstItem(RemoteServersManager.getInstance().getServers(getServerType()));
       if (server != null) {
         setServerName(server.getName());
       }

@@ -22,7 +22,9 @@ import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.ex.ProblemDescriptorImpl;
 import com.intellij.codeInspection.ex.QuickFixWrapper;
+import com.intellij.codeInspection.util.InspectionMessage;
 import com.intellij.lang.annotation.AnnotationHolder;
+import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.jetbrains.python.psi.LanguageLevel;
@@ -50,40 +52,31 @@ public class UnsupportedFeatures extends CompatibilityVisitor {
   @Override
   protected void registerProblem(@NotNull PsiElement node,
                                  @NotNull TextRange range,
-                                 @NotNull String message,
+                                 @NotNull @InspectionMessage String message,
                                  @Nullable LocalQuickFix localQuickFix,
                                  boolean asError) {
     if (range.isEmpty()) {
       return;
     }
 
+    HighlightSeverity severity = asError ? HighlightSeverity.ERROR : HighlightSeverity.WARNING;
     if (localQuickFix != null) {
-      if (asError) {
-        getHolder().createErrorAnnotation(range, message).registerFix(createIntention(node, message, localQuickFix));
-      }
-      else {
-        getHolder().createWarningAnnotation(range, message).registerFix(createIntention(node, message, localQuickFix));
-      }
+      getHolder().newAnnotation(severity, message).range(range).withFix(createIntention(node, message, localQuickFix)).create();
     }
     else {
-      if (asError) {
-        getHolder().createErrorAnnotation(range, message);
-      }
-      else {
-        getHolder().createWarningAnnotation(range, message);
-      }
+      getHolder().newAnnotation(severity, message).range(range).create();
     }
   }
 
   @NotNull
-  private static IntentionAction createIntention(@NotNull PsiElement node, @NotNull String message, @NotNull LocalQuickFix localQuickFix) {
+  private static IntentionAction createIntention(@NotNull PsiElement node, @NotNull @InspectionMessage String message, @NotNull LocalQuickFix localQuickFix) {
     return createIntention(node, null, message, localQuickFix);
   }
 
   @NotNull
   private static IntentionAction createIntention(@NotNull PsiElement node,
                                                  @Nullable TextRange range,
-                                                 @NotNull String message,
+                                                 @NotNull @InspectionMessage String message,
                                                  @NotNull LocalQuickFix localQuickFix) {
     final LocalQuickFix[] quickFixes = {localQuickFix};
     final CommonProblemDescriptorImpl descr =

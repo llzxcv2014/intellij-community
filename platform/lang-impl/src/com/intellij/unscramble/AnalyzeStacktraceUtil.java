@@ -1,8 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.unscramble;
 
-import com.intellij.execution.ExecutionManager;
 import com.intellij.execution.Executor;
 import com.intellij.execution.executors.DefaultRunExecutor;
 import com.intellij.execution.filters.Filter;
@@ -10,10 +9,7 @@ import com.intellij.execution.filters.TextConsoleBuilder;
 import com.intellij.execution.filters.TextConsoleBuilderFactory;
 import com.intellij.execution.impl.ConsoleViewImpl;
 import com.intellij.execution.impl.ConsoleViewUtil;
-import com.intellij.execution.ui.ConsoleView;
-import com.intellij.execution.ui.ConsoleViewContentType;
-import com.intellij.execution.ui.ExecutionConsole;
-import com.intellij.execution.ui.RunContentDescriptor;
+import com.intellij.execution.ui.*;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
@@ -25,6 +21,7 @@ import com.intellij.openapi.editor.EditorSettings;
 import com.intellij.openapi.extensions.ProjectExtensionPointName;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NotNull;
@@ -38,7 +35,7 @@ import static com.intellij.openapi.application.ex.ClipboardUtil.getTextInClipboa
 /**
  * @author yole
  */
-public class AnalyzeStacktraceUtil {
+public final class AnalyzeStacktraceUtil {
   public static final ProjectExtensionPointName<Filter> EP_NAME = new ProjectExtensionPointName<>("com.intellij.analyzeStacktraceFilter");
 
   private AnalyzeStacktraceUtil() {
@@ -46,26 +43,22 @@ public class AnalyzeStacktraceUtil {
 
   public static void printStacktrace(@NotNull ConsoleView consoleView, @NotNull String unscrambledTrace) {
     ApplicationManager.getApplication().assertIsDispatchThread();
-    String text = unscrambledTrace + "\n";
-    String consoleText = ((ConsoleViewImpl)consoleView).getText();
-    if (!text.equals(consoleText)) {
-      consoleView.clear();
-      consoleView.print(text, ConsoleViewContentType.ERROR_OUTPUT);
-      consoleView.scrollTo(0);
-    }
+    consoleView.clear();
+    consoleView.print(unscrambledTrace + "\n", ConsoleViewContentType.ERROR_OUTPUT);
+    consoleView.scrollTo(0);
   }
 
   public interface ConsoleFactory {
     JComponent createConsoleComponent(ConsoleView consoleView, DefaultActionGroup toolbarActions);
   }
 
-  public static void addConsole(Project project, @Nullable ConsoleFactory consoleFactory, final String tabTitle, String text) {
+  public static void addConsole(Project project, @Nullable ConsoleFactory consoleFactory, final @NlsContexts.TabTitle String tabTitle, String text) {
     addConsole(project, consoleFactory, tabTitle, text, null);
   }
 
   public static RunContentDescriptor addConsole(Project project,
                                                 @Nullable ConsoleFactory consoleFactory,
-                                                final String tabTitle,
+                                                final @NlsContexts.TabTitle String tabTitle,
                                                 String text,
                                                 @Nullable Icon icon) {
     final TextConsoleBuilder builder = TextConsoleBuilderFactory.getInstance().createBuilder(project);
@@ -91,8 +84,9 @@ public class AnalyzeStacktraceUtil {
     final ConsoleViewImpl console = (ConsoleViewImpl)consoleView;
     ConsoleViewUtil.enableReplaceActionForConsoleViewEditor(console.getEditor());
     console.getEditor().getSettings().setCaretRowShown(true);
-    toolbarActions.add(new AnnotateStackTraceAction(console.getEditor(), console.getHyperlinks()));
-    ExecutionManager.getInstance(project).getContentManager().showRunContent(executor, descriptor);
+    toolbarActions.add(ActionManager.getInstance().getAction("AnalyzeStacktraceToolbar"));
+
+    RunContentManager.getInstance(project).showRunContent(executor, descriptor);
     consoleView.allowHeavyFilters();
     if (consoleFactory == null) {
       printStacktrace(consoleView, text);
@@ -104,9 +98,9 @@ public class AnalyzeStacktraceUtil {
     MyConsolePanel(ExecutionConsole consoleView, ActionGroup toolbarActions) {
       super(new BorderLayout());
       JPanel toolbarPanel = new JPanel(new BorderLayout());
-      toolbarPanel.add(ActionManager.getInstance()
-                         .createActionToolbar(ActionPlaces.ANALYZE_STACKTRACE_PANEL_TOOLBAR, toolbarActions, false)
-                         .getComponent());
+      ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.ANALYZE_STACKTRACE_PANEL_TOOLBAR, toolbarActions, false);
+      toolbar.setTargetComponent(consoleView.getComponent());
+      toolbarPanel.add(toolbar.getComponent());
       add(toolbarPanel, BorderLayout.WEST);
       add(consoleView.getComponent(), BorderLayout.CENTER);
     }
@@ -152,7 +146,7 @@ public class AnalyzeStacktraceUtil {
       return myEditor;
     }
 
-    public final void setText(@NotNull final String text) {
+    public final void setText(final @NotNull String text) {
       Runnable runnable = () -> ApplicationManager.getApplication().runWriteAction(() -> {
         final Document document = myEditor.getDocument();
         document.replaceString(0, document.getTextLength(), StringUtil.convertLineSeparators(text));
@@ -165,7 +159,6 @@ public class AnalyzeStacktraceUtil {
       if (text != null) {
         setText(text);
       }
-
     }
 
     @Override

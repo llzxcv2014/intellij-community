@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ide.util;
 
@@ -7,20 +7,25 @@ import com.intellij.icons.AllIcons;
 import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.editor.PlatformEditorBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.VerticalFlowLayout;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiCompiledElement;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
 import com.intellij.ui.*;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.PlatformIcons;
 import com.intellij.util.containers.FactoryMap;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.tree.TreeUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -33,9 +38,12 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.List;
 import java.util.*;
+import java.util.function.Supplier;
 
 import static com.intellij.openapi.keymap.KeymapUtil.getActiveKeymapShortcuts;
 import static com.intellij.ui.tree.TreePathUtil.toTreePathArray;
+import static java.util.Comparator.comparing;
+import static java.util.Comparator.nullsLast;
 
 public class MemberChooser<T extends ClassMember> extends DialogWrapper implements TypeSafeDataProvider {
   protected Tree myTree;
@@ -107,7 +115,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
                           @NotNull Project project,
                           boolean isInsertOverrideVisible,
                           @Nullable JComponent headerPanel,
-                          @Nullable JComponent[] optionControls) {
+                          JComponent @Nullable [] optionControls) {
     super(project, true);
     myAllowEmptySelection = allowEmptySelection;
     myAllowMultiSelection = allowMultiSelection;
@@ -249,8 +257,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
 
 
   @Override
-  @NotNull
-  protected Action[] createActions() {
+  protected Action @NotNull [] createActions() {
     final List<Action> actions = new ArrayList<>();
     actions.add(getOKAction());
     if (myAllowEmptySelection) {
@@ -365,7 +372,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
 
     new DoubleClickListener() {
       @Override
-      protected boolean onDoubleClick(MouseEvent e) {
+      protected boolean onDoubleClick(@NotNull MouseEvent e) {
         if (tree.getPathForLocation(e.getX(), e.getY()) != null) {
           doOKAction();
           return true;
@@ -462,8 +469,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
     return list == null ? null : new ArrayList<>(list);
   }
 
-  @Nullable
-  public T[] getSelectedElements(T[] a) {
+  public T @Nullable [] getSelectedElements(T[] a) {
     LinkedHashSet<T> list = getSelectedElementsList();
     if (list == null) return null;
     return list.toArray(a);
@@ -522,7 +528,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
       arrayList.add((ElementNode)children.nextElement());
     }
 
-    Collections.sort(arrayList, sortComparator);
+    arrayList.sort(sortComparator);
 
     replaceChildren(node, arrayList);
   }
@@ -572,7 +578,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
         while (memberNodes.hasMoreElements()) {
           arrayList.add((MemberNode)memberNodes.nextElement());
         }
-        Collections.sort(arrayList, myComparator);
+        arrayList.sort(myComparator);
         for (MemberNode memberNode : arrayList) {
           myNodeToParentMap.get(memberNode).add(memberNode);
         }
@@ -591,7 +597,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
     restoreTree();
   }
 
-  protected String getAllContainersNodeName() {
+  protected @Nls(capitalization = Nls.Capitalization.Sentence) String getAllContainersNodeName() {
     return IdeBundle.message("node.memberchooser.all.classes");
   }
 
@@ -797,8 +803,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
 
   private class SortEmAction extends ToggleAction {
     SortEmAction() {
-      super(IdeBundle.message("action.sort.alphabetically"),
-            IdeBundle.message("action.sort.alphabetically"), AllIcons.ObjectBrowser.Sorted);
+      super(PlatformEditorBundle.messagePointer("action.sort.alphabetically"), AllIcons.ObjectBrowser.Sorted);
     }
 
     @Override
@@ -817,12 +822,20 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
   }
 
   protected ShowContainersAction getShowContainersAction() {
-    return new ShowContainersAction(IdeBundle.message("action.show.classes"), PlatformIcons.CLASS_ICON);
+    return new ShowContainersAction(IdeBundle.messagePointer("action.show.classes"), PlatformIcons.CLASS_ICON);
   }
 
   protected class ShowContainersAction extends ToggleAction {
-    public ShowContainersAction(final String text, final Icon icon) {
-      super(text, text, icon);
+    /**
+     * @deprecated use {@linkplain #ShowContainersAction(Supplier, Icon)} instead
+     */
+    @Deprecated
+    public ShowContainersAction(@NlsActions.ActionText String text, final Icon icon) {
+      this(() -> text, icon);
+    }
+
+    public ShowContainersAction(@NotNull Supplier<@NlsActions.ActionText String> text, final Icon icon) {
+      super(text, icon);
     }
 
     @Override
@@ -845,8 +858,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
 
   private class ExpandAllAction extends AnAction {
     ExpandAllAction() {
-      super(IdeBundle.message("action.expand.all"), IdeBundle.message("action.expand.all"),
-            AllIcons.Actions.Expandall);
+      super(IdeBundle.messagePointer("action.expand.all"), AllIcons.Actions.Expandall);
     }
 
     @Override
@@ -857,8 +869,7 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
 
   private class CollapseAllAction extends AnAction {
     CollapseAllAction() {
-      super(IdeBundle.message("action.collapse.all"), IdeBundle.message("action.collapse.all"),
-            AllIcons.Actions.Collapseall);
+      super(IdeBundle.messagePointer("action.collapse.all"), AllIcons.Actions.Collapseall);
     }
 
     @Override
@@ -883,9 +894,15 @@ public class MemberChooser<T extends ClassMember> extends DialogWrapper implemen
       if (n1.getDelegate() instanceof ClassMemberWithElement && n2.getDelegate() instanceof ClassMemberWithElement) {
         PsiElement element1 = ((ClassMemberWithElement)n1.getDelegate()).getElement();
         PsiElement element2 = ((ClassMemberWithElement)n2.getDelegate()).getElement();
-        if (Comparing.equal(element1.getContainingFile(), element2.getContainingFile()) &&
-            !(element1 instanceof PsiCompiledElement) && !(element2 instanceof PsiCompiledElement)) {
-          return element1.getTextOffset() - element2.getTextOffset();
+        if (!(element1 instanceof PsiCompiledElement) && !(element2 instanceof PsiCompiledElement)) {
+          final PsiFile file1 = element1.getContainingFile();
+          final PsiFile file2 = element2.getContainingFile();
+          if (Comparing.equal(file1, file2)) {
+            return element1.getTextOffset() - element2.getTextOffset();
+          }
+          else {
+            return comparing(PsiFile::getVirtualFile, nullsLast(comparing(VirtualFile::getPath))).compare(file1, file2);
+          }
         }
       }
       return n1.getOrder() - n2.getOrder();

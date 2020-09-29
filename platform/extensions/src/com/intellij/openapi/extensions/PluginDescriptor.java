@@ -1,16 +1,17 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.extensions;
 
-import org.jdom.Element;
-import org.jetbrains.annotations.ApiStatus;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import com.intellij.openapi.util.NlsSafe;
+import org.jetbrains.annotations.*;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.Date;
-import java.util.List;
 
 public interface PluginDescriptor {
+  /**
+   * @return plugin id or null if the descriptor is the nested (optional dependency) descriptor
+   */
   PluginId getPluginId();
 
   ClassLoader getPluginClassLoader();
@@ -19,14 +20,23 @@ public interface PluginDescriptor {
     return false;
   }
 
-  File getPath();
+  /**
+   * @deprecated Use {@link #getPluginPath()}
+   */
+  @Deprecated
+  default File getPath() {
+    Path path = getPluginPath();
+    return path == null ? null : path.toFile();
+  }
+
+  Path getPluginPath();
 
   @Nullable
-  String getDescription();
+  @Nls String getDescription();
 
   String getChangeNotes();
 
-  String getName();
+  @NlsSafe String getName();
 
   @Nullable
   String getProductCode();
@@ -36,22 +46,29 @@ public interface PluginDescriptor {
 
   int getReleaseVersion();
 
-  @NotNull
-  PluginId[] getDependentPluginIds();
+  boolean isLicenseOptional();
 
-  @NotNull
-  PluginId[] getOptionalDependentPluginIds();
+  /**
+   * @deprecated Do not use.
+   */
+  @Deprecated
+  default PluginId @NotNull [] getDependentPluginIds() {
+    return PluginId.EMPTY_ARRAY;
+  }
 
-  String getVendor();
+  /**
+   * @deprecated Do not use.
+   */
+  @Deprecated
+  PluginId @NotNull [] getOptionalDependentPluginIds();
 
-  String getVersion();
+  @NlsSafe String getVendor();
+
+  @NlsSafe String getVersion();
 
   String getResourceBundleBaseName();
 
-  String getCategory();
-
-  @Nullable
-  List<Element> getActionDescriptionElements();
+  @NlsSafe String getCategory();
 
   String getVendorEmail();
 
@@ -68,9 +85,9 @@ public interface PluginDescriptor {
     return null;
   }
 
-  String getSinceBuild();
+  @NlsSafe String getSinceBuild();
 
-  String getUntilBuild();
+  @NlsSafe String getUntilBuild();
 
   default boolean allowBundledUpdate() {
     return false;
@@ -82,6 +99,11 @@ public interface PluginDescriptor {
   default boolean isImplementationDetail() {
     return false;
   }
+
+  /**
+   * If true, this plugin requires restart even if it otherwise fulfills the requirements of dynamic plugins.
+   */
+  default boolean isRequireRestart() { return false; }
 
   boolean isEnabled();
 

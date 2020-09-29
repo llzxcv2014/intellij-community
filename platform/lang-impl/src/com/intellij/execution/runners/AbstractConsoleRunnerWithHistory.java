@@ -1,8 +1,8 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.runners;
 
+import com.intellij.build.events.BuildEventsNls;
 import com.intellij.execution.ExecutionException;
-import com.intellij.execution.ExecutionManager;
 import com.intellij.execution.Executor;
 import com.intellij.execution.console.ConsoleExecuteAction;
 import com.intellij.execution.console.LanguageConsoleView;
@@ -10,6 +10,7 @@ import com.intellij.execution.console.ProcessBackedConsoleExecuteActionHandler;
 import com.intellij.execution.executors.DefaultRunExecutor;
 import com.intellij.execution.process.*;
 import com.intellij.execution.ui.RunContentDescriptor;
+import com.intellij.execution.ui.RunContentManager;
 import com.intellij.execution.ui.actions.CloseAction;
 import com.intellij.ide.CommonActionsManager;
 import com.intellij.openapi.actionSystem.*;
@@ -124,7 +125,7 @@ public abstract class AbstractConsoleRunnerWithHistory<T extends LanguageConsole
     return null;
   }
 
-  protected String constructConsoleTitle(final @NotNull String consoleTitle) {
+  protected @BuildEventsNls.Title String constructConsoleTitle(final @NotNull String consoleTitle) {
     return new ConsoleTitleGen(myProject, consoleTitle, shouldAddNumberToTitle()).makeTitle();
   }
 
@@ -138,7 +139,7 @@ public abstract class AbstractConsoleRunnerWithHistory<T extends LanguageConsole
 
   protected void showConsole(Executor defaultExecutor, @NotNull RunContentDescriptor contentDescriptor) {
     // Show in run toolwindow
-    ExecutionManager.getInstance(myProject).getContentManager().showRunContent(defaultExecutor, contentDescriptor);
+    RunContentManager.getInstance(myProject).showRunContent(defaultExecutor, contentDescriptor);
   }
 
   protected void finishConsole() {

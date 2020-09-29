@@ -1,6 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.ui.overhead;
 
+import com.intellij.CommonBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.engine.DebugProcessImpl;
 import com.intellij.debugger.ui.breakpoints.Breakpoint;
 import com.intellij.openapi.Disposable;
@@ -9,6 +11,7 @@ import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.CustomShortcutSet;
 import com.intellij.openapi.actionSystem.DataProvider;
 import com.intellij.openapi.project.DumbAwareAction;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.pom.Navigatable;
 import com.intellij.ui.*;
 import com.intellij.ui.table.TableView;
@@ -31,9 +34,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.function.Function;
 
-/**
- * @author egor
- */
 public class OverheadView extends BorderLayoutPanel implements Disposable, DataProvider {
   @NotNull private final DebugProcessImpl myProcess;
 
@@ -54,8 +54,8 @@ public class OverheadView extends BorderLayoutPanel implements Disposable, DataP
     myModel = new ListTableModel<>(new ColumnInfo[]{
       ENABLED_COLUMN,
       NAME_COLUMN,
-      new TimingColumnInfo("Hits", s -> OverheadTimings.getHits(myProcess, s)),
-      new TimingColumnInfo("Time (ms)", s -> OverheadTimings.getTime(myProcess, s))},
+      new TimingColumnInfo(JavaDebuggerBundle.message("column.name.hits"), s -> OverheadTimings.getHits(myProcess, s)),
+      new TimingColumnInfo(JavaDebuggerBundle.message("column.name.time.ms"), s -> OverheadTimings.getTime(myProcess, s))},
                                    new ArrayList<>(OverheadTimings.getProducers(process)),
                                    3, SortOrder.DESCENDING);
     myModel.setSortable(true);
@@ -90,7 +90,7 @@ public class OverheadView extends BorderLayoutPanel implements Disposable, DataP
                                 }
       , process);
 
-    new DumbAwareAction("Toggle") {
+    new DumbAwareAction(CommonBundle.message("action.text.toggle")) {
       @Override
       public void update(@NotNull AnActionEvent e) {
         e.getPresentation().setEnabled(myTable.getSelectedRowCount() == 1);
@@ -105,7 +105,7 @@ public class OverheadView extends BorderLayoutPanel implements Disposable, DataP
 
     new DoubleClickListener() {
       @Override
-      protected boolean onDoubleClick(MouseEvent e) {
+      protected boolean onDoubleClick(@NotNull MouseEvent e) {
         getSelectedNavigatables().findFirst().ifPresent(b -> b.navigate(true));
         return true;
       }
@@ -166,7 +166,7 @@ public class OverheadView extends BorderLayoutPanel implements Disposable, DataP
 
   private static class NameColumnInfo extends ColumnInfo<OverheadProducer, OverheadProducer> {
     NameColumnInfo() {
-      super("Name");
+      super(CommonBundle.message("title.name"));
     }
 
     @Nullable
@@ -185,7 +185,7 @@ public class OverheadView extends BorderLayoutPanel implements Disposable, DataP
     public TableCellRenderer getRenderer(OverheadProducer producer) {
       return new ColoredTableCellRenderer() {
         @Override
-        protected void customizeCellRenderer(JTable table, @Nullable Object value, boolean selected, boolean hasFocus, int row, int column) {
+        protected void customizeCellRenderer(@NotNull JTable table, @Nullable Object value, boolean selected, boolean hasFocus, int row, int column) {
           if (value instanceof OverheadProducer) {
             OverheadProducer overheadProducer = (OverheadProducer)value;
             if (overheadProducer.isObsolete()) {
@@ -214,7 +214,7 @@ public class OverheadView extends BorderLayoutPanel implements Disposable, DataP
   private static class TimingColumnInfo extends ColumnInfo<OverheadProducer, OverheadProducer> {
     private final Function<? super OverheadProducer, Long> myGetter;
 
-    TimingColumnInfo(@NotNull String name, Function<? super OverheadProducer, Long> getter) {
+    TimingColumnInfo(@NotNull @NlsContexts.ColumnName String name, Function<? super OverheadProducer, Long> getter) {
       super(name);
       myGetter = getter;
     }
@@ -235,7 +235,7 @@ public class OverheadView extends BorderLayoutPanel implements Disposable, DataP
     public TableCellRenderer getRenderer(OverheadProducer producer) {
       return new ColoredTableCellRenderer() {
         @Override
-        protected void customizeCellRenderer(JTable table,
+        protected void customizeCellRenderer(@NotNull JTable table,
                                              @Nullable Object value,
                                              boolean selected,
                                              boolean hasFocus,
@@ -244,7 +244,7 @@ public class OverheadView extends BorderLayoutPanel implements Disposable, DataP
           if (value instanceof OverheadProducer) {
             OverheadProducer overheadProducer = (OverheadProducer)value;
             Long val = myGetter.apply(overheadProducer);
-            append(val != null ? String.valueOf(val) : "",
+            append(val != null ? String.valueOf((long)val) : "",
                    overheadProducer.isEnabled() ? SimpleTextAttributes.SIMPLE_CELL_ATTRIBUTES : SimpleTextAttributes.GRAYED_ATTRIBUTES);
           }
         }

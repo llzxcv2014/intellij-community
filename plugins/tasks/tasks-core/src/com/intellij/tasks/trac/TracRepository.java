@@ -1,7 +1,6 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.tasks.trac;
 
-import com.intellij.openapi.util.Comparing;
 import com.intellij.tasks.Comment;
 import com.intellij.tasks.Task;
 import com.intellij.tasks.TaskRepository;
@@ -122,6 +121,7 @@ public class TracRepository extends BaseRepositoryImpl {
       @NotNull
       @Override
       public String getSummary() {
+        //noinspection HardCodedStringLiteral
         return map.get("summary");
       }
 
@@ -131,9 +131,8 @@ public class TracRepository extends BaseRepositoryImpl {
         return null;
       }
 
-      @NotNull
       @Override
-      public Comment[] getComments() {
+      public Comment @NotNull [] getComments() {
         return Comment.EMPTY_ARRAY;
       }
 
@@ -250,7 +249,7 @@ public class TracRepository extends BaseRepositoryImpl {
 
   @Override
   public boolean equals(Object o) {
-    return super.equals(o) && Comparing.equal(((TracRepository)o).getDefaultSearch(), getDefaultSearch());
+    return super.equals(o) && Objects.equals(((TracRepository)o).getDefaultSearch(), getDefaultSearch());
   }
 
   @Override

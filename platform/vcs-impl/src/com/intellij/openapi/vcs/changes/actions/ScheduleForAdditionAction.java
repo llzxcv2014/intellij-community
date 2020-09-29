@@ -21,6 +21,7 @@ import com.intellij.openapi.vcs.impl.VcsRootIterator;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.*;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -113,18 +114,19 @@ public class ScheduleForAdditionAction extends AnAction implements DumbAware {
                                            @NotNull ProjectLevelVcsManager vcsManager,
                                            @NotNull ChangeListManager changeListManager) {
     AbstractVcs vcs = vcsManager.getVcsFor(file);
-    return vcs != null && !vcs.areDirectoriesVersionedItems() && file.isDirectory() ||
+    return vcs != null &&
+           (!vcs.areDirectoriesVersionedItems() && file.isDirectory() && changeListManager.getStatus(file) != FileStatus.IGNORED) ||
            changeListManager.getStatus(file) == FileStatus.UNKNOWN;
   }
 
   public static boolean addUnversionedFilesToVcs(@NotNull Project project,
-                                                 @NotNull LocalChangeList list,
+                                                 @Nullable LocalChangeList list,
                                                  @NotNull List<? extends VirtualFile> files) {
     return addUnversionedFilesToVcs(project, list, files, null, null);
   }
 
   public static boolean addUnversionedFilesToVcs(@NotNull Project project,
-                                                 @NotNull LocalChangeList list,
+                                                 @Nullable LocalChangeList list,
                                                  @NotNull List<? extends VirtualFile> files,
                                                  @Nullable Consumer<? super List<Change>> changesConsumer,
                                                  @Nullable PairConsumer<? super ProgressIndicator, ? super List<VcsException>> additionalTask) {
@@ -133,7 +135,7 @@ public class ScheduleForAdditionAction extends AnAction implements DumbAware {
     final List<VcsException> exceptions = new ArrayList<>();
     final Set<VirtualFile> allProcessedFiles = new HashSet<>();
 
-    ProgressManager.getInstance().run(new Task.Modal(project, "Adding Files to VCS...", true) {
+    ProgressManager.getInstance().run(new Task.Modal(project, VcsBundle.message("progress.title.adding.files.to.vcs"), true) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         ChangesUtil.processVirtualFilesByVcs(project, files, (vcs, files) -> addUnversionedFilesToVcs(project, vcs, files, allProcessedFiles, exceptions));
@@ -143,7 +145,7 @@ public class ScheduleForAdditionAction extends AnAction implements DumbAware {
     });
 
     if (!exceptions.isEmpty()) {
-      StringBuilder message = new StringBuilder(VcsBundle.message("error.adding.files.prompt"));
+      @Nls StringBuilder message = new StringBuilder(VcsBundle.message("error.adding.files.prompt"));
       for (VcsException ex : exceptions) {
         message.append("\n").append(ex.getMessage());
       }
@@ -156,7 +158,7 @@ public class ScheduleForAdditionAction extends AnAction implements DumbAware {
     }
     VcsDirtyScopeManager.getInstance(project).filesDirty(allProcessedFiles, null);
 
-    boolean moveRequired = !list.isDefault() && !allProcessedFiles.isEmpty();
+    boolean moveRequired = list != null && !list.isDefault() && !allProcessedFiles.isEmpty() && changeListManager.areChangeListsEnabled();
     boolean syncUpdateRequired = changesConsumer != null;
 
     if (moveRequired || syncUpdateRequired) {

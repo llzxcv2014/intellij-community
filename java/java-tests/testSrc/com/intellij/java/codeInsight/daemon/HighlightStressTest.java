@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.java.codeInsight.daemon;
 
@@ -38,7 +24,6 @@ import com.intellij.testFramework.SkipSlowTestLocally;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.text.CharArrayUtil;
 import com.intellij.util.ui.UIUtil;
-import gnu.trove.THashSet;
 import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -58,13 +43,12 @@ public class HighlightStressTest extends LightDaemonAnalyzerTestCase {
     EntryPointsManagerBase.getInstance(getProject()).getAdditionalAnnotations();
   }
 
-  @NotNull
   @Override
-  protected LocalInspectionTool[] configureLocalInspectionTools() {
+  protected LocalInspectionTool @NotNull [] configureLocalInspectionTools() {
     if ("RandomEditingForUnused".equals(getTestName(false))) {
       return LocalInspectionTool.EMPTY_ARRAY;
     }
-    List<InspectionToolWrapper> all = InspectionToolRegistrar.getInstance().createTools();
+    List<InspectionToolWrapper<?, ?>> all = InspectionToolRegistrar.getInstance().createTools();
     List<LocalInspectionTool> locals = new ArrayList<>();
     for (InspectionToolWrapper tool : all) {
       if (tool instanceof LocalInspectionToolWrapper) {
@@ -242,7 +226,7 @@ public class HighlightStressTest extends LightDaemonAnalyzerTestCase {
       }
       String qualifiedName = aClass.getQualifiedName();
       if (qualifiedName.startsWith("java.lang.invoke")) continue ; // java.lang.invoke.MethodHandle has weird access attributes in recent rt.jar which causes spurious highlighting errors
-      if (!accessible(aClass, new THashSet<>())) continue;
+      if (!accessible(aClass, new HashSet<>())) continue;
       imports.append("import " + qualifiedName + ";\n");
       usages.append("/**/ "+aClass.getName() + " var" + v + " = null; var" + v + ".toString();\n");
       v++;
@@ -282,7 +266,7 @@ public class HighlightStressTest extends LightDaemonAnalyzerTestCase {
       PsiDocumentManager.getInstance(getProject()).commitAllDocuments();
       getFile().accept(new PsiRecursiveElementVisitor() {
         @Override
-        public void visitElement(PsiElement element) {
+        public void visitElement(@NotNull PsiElement element) {
           assertTrue(element.toString(), element.isValid());
           super.visitElement(element);
         }

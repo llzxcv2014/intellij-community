@@ -1,32 +1,24 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ide.projectView.impl;
 
 import com.intellij.ide.dnd.aware.DnDAwareTree;
 import com.intellij.ide.projectView.ProjectViewNode;
-import com.intellij.ide.ui.UISettings;
 import com.intellij.ide.util.treeView.AbstractTreeNode;
-import com.intellij.ide.util.treeView.NodeDescriptor;
-import com.intellij.ide.util.treeView.NodeRenderer;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.fileEditor.impl.IdeDocumentHistoryImpl;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.registry.Registry;
-import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.newvfs.VfsPresentationUtil;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiDirectoryContainer;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFileSystemItem;
 import com.intellij.psi.util.PsiUtilCore;
-import com.intellij.ui.SimpleTextAttributes;
+import com.intellij.ui.DirtyUI;
 import com.intellij.ui.popup.HintUpdateSupply;
 import com.intellij.ui.tabs.FileColorManagerImpl;
 import com.intellij.util.ObjectUtils;
-import com.intellij.util.text.DateFormatUtil;
 import com.intellij.util.ui.tree.TreeUtil;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,11 +28,6 @@ import javax.swing.tree.TreeCellRenderer;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import java.awt.*;
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayDeque;
 
 /**
  * @author Konstantin Bulenkov
@@ -48,6 +35,12 @@ import java.util.ArrayDeque;
 public class ProjectViewTree extends DnDAwareTree {
   private static final Logger LOG = Logger.getInstance(ProjectViewTree.class);
 
+  /**
+   * @deprecated use another constructor instead
+   */
+  @Deprecated
+  @SuppressWarnings("unused")
+  @ApiStatus.ScheduledForRemoval(inVersion = "2022.2")
   protected ProjectViewTree(Project project, TreeModel model) {
     this(model);
   }
@@ -65,55 +58,7 @@ public class ProjectViewTree extends DnDAwareTree {
    */
   @NotNull
   protected TreeCellRenderer createCellRenderer() {
-    final NodeRenderer cellRenderer = new NodeRenderer() {
-      @Override
-      protected void doPaint(Graphics2D g) {
-        super.doPaint(g);
-        setOpaque(false);
-      }
-
-      @Override
-      public void customizeCellRenderer(@NotNull JTree tree,
-                                        Object value,
-                                        boolean selected,
-                                        boolean expanded,
-                                        boolean leaf,
-                                        int row,
-                                        boolean hasFocus) {
-        super.customizeCellRenderer(tree, value, selected, expanded, leaf, row, hasFocus);
-        Object object = TreeUtil.getUserObject(value);
-        if (object instanceof ProjectViewNode && UISettings.getInstance().getShowInplaceComments()) {
-          ProjectViewNode<?> node = (ProjectViewNode<?>)object;
-          AbstractTreeNode<?> parentNode = node.getParent();
-          Object content = node.getValue();
-          VirtualFile file =
-            content instanceof PsiFileSystemItem ||
-            !(content instanceof PsiElement) ||
-            parentNode != null && parentNode.getValue() instanceof PsiDirectory ?
-            node.getVirtualFile() : null;
-          File ioFile = file == null || file.isDirectory() || !file.isInLocalFileSystem() ? null : VfsUtilCore.virtualToIoFile(file);
-          BasicFileAttributes attr = null;
-          try {
-            attr = ioFile == null ? null : Files.readAttributes(Paths.get(ioFile.toURI()), BasicFileAttributes.class);
-          }
-          catch (Exception ignored) { }
-          if (attr != null) {
-            append("  ");
-            SimpleTextAttributes attributes = SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES;
-            append(DateFormatUtil.formatDateTime(attr.lastModifiedTime().toMillis()), attributes);
-            append(", " + StringUtil.formatFileSize(attr.size()), attributes);
-          }
-
-          if (Registry.is("show.last.visited.timestamps") && file != null && node.getProject() != null) {
-            IdeDocumentHistoryImpl.appendTimestamp(node.getProject(), this, file);
-          }
-        }
-      }
-    };
-    cellRenderer.setOpaque(false);
-    cellRenderer.setIconOpaque(false);
-    cellRenderer.setTransparentIconBackground(true);
-    return cellRenderer;
+    return new ProjectViewRenderer();
   }
 
   /**
@@ -124,20 +69,6 @@ public class ProjectViewTree extends DnDAwareTree {
   public DefaultMutableTreeNode getSelectedNode() {
     TreePath path = TreeUtil.getSelectedPathIfOne(this);
     return path == null ? null : ObjectUtils.tryCast(path.getLastPathComponent(), DefaultMutableTreeNode.class);
-  }
-
-  @Override
-  public final int getToggleClickCount() {
-    int count = super.getToggleClickCount();
-    TreePath path = getSelectionPath();
-    if (path != null) {
-      NodeDescriptor<?> descriptor = TreeUtil.getLastUserObject(NodeDescriptor.class, path);
-      if (descriptor != null && !descriptor.expandOnDoubleClick()) {
-        LOG.debug("getToggleClickCount: -1 for ", descriptor.getClass().getName());
-        return -1;
-      }
-    }
-    return count;
   }
 
   @Override
@@ -163,6 +94,7 @@ public class ProjectViewTree extends DnDAwareTree {
     return enabled;
   }
 
+  @DirtyUI
   @Nullable
   @Override
   public Color getFileColorFor(Object object) {
@@ -221,23 +153,5 @@ public class ProjectViewTree extends DnDAwareTree {
       }
     }
     return color;
-  }
-
-  @Override
-  public void collapsePath(TreePath path) {
-    int row = Registry.is("async.project.view.collapse.tree.path.recursively") ? getRowForPath(path) : -1;
-    if (row < 0) {
-      super.collapsePath(path);
-    }
-    else {
-      ArrayDeque<TreePath> deque = new ArrayDeque<>();
-      deque.addFirst(path);
-      while (++row < getRowCount()) {
-        TreePath next = getPathForRow(row);
-        if (!path.isDescendant(next)) break;
-        if (isExpanded(next)) deque.addFirst(next);
-      }
-      deque.forEach(super::collapsePath);
-    }
   }
 }

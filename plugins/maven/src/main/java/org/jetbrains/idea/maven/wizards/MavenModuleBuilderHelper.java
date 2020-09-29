@@ -7,6 +7,7 @@ import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
@@ -27,8 +28,8 @@ import org.jetbrains.idea.maven.model.MavenArchetype;
 import org.jetbrains.idea.maven.model.MavenConstants;
 import org.jetbrains.idea.maven.model.MavenId;
 import org.jetbrains.idea.maven.project.MavenProject;
+import org.jetbrains.idea.maven.project.MavenProjectBundle;
 import org.jetbrains.idea.maven.project.MavenProjectsManager;
-import org.jetbrains.idea.maven.project.MavenProjectsManagerWatcher;
 import org.jetbrains.idea.maven.utils.MavenLog;
 import org.jetbrains.idea.maven.utils.MavenUtil;
 
@@ -51,7 +52,7 @@ public class MavenModuleBuilderHelper {
   private final MavenArchetype myArchetype;
   private final Map<String, String> myPropertiesToCreateByArtifact;
 
-  private final String myCommandName;
+  @NlsContexts.Command private final String myCommandName;
 
   public MavenModuleBuilderHelper(@NotNull MavenId projectId,
                                   MavenProject aggregatorProject,
@@ -60,7 +61,7 @@ public class MavenModuleBuilderHelper {
                                   boolean inheritVersion,
                                   MavenArchetype archetype,
                                   Map<String, String> propertiesToCreateByArtifact,
-                                  String commaneName) {
+                                  @NlsContexts.Command String commandName) {
     myProjectId = projectId;
     myAggregatorProject = aggregatorProject;
     myParentProject = parentProject;
@@ -68,7 +69,7 @@ public class MavenModuleBuilderHelper {
     myInheritVersion = inheritVersion;
     myArchetype = archetype;
     myPropertiesToCreateByArtifact = propertiesToCreateByArtifact;
-    myCommandName = commaneName;
+    myCommandName = commandName;
   }
 
   public void configure(final Project project, final VirtualFile root, final boolean isInteractive) {
@@ -91,11 +92,13 @@ public class MavenModuleBuilderHelper {
         updateProjectPom(project, file);
 
         if (myAggregatorProject != null) {
-          MavenDomProjectModel model = MavenDomUtil.getMavenDomProjectModel(project, myAggregatorProject.getFile());
+          VirtualFile aggregatorProjectFile = myAggregatorProject.getFile();
+          MavenDomProjectModel model = MavenDomUtil.getMavenDomProjectModel(project, aggregatorProjectFile);
           if (model != null) {
             model.getPackaging().setStringValue("pom");
             MavenDomModule module = model.getModules().addModule();
             module.setValue(getPsiFile(project, file));
+            unblockAndSaveDocuments(project, aggregatorProjectFile);
           }
         }
         return file;
@@ -118,6 +121,8 @@ public class MavenModuleBuilderHelper {
         MavenLog.LOG.info(e);
       }
     }
+
+    MavenProjectsManager.getInstance(project).forceUpdateAllProjectsOrFindAllAvailablePomFiles();
 
     // execute when current dialog is closed (e.g. Project Structure)
     MavenUtil.invokeLater(project, ModalityState.NON_MODAL, () -> {
@@ -161,20 +166,19 @@ public class MavenModuleBuilderHelper {
         MavenProjectsManager.getInstance(project).forceUpdateProjects(Collections.singleton(myParentProject));
       }
 
-      for (VirtualFile v : pomFiles) {
-        v.putUserData(MavenProjectsManagerWatcher.FORCE_IMPORT_AND_RESOLVE_ON_REFRESH, Boolean.TRUE);
-        try {
-          Document doc = FileDocumentManager.getInstance().getDocument(v);
-          if (doc != null) {
-            PsiDocumentManager.getInstance(project).doPostponedOperationsAndUnblockDocument(doc);
-            FileDocumentManager.getInstance().saveDocument(doc);
-          }
-        }
-        finally {
-          v.putUserData(MavenProjectsManagerWatcher.FORCE_IMPORT_AND_RESOLVE_ON_REFRESH, null);
-        }
-      }
+      unblockAndSaveDocuments(project, pomFiles.toArray(VirtualFile.EMPTY_ARRAY));
     });
+  }
+
+  private static void unblockAndSaveDocuments(@NotNull Project project, VirtualFile @NotNull ... files) {
+    FileDocumentManager fileDocumentManager = FileDocumentManager.getInstance();
+    PsiDocumentManager psiDocumentManager = PsiDocumentManager.getInstance(project);
+    for (VirtualFile file : files) {
+      Document document = fileDocumentManager.getDocument(file);
+      if (document == null) continue;
+      psiDocumentManager.doPostponedOperationsAndUnblockDocument(document);
+      fileDocumentManager.saveDocument(document);
+    }
   }
 
   private static PsiFile getPsiFile(Project project, VirtualFile pom) {
@@ -236,6 +240,6 @@ public class MavenModuleBuilderHelper {
   }
 
   private static void showError(Project project, Throwable e) {
-    MavenUtil.showError(project, "Failed to create a Maven project", e);
+    MavenUtil.showError(project, MavenProjectBundle.message("notification.title.failed.to.create.maven.project"), e);
   }
 }

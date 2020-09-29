@@ -1,3 +1,4 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.javaFX.sceneBuilder;// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 import com.intellij.openapi.application.ReadAction;
@@ -27,32 +28,17 @@ import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
 import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.Query;
-import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.lang.JavaVersion;
 import com.intellij.util.xml.NanoXmlBuilder;
 import com.intellij.util.xml.NanoXmlUtil;
 import com.oracle.javafx.scenebuilder.kit.editor.EditorController;
-import com.oracle.javafx.scenebuilder.kit.editor.panel.content.ContentPanelController;
-import com.oracle.javafx.scenebuilder.kit.editor.panel.hierarchy.treeview.HierarchyTreeViewController;
-import com.oracle.javafx.scenebuilder.kit.editor.panel.inspector.InspectorPanelController;
-import com.oracle.javafx.scenebuilder.kit.editor.panel.library.LibraryPanelController;
 import com.oracle.javafx.scenebuilder.kit.editor.selection.AbstractSelectionGroup;
 import com.oracle.javafx.scenebuilder.kit.editor.selection.ObjectSelectionGroup;
 import com.oracle.javafx.scenebuilder.kit.fxom.*;
-import com.oracle.javafx.scenebuilder.kit.library.BuiltinLibrary;
-import com.oracle.javafx.scenebuilder.kit.library.Library;
 import com.oracle.javafx.scenebuilder.kit.library.LibraryItem;
 import com.oracle.javafx.scenebuilder.kit.metadata.util.PropertyName;
 import gnu.trove.THashMap;
 import gnu.trove.THashSet;
-import javafx.application.Platform;
-import javafx.beans.value.ChangeListener;
-import javafx.embed.swing.JFXPanel;
-import javafx.fxml.FXMLLoader;
-import javafx.geometry.Orientation;
-import javafx.scene.Scene;
-import javafx.scene.SceneAntialiasing;
-import javafx.scene.control.SplitPane;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -70,19 +56,20 @@ import java.util.function.Predicate;
 /// Warning!
 /// It is loaded by SceneBuilderUtil to be compatible with 8 and 11 java
 public class SceneBuilderImpl implements SceneBuilder {
-  private static final Logger LOG = Logger.getInstance("#org.jetbrains.plugins.javaFX.sceneBuilder.AbstractSceneBuilder");
+  private static final Logger LOG = Logger.getInstance(SceneBuilderImpl.class);
   private static final PropertyName ourChildrenPropertyName = new PropertyName("children");
 
   private final URL myFileURL;
   private final Project myProject;
   private final EditorCallback myEditorCallback;
-  private final JFXPanel myPanel = new JFXPanel();
+  private final JComponent myPanel = JavaFXPlatformHelper.createJFXPanel();
+
   protected EditorController myEditorController;
   private URLClassLoader myClassLoader;
-  private volatile Collection<CustomComponent> myCustomComponents;
+  private volatile Collection<JavaFXPlatformHelper.CustomComponent> myCustomComponents;
   private volatile boolean mySkipChanges;
-  private ChangeListener<Number> myListener;
-  private ChangeListener<Number> mySelectionListener;
+  private Object myListener;
+  private Object mySelectionListener;
   private List<List<SelectionNode>> mySelectionState;
   @NotNull protected final ClassLoader myParentClassLoader;
 
@@ -92,14 +79,14 @@ public class SceneBuilderImpl implements SceneBuilder {
     myEditorCallback = editorCallback;
     myParentClassLoader = loader;
 
-    Platform.setImplicitExit(false);
+    JavaFXPlatformHelper.disableImplicitExit();
 
     final DumbService dumbService = DumbService.getInstance(myProject);
     if (dumbService.isDumb()) {
-      dumbService.smartInvokeLater(() -> Platform.runLater(this::create));
+      dumbService.smartInvokeLater(() -> JavaFXPlatformHelper.javafxInvokeLater(this::create));
     }
     else {
-      Platform.runLater(this::create);
+      JavaFXPlatformHelper.javafxInvokeLater(this::create);
     }
   }
 
@@ -111,34 +98,28 @@ public class SceneBuilderImpl implements SceneBuilder {
 
     myEditorController = new EditorController();
     updateCustomLibrary();
-    HierarchyTreeViewController componentTree = new HierarchyTreeViewController(myEditorController);
-    ContentPanelController canvas = new ContentPanelController(myEditorController);
-    InspectorPanelController propertyTable = new InspectorPanelController(myEditorController);
-    LibraryPanelController palette = new LibraryPanelController(myEditorController);
-
-    SplitPane leftPane = new SplitPane();
-    leftPane.setOrientation(Orientation.VERTICAL);
-    leftPane.getItems().addAll(palette.getPanelRoot(), componentTree.getPanelRoot());
-    leftPane.setDividerPositions(0.5, 0.5);
-
-    SplitPane.setResizableWithParent(leftPane, Boolean.FALSE);
-    SplitPane.setResizableWithParent(propertyTable.getPanelRoot(), Boolean.FALSE);
-
-    SplitPane mainPane = new SplitPane();
-
-    mainPane.getItems().addAll(leftPane, canvas.getPanelRoot(), propertyTable.getPanelRoot());
-    mainPane.setDividerPositions(0.11036789297658862, 0.8963210702341137);
-
-    myPanel.setScene(new Scene(mainPane, myPanel.getWidth(), myPanel.getHeight(), true, SceneAntialiasing.BALANCED));
+    JavaFXPlatformHelper.setupJFXPanel(myPanel, myEditorController);
 
     loadFile();
-    startChangeListener();
+
+    myListener = JavaFXPlatformHelper.createChangeListener(() -> {
+      if (!mySkipChanges) {
+        myEditorCallback.saveChanges(myEditorController.getFxmlText());
+      }
+    });
+    mySelectionListener = JavaFXPlatformHelper.createChangeListener(() -> {
+      if (!mySkipChanges) {
+        mySelectionState = getSelectionState();
+      }
+    });
+
+    JavaFXPlatformHelper.addListeners(myEditorController, myListener, mySelectionListener);
   }
 
   private void updateCustomLibrary() {
     final URLClassLoader oldClassLoader = myClassLoader;
     myClassLoader = createProjectContentClassLoader(myProject, myParentClassLoader);
-    FXMLLoader.setDefaultClassLoader(myClassLoader);
+    JavaFXPlatformHelper.setDefaultClassLoader(myClassLoader);
 
     if (oldClassLoader != null) {
       try {
@@ -149,11 +130,11 @@ public class SceneBuilderImpl implements SceneBuilder {
       }
     }
 
-    final Collection<CustomComponent> customComponents = DumbService.getInstance(myProject)
+    final List<JavaFXPlatformHelper.CustomComponent> customComponents = DumbService.getInstance(myProject)
       .runReadActionInSmartMode(this::collectCustomComponents);
 
     try {
-      final CustomLibrary customLibrary = new CustomLibrary(myClassLoader, customComponents);
+      final JavaFXPlatformHelper.CustomLibrary customLibrary = new JavaFXPlatformHelper.CustomLibrary(myClassLoader, customComponents);
       myEditorController.setLibrary(customLibrary);
       myCustomComponents = customComponents;
     }
@@ -162,7 +143,7 @@ public class SceneBuilderImpl implements SceneBuilder {
     }
   }
 
-  private Collection<CustomComponent> collectCustomComponents() {
+  private List<JavaFXPlatformHelper.CustomComponent> collectCustomComponents() {
     if (myProject.isDisposed()) {
       return Collections.emptyList();
     }
@@ -198,13 +179,13 @@ public class SceneBuilderImpl implements SceneBuilder {
   }
 
   @NotNull
-  private Collection<CustomComponent> prepareCustomComponents(Collection<PsiClass> psiClasses) {
+  private List<JavaFXPlatformHelper.CustomComponent> prepareCustomComponents(Collection<PsiClass> psiClasses) {
     final JavaPsiFacade psiFacade = JavaPsiFacade.getInstance(myProject);
     final GlobalSearchScope scope = GlobalSearchScope.allScope(myProject);
     final Map<String, BuiltinComponent> builtinComponents =
       loadBuiltinComponents(className -> psiFacade.findClass(className, scope) != null);
 
-    final List<CustomComponent> customComponents = new ArrayList<>();
+    final List<JavaFXPlatformHelper.CustomComponent> customComponents = new ArrayList<>();
     for (PsiClass psiClass : psiClasses) {
       final String qualifiedName = psiClass.getQualifiedName();
       final String name = psiClass.getName();
@@ -219,7 +200,7 @@ public class SceneBuilderImpl implements SceneBuilder {
         }
         final String moduleName = getComponentModuleName(psiClass);
         final Map<String, String> attributes = parentComponent != null ? parentComponent.getAttributes() : Collections.emptyMap();
-        customComponents.add(new CustomComponent(name, qualifiedName, moduleName, attributes));
+        customComponents.add(new JavaFXPlatformHelper.CustomComponent(name, qualifiedName, moduleName, attributes));
       }
     }
     return customComponents;
@@ -250,31 +231,15 @@ public class SceneBuilderImpl implements SceneBuilder {
     return myPanel;
   }
 
-  private void startChangeListener() {
-    myListener = (observable, oldValue, newValue) -> {
-      if (!mySkipChanges) {
-        myEditorCallback.saveChanges(myEditorController.getFxmlText());
-      }
-    };
-    mySelectionListener = (observable, oldValue, newValue) -> {
-      if (!mySkipChanges) {
-        mySelectionState = getSelectionState();
-      }
-    };
-
-    myEditorController.getJobManager().revisionProperty().addListener(myListener);
-    myEditorController.getSelection().revisionProperty().addListener(mySelectionListener);
-  }
-
   @Override
   public boolean reload() {
     if (myCustomComponents == null) return false;
 
-    final Collection<CustomComponent> customComponents = DumbService.getInstance(myProject)
+    final Collection<JavaFXPlatformHelper.CustomComponent> customComponents = DumbService.getInstance(myProject)
       .runReadActionInSmartMode(this::collectCustomComponents);
     if (!new THashSet<>(myCustomComponents).equals(new THashSet<>(customComponents))) return false;
 
-    Platform.runLater(() -> {
+    JavaFXPlatformHelper.javafxInvokeLater(() -> {
       if (myEditorController != null) {
         loadFile();
       }
@@ -284,22 +249,15 @@ public class SceneBuilderImpl implements SceneBuilder {
 
   @Override
   public void close() {
-    Platform.runLater(this::closeImpl);
+    JavaFXPlatformHelper.javafxInvokeLater(this::closeImpl);
   }
 
   private void closeImpl() {
-    if (myEditorController != null) {
-      if (mySelectionListener != null) {
-        myEditorController.getSelection().revisionProperty().removeListener(mySelectionListener);
-      }
-      if (myListener != null) {
-        myEditorController.getJobManager().revisionProperty().removeListener(myListener);
-      }
-      myEditorController = null;
-    }
+    JavaFXPlatformHelper.removeListeners(myEditorController, myListener, mySelectionListener);
+    myEditorController = null;
     try {
       if (myClassLoader != null) {
-        FXMLLoader.setDefaultClassLoader(myParentClassLoader);
+        JavaFXPlatformHelper.setDefaultClassLoader(myParentClassLoader);
         myClassLoader.close();
         myClassLoader = null;
       }
@@ -307,6 +265,8 @@ public class SceneBuilderImpl implements SceneBuilder {
     catch (IOException e) {
       LOG.info(e);
     }
+    myCustomComponents = null;
+    Thread.currentThread().setUncaughtExceptionHandler(null);
   }
 
   private void loadFile() {
@@ -448,7 +408,7 @@ public class SceneBuilderImpl implements SceneBuilder {
   @NotNull
   private static Map<String, BuiltinComponent> loadBuiltinComponents(Predicate<String> psiClassExists) {
     final Map<String, BuiltinComponent> components = new THashMap<>();
-    for (LibraryItem item : BuiltinLibrary.getLibrary().getItems()) {
+    for (LibraryItem item : JavaFXPlatformHelper.getBuiltinLibraryItems()) {
       final Ref<String> refQualifiedName = new Ref<>();
       final List<String> imports = new ArrayList<>();
       final Map<String, String> attributes = new THashMap<>();
@@ -457,7 +417,7 @@ public class SceneBuilderImpl implements SceneBuilder {
         @Override
         public void newProcessingInstruction(String target, Reader reader) throws Exception {
           if ("import".equals(target)) {
-            final String imported = StreamUtil.readTextFrom(reader);
+            final String imported = StreamUtil.readText(reader);
             imports.add(imported);
           }
         }
@@ -545,80 +505,6 @@ public class SceneBuilderImpl implements SceneBuilder {
 
     public Map<String, String> getAttributes() {
       return myAttributes;
-    }
-  }
-
-  public static class CustomComponent {
-    private final String myName;
-    private final String myQualifiedName;
-    private final String myModule;
-    private final Map<String, String> myAttributes;
-
-    public CustomComponent(@NotNull String name,
-                    @NotNull String qualifiedName,
-                    @Nullable String module,
-                    @NotNull Map<String, String> attributes) {
-      myName = name;
-      myQualifiedName = qualifiedName;
-      myModule = module;
-      myAttributes = attributes;
-    }
-
-    public String getDisplayName() {
-      return !StringUtil.isEmpty(myModule) ? myName + " (" + myModule + ")" : myName;
-    }
-
-    public String getFxmlText() {
-      final StringBuilder builder =
-        new StringBuilder(String.format("<?xml version=\"1.0\" encoding=\"UTF-8\"?><?import %s?><%s", myQualifiedName, myName));
-      myAttributes.forEach((name, value) -> builder.append(String.format(" %s=\"%s\"", name, value.replace("\"", "&quot;"))));
-      builder.append("/>");
-      return builder.toString();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) return true;
-      if (!(o instanceof CustomComponent)) return false;
-
-      CustomComponent c = (CustomComponent)o;
-      return myQualifiedName.equals(c.myQualifiedName) && Objects.equals(myModule, c.myModule);
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(myQualifiedName, myModule);
-    }
-
-    @Override
-    public String toString() {
-      return myModule != null ? myQualifiedName + "(" + myModule + ")" : myQualifiedName;
-    }
-  }
-
-  public static class CustomLibrary extends Library {
-    private static final String CUSTOM_SECTION = "Custom";
-
-    public CustomLibrary(ClassLoader classLoader, Collection<CustomComponent> customComponents) {
-      classLoaderProperty.set(classLoader);
-
-      getItems().setAll(BuiltinLibrary.getLibrary().getItems());
-      final List<LibraryItem> items = ContainerUtil.map(
-        customComponents, component -> new LibraryItem(component.getDisplayName(), CUSTOM_SECTION, component.getFxmlText(), null, this));
-      getItems().addAll(items);
-    }
-
-    @Override
-    public Comparator<String> getSectionComparator() {
-      return CustomLibrary::compareSections;
-    }
-
-    private static int compareSections(String s1, String s2) {
-      final boolean isCustom1 = CUSTOM_SECTION.equals(s1);
-      final boolean isCustom2 = CUSTOM_SECTION.equals(s2);
-      if (isCustom1) return isCustom2 ? 0 : 1;
-      if (isCustom2) return -1;
-      return BuiltinLibrary.getLibrary().getSectionComparator().compare(s1, s2);
     }
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.push
 
 import com.intellij.dvcs.push.PushSpec
@@ -8,6 +8,7 @@ import git4idea.repo.GitRepository
 import git4idea.test.*
 import git4idea.update.GitUpdateResult
 import java.io.File
+import java.nio.file.Path
 import java.util.*
 
 class GitPushOperationMultiRepoTest : GitPushOperationBaseTest() {
@@ -15,8 +16,8 @@ class GitPushOperationMultiRepoTest : GitPushOperationBaseTest() {
   private lateinit var community: GitRepository
   private lateinit var ultimate: GitRepository
 
-  private lateinit var brultimate: File
-  private lateinit var brommunity: File
+  private lateinit var brultimate: Path
+  private lateinit var brommunity: Path
 
   @Throws(Exception::class)
   override fun setUp() {
@@ -49,11 +50,14 @@ class GitPushOperationMultiRepoTest : GitPushOperationBaseTest() {
     cd(community)
     makeCommit("com.txt")
 
-    val spec1 = makePushSpec(ultimate, "master", "origin/master")
-    val spec2 = makePushSpec(community, "master", "origin/master")
-    val map = HashMap<GitRepository, PushSpec<GitPushSource, GitPushTarget>>()
-    map.put(ultimate, spec1)
-    map.put(community, spec2)
+    val map = hashMapOf(
+      ultimate to makePushSpec(ultimate, "master", "origin/master"),
+      community to makePushSpec(community, "master", "origin/master")
+    )
+
+    refresh()
+    updateChangeListManager()
+
     val result = GitPushOperation(project, pushSupport, map, null, false, false).execute()
 
     val result1 = result.results[ultimate]!!
@@ -77,6 +81,10 @@ class GitPushOperationMultiRepoTest : GitPushOperationBaseTest() {
 
     val mainSpec = makePushSpec(ultimate, "master", "origin/master")
     agreeToUpdate(GitRejectedPushUpdateDialog.MERGE_EXIT_CODE) // auto-update-all-roots is selected by default
+
+    refresh()
+    updateChangeListManager()
+
     val result = GitPushOperation(project, pushSupport,
                                   Collections.singletonMap<GitRepository, PushSpec<GitPushSource, GitPushTarget>>(ultimate, mainSpec), null, false, false).execute()
 
@@ -123,6 +131,9 @@ class GitPushOperationMultiRepoTest : GitPushOperationBaseTest() {
     listOf(ultimate, community).forEach { it.update() }
 
     agreeToUpdate(GitRejectedPushUpdateDialog.MERGE_EXIT_CODE) // auto-update-all-roots is selected by default
+
+    refresh()
+    updateChangeListManager()
 
     // push only to 1 repo, otherwise the push would recreate the deleted branch, and the error won't reproduce
     val pushSpecs = mapOf(ultimate to makePushSpec(ultimate, "feature", "origin/feature"))

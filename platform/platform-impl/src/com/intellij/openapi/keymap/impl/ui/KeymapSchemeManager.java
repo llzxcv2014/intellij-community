@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.keymap.impl.ui;
 
 import com.intellij.application.options.schemes.AbstractSchemeActions;
@@ -8,6 +8,7 @@ import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.keymap.impl.KeymapManagerImpl;
 import com.intellij.openapi.keymap.impl.KeymapManagerImplKt;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
@@ -21,8 +22,6 @@ import static com.intellij.openapi.util.text.StringUtil.isEmptyOrSpaces;
 
 /**
  * This class operates with the KeymapManager.
- *
- * @author Sergey.Malenkov
  */
 public final class KeymapSchemeManager extends AbstractSchemeActions<KeymapScheme> implements SchemesModel<KeymapScheme> {
   public static final Predicate<Keymap> FILTER = keymap -> !SystemInfo.isMac || !KeymapManager.DEFAULT_IDEA_KEYMAP.equals(keymap.getName());
@@ -196,7 +195,7 @@ public final class KeymapSchemeManager extends AbstractSchemeActions<KeymapSchem
    * @return the error message if changes cannot be applied
    * @see KeymapPanel#apply()
    */
-  String apply() {
+  @NlsContexts.DialogMessage String apply() {
     HashSet<String> set = new HashSet<>();
     for (KeymapScheme scheme : list) {
       String name = scheme.getName();

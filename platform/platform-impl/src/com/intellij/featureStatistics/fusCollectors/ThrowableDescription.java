@@ -14,11 +14,21 @@ public final class ThrowableDescription {
   private static final String THIRD_PARTY = "third.party";
 
   @Nullable private final Throwable myThrowable;
-  @Nullable private final StackTraceElement[] myStacktrace;
+  private final StackTraceElement @Nullable [] myStacktrace;
 
   public ThrowableDescription(@Nullable Throwable throwable) {
     myThrowable = throwable != null ? getCause(throwable) : null;
-    myStacktrace = myThrowable != null ? myThrowable.getStackTrace() : null;
+    myStacktrace = myThrowable != null ? getStacktrace(myThrowable) : null;
+  }
+
+  private static StackTraceElement @Nullable [] getStacktrace(@NotNull Throwable throwable) {
+    try {
+      return throwable.getStackTrace();
+    }
+    catch (Throwable e) {
+      // Kotlin internals might throw an exception and it doesn't support retrieving a stacktrace
+      return null;
+    }
   }
 
   @NotNull

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight;
 
 import com.intellij.codeInsight.completion.*;
@@ -8,7 +8,6 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
-import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.*;
@@ -19,18 +18,16 @@ import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.*;
 import com.intellij.psi.util.proximity.PsiProximityComparator;
 import com.intellij.refactoring.util.RefactoringUtil;
-import com.intellij.util.Consumer;
-import com.intellij.util.FilteredQuery;
-import com.intellij.util.Processor;
-import com.intellij.util.Query;
+import com.intellij.util.*;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.JBTreeTraverser;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class CodeInsightUtil {
+public final class CodeInsightUtil {
   private static final Logger LOG = Logger.getInstance(CodeInsightUtil.class);
 
   @Nullable
@@ -67,8 +64,7 @@ public class CodeInsightUtil {
     return CodeInsightUtilCore.findElementInRange(file, startOffset, endOffset, klass, JavaLanguage.INSTANCE);
   }
 
-  @NotNull
-  public static PsiElement[] findStatementsInRange(@NotNull PsiFile file, int startOffset, int endOffset) {
+  public static PsiElement @NotNull [] findStatementsInRange(@NotNull PsiFile file, int startOffset, int endOffset) {
     Language language = findJavaOrLikeLanguage(file);
     if (language == null) return PsiElement.EMPTY_ARRAY;
     FileViewProvider viewProvider = file.getViewProvider();
@@ -125,12 +121,6 @@ public class CodeInsightUtil {
       return getStatementsInRange(children, ((PsiCodeBlock)parent).getFirstBodyElement(), ((PsiCodeBlock)parent).getLastBodyElement());
     }
 
-/*
-    if(parent instanceof PsiCodeBlock && parent.getParent() instanceof PsiBlockStatement) {
-      return new PsiElement[]{parent.getParent()};
-    }
-*/
-
     PsiElement[] children = parent.getChildren();
     return getStatementsInRange(children, element1, element2);
   }
@@ -157,8 +147,7 @@ public class CodeInsightUtil {
     return false;
   }
 
-  @NotNull
-  private static PsiElement[] getStatementsInRange(PsiElement[] children, PsiElement element1, PsiElement element2) {
+  private static PsiElement @NotNull [] getStatementsInRange(PsiElement[] children, PsiElement element1, PsiElement element2) {
     ArrayList<PsiElement> array = new ArrayList<>();
     boolean flag = false;
     for (PsiElement child : children) {
@@ -221,8 +210,7 @@ public class CodeInsightUtil {
     return qname1.compareToIgnoreCase(qname2);
   }
 
-  @NotNull
-  public static PsiExpression[] findExpressionOccurrences(PsiElement scope, PsiExpression expr) {
+  public static PsiExpression @NotNull [] findExpressionOccurrences(PsiElement scope, PsiExpression expr) {
     List<PsiExpression> array = new ArrayList<>();
     addExpressionOccurrences(RefactoringUtil.unparenthesizeExpression(expr), array, scope);
     if (expr.isPhysical()) {
@@ -251,8 +239,7 @@ public class CodeInsightUtil {
     }
   }
 
-  @NotNull
-  public static PsiExpression[] findReferenceExpressions(PsiElement scope, PsiElement referee) {
+  public static PsiExpression @NotNull [] findReferenceExpressions(PsiElement scope, PsiElement referee) {
     if (scope == null) return PsiExpression.EMPTY_ARRAY;
     List<PsiExpression> array = new ArrayList<>();
     addReferenceExpressions(array, scope, referee);
@@ -286,7 +273,7 @@ public class CodeInsightUtil {
     return FileEditorManager.getInstance(project).openTextEditor(descriptor, true);
   }
 
-  public static boolean preparePsiElementsForWrite(@NotNull PsiElement... elements) {
+  public static boolean preparePsiElementsForWrite(PsiElement @NotNull ... elements) {
     return FileModificationService.getInstance().preparePsiElementsForWrite(Arrays.asList(elements));
   }
 
@@ -303,25 +290,32 @@ public class CodeInsightUtil {
     PsiClassType baseType = JavaCompletionUtil.originalize((PsiClassType)psiType);
     PsiClassType.ClassResolveResult baseResult = baseType.resolveGenerics();
     PsiClass baseClass = baseResult.getElement();
-    PsiSubstitutor baseSubstitutor = baseResult.getSubstitutor();
     if(baseClass == null) return;
 
     GlobalSearchScope scope = context.getResolveScope();
 
-    Processor<PsiClass> inheritorsProcessor =
-      createInheritorsProcessor(context, baseType, arrayDim, getRawSubtypes, consumer, baseClass, baseSubstitutor);
+    Object lock = ObjectUtils.sentinel("CodeInsightUtil.processSubTypes");
+    Processor<PsiClass> inheritorProcessor = inheritor -> {
+      PsiType toAdd = getSubTypeBySubClass(context, baseType, arrayDim, getRawSubtypes, baseClass, inheritor);
+      if (toAdd != null) {
+        synchronized (lock) {
+          consumer.consume(toAdd);
+        }
+      }
+      return true;
+    };
 
-    addContextTypeArguments(context, baseType, inheritorsProcessor);
+    addContextTypeArguments(context, baseType, inheritorProcessor);
 
     if (baseClass.hasModifierProperty(PsiModifier.FINAL)) return;
 
-    Set<PsiClass> imported = processImportedInheritors(context, baseClass, inheritorsProcessor);
+    Set<PsiClass> imported = processImportedInheritors(context, baseClass, inheritorProcessor);
 
     if (matcher.getPrefix().length() > 2) {
       JBTreeTraverser<PsiClass> traverser = JBTreeTraverser.of(PsiClass::getInnerClasses);
       AllClassesGetter.processJavaClasses(matcher, context.getProject(), scope, psiClass -> {
         Iterable<PsiClass> inheritors = traverser.withRoot(psiClass).filter(c -> c.isInheritor(baseClass, true) && !imported.contains(c));
-        return ContainerUtil.process(inheritors, inheritorsProcessor);
+        return ContainerUtil.process(inheritors, inheritorProcessor);
       });
     }
     else {
@@ -331,7 +325,7 @@ public class CodeInsightUtil {
         psiClass.getName() != null &&
         ContainerUtil.exists(JavaCompletionUtil.getAllLookupStrings(psiClass), matcher::prefixMatches) &&
         !imported.contains(psiClass));
-      query.forEach(inheritorsProcessor);
+      query.allowParallelProcessing().forEach(inheritorProcessor);
     }
   }
 
@@ -368,53 +362,36 @@ public class CodeInsightUtil {
     }
   }
 
-  public static Processor<PsiClass> createInheritorsProcessor(PsiElement context,
-                                                              PsiClassType baseType,
-                                                              int arrayDim,
-                                                              boolean getRawSubtypes,
-                                                              Consumer<? super PsiType> result,
-                                                              @NotNull PsiClass baseClass,
-                                                              PsiSubstitutor baseSubstitutor) {
-    PsiManager manager = context.getManager();
-    JavaPsiFacade facade = JavaPsiFacade.getInstance(manager.getProject());
-    PsiResolveHelper resolveHelper = facade.getResolveHelper();
-    PsiElementFactory factory = facade.getElementFactory();
+  @Nullable
+  @ApiStatus.Internal
+  public static PsiType getSubTypeBySubClass(@NotNull PsiElement context,
+                                             @NotNull PsiClassType baseType,
+                                             int arrayDim,
+                                             boolean raw,
+                                             @NotNull PsiClass baseClass,
+                                             @NotNull PsiClass inheritor) {
+    Project project = baseClass.getProject();
+    PsiElementFactory factory = JavaPsiFacade.getElementFactory(project);
+    if (!PsiResolveHelper.SERVICE.getInstance(project).isAccessible(inheritor, context, null)) {
+      return null;
+    }
 
-    return inheritor -> {
-      ProgressManager.checkCanceled();
+    if (inheritor.getQualifiedName() == null &&
+        !baseClass.getManager().areElementsEquivalent(inheritor.getContainingFile(), context.getContainingFile().getOriginalFile())) {
+      return null;
+    }
 
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Processing inheritor " + inheritor.getQualifiedName());
-      }
+    if (JavaCompletionUtil.isInExcludedPackage(inheritor, false)) return null;
 
-      if (!resolveHelper.isAccessible(inheritor, context, null)) {
-        return true;
-      }
+    PsiSubstitutor superSubstitutor = TypeConversionUtil.getClassSubstitutor(baseClass, inheritor, PsiSubstitutor.EMPTY);
+    if (superSubstitutor == null) return null;
 
-      if (inheritor.getQualifiedName() == null &&
-          !manager.areElementsEquivalent(inheritor.getContainingFile(), context.getContainingFile().getOriginalFile())) {
-        return true;
-      }
-
-      if (JavaCompletionUtil.isInExcludedPackage(inheritor, false)) return true;
-
-      PsiSubstitutor superSubstitutor = TypeConversionUtil.getClassSubstitutor(baseClass, inheritor, PsiSubstitutor.EMPTY);
-      if (superSubstitutor == null) return true;
-
-      List<PsiType> typeArgs = getRawSubtypes ? null : getExpectedTypeArgs(context, inheritor, Arrays.asList(inheritor.getTypeParameters()), baseType);
-      PsiClassType inheritorType = typeArgs == null || typeArgs.contains(null)
-                                   ? factory.createType(inheritor, factory.createRawSubstitutor(inheritor))
-                                   : factory.createType(inheritor, typeArgs.toArray(PsiType.EMPTY_ARRAY));
-      PsiType toAdd = PsiTypesUtil.createArrayType(inheritorType, arrayDim);
-      if (baseType.isAssignableFrom(toAdd)) {
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Inheritor type " + toAdd.getCanonicalText());
-        }
-        result.consume(toAdd);
-      }
-
-      return true;
-    };
+    List<PsiType> typeArgs = raw ? null : getExpectedTypeArgs(context, inheritor, Arrays.asList(inheritor.getTypeParameters()), baseType);
+    PsiClassType inheritorType = typeArgs == null || typeArgs.contains(null)
+                                 ? factory.createType(inheritor, factory.createRawSubstitutor(inheritor))
+                                 : factory.createType(inheritor, typeArgs.toArray(PsiType.EMPTY_ARRAY));
+    PsiType result = PsiTypesUtil.createArrayType(inheritorType, arrayDim);
+    return baseType.isAssignableFrom(result) ? result : null;
   }
 
   @NotNull

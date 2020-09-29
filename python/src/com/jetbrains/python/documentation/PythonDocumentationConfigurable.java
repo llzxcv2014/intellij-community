@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.documentation;
 
 import com.google.common.collect.ImmutableMap;
@@ -11,6 +11,7 @@ import com.intellij.ui.ColoredTableCellRenderer;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.PlatformUtils;
+import com.jetbrains.python.PyBundle;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,7 +35,8 @@ public class PythonDocumentationConfigurable implements SearchableConfigurable, 
   @Nls
   @Override
   public String getDisplayName() {
-    return PlatformUtils.isPyCharm() ? "External Documentation" : "Python External Documentation";
+    return PlatformUtils.isPyCharm() ? PyBundle.message("external.documentation.pycharm")
+                                     : PyBundle.message("external.documentation.python.plugin");
   }
 
   @Override
@@ -44,6 +46,8 @@ public class PythonDocumentationConfigurable implements SearchableConfigurable, 
 
   @Override
   public JComponent createComponent() {
+    SwingUtilities.updateComponentTreeUI(myPanel); // TODO: create Swing components in this method (see javadoc)
+    myPanel.getTable().setShowGrid(false);
     return myPanel;
   }
 
@@ -73,7 +77,9 @@ public class PythonDocumentationConfigurable implements SearchableConfigurable, 
 
     @Override
     public String getColumnName(int columnIndex) {
-      return columnIndex == 0 ? "Module Name" : "URL/Path Pattern";
+      return columnIndex == 0
+             ? PyBundle.message("external.documentation.column.name.module")
+             : PyBundle.message("external.documentation.column.name.url.path.pattern");
     }
 
     @Override
@@ -89,7 +95,7 @@ public class PythonDocumentationConfigurable implements SearchableConfigurable, 
       super(ourModel, new ArrayList<>());
       setRenderer(1, new ColoredTableCellRenderer() {
         @Override
-        protected void customizeCellRenderer(JTable table, Object value, boolean selected, boolean hasFocus, int row, int column) {
+        protected void customizeCellRenderer(@NotNull JTable table, Object value, boolean selected, boolean hasFocus, int row, int column) {
           String text = value == null ? "" : (String) value;
           int pos = 0;
           while(pos < text.length()) {
@@ -136,5 +142,4 @@ public class PythonDocumentationConfigurable implements SearchableConfigurable, 
       return showEditor(o);
     }
   }
-
 }

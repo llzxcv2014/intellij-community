@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.changes;
 
 import com.intellij.openapi.diagnostic.Logger;
@@ -9,9 +9,6 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.*;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vcs.changes.ChangesUtil;
-import com.intellij.openapi.vcs.changes.committed.DecoratorManager;
-import com.intellij.openapi.vcs.changes.committed.VcsCommittedListsZipper;
-import com.intellij.openapi.vcs.changes.committed.VcsCommittedViewAuxiliary;
 import com.intellij.openapi.vcs.history.VcsFileRevision;
 import com.intellij.openapi.vcs.history.VcsRevisionNumber;
 import com.intellij.openapi.vcs.versionBrowser.ChangeBrowserSettings;
@@ -27,6 +24,7 @@ import com.intellij.vcsUtil.VcsUtil;
 import git4idea.*;
 import git4idea.history.GitFileHistory;
 import git4idea.history.GitHistoryUtils;
+import git4idea.i18n.GitBundle;
 import git4idea.repo.GitRepository;
 import git4idea.repo.GitRepositoryManager;
 import org.jetbrains.annotations.NotNull;
@@ -48,11 +46,13 @@ public class GitCommittedChangeListProvider implements CommittedChangesProvider<
     myProject = project;
   }
 
+  @NotNull
   @Override
   public ChangesBrowserSettingsEditor<ChangeBrowserSettings> createFilterUI(boolean showDateFilter) {
     return new GitVersionFilterComponent(showDateFilter);
   }
 
+  @Nullable
   @Override
   public RepositoryLocation getLocationFor(@NotNull FilePath rootPath) {
     VirtualFile gitRoot = rootPath.getVirtualFile();
@@ -76,14 +76,10 @@ public class GitCommittedChangeListProvider implements CommittedChangesProvider<
   }
 
   @Override
-  @Nullable
-  public VcsCommittedListsZipper getZipper() {
-    return null;
-  }
-
-  @Override
-  public void loadCommittedChanges(ChangeBrowserSettings settings, RepositoryLocation location, int maxCount,
-                                   final AsynchConsumer<? super CommittedChangeList> consumer) throws VcsException {
+  public void loadCommittedChanges(@NotNull ChangeBrowserSettings settings,
+                                   @NotNull RepositoryLocation location,
+                                   int maxCount,
+                                   @NotNull AsynchConsumer<? super CommittedChangeList> consumer) throws VcsException {
     try {
       getCommittedChangesImpl(settings, location, maxCount, consumer);
     }
@@ -92,18 +88,18 @@ public class GitCommittedChangeListProvider implements CommittedChangesProvider<
     }
   }
 
+  @NotNull
   @Override
-  public List<CommittedChangeList> getCommittedChanges(ChangeBrowserSettings settings, RepositoryLocation location, final int maxCount)
+  public List<CommittedChangeList> getCommittedChanges(@NotNull ChangeBrowserSettings settings,
+                                                       @NotNull RepositoryLocation location,
+                                                       int maxCount)
     throws VcsException {
-
-    final List<CommittedChangeList> result = new ArrayList<>();
-
+    List<CommittedChangeList> result = new ArrayList<>();
     getCommittedChangesImpl(settings, location, maxCount, committedChangeList -> result.add(committedChangeList));
-
     return result;
   }
 
-  private void getCommittedChangesImpl(ChangeBrowserSettings settings, RepositoryLocation location, final int maxCount,
+  private void getCommittedChangesImpl(@NotNull ChangeBrowserSettings settings, @NotNull RepositoryLocation location, final int maxCount,
                                        final Consumer<? super GitCommittedChangeList> consumer)
     throws VcsException {
     GitRepositoryLocation l = (GitRepositoryLocation)location;
@@ -114,7 +110,7 @@ public class GitCommittedChangeListProvider implements CommittedChangesProvider<
     final String author = settings.getUserFilter();
     VirtualFile root = LocalFileSystem.getInstance().findFileByIoFile(l.getRoot());
     if (root == null) {
-      throw new VcsException("The repository does not exists anymore: " + l.getRoot());
+      throw new VcsException(GitBundle.message("error.git.repository.not.found", l.getRoot()));
     }
 
     GitUtil.getLocalCommittedChanges(myProject, root, h -> {
@@ -143,13 +139,8 @@ public class GitCommittedChangeListProvider implements CommittedChangesProvider<
   }
 
   @Override
-  public ChangeListColumn[] getColumns() {
+  public ChangeListColumn @NotNull [] getColumns() {
     return new ChangeListColumn[]{ChangeListColumn.NUMBER, ChangeListColumn.DATE, ChangeListColumn.DESCRIPTION, ChangeListColumn.NAME};
-  }
-
-  @Override
-  public VcsCommittedViewAuxiliary createActions(DecoratorManager manager, RepositoryLocation location) {
-    return null;
   }
 
   @Override
@@ -157,6 +148,7 @@ public class GitCommittedChangeListProvider implements CommittedChangesProvider<
     return -1;
   }
 
+  @Nullable
   @Override
   public Pair<CommittedChangeList, FilePath> getOneList(@NotNull VirtualFile file, @NotNull VcsRevisionNumber number)
     throws VcsException {
@@ -228,11 +220,6 @@ public class GitCommittedChangeListProvider implements CommittedChangesProvider<
     if (details == null) return null;
 
     return createCommittedChangeList(project, details, revisionNumber);
-  }
-
-  @Override
-  public RepositoryLocation getForNonLocal(VirtualFile file) {
-    return null;
   }
 
   @Override

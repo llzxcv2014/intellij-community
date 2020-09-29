@@ -35,12 +35,6 @@ public class SafeLockInspection extends BaseInspection { // todo extend Resource
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("safe.lock.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     final PsiExpression expression = (PsiExpression)infos[0];
     final PsiType type = expression.getType();
@@ -183,7 +177,7 @@ public class SafeLockInspection extends BaseInspection { // todo extend Resource
     }
   }
 
-  private static class UnlockVisitor extends JavaRecursiveElementWalkingVisitor {
+  private static final class UnlockVisitor extends JavaRecursiveElementWalkingVisitor {
     private boolean containsUnlock;
     private final PsiVariable variable;
     private final LockType type;

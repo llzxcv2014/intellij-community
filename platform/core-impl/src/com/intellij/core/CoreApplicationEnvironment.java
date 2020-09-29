@@ -1,9 +1,11 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.core;
 
+import com.intellij.DynamicBundle;
 import com.intellij.codeInsight.folding.CodeFoldingSettings;
 import com.intellij.concurrency.Job;
 import com.intellij.concurrency.JobLauncher;
+import com.intellij.ide.plugins.DisabledPluginsState;
 import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.lang.*;
 import com.intellij.lang.impl.PsiBuilderFactoryImpl;
@@ -36,10 +38,8 @@ import com.intellij.openapi.vfs.local.CoreLocalFileSystem;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointerManager;
 import com.intellij.psi.PsiReferenceService;
 import com.intellij.psi.PsiReferenceServiceImpl;
-import com.intellij.psi.impl.meta.MetaRegistry;
 import com.intellij.psi.impl.source.resolve.reference.ReferenceProvidersRegistry;
 import com.intellij.psi.impl.source.resolve.reference.ReferenceProvidersRegistryImpl;
-import com.intellij.psi.meta.MetaDataRegistrar;
 import com.intellij.psi.stubs.CoreStubTreeLoader;
 import com.intellij.psi.stubs.StubTreeLoader;
 import com.intellij.util.Consumer;
@@ -47,6 +47,7 @@ import com.intellij.util.KeyedLazyInstanceEP;
 import com.intellij.util.Processor;
 import com.intellij.util.graph.GraphAlgorithms;
 import com.intellij.util.graph.impl.GraphAlgorithmsImpl;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.picocontainer.MutablePicoContainer;
@@ -65,6 +66,7 @@ public class CoreApplicationEnvironment {
   private final CoreFileTypeRegistry myFileTypeRegistry;
   protected final MockApplication myApplication;
   private final CoreLocalFileSystem myLocalFileSystem;
+  @NotNull
   protected final VirtualFileSystem myJarFileSystem;
   private final VirtualFileSystem myJrtFileSystem;
   @NotNull private final Disposable myParentDisposable;
@@ -78,7 +80,7 @@ public class CoreApplicationEnvironment {
     myParentDisposable = parentDisposable;
     myUnitTestMode = unitTestMode;
 
-    PluginManagerCore.dontLoadDisabledPlugins();
+    DisabledPluginsState.dontLoadDisabledPlugins();
 
     myFileTypeRegistry = new CoreFileTypeRegistry();
 
@@ -110,7 +112,6 @@ public class CoreApplicationEnvironment {
     registerApplicationService(ReferenceProvidersRegistry.class, new ReferenceProvidersRegistryImpl());
     registerApplicationService(StubTreeLoader.class, new CoreStubTreeLoader());
     registerApplicationService(PsiReferenceService.class, new PsiReferenceServiceImpl());
-    registerApplicationService(MetaDataRegistrar.class, new MetaRegistry());
     registerApplicationService(ProgressManager.class, createProgressIndicatorProvider());
     registerApplicationService(JobLauncher.class, createJobLauncher());
     registerApplicationService(CodeFoldingSettings.class, new CodeFoldingSettings());
@@ -118,6 +119,8 @@ public class CoreApplicationEnvironment {
     registerApplicationService(GraphAlgorithms.class, new GraphAlgorithmsImpl());
 
     myApplication.registerService(ApplicationInfo.class, ApplicationInfoImpl.class);
+
+    registerApplicationExtensionPoint(DynamicBundle.LanguageBundleEP.EP_NAME, DynamicBundle.LanguageBundleEP.class);
   }
 
   public <T> void registerApplicationService(@NotNull Class<T> serviceInterface, @NotNull T serviceImplementation) {
@@ -204,7 +207,7 @@ public class CoreApplicationEnvironment {
     }
   }
 
-  public void registerFileType(@NotNull FileType fileType, @NotNull String extension) {
+  public void registerFileType(@NotNull FileType fileType, @NotNull @NonNls String extension) {
     myFileTypeRegistry.registerFileType(fileType, extension);
   }
 
@@ -252,15 +255,34 @@ public class CoreApplicationEnvironment {
   }
 
   public static <T> void registerExtensionPoint(@NotNull ExtensionsArea area, @NotNull String name, @NotNull Class<? extends T> aClass) {
+    registerExtensionPoint(area, name, aClass, false);
+  }
+
+  public static <T> void registerDynamicExtensionPoint(@NotNull ExtensionsArea area, @NotNull String name, @NotNull Class<? extends T> aClass) {
+    registerExtensionPoint(area, name, aClass, true);
+  }
+
+  @SuppressWarnings("TestOnlyProblems")
+  private static <T> void registerExtensionPoint(@NotNull ExtensionsArea area, @NotNull String name, @NotNull Class<? extends T> aClass, boolean dymanic) {
     if (!area.hasExtensionPoint(name)) {
       ExtensionPoint.Kind kind = aClass.isInterface() || Modifier.isAbstract(aClass.getModifiers()) ? ExtensionPoint.Kind.INTERFACE : ExtensionPoint.Kind.BEAN_CLASS;
-      //noinspection TestOnlyProblems
-      area.registerExtensionPoint(name, aClass.getName(), kind);
+      if (dymanic) {
+        area.registerDynamicExtensionPoint(name, aClass.getName(), kind);
+      }
+      else {
+        area.registerExtensionPoint(name, aClass.getName(), kind);
+      }
     }
   }
 
+  @SuppressWarnings("deprecation")
   public static <T> void registerApplicationExtensionPoint(@NotNull ExtensionPointName<T> extensionPointName, @NotNull Class<? extends T> aClass) {
     registerExtensionPoint(Extensions.getRootArea(), extensionPointName, aClass);
+  }
+
+  @SuppressWarnings("deprecation")
+  public static <T> void registerApplicationDynamicExtensionPoint(@NotNull String extensionPointName, @NotNull Class<? extends T> aClass) {
+    registerDynamicExtensionPoint(Extensions.getRootArea(), extensionPointName, aClass);
   }
 
   public static void registerExtensionPointAndExtensions(@NotNull Path pluginRoot, @NotNull String fileName, @NotNull ExtensionsArea area) {

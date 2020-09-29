@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.jps.cmdline;
 
 import com.intellij.openapi.diagnostic.Logger;
@@ -13,13 +13,13 @@ import com.intellij.util.concurrency.Semaphore;
 import com.intellij.util.concurrency.SequentialTaskExecutor;
 import com.intellij.util.io.DataOutputStream;
 import io.netty.channel.Channel;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.TimingLog;
 import org.jetbrains.jps.api.*;
 import org.jetbrains.jps.builders.*;
 import org.jetbrains.jps.builders.java.JavaModuleBuildTargetType;
-import org.jetbrains.jps.builders.java.dependencyView.Callbacks;
 import org.jetbrains.jps.incremental.MessageHandler;
 import org.jetbrains.jps.incremental.RebuildRequestedException;
 import org.jetbrains.jps.incremental.TargetTypeRegistry;
@@ -34,7 +34,7 @@ import org.jetbrains.jps.service.SharedThreadPool;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.Executor;
 
 import static org.jetbrains.jps.api.CmdlineRemoteProto.Message.ControllerMessage.ParametersMessage.TargetTypeBuildScope;
 
@@ -58,8 +58,6 @@ final class BuildSession implements Runnable, CanceledStatus {
   private final EventsProcessor myEventsProcessor = new EventsProcessor();
   private volatile long myLastEventOrdinal;
   private volatile ProjectDescriptor myProjectDescriptor;
-  private final Map<Pair<String, String>, ConstantSearchFuture> mySearchTasks = Collections.synchronizedMap(new HashMap<>());
-  private final ConstantSearch myConstantSearch = new ConstantSearch();
   @NotNull
   private final BuildRunner myBuildRunner;
   private final boolean myForceModelLoading;
@@ -73,6 +71,10 @@ final class BuildSession implements Runnable, CanceledStatus {
                @Nullable CmdlineRemoteProto.Message.ControllerMessage.FSEvent delta, @Nullable PreloadedData preloaded) {
     mySessionId = sessionId;
     myChannel = channel;
+
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Starting build with ordinal " + (delta == null ? null : delta.getOrdinal()));
+    }
 
     final CmdlineRemoteProto.Message.ControllerMessage.GlobalSettings globals = params.getGlobalSettings();
     myProjectPath = FileUtil.toCanonicalPath(params.getProjectId());
@@ -164,6 +166,7 @@ final class BuildSession implements Runnable, CanceledStatus {
             if (worthReporting) {
               LOG.info(message.getMessageText());
             }
+            //noinspection HardCodedStringLiteral
             response = worthReporting && REPORT_BUILD_STATISTICS ?
                        CmdlineProtoUtil.createCompileMessage(BuildMessage.Kind.JPS_INFO, message.getMessageText(), null, -1, -1, -1, -1, -1, -1.0f):
                        null;
@@ -173,6 +176,7 @@ final class BuildSession implements Runnable, CanceledStatus {
             if (buildMessage instanceof ProgressMessage) {
               done = ((ProgressMessage)buildMessage).getDone();
             }
+            //noinspection HardCodedStringLiteral
             response = CmdlineProtoUtil.createCompileProgressMessageResponse(buildMessage.getMessageText(), done);
           }
           else {
@@ -201,7 +205,8 @@ final class BuildSession implements Runnable, CanceledStatus {
   private void runBuild(final MessageHandler msgHandler, CanceledStatus cs) throws Throwable{
     final File dataStorageRoot = Utils.getDataStorageRoot(myProjectPath);
     if (dataStorageRoot == null) {
-      msgHandler.processMessage(new CompilerMessage("build", BuildMessage.Kind.ERROR, "Cannot determine build data storage root for project " + myProjectPath));
+      msgHandler.processMessage(new CompilerMessage(BuildRunner.getRootCompilerName(), BuildMessage.Kind.ERROR,
+                                                    JpsBuildBundle.message("build.message.cannot.determine.build.data.storage.root.for.project.0", myProjectPath)));
       return;
     }
     final boolean storageFilesAbsent = !dataStorageRoot.exists() || !new File(dataStorageRoot, FS_STATE_FILE).exists();
@@ -294,7 +299,7 @@ final class BuildSession implements Runnable, CanceledStatus {
       // ensure events from controller are processed after FSState initialization
       myEventsProcessor.startProcessing();
 
-      myBuildRunner.runBuild(pd, cs, myConstantSearch, msgHandler, myBuildType, myScopes, false);
+      myBuildRunner.runBuild(pd, cs, null, msgHandler, myBuildType, myScopes, false);
       TimingLog.LOG.debug("Build finished");
     }
     finally {
@@ -359,28 +364,13 @@ final class BuildSession implements Runnable, CanceledStatus {
     });
   }
 
-  public void processConstantSearchResult(CmdlineRemoteProto.Message.ControllerMessage.ConstantSearchResult result) {
-    final ConstantSearchFuture future = mySearchTasks.remove(Pair.create(result.getOwnerClassName(), result.getFieldName()));
-    if (future != null) {
-      if (result.getIsSuccess()) {
-        final List<String> paths = result.getPathList();
-        final List<File> files = new ArrayList<>(paths.size());
-        for (String path : paths) {
-          files.add(new File(path));
-        }
-        future.setResult(files);
-        LOG.debug("Constant search result: " + files.size() + " affected files found");
-      }
-      else {
-        future.setDone();
-        LOG.debug("Constant search failed");
-      }
-    }
-  }
-
   private static void applyFSEvent(ProjectDescriptor pd, @Nullable CmdlineRemoteProto.Message.ControllerMessage.FSEvent event, final boolean saveEventStamp) throws IOException {
     if (event == null) {
       return;
+    }
+
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("applyFSEvent ordinal=" + event.getOrdinal());
     }
 
     final StampsStorage<? extends StampsStorage.Stamp> stampsStorage = pd.getProjectStamps().getStampStorage();
@@ -438,6 +428,9 @@ final class BuildSession implements Runnable, CanceledStatus {
   }
 
   private static void updateFsStateOnDisk(File dataStorageRoot, DataInputStream original, final long ordinal) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("updateFsStateOnDisk, ordinal=" + ordinal);
+    }
     final File file = new File(dataStorageRoot, FS_STATE_FILE);
     try {
       final BufferExposingByteArrayOutputStream bytes = new BufferExposingByteArrayOutputStream();
@@ -532,6 +525,9 @@ final class BuildSession implements Runnable, CanceledStatus {
       }
       final long savedOrdinal = in.readLong();
       if (savedOrdinal + 1L != currentEventOrdinal) {
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Discarding FS data: savedOrdinal=" + savedOrdinal + "; currentEventOrdinal=" + currentEventOrdinal);
+        }
         return null;
       }
       return in;
@@ -552,7 +548,7 @@ final class BuildSession implements Runnable, CanceledStatus {
     CmdlineRemoteProto.Message lastMessage = null;
     try {
       if (error instanceof CannotLoadJpsModelException) {
-        String text = "Failed to load project configuration: " + StringUtil.decapitalize(error.getMessage());
+        String text = JpsBuildBundle.message("build.message.failed.to.load.project.configuration.0", StringUtil.decapitalize(error.getMessage()));
         String path = ((CannotLoadJpsModelException)error).getFile().getAbsolutePath();
         lastMessage = CmdlineProtoUtil.toMessage(mySessionId, CmdlineProtoUtil.createCompileMessage(BuildMessage.Kind.ERROR, text, path, -1, -1, -1, -1, -1, -1.0f));
       }
@@ -566,14 +562,14 @@ final class BuildSession implements Runnable, CanceledStatus {
           cause.printStackTrace(stream);
         }
 
-        final StringBuilder messageText = new StringBuilder();
-        messageText.append("Internal error: (").append(cause.getClass().getName()).append(") ").append(cause.getMessage());
+        @Nls StringBuilder messageText = new StringBuilder();
+        messageText.append(JpsBuildBundle.message("build.message.internal.error.0.1", cause.getClass().getName(),cause.getMessage()));
         final String trace = out.toString();
         if (!trace.isEmpty()) {
           messageText.append("\n").append(trace);
         }
         if (error instanceof RebuildRequestedException || cause instanceof IOException) {
-          messageText.append("\n").append("Please perform full project rebuild (Build | Rebuild Project)");
+          messageText.append("\n").append(JpsBuildBundle.message("build.message.perform.full.project.rebuild"));
         }
         lastMessage = CmdlineProtoUtil.toMessage(mySessionId, CmdlineProtoUtil.createFailure(messageText.toString(), cause));
       }
@@ -622,7 +618,7 @@ final class BuildSession implements Runnable, CanceledStatus {
     return BuildType.BUILD;
   }
 
-  private static class EventsProcessor {
+  private static final class EventsProcessor {
     private final Semaphore myProcessingEnabled = new Semaphore();
     private final Executor myExecutorService = SequentialTaskExecutor.createSequentialApplicationPoolExecutor("BuildSession.EventsProcessor.EventsProcessor Pool", SharedThreadPool.getInstance());
 
@@ -637,65 +633,6 @@ final class BuildSession implements Runnable, CanceledStatus {
 
     public void execute(@NotNull Runnable task) {
       myExecutorService.execute(task);
-    }
-  }
-
-  private class ConstantSearch implements Callbacks.ConstantAffectionResolver {
-
-    private ConstantSearch() {
-    }
-
-    @Nullable @Override
-    public Future<Callbacks.ConstantAffection> request(String ownerClassName, String fieldName, int accessFlags, boolean fieldRemoved, boolean accessChanged) {
-      final CmdlineRemoteProto.Message.BuilderMessage.ConstantSearchTask.Builder task =
-        CmdlineRemoteProto.Message.BuilderMessage.ConstantSearchTask.newBuilder();
-      task.setOwnerClassName(ownerClassName);
-      task.setFieldName(fieldName);
-      task.setAccessFlags(accessFlags);
-      task.setIsAccessChanged(accessChanged);
-      task.setIsFieldRemoved(fieldRemoved);
-      final ConstantSearchFuture future = new ConstantSearchFuture(BuildSession.this);
-      final ConstantSearchFuture prev = mySearchTasks.put(Pair.create(ownerClassName, fieldName), future);
-      if (prev != null) {
-        prev.setDone();
-      }
-      myChannel.writeAndFlush(CmdlineProtoUtil.toMessage(mySessionId, CmdlineRemoteProto.Message.BuilderMessage.newBuilder()
-        .setType(CmdlineRemoteProto.Message.BuilderMessage.Type.CONSTANT_SEARCH_TASK).setConstantSearchTask(task.build()).build()));
-      return future;
-    }
-  }
-
-  private static class ConstantSearchFuture extends BasicFuture<Callbacks.ConstantAffection> {
-    private volatile Callbacks.ConstantAffection myResult = Callbacks.ConstantAffection.EMPTY;
-    private final CanceledStatus myCanceledStatus;
-
-    private ConstantSearchFuture(CanceledStatus canceledStatus) {
-      myCanceledStatus = canceledStatus;
-    }
-
-    public void setResult(final Collection<File> affectedFiles) {
-      myResult = new Callbacks.ConstantAffection(affectedFiles);
-      setDone();
-    }
-
-    @Override
-    public Callbacks.ConstantAffection get() throws InterruptedException, ExecutionException {
-      while (true) {
-        try {
-          return get(300L, TimeUnit.MILLISECONDS);
-        }
-        catch (TimeoutException ignored) {
-        }
-        if (myCanceledStatus.isCanceled()) {
-          return myResult;
-        }
-      }
-    }
-
-    @Override
-    public Callbacks.ConstantAffection get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-      super.get(timeout, unit);
-      return myResult;
     }
   }
 }

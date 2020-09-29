@@ -1,7 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.uiDesigner.propertyInspector.properties;
 
-import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.ui.SimpleListCellRenderer;
 import com.intellij.uiDesigner.UIFormXmlConstants;
 import com.intellij.uiDesigner.propertyInspector.InplaceContext;
@@ -17,6 +17,7 @@ import com.intellij.uiDesigner.radComponents.RadLayoutManager;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
+import java.util.Objects;
 
 /**
  * @author yole
@@ -35,7 +36,7 @@ public class LayoutManagerProperty extends Property<RadContainer, String> {
     }
 
     @Override
-    public JComponent getComponent(RadComponent component, String value, InplaceContext inplaceContext) {
+    public JComponent getComponent(RadComponent component, @NlsSafe String value, InplaceContext inplaceContext) {
       if (UIFormXmlConstants.LAYOUT_XY.equals(value)) {
         myCbx.setModel(new DefaultComboBoxModel<>(LayoutManagerRegistry.getLayoutManagerNames()));
       }
@@ -69,7 +70,7 @@ public class LayoutManagerProperty extends Property<RadContainer, String> {
   @Override
   protected void setValueImpl(RadContainer component, String value) throws Exception {
     final RadLayoutManager oldLayout = component.getLayoutManager();
-    if (oldLayout != null && Comparing.equal(oldLayout.getName(), value)) {
+    if (oldLayout != null && Objects.equals(oldLayout.getName(), value)) {
       return;
     }
 

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.tabs.impl;
 
 import com.intellij.ide.ui.UISettings;
@@ -9,13 +9,16 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.rd.RdIdeaKt;
 import com.intellij.openapi.ui.*;
+import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.util.*;
+import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.openapi.wm.IdeGlassPane;
 import com.intellij.openapi.wm.IdeGlassPaneUtil;
+import com.intellij.ui.ComponentUtil;
+import com.intellij.ui.DirtyUI;
 import com.intellij.ui.ScreenUtil;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.scale.JBUIScale;
@@ -25,12 +28,17 @@ import com.intellij.ui.tabs.impl.singleRow.ScrollableSingleRowLayout;
 import com.intellij.ui.tabs.impl.singleRow.SingleRowLayout;
 import com.intellij.ui.tabs.impl.singleRow.SingleRowPassInfo;
 import com.intellij.ui.tabs.impl.table.TableLayout;
+import com.intellij.ui.tabs.impl.tabsLayout.TabsLayout;
+import com.intellij.ui.tabs.impl.tabsLayout.TabsLayoutCallback;
+import com.intellij.ui.tabs.impl.tabsLayout.TabsLayoutInfo;
+import com.intellij.ui.tabs.impl.tabsLayout.TabsLayoutSettingsManager;
 import com.intellij.util.Alarm;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.JBIterable;
 import com.intellij.util.ui.*;
 import com.intellij.util.ui.update.LazyUiDisposable;
+import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -50,18 +58,24 @@ import java.util.*;
 
 import static com.intellij.openapi.wm.IdeFocusManager.getGlobalInstance;
 
+@DirtyUI
 public class JBTabsImpl extends JComponent
-  implements JBTabsEx, PropertyChangeListener, TimerListener, DataProvider, PopupMenuListener, Disposable, JBTabsPresentation, Queryable,
-             UISettingsListener, QuickActionProvider, Accessible {
+  implements JBTabsEx, PropertyChangeListener, TimerListener, DataProvider, PopupMenuListener, JBTabsPresentation, Queryable,
+             UISettingsListener, QuickActionProvider, MorePopupAware, Accessible {
 
-  @NonNls public static final Key<Integer> SIDE_TABS_SIZE_LIMIT_KEY = Key.create("SIDE_TABS_SIZE_LIMIT_KEY");
-  static final int MIN_TAB_WIDTH = JBUIScale.scale(75);
-  static final int DEFAULT_MAX_TAB_WIDTH = JBUIScale.scale(300);
+  public static final boolean NEW_TABS = Registry.is("ide.editor.tabs.use.tabslayout");
+  public static final Key<Boolean> PINNED = Key.create("pinned");
+
+  TabsLayout myTabsLayout;
+  JPanel myTabContent;
+
+  public static final Key<Integer> SIDE_TABS_SIZE_LIMIT_KEY = Key.create("SIDE_TABS_SIZE_LIMIT_KEY");
+  public static final int MIN_TAB_WIDTH = JBUIScale.scale(75);
+  public static final int DEFAULT_MAX_TAB_WIDTH = JBUIScale.scale(300);
 
   private static final Comparator<TabInfo> ABC_COMPARATOR = (o1, o2) -> StringUtil.naturalCompare(o1.getText(), o2.getText());
   private static final Logger LOG = Logger.getInstance(JBTabsImpl.class);
 
-  @NotNull final ActionManager myActionManager;
   private final List<TabInfo> myVisibleInfos = new ArrayList<>();
   private final Map<TabInfo, AccessibleTabPage> myInfo2Page = new HashMap<>();
   private final Map<TabInfo, Integer> myHiddenInfos = new HashMap<>();
@@ -69,6 +83,8 @@ public class JBTabsImpl extends JComponent
   private TabInfo mySelectedInfo;
   public final Map<TabInfo, TabLabel> myInfo2Label = new HashMap<>();
   public final Map<TabInfo, Toolbar> myInfo2Toolbar = new HashMap<>();
+  public final ActionToolbar myMoreToolbar;
+  @Deprecated
   public Dimension myHeaderFitSize;
 
   private Insets myInnerInsets = JBUI.emptyInsets();
@@ -100,6 +116,7 @@ public class JBTabsImpl extends JComponent
 
   private SingleRowLayout mySingleRowLayout;
   private final TableLayout myTableLayout = new TableLayout(this);
+  // it's an invisible splitter intended for changing size of tab zone
   private final TabsSideSplitter mySplitter = new TabsSideSplitter(this);
 
 
@@ -115,6 +132,7 @@ public class JBTabsImpl extends JComponent
 
   private boolean myHideTabs;
   @Nullable private Project myProject;
+  @NotNull private final Disposable myParentDisposable;
 
   private boolean myRequestFocusOnLastFocusedComponent;
   private boolean myListenerAdded;
@@ -124,11 +142,9 @@ public class JBTabsImpl extends JComponent
   private IdeFocusManager myFocusManager;
   private static final boolean myAdjustBorders = true;
   private Set<JBTabsImpl> myNestedTabs = new HashSet<>();
-  private JBTabsImpl myParentTabs = null;
 
   boolean myAddNavigationGroup = true;
 
-  private boolean myDisposed;
   private Color myActiveTabFillIn;
 
   private boolean myTabLabelActionsAutoHide;
@@ -155,6 +171,9 @@ public class JBTabsImpl extends JComponent
 
   protected TabInfo myDropInfo;
   private int myDropInfoIndex;
+
+  @MagicConstant(intValues = {SwingConstants.CENTER, SwingConstants.TOP, SwingConstants.LEFT, SwingConstants.BOTTOM, SwingConstants.RIGHT, -1})
+  private int myDropSide = -1;
   protected boolean myShowDropLocation = true;
 
   private TabInfo myOldSelection;
@@ -170,6 +189,11 @@ public class JBTabsImpl extends JComponent
   private String myEmptyText;
   private boolean myMouseInsideTabsArea;
   private boolean myRemoveNotifyInProgress;
+
+  private TabsLayoutCallback myTabsLayoutCallback;
+  private MouseListener myTabsLayoutMouseListener;
+  private MouseMotionListener myTabsLayoutMouseMotionListener;
+  private MouseWheelListener myTabsLayoutMouseWheelListener;
 
   protected JBTabsBorder createTabBorder() {
     return new JBDefaultTabsBorder(this);
@@ -194,29 +218,180 @@ public class JBTabsImpl extends JComponent
   }
 
   private JBTabsImpl(@NotNull Project project, @NotNull Disposable parent) {
-    this(project, ActionManager.getInstance(), IdeFocusManager.getInstance(project), parent);
+    this(project, IdeFocusManager.getInstance(project), parent);
   }
 
-  public JBTabsImpl(@Nullable Project project, IdeFocusManager focusManager, @NotNull Disposable parent) {
-    this(project, ActionManager.getInstance(), focusManager, parent);
+  /**
+   * @deprecated Do not pass ActionManager.
+   */
+  @Deprecated
+  public JBTabsImpl(@Nullable Project project, @SuppressWarnings("unused") @NotNull ActionManager actionManager, IdeFocusManager focusManager, @NotNull Disposable parent) {
+    this(project, focusManager, parent);
   }
 
-  public JBTabsImpl(@Nullable Project project, @NotNull ActionManager actionManager, IdeFocusManager focusManager, @NotNull Disposable parent) {
+  public JBTabsImpl(@Nullable Project project, @Nullable IdeFocusManager focusManager, @NotNull Disposable parentDisposable) {
     myProject = project;
-    myActionManager = actionManager;
-    myFocusManager = focusManager != null ? focusManager : getGlobalInstance();
+    myFocusManager = focusManager == null ? getGlobalInstance() : focusManager;
+    myParentDisposable = parentDisposable;
+
+    myTabsLayoutCallback = new TabsLayoutCallback() {
+      @Override
+      public TabLabel getTabLabel(TabInfo info) {
+        return myInfo2Label.get(info);
+      }
+
+      @Override
+      public TabInfo getSelectedInfo() {
+        return mySelectedInfo;
+      }
+
+      @Override
+      public Toolbar getToolbar(TabInfo tabInfo) {
+        return myInfo2Toolbar.get(tabInfo);
+      }
+
+      @Override
+      public boolean isHorizontalToolbar() {
+        return myHorizontalSide;
+      }
+
+      @Override
+      public boolean isHiddenTabs() {
+        return myHideTabs;
+      }
+
+      @Override
+      public List<TabInfo> getVisibleTabsInfos() {
+        return getVisibleInfos();
+      }
+
+      @Override
+      public Map<TabInfo, Integer> getHiddenInfos() {
+        return myHiddenInfos;
+      }
+
+      @Override
+      public WeakHashMap<Component, Component> getDeferredToRemove() {
+        return myDeferredToRemove;
+      }
+
+      @Override
+      public int getAllTabsCount() {
+        return JBTabsImpl.this.getTabCount();
+      }
+
+      @Override
+      public Insets getLayoutInsets() {
+        return JBTabsImpl.this.getLayoutInsets();
+      }
+
+      @Override
+      public Insets getInnerInsets() {
+        return JBTabsImpl.this.getInnerInsets();
+      }
+
+      @Override
+      public int getFirstTabOffset() {
+        return JBTabsImpl.this.getFirstTabOffset();
+      }
+
+      @Override
+      public boolean isEditorTabs() {
+        return JBTabsImpl.this.isEditorTabs();
+      }
+
+      @Override
+      public JBTabsPosition getTabsPosition() {
+        return JBTabsImpl.this.getTabsPosition();
+      }
+
+      @Override
+      public boolean isDropTarget(TabInfo tabInfo) {
+        return JBTabsImpl.this.isDropTarget(tabInfo);
+      }
+
+      @Override
+      public boolean isToolbarOnTabs() {
+        return JBTabsImpl.this.isSideComponentOnTabs();
+      }
+
+      @Override
+      public boolean isToolbarBeforeTabs() {
+        return JBTabsImpl.this.isSideComponentBefore();
+      }
+
+      @Override
+      public int getToolbarInsetForOnTabsMode() {
+        return JBTabsImpl.this.getToolbarInset();
+      }
+
+      @Override
+      public TabInfo getDropInfo() {
+        return myDropInfo;
+      }
+
+      @Override
+      public boolean isShowDropLocation() {
+        return myShowDropLocation;
+      }
+
+      @Override
+      public int getDropInfoIndex() {
+        return JBTabsImpl.this.getDropInfoIndex();
+      }
+
+      @Override
+      public ActionCallback selectTab(@NotNull TabInfo info, boolean requestFocus) {
+        return JBTabsImpl.this.select(info, requestFocus);
+      }
+
+      @Override
+      public JComponent getComponent() {
+        return JBTabsImpl.this;
+      }
+
+      @Override
+      public void relayout(boolean forced, boolean layoutNow) {
+        JBTabsImpl.this.relayout(forced, layoutNow);
+      }
+
+      @Override
+      public int tabMSize() {
+        return JBTabsImpl.this.tabMSize();
+      }
+
+      @Override
+      public int getBorderThickness() {
+        return myBorder.getThickness();
+      }
+    };
+
+    updateTabsLayout(TabsLayoutSettingsManager.getInstance().getDefaultTabsLayoutInfo());
+    AWTEventListener listener1 = new AWTEventListener() {
+      @Override
+      public void eventDispatched(AWTEvent event) {
+        myTabsLayout.mouseMotionEventDispatched((MouseEvent)event);
+      }
+    };
+    Toolkit.getDefaultToolkit().addAWTEventListener(listener1, AWTEvent.MOUSE_MOTION_EVENT_MASK);
+    Disposer.register(parentDisposable, () -> {
+      Toolkit toolkit = Toolkit.getDefaultToolkit();
+      if (toolkit != null) {
+        toolkit.removeAWTEventListener(listener1);
+      }
+    });
+
+    myTabContent = new JPanel();
 
     setOpaque(true);
     setBackground(myTabPainter.getBackgroundColor());
 
     setBorder(myBorder);
 
-    Disposer.register(parent, this);
-
     myNavigationActions = new DefaultActionGroup();
 
-    myNextAction = new SelectNextAction(this, myActionManager);
-    myPrevAction = new SelectPreviousAction(this, myActionManager);
+    myNextAction = new SelectNextAction(this, parentDisposable);
+    myPrevAction = new SelectPreviousAction(this, parentDisposable);
 
     myNavigationActions.add(myNextAction);
     myNavigationActions.add(myPrevAction);
@@ -244,16 +419,15 @@ public class JBTabsImpl extends JComponent
       }
     };
 
-    addMouseListener(new MouseAdapter() {
-      @Override
-      public void mousePressed(final MouseEvent e) {
-        if (mySingleRowLayout.myLastSingRowLayout != null &&
-            mySingleRowLayout.myLastSingRowLayout.moreRect != null &&
-            mySingleRowLayout.myLastSingRowLayout.moreRect.contains(e.getPoint())) {
-          showMorePopup(e);
-        }
-      }
-    });
+    ActionManager actionManager = ActionManager.getInstance();
+    AnAction tabListAction = actionManager.getAction("TabList");
+    myMoreToolbar = actionManager
+      .createActionToolbar(ActionPlaces.TABS_MORE_TOOLBAR, new DefaultActionGroup(tabListAction), true);
+    myMoreToolbar.setTargetComponent(this);
+    myMoreToolbar.getComponent().setBorder(JBUI.Borders.empty());
+    myMoreToolbar.getComponent().setOpaque(false);
+    myMoreToolbar.setLayoutPolicy(ActionToolbar.NOWRAP_LAYOUT_POLICY);
+    add(myMoreToolbar.getComponent());
     addMouseWheelListener(event -> {
       int units = event.getUnitsToScroll();
       if (units == 0) return;
@@ -263,7 +437,7 @@ public class JBTabsImpl extends JComponent
       }
     });
     AWTEventListener listener = new AWTEventListener() {
-      final Alarm afterScroll = new Alarm(JBTabsImpl.this);
+      final Alarm afterScroll = new Alarm(parentDisposable);
       @Override
       public void eventDispatched(AWTEvent event) {
         if (mySingleRowLayout.myLastSingRowLayout == null) return;
@@ -293,7 +467,7 @@ public class JBTabsImpl extends JComponent
       }
     };
     Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.MOUSE_MOTION_EVENT_MASK);
-    Disposer.register(this, () -> {
+    Disposer.register(parentDisposable, () -> {
       Toolkit toolkit = Toolkit.getDefaultToolkit();
       if (toolkit != null) {
         toolkit.removeAWTEventListener(listener);
@@ -315,28 +489,28 @@ public class JBTabsImpl extends JComponent
       }
     });
 
-    new LazyUiDisposable<JBTabsImpl>(parent, this, this) {
+    new LazyUiDisposable<JBTabsImpl>(parentDisposable, this, this) {
       @Override
       protected void initialize(@NotNull Disposable parent, @NotNull JBTabsImpl child, @Nullable Project project) {
         if (myProject == null && project != null) {
           myProject = project;
         }
 
-        Disposer.register(child, myAnimator);
-        Disposer.register(child, () -> removeTimerUpdate());
+        Disposer.register(parentDisposable, myAnimator);
+        Disposer.register(parentDisposable, () -> removeTimerUpdate());
 
         IdeGlassPane gp = IdeGlassPaneUtil.find(child);
         myTabActionsAutoHideListenerDisposable = Disposer.newDisposable("myTabActionsAutoHideListener");
-        Disposer.register(child, myTabActionsAutoHideListenerDisposable);
+        Disposer.register(parentDisposable, myTabActionsAutoHideListenerDisposable);
         gp.addMouseMotionPreprocessor(myTabActionsAutoHideListener, myTabActionsAutoHideListenerDisposable);
         myGlassPane = gp;
 
         UIUtil.addAwtListener(__ -> {
-          if (mySingleRowLayout.myMorePopup != null) return;
+          if (!JBPopupFactory.getInstance().getChildPopups(JBTabsImpl.this).isEmpty()) return;
           processFocusChange();
-        }, AWTEvent.FOCUS_EVENT_MASK, child);
+        }, AWTEvent.FOCUS_EVENT_MASK, parentDisposable);
 
-        myDragHelper = new DragHelper(child);
+        myDragHelper = new DragHelper(child, parentDisposable);
         myDragHelper.start();
 
         if (myProject != null && myFocusManager == getGlobalInstance()) {
@@ -344,10 +518,12 @@ public class JBTabsImpl extends JComponent
         }
       }
     };
-    UIUtil.putClientProperty(
-      this, UIUtil.NOT_IN_HIERARCHY_COMPONENTS,
-      (Iterable<JComponent>)() -> JBIterable.from(getVisibleInfos()).filter(Conditions.not(Conditions.is(mySelectedInfo))).transform(
-        info -> info.getComponent()).iterator());
+    ComponentUtil.putClientProperty(this, UIUtil.NOT_IN_HIERARCHY_COMPONENTS,
+                                    (Iterable<? extends Component>)(Iterable<JComponent>)() -> {
+                                      return JBIterable.from(getVisibleInfos())
+                                        .filter(Conditions.not(Conditions.is(mySelectedInfo)))
+                                        .transform(info -> info.getComponent()).iterator();
+                                    });
   }
 
   public boolean isMouseInsideTabsArea() {
@@ -355,13 +531,13 @@ public class JBTabsImpl extends JComponent
   }
 
   @Override
-  public void uiSettingsChanged(UISettings uiSettings) {
+  public void uiSettingsChanged(@NotNull UISettings uiSettings) {
     for (Map.Entry<TabInfo, TabLabel> entry : myInfo2Label.entrySet()) {
       entry.getKey().revalidate();
       entry.getValue().updateActionLabelPosition();
     }
     boolean oldHideTabsIfNeeded = mySingleRowLayout instanceof ScrollableSingleRowLayout;
-    boolean newHideTabsIfNeeded = UISettings.getInstance().getHideTabsIfNeeded();
+    boolean newHideTabsIfNeeded = uiSettings.getHideTabsIfNeeded();
     if (oldHideTabsIfNeeded != newHideTabsIfNeeded) {
       updateRowLayout();
     }
@@ -426,7 +602,7 @@ public class JBTabsImpl extends JComponent
     return false;
   }
 
-  boolean supportsCompression() {
+  public boolean supportsCompression() {
     return mySupportsCompression;
   }
 
@@ -436,19 +612,30 @@ public class JBTabsImpl extends JComponent
     return this;
   }
 
-  @Override
-  public final boolean isDisposed() {
-    return myDisposed;
-  }
-
-  public void addNestedTabs(JBTabsImpl tabs) {
+  public void addNestedTabs(@NotNull JBTabsImpl tabs, @NotNull Disposable parentDisposable) {
     myNestedTabs.add(tabs);
-    tabs.myParentTabs = this;
+    Disposer.register(parentDisposable, new Disposable() {
+      @Override
+      public void dispose() {
+        myNestedTabs.remove(tabs);
+      }
+    });
   }
 
-  public void removeNestedTabs(JBTabsImpl tabs) {
-    myNestedTabs.remove(tabs);
-    tabs.myParentTabs = null;
+  public boolean isDragOut(TabLabel label, int deltaX, int deltaY) {
+    if (NEW_TABS) {
+      return getEffectiveLayout().isDragOut(label, deltaX, deltaY);
+    } else {
+      return myTabsLayout.isDragOut(label, deltaX, deltaY);
+    }
+  }
+
+  boolean ignoreTabLabelLimitedWidthWhenPaint() {
+    if (NEW_TABS) {
+      return myTabsLayout != null && myTabsLayout.ignoreTabLabelLimitedWidthWhenPaint();
+    } else {
+      return getEffectiveLayout() instanceof ScrollableSingleRowLayout;
+    }
   }
 
   public static Image getComponentImage(TabInfo info) {
@@ -468,26 +655,8 @@ public class JBTabsImpl extends JComponent
     return img;
   }
 
-  @Override
-  public void dispose() {
-    myDisposed = true;
-    mySelectedInfo = null;
-    myDeferredFocusRequest = null;
-    resetTabsCache();
-    myAttractions.clear();
-    myVisibleInfos.clear();
-    myUiDecorator = null;
-    myActivePopup = null;
-    myInfo2Label.clear();
-    myInfo2Page.clear();
-    myInfo2Toolbar.clear();
-    myTabListeners.clear();
-    myLastLayoutPass = null;
-    if (myParentTabs != null) myParentTabs.removeNestedTabs(this);
-  }
-
   void resetTabsCache() {
-    ApplicationManager.getApplication().assertIsDispatchThread();
+    EDT.assertIsEdt();
     myAllTabs = null;
   }
 
@@ -575,14 +744,14 @@ public class JBTabsImpl extends JComponent
 
   private void addTimerUpdate() {
     if (!myListenerAdded) {
-      myActionManager.addTimerListener(500, this);
+      ActionManager.getInstance().addTimerListener(500, this);
       myListenerAdded = true;
     }
   }
 
   private void removeTimerUpdate() {
     if (myListenerAdded) {
-      myActionManager.removeTimerListener(this);
+      ActionManager.getInstance().removeTimerListener(this);
       myListenerAdded = false;
     }
   }
@@ -622,6 +791,11 @@ public class JBTabsImpl extends JComponent
     myDropInfoIndex = dropInfoIndex;
   }
 
+  @MagicConstant(intValues = {SwingConstants.CENTER, SwingConstants.TOP, SwingConstants.LEFT, SwingConstants.BOTTOM, SwingConstants.RIGHT, -1})
+  private void setDropSide(int side) {
+    myDropSide = side;
+  }
+
   public int getFirstTabOffset() {
     return myFirstTabOffset;
   }
@@ -643,11 +817,10 @@ public class JBTabsImpl extends JComponent
 
 
   /**
-   * TODO use {@link RdIdeaKt#childAtMouse(IdeGlassPane, Container)}
+   * TODO use {@link RdGraphicsExKt#childAtMouse(IdeGlassPane, Container)}
    */
   @Deprecated
-  class TabActionsAutoHideListener extends MouseMotionAdapter implements Weighted {
-
+  final class TabActionsAutoHideListener extends MouseMotionAdapter implements Weighted {
     private TabLabel myCurrentOverLabel;
     private Point myLastOverPoint;
 
@@ -712,53 +885,45 @@ public class JBTabsImpl extends JComponent
     }
   }
 
-  @Override
-  public boolean canShowMorePopup() {
-    final SingleRowPassInfo lastLayout = mySingleRowLayout.myLastSingRowLayout;
-    return lastLayout != null && lastLayout.moreRect != null;
+  private Rectangle getMoreRect() {
+    SingleRowPassInfo lastLayout = mySingleRowLayout.myLastSingRowLayout;
+    return lastLayout != null ? lastLayout.moreRect : null;
   }
 
   @Override
-  public void showMorePopup(@Nullable final MouseEvent e) {
-    final SingleRowPassInfo lastLayout = mySingleRowLayout.myLastSingRowLayout;
-    if (lastLayout == null) {
+  public boolean canShowMorePopup() {
+    if (NEW_TABS) {
+      return myTabsLayout instanceof MorePopupAware && ((MorePopupAware)myTabsLayout).canShowMorePopup();
+    }
+    return getMoreRect() != null;
+  }
+
+  @Override
+  public void showMorePopup() {
+    if (NEW_TABS) {
+      if (myTabsLayout instanceof MorePopupAware) {
+        ((MorePopupAware)myTabsLayout).showMorePopup();
+      }
       return;
     }
-    mySingleRowLayout.myMorePopup = new JBPopupMenu();
+
+    Rectangle rect = getMoreRect();
+    if (rect == null) return;
+
+    JBPopupMenu menu = new JBPopupMenu();
     for (final TabInfo each : getVisibleInfos()) {
       if (!mySingleRowLayout.isTabHidden(each)) continue;
-      final JBMenuItem item = new JBMenuItem(each.getText(), each.getIcon());
-      item.setForeground(each.getDefaultForeground());
-      item.setBackground(each.getTabColor());
-      mySingleRowLayout.myMorePopup.add(item);
-      item.addActionListener(__ -> select(each, true));
+      menu.add(createMenuItem(each));
     }
+    menu.show(this, rect.x, rect.y + rect.height);
+  }
 
-    mySingleRowLayout.myMorePopup.addPopupMenuListener(new PopupMenuListener() {
-      @Override
-      public void popupMenuWillBecomeVisible(final PopupMenuEvent e) {
-      }
-
-      @Override
-      public void popupMenuWillBecomeInvisible(final PopupMenuEvent e) {
-        mySingleRowLayout.myMorePopup = null;
-      }
-
-      @Override
-      public void popupMenuCanceled(final PopupMenuEvent e) {
-        mySingleRowLayout.myMorePopup = null;
-      }
-    });
-
-    if (e != null) {
-      mySingleRowLayout.myMorePopup.show(this, e.getX(), e.getY());
-    }
-    else {
-      final Rectangle rect = lastLayout.moreRect;
-      if (rect != null) {
-        mySingleRowLayout.myMorePopup.show(this, rect.x, rect.y + rect.height);
-      }
-    }
+  private JBMenuItem createMenuItem(@NotNull TabInfo tabInfo) {
+    final JBMenuItem item = new JBMenuItem(tabInfo.getText(), tabInfo.getIcon());
+    item.setForeground(tabInfo.getDefaultForeground());
+    item.setBackground(tabInfo.getTabColor());
+    item.addActionListener(__ -> select(tabInfo, true));
+    return item;
   }
 
 
@@ -823,8 +988,7 @@ public class JBTabsImpl extends JComponent
     }
 
     info.getChangeSupport().addPropertyChangeListener(this);
-    final TabLabel label = createTabLabel(info);
-    Disposer.register(this, label);
+    TabLabel label = createTabLabel(info);
     myInfo2Label.put(info, label);
     myInfo2Page.put(info, new AccessibleTabPage(info));
 
@@ -838,7 +1002,6 @@ public class JBTabsImpl extends JComponent
     }
 
     resetTabsCache();
-
 
     updateText(info);
     updateIcon(info);
@@ -960,68 +1123,68 @@ public class JBTabsImpl extends JComponent
   }
 
   @NotNull
-  private ActionCallback executeSelectionChange(TabInfo info, boolean requestFocus) {
+  private ActionCallback executeSelectionChange(@NotNull TabInfo info, boolean requestFocus) {
     if (mySelectedInfo != null && mySelectedInfo.equals(info)) {
       if (!requestFocus) {
         return ActionCallback.DONE;
       }
-      else {
-        Component owner = myFocusManager.getFocusOwner();
-        JComponent c = info.getComponent();
-        if (c != null && owner != null) {
-          if (c == owner || SwingUtilities.isDescendingFrom(owner, c)) {
-            return ActionCallback.DONE;
-          }
-        }
-        return requestFocus(getToFocus());
+
+      Component owner = myFocusManager.getFocusOwner();
+      JComponent c = info.getComponent();
+      if (c != null && owner != null && (c == owner || SwingUtilities.isDescendingFrom(owner, c))) {
+        return ActionCallback.DONE;
       }
+      return requestFocus(getToFocus());
     }
 
-    if (myRequestFocusOnLastFocusedComponent && mySelectedInfo != null) {
-      if (isMyChildIsFocusedNow()) {
-        mySelectedInfo.setLastFocusOwner(getFocusOwner());
-      }
+    if (myRequestFocusOnLastFocusedComponent && mySelectedInfo != null && isMyChildIsFocusedNow()) {
+      mySelectedInfo.setLastFocusOwner(getFocusOwner());
     }
 
     TabInfo oldInfo = mySelectedInfo;
     mySelectedInfo = info;
-    final TabInfo newInfo = getSelectedInfo();
-
+    TabInfo newInfo = getSelectedInfo();
     if (myRequestFocusOnLastFocusedComponent && newInfo != null) {
       newInfo.setLastFocusOwner(null);
     }
 
     TabLabel label = myInfo2Label.get(info);
-    if(label != null) {
+    if (label != null) {
       setComponentZOrder(label, 0);
     }
 
     fireBeforeSelectionChanged(oldInfo, newInfo);
-
-    updateContainer(false, true);
+    boolean oldValue = myMouseInsideTabsArea;
+    try {
+      updateContainer(false, true);
+    }
+    finally {
+      myMouseInsideTabsArea = oldValue;
+    }
 
     fireSelectionChanged(oldInfo, newInfo);
 
-    if (requestFocus) {
-      final JComponent toFocus = getToFocus();
-      if (myProject != null && toFocus != null) {
-        final ActionCallback result = new ActionCallback();
-        requestFocus(toFocus).doWhenProcessed(() -> {
-          if (myDisposed) {
-            result.setRejected();
-          }
-          else {
-            removeDeferred().notifyWhenDone(result);
-          }
-        });
-        return result;
-      }
-      else {
-        requestFocus();
-        return removeDeferred();
-      }
+    if (!requestFocus) {
+      return removeDeferred();
+    }
+
+    JComponent toFocus = getToFocus();
+    if (myProject != null && toFocus != null) {
+      ActionCallback result = new ActionCallback();
+      requestFocus(toFocus).doWhenProcessed(() -> {
+        if (myProject.isDisposed()) {
+          result.setRejected();
+        }
+        else {
+          removeDeferred().notifyWhenDone(result);
+        }
+      });
+      return result;
     }
     else {
+      ApplicationManager.getApplication().invokeLater(() -> {
+        requestFocus();
+      }, ModalityState.NON_MODAL);
       return removeDeferred();
     }
   }
@@ -1072,7 +1235,10 @@ public class JBTabsImpl extends JComponent
     if (toFocus == null) return ActionCallback.DONE;
 
     if (isShowing()) {
-      return myFocusManager.requestFocusInProject(toFocus, myProject);
+      ApplicationManager.getApplication().invokeLater(() -> {
+        myFocusManager.requestFocusInProject(toFocus, myProject);
+      }, ModalityState.NON_MODAL);
+      return ActionCallback.DONE;
     }
     return ActionCallback.REJECTED;
   }
@@ -1383,7 +1549,7 @@ public class JBTabsImpl extends JComponent
   @Override
   @NotNull
   public List<TabInfo> getTabs() {
-    ApplicationManager.getApplication().assertIsDispatchThread();
+    EDT.assertIsEdt();
     if (myAllTabs != null) return myAllTabs;
 
     ArrayList<TabInfo> result = new ArrayList<>(myVisibleInfos);
@@ -1392,7 +1558,7 @@ public class JBTabsImpl extends JComponent
       result.add(getIndexInVisibleArray(each), each);
     }
     if (isAlphabeticalMode()) {
-      Collections.sort(result, ABC_COMPARATOR);
+      result.sort(ABC_COMPARATOR);
     }
 
     myAllTabs = result;
@@ -1460,7 +1626,7 @@ public class JBTabsImpl extends JComponent
 
       if (group != null) {
         final String place = info.getPlace();
-        ActionToolbar toolbar = tabs.myActionManager.createActionToolbar(place != null ? place : "JBTabs", group, tabs.myHorizontalSide);
+        ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar(place != null ? place : "JBTabs", group, tabs.myHorizontalSide);
         toolbar.setTargetComponent(info.getActionsContextComponent());
         final JComponent actionToolbar = toolbar.getComponent();
         add(actionToolbar, BorderLayout.CENTER);
@@ -1474,7 +1640,7 @@ public class JBTabsImpl extends JComponent
           add(side, BorderLayout.CENTER);
         }
       }
-      UIUtil.uiTraverser(this).forEach(c -> c.setFocusable(false));
+      UIUtil.uiTraverser(this).filter(c -> !UIUtil.canDisplayFocusedState(c)).forEach(c -> c.setFocusable(false));
     }
 
     public boolean isEmpty() {
@@ -1486,50 +1652,70 @@ public class JBTabsImpl extends JComponent
   @Override
   public void doLayout() {
     try {
-      myHeaderFitSize = computeHeaderFitSize();
+
       final Collection<TabLabel> labels = myInfo2Label.values();
       for (TabLabel each : labels) {
         each.setTabActionsAutoHide(myTabLabelActionsAutoHide);
       }
 
-
-      List<TabInfo> visible = new ArrayList<>(getVisibleInfos());
-
-      if (myDropInfo != null && !visible.contains(myDropInfo) && myShowDropLocation) {
-        if (getDropInfoIndex() >= 0 && getDropInfoIndex() < visible.size()) {
-          visible.add(getDropInfoIndex(), myDropInfo);
-        }
-        else {
-          visible.add(myDropInfo);
-        }
-      }
-
-      if (isSingleRow()) {
-        mySingleRowLayout.scrollSelectionInView();
-        myLastLayoutPass = mySingleRowLayout.layoutSingleRow(visible);
-        myTableLayout.myLastTableLayout = null;
-        OnePixelDivider divider = mySplitter.getDivider();
-        if (divider.getParent() == this) {
-          int location = getTabsPosition() == JBTabsPosition.left
-                         ? mySingleRowLayout.myLastSingRowLayout.tabRectangle.width
-                         : getWidth() - mySingleRowLayout.myLastSingRowLayout.tabRectangle.width;
-          divider.setBounds(location, 0, 1, getHeight());
-        }
+      if (NEW_TABS) {
+        myLastLayoutPass = myTabsLayout.layoutContainer(myForcedRelayout);
       }
       else {
-        myLastLayoutPass = myTableLayout.layoutTable(visible);
-        mySingleRowLayout.myLastSingRowLayout = null;
+        myHeaderFitSize = computeHeaderFitSize();
+
+        List<TabInfo> visible = new ArrayList<>(getVisibleInfos());
+
+        if (myDropInfo != null && !visible.contains(myDropInfo) && myShowDropLocation) {
+          if (getDropInfoIndex() >= 0 && getDropInfoIndex() < visible.size()) {
+            visible.add(getDropInfoIndex(), myDropInfo);
+          }
+          else {
+            visible.add(myDropInfo);
+          }
+        }
+
+        if (isSingleRow()) {
+          mySingleRowLayout.scrollSelectionInView();
+          myLastLayoutPass = mySingleRowLayout.layoutSingleRow(visible);
+          Rectangle moreRect = getMoreRect();
+          if (moreRect != null) {
+            Dimension preferredSize = myMoreToolbar.getComponent().getPreferredSize();
+            Rectangle bounds = new Rectangle(moreRect);
+            int xDiff = (bounds.width - preferredSize.width) / 2;
+            int yDiff = (bounds.height - preferredSize.height) / 2;
+            bounds.x += xDiff + 2;
+            bounds.width -= 2 * xDiff;
+            bounds.y += yDiff;
+            bounds.height -= 2* yDiff;
+            myMoreToolbar.getComponent().setBounds(bounds);
+          } else {
+            myMoreToolbar.getComponent().setBounds(new Rectangle());
+          }
+          myTableLayout.myLastTableLayout = null;
+          OnePixelDivider divider = mySplitter.getDivider();
+          if (divider.getParent() == this) {
+            int location = getTabsPosition() == JBTabsPosition.left
+                           ? mySingleRowLayout.myLastSingRowLayout.tabRectangle.width
+                           : getWidth() - mySingleRowLayout.myLastSingRowLayout.tabRectangle.width;
+            divider.setBounds(location, 0, 1, getHeight());
+          }
+        }
+        else {
+          myLastLayoutPass = myTableLayout.layoutTable(visible);
+          mySingleRowLayout.myLastSingRowLayout = null;
+        }
+
+        moveDraggedTabLabel();
+
+        myTabActionsAutoHideListener.processMouseOver();
+
+        applyResetComponents();
       }
-
-      moveDraggedTabLabel();
-
-      myTabActionsAutoHideListener.processMouseOver();
     }
     finally {
       myForcedRelayout = false;
     }
-
-    applyResetComponents();
   }
 
   void moveDraggedTabLabel() {
@@ -1658,7 +1844,10 @@ public class JBTabsImpl extends JComponent
 
     myTabPainter.fillBackground((Graphics2D)g, new Rectangle(0, 0, getWidth(), getHeight()));
     drawBorder(g);
-    drawToolbarSeparator(g);
+
+    if (!NEW_TABS) {
+      drawToolbarSeparator(g);
+    }
   }
 
   private void drawToolbarSeparator(Graphics g) {
@@ -1686,12 +1875,42 @@ public class JBTabsImpl extends JComponent
 
   protected List<TabInfo> getVisibleInfos() {
     if (!isAlphabeticalMode()) {
-      return myVisibleInfos;
+      return groupPinnedFirst(myVisibleInfos, null);
     } else {
       List<TabInfo> sortedCopy = new ArrayList<>(myVisibleInfos);
-      Collections.sort(sortedCopy, ABC_COMPARATOR);
-      return sortedCopy;
+      return groupPinnedFirst(sortedCopy, ABC_COMPARATOR);
     }
+  }
+
+  private static List<TabInfo> groupPinnedFirst(List<TabInfo> infos, @Nullable Comparator<TabInfo> comparator) {
+    int firstNotPinned = -1;
+    for (int i = 0; i < infos.size(); i++) {
+      TabInfo info = infos.get(i);
+      if (info.isPinned()) {
+        if (firstNotPinned != -1) {
+          TabInfo tabInfo = infos.remove(firstNotPinned);
+          infos.add(firstNotPinned, info);
+          infos.set(i, tabInfo);
+          firstNotPinned++;
+        }
+      } else if (firstNotPinned == -1) {
+        firstNotPinned = i;
+      }
+    }
+
+    if (comparator != null) {
+      if (firstNotPinned != -1) {
+        List<TabInfo> pinned = infos.subList(0, firstNotPinned);
+        pinned.sort(comparator);
+        List<TabInfo> unpinned = infos.subList(firstNotPinned, infos.size());
+        unpinned.sort(comparator);
+        infos = new ArrayList<>(pinned);
+        infos.addAll(unpinned);
+      } else {
+        infos.sort(comparator);
+      }
+    }
+    return infos;
   }
 
   protected LayoutPassInfo getLastLayoutPass() {
@@ -1711,12 +1930,6 @@ public class JBTabsImpl extends JComponent
     return JBSwingUtilities.runGlobalCGTransform(this, super.getComponentGraphics(graphics));
   }
 
-  @Override
-  protected void paintChildren(final Graphics g) {
-    super.paintChildren(g);
-    mySingleRowLayout.myMoreIcon.paintIcon(this, g);
-  }
-
   protected void drawBorder(Graphics g) {
     if (!isHideTabs()) {
       myBorder.paintBorder(this, g, 0, 0, getWidth(), getHeight());
@@ -1725,14 +1938,19 @@ public class JBTabsImpl extends JComponent
 
   private Max computeMaxSize() {
     Max max = new Max();
+    final boolean isSideComponentOnTabs = NEW_TABS ? myTabsLayout.isToolbarOnTabs() : myLayout.isSideComponentOnTabs();
+
     for (TabInfo eachInfo : myVisibleInfos) {
       final TabLabel label = myInfo2Label.get(eachInfo);
       max.myLabel.height = Math.max(max.myLabel.height, label.getPreferredSize().height);
       max.myLabel.width = Math.max(max.myLabel.width, label.getPreferredSize().width);
-      final Toolbar toolbar = myInfo2Toolbar.get(eachInfo);
-      if (myLayout.isSideComponentOnTabs() && toolbar != null && !toolbar.isEmpty()) {
-        max.myToolbar.height = Math.max(max.myToolbar.height, toolbar.getPreferredSize().height);
-        max.myToolbar.width = Math.max(max.myToolbar.width, toolbar.getPreferredSize().width);
+
+      if (isSideComponentOnTabs) {
+        final Toolbar toolbar = myInfo2Toolbar.get(eachInfo);
+        if (toolbar != null && !toolbar.isEmpty()) {
+          max.myToolbar.height = Math.max(max.myToolbar.height, toolbar.getPreferredSize().height);
+          max.myToolbar.width = Math.max(max.myToolbar.width, toolbar.getPreferredSize().width);
+        }
       }
     }
     if (getTabsPosition().isSide()) {
@@ -1915,11 +2133,6 @@ public class JBTabsImpl extends JComponent
       queueForRemove(tabComponent);
     }
 
-    TabLabel tabLabel = myInfo2Label.get(info);
-    if (tabLabel != null) {
-      Disposer.dispose(tabLabel);
-    }
-
     myVisibleInfos.remove(info);
     myHiddenInfos.remove(info);
     myInfo2Label.remove(info);
@@ -1989,7 +2202,7 @@ public class JBTabsImpl extends JComponent
   }
 
   private void updateContainer(boolean forced, final boolean layoutNow) {
-    if (myProject != null && !myProject.isOpen()) return;
+    if (myProject != null && !myProject.isOpen() && !myProject.isDefault()) return;
     for (TabInfo each : new ArrayList<>(myVisibleInfos)) {
       final JComponent eachComponent = each.getComponent();
       if (getSelectedInfo() == each && getSelectedInfo() != null) {
@@ -2193,10 +2406,10 @@ public class JBTabsImpl extends JComponent
     @NotNull private final ActionManager myActionManager;
     private final JBTabsImpl myTabs;
 
-    BaseNavigationAction(@NotNull String copyFromID, @NotNull JBTabsImpl tabs, @NotNull ActionManager mgr) {
-      myActionManager = mgr;
+    BaseNavigationAction(@NotNull String copyFromID, @NotNull JBTabsImpl tabs, @NotNull Disposable parentDisposable) {
+      myActionManager = ActionManager.getInstance();
       myTabs = tabs;
-      myShadow = new ShadowAction(this, myActionManager.getAction(copyFromID), tabs, tabs);
+      myShadow = new ShadowAction(this, myActionManager.getAction(copyFromID), tabs, parentDisposable);
       setEnabledInModalContext(true);
     }
 
@@ -2266,10 +2479,9 @@ public class JBTabsImpl extends JComponent
     protected abstract void _actionPerformed(final AnActionEvent e, final JBTabsImpl tabs, final int selectedIndex);
   }
 
-  private static class SelectNextAction extends BaseNavigationAction {
-
-    private SelectNextAction(JBTabsImpl tabs, @NotNull ActionManager mgr) {
-      super(IdeActions.ACTION_NEXT_TAB, tabs, mgr);
+  private static final class SelectNextAction extends BaseNavigationAction {
+    private SelectNextAction(JBTabsImpl tabs, @NotNull Disposable parentDisposable) {
+      super(IdeActions.ACTION_NEXT_TAB, tabs, parentDisposable);
     }
 
     @Override
@@ -2339,9 +2551,9 @@ public class JBTabsImpl extends JComponent
       });
   }
 
-  private static class SelectPreviousAction extends BaseNavigationAction {
-    private SelectPreviousAction(JBTabsImpl tabs, @NotNull ActionManager mgr) {
-      super(IdeActions.ACTION_PREVIOUS_TAB, tabs, mgr);
+  private static final class SelectPreviousAction extends BaseNavigationAction {
+    private SelectPreviousAction(JBTabsImpl tabs, @NotNull Disposable parentDisposable) {
+      super(IdeActions.ACTION_PREVIOUS_TAB, tabs, parentDisposable);
     }
 
     @Override
@@ -2425,13 +2637,13 @@ public class JBTabsImpl extends JComponent
     return false;
   }
 
-  public boolean useBoldLabels() {
-    return false;
-  }
-
   @Override
   public boolean isSingleRow() {
-    return getEffectiveLayout() == mySingleRowLayout;
+    if (!NEW_TABS) {
+      return getEffectiveLayout() == mySingleRowLayout;
+    } else {
+      return myTabsLayout.isSingleRow();
+    }
   }
 
   public boolean isSideComponentVertical() {
@@ -2490,7 +2702,7 @@ public class JBTabsImpl extends JComponent
     relayout(true, false);
   }
 
-  private static void adjust(final TabInfo each) {
+  protected void adjust(final TabInfo each) {
     if (myAdjustBorders) {
       UIUtil.removeScrollBorder(each.getComponent());
     }
@@ -2498,7 +2710,7 @@ public class JBTabsImpl extends JComponent
 
   @Override
   public void sortTabs(Comparator<? super TabInfo> comparator) {
-    Collections.sort(myVisibleInfos, comparator);
+    myVisibleInfos.sort(comparator);
 
     relayout(true, false);
   }
@@ -2523,6 +2735,9 @@ public class JBTabsImpl extends JComponent
     }
 
     if (QuickActionProvider.KEY.getName().equals(dataId)) {
+      return this;
+    }
+    if (MorePopupAware.KEY.is(dataId)) {
       return this;
     }
 
@@ -2630,7 +2845,7 @@ public class JBTabsImpl extends JComponent
     OnePixelDivider divider = mySplitter.getDivider();
     if (position.isSide() && divider.getParent() == null) {
       add(divider);
-    } else if (divider.getParent() == this){
+    } else if (divider.getParent() == this && !position.isSide()){
       remove(divider);
     }
     relayout(true, false);
@@ -2642,7 +2857,7 @@ public class JBTabsImpl extends JComponent
     return myPosition;
   }
 
-  TimedDeadzone.Length getTabActionsMouseDeadzone() {
+  public TimedDeadzone.Length getTabActionsMouseDeadzone() {
     return myTabActionsMouseDeadzone;
   }
 
@@ -2665,8 +2880,8 @@ public class JBTabsImpl extends JComponent
     return this;
   }
 
-  boolean isTabDraggingEnabled() {
-    return myTabDraggingEnabled && !mySplitter.isDragging();
+  public boolean isTabDraggingEnabled() {
+    return myTabDraggingEnabled;
   }
 
   void reallocate(TabInfo source, TabInfo target) {
@@ -2702,9 +2917,8 @@ public class JBTabsImpl extends JComponent
       myShowDropLocation = true;
       myForcedRelayout = true;
       setDropInfoIndex(-1);
-      if (!isDisposed()) {
-        removeTab(dropInfo, null, false, true);
-      }
+      setDropSide(-1);
+      removeTab(dropInfo, null, false, true);
     }
   }
 
@@ -2712,7 +2926,8 @@ public class JBTabsImpl extends JComponent
   public Image startDropOver(TabInfo tabInfo, RelativePoint point) {
     myDropInfo = tabInfo;
 
-    int index = myLayout.getDropIndexFor(point.getPoint(this));
+    Point pointInMySpace = point.getPoint(this);
+    int index = NEW_TABS ? myTabsLayout.getDropIndexFor(pointInMySpace) : myLayout.getDropIndexFor(pointInMySpace);
     setDropInfoIndex(index);
     addTab(myDropInfo, index, true, true);
 
@@ -2732,9 +2947,20 @@ public class JBTabsImpl extends JComponent
 
   @Override
   public void processDropOver(TabInfo over, RelativePoint point) {
-    int index = myLayout.getDropIndexFor(point.getPoint(this));
+    Point pointInMySpace = point.getPoint(this);
+    int index = NEW_TABS ? myTabsLayout.getDropIndexFor(pointInMySpace) : myLayout.getDropIndexFor(pointInMySpace);
+    int side = index != -1
+               ? -1
+               : NEW_TABS ? myTabsLayout.getDropSideFor(pointInMySpace) : myLayout.getDropSideFor(pointInMySpace);
+    if (myVisibleInfos.isEmpty()) {
+      side = SwingConstants.CENTER ;
+    }
     if (index != getDropInfoIndex()) {
       setDropInfoIndex(index);
+      relayout(true, false);
+    }
+    if (side != myDropSide) {
+      setDropSide(side);
       relayout(true, false);
     }
   }
@@ -2745,8 +2971,41 @@ public class JBTabsImpl extends JComponent
   }
 
   @Override
+  @MagicConstant(intValues = {SwingConstants.CENTER, SwingConstants.TOP, SwingConstants.LEFT, SwingConstants.BOTTOM, SwingConstants.RIGHT, -1})
+  public int getDropSide() {
+    return myDropSide;
+  }
+
+  @Override
   public boolean isEmptyVisible() {
     return myVisibleInfos.isEmpty();
+  }
+
+  @Override
+  public void updateTabsLayout(@NotNull TabsLayoutInfo newTabsLayoutInfo) {
+    TabsLayout newTabsLayout = newTabsLayoutInfo.createTabsLayout(myTabsLayoutCallback);
+
+    if (myTabsLayout != null) {
+      removeMouseListener(myTabsLayoutMouseListener);
+      removeMouseMotionListener(myTabsLayoutMouseMotionListener);
+      removeMouseWheelListener(myTabsLayoutMouseWheelListener);
+      Disposer.dispose(myTabsLayout);
+    }
+
+    myTabsLayout = newTabsLayout;
+    Disposer.register(myParentDisposable, myTabsLayout);
+    myTabsLayoutMouseListener = myTabsLayout.getMouseListener();
+    if (myTabsLayoutMouseListener != null) {
+      addMouseListener(myTabsLayoutMouseListener);
+    }
+    myTabsLayoutMouseMotionListener = myTabsLayout.getMouseMotionListener();
+    if (myTabsLayoutMouseMotionListener != null) {
+      addMouseMotionListener(myTabsLayoutMouseMotionListener);
+    }
+    myTabsLayoutMouseWheelListener = myTabsLayout.getMouseWheelListener();
+    if (myTabsLayoutMouseWheelListener != null) {
+      addMouseWheelListener(myTabsLayoutMouseWheelListener);
+    }
   }
 
   @Deprecated
@@ -3224,6 +3483,13 @@ public class JBTabsImpl extends JComponent
   @Deprecated
   public int getActiveTabUnderlineHeight() {
     return 0;
+  }
+
+  /**
+   * @deprecated Not used.
+   */
+  @Deprecated
+  public void dispose() {
   }
 
   /**

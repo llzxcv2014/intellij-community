@@ -23,13 +23,14 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.editor.colors.EditorColors;
-import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.editor.ex.EditorEx;
-import com.intellij.openapi.editor.markup.TextAttributes;
+import com.intellij.openapi.editor.markup.RangeHighlighter;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Splitter;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
@@ -68,6 +69,7 @@ public abstract class CallerChooserBase<M extends PsiElement> extends DialogWrap
   private Editor myCalleeEditor;
   private final boolean myInitDone;
   private final String myFileName;
+  private final Collection<RangeHighlighter> myHighlighters = new ArrayList<>();
 
   protected MemberNodeBase<M> createTreeNodeFor(M method, HashSet<M> called, Runnable cancelCallback) {
     throw new UnsupportedOperationException();
@@ -75,15 +77,17 @@ public abstract class CallerChooserBase<M extends PsiElement> extends DialogWrap
 
   protected abstract M[] findDeepestSuperMethods(M method);
 
+  @NlsContexts.Label
   protected String getEmptyCalleeText() {
     return "";
   }
 
+  @NlsContexts.Label
   protected String getEmptyCallerText() {
     return "";
   }
 
-  public CallerChooserBase(M method, Project project, @Nls(capitalization = Nls.Capitalization.Title) String title, Tree previousTree, String fileName, Consumer<? super Set<M>> callback) {
+  public CallerChooserBase(M method, Project project, @NlsContexts.DialogTitle String title, Tree previousTree, @NlsSafe String fileName, Consumer<? super Set<M>> callback) {
     super(true);
     myMethod = method;
     myProject = project;
@@ -157,15 +161,17 @@ public abstract class CallerChooserBase<M extends PsiElement> extends DialogWrap
     final PsiElement callee = parentNode != null ? parentNode.getElementToSearch() : null;
     if (caller != null && caller.isPhysical() && callee != null) {
       HighlightManager highlighter = HighlightManager.getInstance(myProject);
-      EditorColorsManager colorManager = EditorColorsManager.getInstance();
-      TextAttributes attributes = colorManager.getGlobalScheme().getAttributes(EditorColors.TEXT_SEARCH_RESULT_ATTRIBUTES);
+      for (RangeHighlighter r : myHighlighters) {
+        highlighter.removeSegmentHighlighter(myCallerEditor, r);
+      }
+      myHighlighters.clear();
       int start = getStartOffset(caller);
       InjectedLanguageManager injectedLanguageManager = InjectedLanguageManager.getInstance(myProject);
       for (PsiElement element : findElementsToHighlight(caller, callee)) {
         TextRange textRange = element.getTextRange();
         textRange = injectedLanguageManager.injectedToHost(element, textRange);
-        highlighter.addRangeHighlight(myCallerEditor, textRange.getStartOffset() - start,
-                                      textRange.getEndOffset() - start, attributes, false, null);
+        highlighter.addRangeHighlight(myCallerEditor, textRange.getStartOffset() - start, textRange.getEndOffset() - start, 
+                                      EditorColors.TEXT_SEARCH_RESULT_ATTRIBUTES, false, myHighlighters);
       }
     }
   }
@@ -220,11 +226,17 @@ public abstract class CallerChooserBase<M extends PsiElement> extends DialogWrap
                                                                   false));
     splitter.setFirstComponent(callerComponent);
     final JComponent calleeComponent = myCalleeEditor.getComponent();
-    calleeComponent.setBorder(IdeBorderFactory.createTitledBorder(RefactoringBundle.message("caller.chooser.callee.method"),
+    calleeComponent.setBorder(IdeBorderFactory.createTitledBorder(getCalleeEditorTitle(),
                                                                   false));
     splitter.setSecondComponent(calleeComponent);
     splitter.setBorder(IdeBorderFactory.createRoundedBorder());
     return splitter;
+  }
+
+  @NotNull
+  @Nls
+  protected String getCalleeEditorTitle() {
+    return RefactoringBundle.message("caller.chooser.callee.method");
   }
 
   private Editor createEditor() {
@@ -257,7 +269,7 @@ public abstract class CallerChooserBase<M extends PsiElement> extends DialogWrap
                                     int row,
                                     boolean hasFocus) {
         if (value instanceof MemberNodeBase) {
-          ((MemberNodeBase)value).customizeRenderer(getTextRenderer());
+          ((MemberNodeBase<?>)value).customizeRenderer(getTextRenderer());
         }
       }
     };

@@ -47,9 +47,8 @@ public class GenericsHighlighting8Test extends LightDaemonAnalyzerTestCase {
     enableInspectionTool(new UnusedImportInspection());
   }
 
-  @NotNull
   @Override
-  protected LocalInspectionTool[] configureLocalInspectionTools() {
+  protected LocalInspectionTool @NotNull [] configureLocalInspectionTools() {
     return new LocalInspectionTool[]{new UncheckedWarningLocalInspection()};
   }
 
@@ -1056,9 +1055,9 @@ public class GenericsHighlighting8Test extends LightDaemonAnalyzerTestCase {
     String expected = "<html><body><table>" +
                       "<tr>" +
                       "<td style='padding: 0px 16px 8px 4px;color: " + greyed + "'>Required type:</td>" +
-                      "<td style='padding: 0px 4px 8px 0px;'><font color='" + toolTipForeground + "'>Generic</font></td><td style='padding: 0px 0px 8px 0px;'>&lt;<font color='" + toolTipForeground + "'>? extends Number</font>,</td><td style='padding: 0px 0px 8px 0px;'><font color='" + toolTipForeground + "'>Number</font>,</td><td style='padding: 0px 0px 8px 0px;'><font color='" + toolTipForeground + "'>Integer</font>&gt;</td></tr>" +
+                      "<td style='padding: 0px 4px 8px 0px;'><font color=\"" + toolTipForeground + "\">Generic</font></td><td style='padding: 0px 0px 8px 0px;'>&lt;<font color=\"" + toolTipForeground + "\">? extends Number</font>,</td><td style='padding: 0px 0px 8px 0px;'><font color=\"" + toolTipForeground + "\">Number</font>,</td><td style='padding: 0px 0px 8px 0px;'><font color=\"" + toolTipForeground + "\">Integer</font>&gt;</td></tr>" +
                       "<tr><td style='padding: 0px 16px 0px 4px;color: " + greyed + "'>Provided:</td>" +
-                      "<td style='padding: 0px 4px 0px 0px;'><font color='" + toolTipForeground + "'>Generic</font></td><td style='padding: 0px 0px 0px 0px;'>&lt;<font color='" + toolTipForeground + "'>Integer</font>,</td><td style='padding: 0px 0px 0px 0px;'><font color='" + red + "'>Integer</font>,</td><td style='padding: 0px 0px 0px 0px;'><font color='" + toolTipForeground + "'>Integer</font>&gt;</td></tr>" +
+                      "<td style='padding: 0px 4px 0px 0px;'><font color=\"" + toolTipForeground + "\">Generic</font></td><td style='padding: 0px 0px 0px 0px;'>&lt;<font color=\"" + toolTipForeground + "\">Integer</font>,</td><td style='padding: 0px 0px 0px 0px;'><font color=\"" + red + "\">Integer</font>,</td><td style='padding: 0px 0px 0px 0px;'><font color=\"" + toolTipForeground + "\">Integer</font>&gt;</td></tr>" +
                       "</table>" +
                       "</body></html>";
 
@@ -1076,11 +1075,11 @@ public class GenericsHighlighting8Test extends LightDaemonAnalyzerTestCase {
     String expected = "<html><body><table>" +
                       "<tr>" +
                       "<td style='padding: 0px 16px 8px 4px;color: " + greyed+ "'>Required type:</td>" +
-                      "<td style='padding: 0px 4px 8px 0px;'><font color='" + toolTipForeground + "'>String...</font></td>" +
+                      "<td style='padding: 0px 4px 8px 0px;'><font color=\"" + toolTipForeground + "\">String...</font></td>" +
                       "</tr>" +
                       "<tr>" +
                       "<td style='padding: 0px 16px 0px 4px;color: " + greyed + "'>Provided:</td>" +
-                      "<td style='padding: 0px 4px 0px 0px;'><font color='" + red + "'>int</font></td>" +
+                      "<td style='padding: 0px 4px 0px 0px;'><font color=\"" + red + "\">int</font></td>" +
                       "</tr>" +
                       "</table></body></html>";
 
@@ -1100,12 +1099,12 @@ public class GenericsHighlighting8Test extends LightDaemonAnalyzerTestCase {
                                                   .getBackgroundColor());
     int fontSize = StartupUiUtil.getLabelFont().getSize() - (SystemInfo.isWindows ? 0 : 1);
     String expected = "<html><body><table>" +
-                      "<tr><td/><td style='color: " + greyed + "; padding-left: 16px; padding-right: 24px;'>Required type</td>" +
-                      "<td style='color: " + greyed + "; padding-right: 28px;'>Provided</td></tr>" +
-                      "<tr><td><table><tr><td style='color: " + greyed + "; font-size:" + fontSize + "pt; padding:1px 4px 1px 4px;background-color: " + paramBgColor + ";'>list:</td></tr></table></td>" +
-                      "<td style='padding-left: 16px; padding-right: 24px;'><font color='" + toolTipForeground + "'>String...</font></td>" +
-                      "<td style='padding-right: 28px;'><font color='" + red + "'>int</font></td></tr>" +
-                      "<tr><td/><td style='padding-left: 16px; padding-right: 24px;'/><td style='padding-right: 28px;'><font color='" + red + "'>int</font></td></tr>" +
+                      "<tr><td/><td style=\"color: " + greyed + "; padding-left: 16px; padding-right: 24px;\">Required type</td>" +
+                      "<td style=\"color: " + greyed + "; padding-right: 28px;\">Provided</td></tr>" +
+                      "<tr><td><table><tr><td style=\"color: " + greyed + "; font-size:" + fontSize + "pt; padding:1px 4px 1px 4px;background-color: " + paramBgColor + ";\">list:</td></tr></table></td>" +
+                      "<td style=\"padding-left: 16px; padding-right: 24px;\"><font color=\"" + toolTipForeground + "\">String...</font></td>" +
+                      "<td style=\"padding-right: 28px;\"><font color=\"" + red + "\">int</font></td></tr>" +
+                      "<tr><td/><td style=\"padding-left: 16px; padding-right: 24px;\"/><td style=\"padding-right: 28px;\"><font color=\"" + red + "\">int</font></td></tr>" +
                       "</table></body></html>";
 
     doHighlighting()
@@ -1126,10 +1125,33 @@ public class GenericsHighlighting8Test extends LightDaemonAnalyzerTestCase {
     String expected = "<html><body><table>" +
                       "<tr>" +
                       "<td style='padding: 0px 16px 8px 4px;color: " + greyed + "'>Required type:</td>" +
-                      "<td style='padding: 0px 4px 8px 0px;'><font color='" + toolTipForeground + "'>CharSequence...</font></td>" +
+                      "<td style='padding: 0px 4px 8px 0px;'><font color=\"" + toolTipForeground + "\">CharSequence...</font></td>" +
                       "</tr>" +
                       "<tr><td style='padding: 0px 16px 0px 4px;color: " + greyed + "'>Provided:</td>" +
-                      "<td style='padding: 0px 4px 0px 0px;'><font color='" + red + "'>int</font></td></tr>" +
+                      "<td style='padding: 0px 4px 0px 0px;'><font color=\"" + red + "\">int</font></td></tr>" +
+                      "</table></body></html>";
+
+    doHighlighting()
+      .stream()
+      .filter(info -> info.type == HighlightInfoType.ERROR)
+      .forEach(info -> Assert.assertEquals(expected, info.getToolTip()));
+  }
+
+  public void testTooltipWithCapture() {
+    doTest();
+    String toolTipForeground = ColorUtil.toHtmlColor(UIUtil.getToolTipForeground());
+    String greyed = ColorUtil.toHtmlColor(UIUtil.getContextHelpForeground());
+    String red = ColorUtil.toHtmlColor(DialogWrapper.ERROR_FOREGROUND_COLOR);
+    String expected = "<html><body><table>" +
+                      "<tr>" +
+                      "<td style='padding: 0px 16px 8px 4px;color: " + greyed + "'>Required type:</td>" +
+                      "<td style='padding: 0px 4px 8px 0px;'><font color=\"" + toolTipForeground + "\">Class</font></td>" +
+                      "<td style='padding: 0px 0px 8px 0px;'>&lt;<font color=\"" + toolTipForeground + "\">capture of ?</font>&gt;</td>" +
+                      "</tr>" +
+                      "<tr>" +
+                      "<td style='padding: 0px 16px 0px 4px;color: " + greyed + "'>Provided:</td>" +
+                      "<td style='padding: 0px 4px 0px 0px;'><font color=\"" + toolTipForeground + "\">Class</font></td>" +
+                      "<td style='padding: 0px 0px 0px 0px;'>&lt;<font color=\"" + red + "\">capture of ?</font>&gt;</td></tr>" +
                       "</table></body></html>";
 
     doHighlighting()
@@ -1150,16 +1172,16 @@ public class GenericsHighlighting8Test extends LightDaemonAnalyzerTestCase {
     String expected = "<html><body><table>" +
                       "<tr>" +
                       "<td/>" +
-                      "<td style='color: " + greyed + "; padding-left: 16px; padding-right: 24px;'>Required type</td>" +
-                      "<td style='color: " + greyed + "; padding-right: 28px;'>Provided</td></tr>" +
+                      "<td style=\"color: " + greyed + "; padding-left: 16px; padding-right: 24px;\">Required type</td>" +
+                      "<td style=\"color: " + greyed + "; padding-right: 28px;\">Provided</td></tr>" +
                       "<tr>" +
-                      "<td><table><tr><td style='color: " + greyed + "; font-size:" + fontSize + "pt; padding:1px 4px 1px 4px;background-color: " + paramBgColor + ";'>integerList:</td></tr></table></td>" + 
-                      "<td style='padding-left: 16px; padding-right: 24px;'><font color='" + toolTipForeground + "'>List&lt;Integer&gt;</font></td>" +
-                      "<td style='padding-right: 28px;'><font color='" + toolTipForeground + "'>List</font>&lt;<font color='" + red + "'>String</font>&gt;</td></tr>" +
+                      "<td><table><tr><td style=\"color: " + greyed + "; font-size:" + fontSize + "pt; padding:1px 4px 1px 4px;background-color: " + paramBgColor + ";\">integerList:</td></tr></table></td>" + 
+                      "<td style=\"padding-left: 16px; padding-right: 24px;\"><font color=\"" + toolTipForeground + "\">List&lt;Integer&gt;</font></td>" +
+                      "<td style=\"padding-right: 28px;\"><font color=\"" + toolTipForeground + "\">List</font>&lt;<font color=\"" + red + "\">String</font>&gt;</td></tr>" +
                       "<tr>" +
-                      "<td><table><tr><td style='color: " + greyed + "; font-size:" + fontSize + "pt; padding:1px 4px 1px 4px;background-color: " + paramBgColor + ";'>stringList:</td></tr></table></td>" + 
-                      "<td style='padding-left: 16px; padding-right: 24px;'><font color='" + toolTipForeground+ "'>List&lt;String&gt;</font></td>" +
-                      "<td style='padding-right: 28px;'><font color='" + toolTipForeground + "'>List</font>&lt;<font color='" + red + "'>Integer</font>&gt;</td></tr>" +
+                      "<td><table><tr><td style=\"color: " + greyed + "; font-size:" + fontSize + "pt; padding:1px 4px 1px 4px;background-color: " + paramBgColor + ";\">stringList:</td></tr></table></td>" + 
+                      "<td style=\"padding-left: 16px; padding-right: 24px;\"><font color=\"" + toolTipForeground+ "\">List&lt;String&gt;</font></td>" +
+                      "<td style=\"padding-right: 28px;\"><font color=\"" + toolTipForeground + "\">List</font>&lt;<font color=\"" + red + "\">Integer</font>&gt;</td></tr>" +
                       "</table></body></html>";
 
     doHighlighting()

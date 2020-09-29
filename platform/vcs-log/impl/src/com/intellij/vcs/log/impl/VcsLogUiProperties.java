@@ -16,29 +16,28 @@
 package com.intellij.vcs.log.impl;
 
 import com.intellij.openapi.util.ValueKey;
-import org.jetbrains.annotations.CalledInAwt;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
+import java.util.Objects;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Objects;
-
 public interface VcsLogUiProperties {
-  @NotNull
-  <T> T get(@NotNull VcsLogUiProperty<T> property);
+  @NotNull <T> T get(@NotNull VcsLogUiProperty<T> property);
 
   <T> void set(@NotNull VcsLogUiProperty<T> property, @NotNull T value);
 
   <T> boolean exists(@NotNull VcsLogUiProperty<T> property);
 
-  @CalledInAwt
+  @RequiresEdt
   void addChangeListener(@NotNull PropertiesChangeListener listener);
 
-  @CalledInAwt
+  @RequiresEdt
   void removeChangeListener(@NotNull PropertiesChangeListener listener);
 
   class VcsLogUiProperty<T> implements ValueKey<T> {
     @NotNull private final String myName;
 
-    public VcsLogUiProperty(@NotNull String name) {
+    public VcsLogUiProperty(@NonNls @NotNull String name) {
       myName = name;
     }
 

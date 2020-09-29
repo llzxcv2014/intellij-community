@@ -1,29 +1,14 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.editor.impl;
 
 import com.intellij.openapi.editor.ex.LineIterator;
 import com.intellij.openapi.util.text.LineTokenizer;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.BitUtil;
-import com.intellij.util.containers.IntArrayList;
 import com.intellij.util.text.CharArrayUtil;
 import com.intellij.util.text.MergingCharSequence;
-import gnu.trove.TByteArrayList;
-import gnu.trove.TIntArrayList;
+import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -34,7 +19,7 @@ import java.util.Arrays;
  * <p/>
  * Immutable.
  */
-public class LineSet{
+public final class LineSet {
   private static final int MODIFIED_MASK = 0x4;
   private static final int SEPARATOR_MASK = 0x3;
 
@@ -54,8 +39,8 @@ public class LineSet{
 
   @NotNull
   private static LineSet createLineSet(@NotNull CharSequence text, boolean markModified) {
-    TIntArrayList starts = new TIntArrayList();
-    TByteArrayList flags = new TByteArrayList();
+    IntArrayList starts = new IntArrayList();
+    ByteArrayList flags = new ByteArrayList();
 
     LineTokenizer lineTokenizer = new LineTokenizer(text);
     while (!lineTokenizer.atEnd()) {
@@ -63,7 +48,7 @@ public class LineSet{
       flags.add((byte) (lineTokenizer.getLineSeparatorLength() | (markModified ? MODIFIED_MASK : 0)));
       lineTokenizer.advance();
     }
-    return new LineSet(starts.toNativeArray(), flags.toNativeArray(), text.length());
+    return new LineSet(starts.toIntArray(), flags.toByteArray(), text.length());
   }
 
   @NotNull
@@ -224,13 +209,13 @@ public class LineSet{
       return this;
     }
     if (indices.size() == 1) {
-      int index = indices.get(0);
+      int index = indices.getInt(0);
       if (isLastEmptyLine(index) || isModified(index)) return this;
     }
 
     byte[] flags = myFlags.clone();
     for (int i=0; i<indices.size();i++) {
-      int index = indices.get(i);
+      int index = indices.getInt(i);
       flags[index] |= MODIFIED_MASK;
     }
     return new LineSet(myStarts, flags, myLength);

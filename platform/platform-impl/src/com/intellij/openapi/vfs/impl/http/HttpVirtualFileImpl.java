@@ -107,6 +107,7 @@ class HttpVirtualFileImpl extends HttpVirtualFile {
   }
 
   @Override
+  @NonNls
   public String toString() {
     return "HttpVirtualFile:" + myPath + ", info=" + myFileInfo;
   }
@@ -191,8 +192,7 @@ class HttpVirtualFileImpl extends HttpVirtualFile {
   }
 
   @Override
-  @NotNull
-  public byte[] contentsToByteArray() throws IOException {
+  public byte @NotNull [] contentsToByteArray() throws IOException {
     if (myFileInfo == null) {
       throw new UnsupportedOperationException();
     }

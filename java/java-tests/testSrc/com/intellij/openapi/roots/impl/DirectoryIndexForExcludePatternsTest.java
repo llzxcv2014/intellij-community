@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.impl;
 
 import com.intellij.ide.projectView.actions.MarkRootActionBase;
@@ -22,9 +22,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-/**
- * @author nik
- */
 public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase {
   private VirtualFile myContentRoot;
 
@@ -37,6 +34,22 @@ public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase
   }
 
   public void testExcludeFileByExtension() {
+    /*
+      root/
+        dir/
+          a.txt
+          A.java
+        src/     (module source root)
+          a.txt
+          A.java
+        testSrc/ (module test source root)
+          a.txt
+          A.java
+        a.txt
+        A.java
+
+      All *.txt files are excluded by pattern.
+     */
     addExcludePattern("*.txt");
     VirtualFile dir = createChildDirectory(myContentRoot, "dir");
     VirtualFile src = createChildDirectory(myContentRoot, "src");
@@ -66,6 +79,17 @@ public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase
   }
 
   public void testExcludeDirectoryByName() {
+    /*
+      root/
+        dir/
+          a.txt
+          exc/      <- excluded
+            a.txt   <- excluded
+        exc/        <- excluded
+          a.txt     <- excluded
+          dir2/     <- excluded
+            a.txt   <- excluded
+     */
     addExcludePattern("exc");
     VirtualFile dir = createChildDirectory(myContentRoot, "dir");
     VirtualFile exc = createChildDirectory(myContentRoot, "exc");
@@ -97,7 +121,14 @@ public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase
   }
 
   public void testExcludeFileFromLibrary() throws IOException {
-    VirtualFile myLibraryRoot = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(createTempDirectory());
+    /*
+      root/      (library root)
+        dir/
+          a.txt  <- excluded by pattern
+        a.txt    <- excluded by pattern
+        A.java
+     */
+    VirtualFile myLibraryRoot = getTempDir().createVirtualDir();
     VirtualFile dir = createChildDirectory(myLibraryRoot, "dir");
     VirtualFile txt1 = createChildData(myLibraryRoot, "a.txt");
     VirtualFile txt2 = createChildData(dir, "a.txt");
@@ -117,7 +148,14 @@ public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase
   }
 
   public void testExcludeDirectoryFromLibrary() throws IOException {
-    VirtualFile myLibraryRoot = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(createTempDirectory());
+    /*
+      root/      (library root)
+        dir/     <- excluded directory
+          a.txt
+        a.txt
+        A.java
+     */
+    VirtualFile myLibraryRoot = getTempDir().createVirtualDir();
     VirtualFile dir = createChildDirectory(myLibraryRoot, "dir");
     VirtualFile txt1 = createChildData(myLibraryRoot, "a.txt");
     VirtualFile txt2 = createChildData(dir, "a.txt");
@@ -132,10 +170,18 @@ public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase
     assertNotExcluded(java);
     assertInLibrarySources(java, null);
 
-    assertIndexableContent(Collections.singletonList(java), Collections.singletonList(txt2));
+    assertIndexableContent(Arrays.asList(java, txt1), Collections.singletonList(txt2));
   }
 
   public void testExcludeDirectoryFromLibraryThatIsUnderContentRoot() {
+    /*
+      root/         (content root)
+        library/    (library root)
+          dir/      <- excluded by pattern
+            a.txt
+          a.txt
+          A.java
+     */
     VirtualFile myLibraryRoot = createChildDirectory(myContentRoot, "library");
     VirtualFile dir = createChildDirectory(myLibraryRoot, "dir");
     VirtualFile txt1 = createChildData(myLibraryRoot, "a.txt");
@@ -155,7 +201,12 @@ public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase
   }
 
   public void testExcludeLibraryRoot() throws IOException {
-    VirtualFile myLibraryRoot = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(createTempDirectory());
+    /*
+      root/  (library root)  <- excluded library root
+        a.txt
+        A.java
+     */
+    VirtualFile myLibraryRoot = getTempDir().createVirtualDir();
     VirtualFile txt = createChildData(myLibraryRoot, "a.txt");
     VirtualFile java = createChildData(myLibraryRoot, "A.java");
     registerLibrary(myLibraryRoot, file -> file.equals(myLibraryRoot));
@@ -165,6 +216,12 @@ public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase
   }
 
   public void testExcludeLibraryRootThatIsUnderContentRoot() {
+    /*
+      root/       (content root)
+        library/  (library root) <- excluded library root
+          a.txt
+          A.java
+     */
     VirtualFile myLibraryRoot = createChildDirectory(myContentRoot, "library");
     VirtualFile txt = createChildData(myLibraryRoot, "a.txt");
     VirtualFile java = createChildData(myLibraryRoot, "A.java");
@@ -178,7 +235,13 @@ public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase
   }
 
   public void testExcludeOnlyFiles() throws IOException {
-    VirtualFile myLibraryRoot = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(createTempDirectory());
+    /*
+      root/   (library root)
+        dir/
+        subdir/
+          dir  (file that is named as directory)
+     */
+    VirtualFile myLibraryRoot = getTempDir().createVirtualDir();
     VirtualFile dir = createChildDirectory(myLibraryRoot, "dir");
     VirtualFile txt = createChildData(createChildDirectory(myLibraryRoot, "subdir"), "dir");
     registerLibrary(myLibraryRoot, file -> !file.isDirectory() && "dir".contentEquals(file.getNameSequence()));
@@ -192,14 +255,14 @@ public class DirectoryIndexForExcludePatternsTest extends DirectoryIndexTestCase
                                            model -> MarkRootActionBase.findContentEntry(model, myContentRoot).addExcludePattern(pattern));
   }
 
-  private void registerLibrary(@NotNull VirtualFile root, @Nullable Condition<VirtualFile> excludePattern) {
+  private void registerLibrary(@NotNull VirtualFile root, @Nullable Condition<? super VirtualFile> excludePattern) {
     WriteAction.run(() -> ProjectRootManagerEx.getInstanceEx(myProject).makeRootsChange(
-      () -> AdditionalLibraryRootsProvider.EP_NAME.getPoint(null).registerExtension(new AdditionalLibraryRootsProvider() {
+      () -> AdditionalLibraryRootsProvider.EP_NAME.getPoint().registerExtension(new AdditionalLibraryRootsProvider() {
               @NotNull
               @Override
               public Collection<SyntheticLibrary> getAdditionalProjectLibraries(@NotNull Project project) {
                 return myProject == project ? Collections.singletonList(
-                  SyntheticLibrary.newImmutableLibrary(Collections.singleton(root), Collections.emptySet(), Collections.emptySet(), excludePattern)
+                  SyntheticLibrary.newImmutableLibrary(Collections.singletonList(root), Collections.emptyList(), Collections.emptySet(), excludePattern)
                 ) : Collections.emptyList();
               }
             }, getTestRootDisposable()), false, true));

@@ -23,14 +23,13 @@ import com.jetbrains.python.refactoring.classes.PyClassRefactoringHandler;
 import com.jetbrains.python.refactoring.classes.PyMemberInfoStorage;
 import com.jetbrains.python.vp.Creator;
 import com.jetbrains.python.vp.ViewPresenterUtils;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * @author: Dennis.Ushakov
  */
 public class PyPullUpHandler extends PyClassRefactoringHandler {
-  public static final String REFACTORING_NAME = PyBundle.message("refactoring.pull.up.dialog.title");
-
   @Override
   protected void doRefactorImpl(@NotNull final Project project,
                                 @NotNull final PyClass classUnderRefactoring,
@@ -65,11 +64,15 @@ public class PyPullUpHandler extends PyClassRefactoringHandler {
 
   @Override
   protected String getTitle() {
-    return REFACTORING_NAME;
+    return getRefactoringName();
   }
 
   @Override
   protected String getHelpId() {
     return "refactoring.pullMembersUp";
+  }
+
+  public static @Nls String getRefactoringName() {
+    return PyBundle.message("refactoring.pull.up.dialog.title");
   }
 }

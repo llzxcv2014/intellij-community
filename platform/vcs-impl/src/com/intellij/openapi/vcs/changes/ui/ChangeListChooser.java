@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes.ui;
 
 import com.intellij.openapi.project.Project;
@@ -6,31 +6,30 @@ import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.vcs.changes.ChangeList;
 import com.intellij.openapi.vcs.changes.LocalChangeList;
 import com.intellij.util.NullableConsumer;
+import com.intellij.openapi.util.NlsContexts;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.Collection;
 
-/**
- * @author max
- */
 public class ChangeListChooser extends DialogWrapper {
   private final Project myProject;
   private LocalChangeList mySelectedList;
   private final ChangeListChooserPanel myPanel;
 
   public ChangeListChooser(@NotNull Project project,
-                           @NotNull Collection<? extends ChangeList> changelists,
+                           @Nullable Collection<? extends ChangeList> changelists,
                            @Nullable ChangeList defaultSelection,
-                           final String title,
-                           @Nullable final String suggestedName) {
+                           @NlsContexts.DialogTitle String title,
+                           @Nullable final @Nls String suggestedName) {
     super(project, false);
     myProject = project;
 
     myPanel = new ChangeListChooserPanel(myProject, new NullableConsumer<String>() {
       @Override
-      public void consume(final @Nullable String errorMessage) {
+      public void consume(final @Nullable @NlsContexts.DialogMessage String errorMessage) {
         setOKActionEnabled(errorMessage == null);
         setErrorText(errorMessage, myPanel);
       }

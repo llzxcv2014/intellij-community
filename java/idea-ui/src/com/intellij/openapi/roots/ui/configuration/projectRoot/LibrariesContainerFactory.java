@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.ui.configuration.projectRoot;
 
 import com.intellij.ide.util.projectWizard.WizardContext;
@@ -48,10 +34,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-/**
- * @author nik
- */
-public class LibrariesContainerFactory {
+public final class LibrariesContainerFactory {
   private static final Logger LOG = Logger.getInstance(LibrariesContainerFactory.class);
   private static final Library[] EMPTY_LIBRARIES_ARRAY = Library.EMPTY_ARRAY;
 
@@ -125,8 +108,8 @@ public class LibrariesContainerFactory {
     @Override
     public Library createLibrary(@NotNull @NonNls String name,
                                  @NotNull LibraryLevel level,
-                                 @NotNull VirtualFile[] classRoots,
-                                 @NotNull VirtualFile[] sourceRoots) {
+                                 VirtualFile @NotNull [] classRoots,
+                                 VirtualFile @NotNull [] sourceRoots) {
       NewLibraryEditor editor = new NewLibraryEditor();
       editor.setName(name);
       for (VirtualFile classRoot : classRoots) {
@@ -149,8 +132,7 @@ public class LibrariesContainerFactory {
     }
 
     @Override
-    @NotNull
-    public Library[] getAllLibraries() {
+    public Library @NotNull [] getAllLibraries() {
       Library[] libraries = getLibraries(LibraryLevel.GLOBAL);
       Library[] projectLibraries = getLibraries(LibraryLevel.PROJECT);
       if (projectLibraries.length > 0) {
@@ -186,7 +168,7 @@ public class LibrariesContainerFactory {
   }
 
 
-  private static class LibrariesContainerImpl extends LibrariesContainerBase {
+  private static final class LibrariesContainerImpl extends LibrariesContainerBase {
     private @Nullable final Project myProject;
     @Nullable private final Module myModule;
     @Nullable private final ModifiableRootModel myRootModel;
@@ -204,8 +186,7 @@ public class LibrariesContainerFactory {
     }
 
     @Override
-    @NotNull
-    public Library[] getLibraries(@NotNull final LibraryLevel libraryLevel) {
+    public Library @NotNull [] getLibraries(@NotNull final LibraryLevel libraryLevel) {
       if (libraryLevel == LibraryLevel.MODULE && myModule != null) {
         return getModuleLibraries();
       }
@@ -231,8 +212,7 @@ public class LibrariesContainerFactory {
     }
 
     @Override
-    @NotNull
-    public VirtualFile[] getLibraryFiles(@NotNull final Library library, @NotNull final OrderRootType rootType) {
+    public VirtualFile @NotNull [] getLibraryFiles(@NotNull final Library library, @NotNull final OrderRootType rootType) {
       return library.getFiles(rootType);
     }
 
@@ -314,8 +294,7 @@ public class LibrariesContainerFactory {
     }
 
     @Override
-    @NotNull
-    public Library[] getLibraries(@NotNull final LibraryLevel libraryLevel) {
+    public Library @NotNull [] getLibraries(@NotNull final LibraryLevel libraryLevel) {
       LibraryTableModifiableModelProvider provider = getProvider(libraryLevel);
       return provider != null ? provider.getModifiableModel().getLibraries() : EMPTY_LIBRARIES_ARRAY;
     }
@@ -339,8 +318,7 @@ public class LibrariesContainerFactory {
     }
 
     @Override
-    @NotNull
-    public VirtualFile[] getLibraryFiles(@NotNull final Library library, @NotNull final OrderRootType rootType) {
+    public VirtualFile @NotNull [] getLibraryFiles(@NotNull final Library library, @NotNull final OrderRootType rootType) {
       LibrariesModifiableModel projectLibrariesModel = myContext.getProjectLibrariesProvider().getModifiableModel();
       if (projectLibrariesModel.hasLibraryEditor(library)) {
         LibraryEditor libraryEditor = projectLibrariesModel.getLibraryEditor(library);

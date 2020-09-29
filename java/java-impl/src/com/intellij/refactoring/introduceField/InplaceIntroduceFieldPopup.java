@@ -43,7 +43,6 @@ public class InplaceIntroduceFieldPopup extends AbstractInplaceIntroduceFieldPop
 
   private final IntroduceFieldPopupPanel myIntroduceFieldPanel;
 
-  static BaseExpressionToFieldHandler.InitializationPlace ourLastInitializerPlace;
 
   public InplaceIntroduceFieldPopup(PsiLocalVariable localVariable,
                                     PsiClass parentClass,
@@ -57,7 +56,7 @@ public class InplaceIntroduceFieldPopup extends AbstractInplaceIntroduceFieldPop
                                     final PsiElement anchorElementIfAll,
                                     final OccurrenceManager occurrenceManager, Project project) {
     super(project, editor, initializerExpression, localVariable, occurrences, typeSelectorManager,
-          IntroduceFieldHandler.REFACTORING_NAME, parentClass, anchorElement, occurrenceManager, anchorElementIfAll);
+          IntroduceFieldHandler.getRefactoringNameText(), parentClass, anchorElement, occurrenceManager, anchorElementIfAll);
     myStatic = aStatic;
     myIntroduceFieldPanel =
       new IntroduceFieldPopupPanel(parentClass, initializerExpression, localVariable, currentMethodConstructor, localVariable != null, aStatic,
@@ -72,7 +71,7 @@ public class InplaceIntroduceFieldPopup extends AbstractInplaceIntroduceFieldPop
 
     myWholePanel.add(centerPanel, constraints);
 
-    myIntroduceFieldPanel.initializeControls(initializerExpression, ourLastInitializerPlace);
+    myIntroduceFieldPanel.initializeControls(initializerExpression, IntroduceFieldDialog.ourLastInitializerPlace);
   }
 
   @Override
@@ -150,10 +149,6 @@ public class InplaceIntroduceFieldPopup extends AbstractInplaceIntroduceFieldPop
     return "refactoring.extractField";
   }
 
-  public void setVisibility(String visibility) {
-    myIntroduceFieldPanel.setVisibility(visibility);
-  }
-
 
   @Override
     public boolean isReplaceAllOccurrences() {
@@ -205,7 +200,7 @@ public class InplaceIntroduceFieldPopup extends AbstractInplaceIntroduceFieldPop
 
     @Override
     protected void performIntroduce() {
-      ourLastInitializerPlace = myIntroduceFieldPanel.getInitializerPlace();
+      IntroduceFieldDialog.ourLastInitializerPlace = myIntroduceFieldPanel.getInitializerPlace();
       final PsiType forcedType = getType();
       LOG.assertTrue(forcedType == null || forcedType.isValid(), forcedType);
       final BaseExpressionToFieldHandler.Settings settings =

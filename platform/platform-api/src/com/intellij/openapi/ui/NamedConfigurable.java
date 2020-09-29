@@ -2,13 +2,17 @@
 
 package com.intellij.openapi.ui;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.ErrorLabel;
 import com.intellij.ui.JBColor;
 import com.intellij.util.ui.JBUI;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -59,9 +63,9 @@ public abstract class NamedConfigurable<T> implements Configurable {
     myWholePanel.repaint();
   }
 
-  public abstract void setDisplayName(String name);
+  public abstract void setDisplayName(@NlsSafe String name);
   public abstract T getEditableObject();
-  public abstract String getBannerSlogan();
+  public abstract @NlsContexts.DetailedDescription String getBannerSlogan();
 
   @Override
   public final JComponent createComponent() {
@@ -80,7 +84,7 @@ public abstract class NamedConfigurable<T> implements Configurable {
       myOptionsPanel.add(myOptionsComponent, BorderLayout.CENTER);
     }
     else {
-      Logger.getInstance(getClass().getName()).error("Options component is null for "+getClass());
+      Logger.getInstance(getClass().getName()).error("Options component is null for " + getClass());
     }
     updateName();
     return myWholePanel;
@@ -94,7 +98,7 @@ public abstract class NamedConfigurable<T> implements Configurable {
         myNameField.getDocument().addDocumentListener(new DocumentAdapter() {
           @Override
           protected void textChanged(@NotNull DocumentEvent e) {
-            String name = myNameField.getText().trim();
+            @NlsSafe String name = myNameField.getText().trim();
             try {
               checkName(name);
               myErrorLabel.setErrorText(null, null);
@@ -116,9 +120,9 @@ public abstract class NamedConfigurable<T> implements Configurable {
   private void $$$setupUI$$$() {
   }
 
-  protected void checkName(@NotNull String name) throws ConfigurationException {
+  protected void checkName(@NonNls @NotNull String name) throws ConfigurationException {
     if (name.isEmpty()) {
-      throw new ConfigurationException("Name cannot be empty");
+      throw new ConfigurationException(IdeBundle.message("error.name.cannot.be.empty"));
     }
   }
 

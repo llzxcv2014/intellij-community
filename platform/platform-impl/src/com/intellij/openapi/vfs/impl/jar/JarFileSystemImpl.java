@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.impl.jar;
 
 import com.intellij.concurrency.ConcurrentCollectionFactory;
@@ -7,9 +7,11 @@ import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vfs.IntegrityCheckCapableFileSystem;
 import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.impl.ArchiveHandler;
+import com.intellij.openapi.vfs.impl.ZipHandlerBase;
 import com.intellij.openapi.vfs.newvfs.VfsImplUtil;
 import com.intellij.util.SystemProperties;
 import org.jetbrains.annotations.NotNull;
@@ -17,9 +19,10 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Set;
 
-public class JarFileSystemImpl extends JarFileSystem {
+public class JarFileSystemImpl extends JarFileSystem implements IntegrityCheckCapableFileSystem {
   private final Set<String> myNoCopyJarPaths;
   private final File myNoCopyJarDir;
 
@@ -70,23 +73,18 @@ public class JarFileSystemImpl extends JarFileSystem {
     return super.extractPresentableUrl(StringUtil.trimEnd(path, JAR_SEPARATOR));
   }
 
-  @NotNull
+  @Nullable
   @Override
   protected String normalize(@NotNull String path) {
-    final int jarSeparatorIndex = path.indexOf(JAR_SEPARATOR);
-    if (jarSeparatorIndex > 0) {
-      final String root = path.substring(0, jarSeparatorIndex);
-      return FileUtil.normalize(root) + path.substring(jarSeparatorIndex);
-    }
-    return super.normalize(path);
+    int separatorIndex = path.indexOf(JAR_SEPARATOR);
+    return separatorIndex > 0 ? FileUtil.normalize(path.substring(0, separatorIndex)) + path.substring(separatorIndex) : null;
   }
 
   @NotNull
   @Override
-  protected String extractRootPath(@NotNull String path) {
-    final int jarSeparatorIndex = path.indexOf(JAR_SEPARATOR);
-    assert jarSeparatorIndex >= 0 : "Path passed to JarFileSystem must have jar separator '!/' but got: " + path;
-    return path.substring(0, jarSeparatorIndex + JAR_SEPARATOR.length());
+  protected String extractRootPath(@NotNull String normalizedPath) {
+    int separatorIndex = normalizedPath.indexOf(JAR_SEPARATOR);
+    return separatorIndex > 0 ? normalizedPath.substring(0, separatorIndex + JAR_SEPARATOR.length()) : "";
   }
 
   @NotNull
@@ -135,5 +133,11 @@ public class JarFileSystemImpl extends JarFileSystem {
   @TestOnly
   public static void cleanupForNextTest() {
     BasicJarHandler.closeOpenedZipReferences();
+  }
+
+  @Override
+  public long getEntryCrc(@NotNull VirtualFile file) throws IOException {
+    ArchiveHandler handler = getHandler(file);
+    return ((ZipHandlerBase)handler).getEntryCrc(getRelativePath(file));
   }
 }

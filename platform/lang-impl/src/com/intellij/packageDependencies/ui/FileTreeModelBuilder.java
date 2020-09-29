@@ -16,7 +16,7 @@
 
 package com.intellij.packageDependencies.ui;
 
-import com.intellij.analysis.AnalysisScopeBundle;
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.dnd.aware.DnDAwareTree;
 import com.intellij.ide.projectView.impl.ModuleGroup;
@@ -36,6 +36,7 @@ import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -58,7 +59,6 @@ public class FileTreeModelBuilder {
   private static final Logger LOG = Logger.getInstance(FileTreeModelBuilder.class);
 
   public static final Key<Integer> FILE_COUNT = Key.create("FILE_COUNT");
-  public static final String SCANNING_PACKAGES_MESSAGE = AnalysisScopeBundle.message("package.dependencies.build.progress.text");
   private final ProjectFileIndex myFileIndex;
   private final Project myProject;
 
@@ -146,7 +146,7 @@ public class FileTreeModelBuilder {
     final Runnable buildingRunnable = () -> {
       ProgressIndicator indicator = ProgressManager.getInstance().getProgressIndicator();
       if (indicator != null) {
-        indicator.setText(SCANNING_PACKAGES_MESSAGE);
+        indicator.setText(getScanningPackagesMessage());
         indicator.setIndeterminate(true);
       }
       countFiles(project);
@@ -158,7 +158,7 @@ public class FileTreeModelBuilder {
     final TreeModel treeModel = new TreeModel(myRoot);
     if (showProgress) {
       final Task.Backgroundable backgroundable =
-        new Task.Backgroundable(project, AnalysisScopeBundle.message("package.dependencies.build.process.title")) {
+        new Task.Backgroundable(project, CodeInsightBundle.message("package.dependencies.build.process.title")) {
           @Override
           public void run(@NotNull ProgressIndicator indicator) {
             buildingRunnable.run();
@@ -196,7 +196,7 @@ public class FileTreeModelBuilder {
 
   private static void update(ProgressIndicator indicator, boolean indeterminate, double fraction) {
     if (indicator instanceof PanelProgressIndicator) {
-      ((PanelProgressIndicator)indicator).update(SCANNING_PACKAGES_MESSAGE, indeterminate, fraction);
+      ((PanelProgressIndicator)indicator).update(getScanningPackagesMessage(), indeterminate, fraction);
     } else {
       if (fraction != -1) {
         indicator.setFraction(fraction);
@@ -218,7 +218,7 @@ public class FileTreeModelBuilder {
     };
 
     if (showProgress) {
-      ProgressManager.getInstance().runProcessWithProgressSynchronously(buildingRunnable, AnalysisScopeBundle
+      ProgressManager.getInstance().runProcessWithProgressSynchronously(buildingRunnable, CodeInsightBundle
         .message("package.dependencies.build.process.title"), false, myProject);
     }
     else {
@@ -414,8 +414,7 @@ public class FileTreeModelBuilder {
     }
   }
 
-  @Nullable
-  public static PackageDependenciesNode[] findNodeForPsiElement(PackageDependenciesNode parent, PsiElement element){
+  public static PackageDependenciesNode @Nullable [] findNodeForPsiElement(PackageDependenciesNode parent, PsiElement element){
     final Set<PackageDependenciesNode> result = new HashSet<>();
     for (int i = 0; i < parent.getChildCount(); i++){
       final TreeNode treeNode = parent.getChildAt(i);
@@ -603,5 +602,9 @@ public class FileTreeModelBuilder {
       });
       return true;
     }
+  }
+
+  public static @NlsContexts.ProgressText String getScanningPackagesMessage() {
+    return CodeInsightBundle.message("package.dependencies.build.progress.text");
   }
 }

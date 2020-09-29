@@ -16,6 +16,7 @@
 package com.intellij.jarFinder;
 
 import com.intellij.codeInsight.AttachSourcesProvider;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.application.ApplicationManager;
@@ -33,6 +34,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileSystem;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.io.HttpRequests;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -88,11 +90,11 @@ public abstract class AbstractAttachSourceProvider implements AttachSourcesProvi
   }
 
   protected class AttachExistingSourceAction implements AttachSourcesAction {
-    private final String myName;
+    private final @Nls(capitalization = Nls.Capitalization.Title) String myName;
     private final VirtualFile mySrcFile;
     private final Library myLibrary;
 
-    public AttachExistingSourceAction(VirtualFile srcFile, Library library, String actionName) {
+    public AttachExistingSourceAction(VirtualFile srcFile, Library library, @Nls(capitalization = Nls.Capitalization.Title) String actionName) {
       mySrcFile = srcFile;
       myLibrary = library;
       myName = actionName;
@@ -138,12 +140,12 @@ public abstract class AbstractAttachSourceProvider implements AttachSourcesProvi
 
     @Override
     public String getName() {
-      return "Download Sources";
+      return JavaUiBundle.message("attach.source.provider.download.sources.action.name");
     }
 
     @Override
     public String getBusyText() {
-      return "Downloading Sources...";
+      return JavaUiBundle.message("attach.source.provider.download.sources.action.busy.text");
     }
 
     protected abstract void storeFile(byte[] content);
@@ -151,7 +153,7 @@ public abstract class AbstractAttachSourceProvider implements AttachSourcesProvi
     @Override
     public ActionCallback perform(List<LibraryOrderEntry> orderEntriesContainingFile) {
       final ActionCallback callback = new ActionCallback();
-      Task task = new Task.Backgroundable(myProject, "Downloading Sources", true) {
+      Task task = new Task.Backgroundable(myProject, JavaUiBundle.message("progress.title.downloading.sources"), true) {
         @Override
         public void run(@NotNull final ProgressIndicator indicator) {
           final byte[] bytes;
@@ -163,8 +165,8 @@ public abstract class AbstractAttachSourceProvider implements AttachSourcesProvi
           catch (IOException e) {
             LOG.warn(e);
             ApplicationManager.getApplication().invokeLater(() -> {
-              String message = "Failed to download sources: " + myUrl;
-              new Notification(myMessageGroupId, "Downloading failed", message, NotificationType.ERROR).notify(getProject());
+              String message = JavaUiBundle.message("error.message.failed.to.download.sources.0", myUrl);
+              new Notification(myMessageGroupId, JavaUiBundle.message("notification.title.downloading.failed"), message, NotificationType.ERROR).notify(getProject());
               callback.setDone();
             });
             return;

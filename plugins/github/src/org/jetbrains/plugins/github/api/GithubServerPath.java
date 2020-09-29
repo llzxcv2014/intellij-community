@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.github.api;
 
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.io.URLUtil;
 import com.intellij.util.xmlb.annotations.Attribute;
@@ -11,6 +12,7 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.github.exceptions.GithubParseException;
 import org.jetbrains.plugins.github.util.GithubUrlUtil;
 
+import java.net.URI;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -75,8 +77,22 @@ public class GithubServerPath {
   }
 
   public boolean matches(@NotNull String gitRemoteUrl) {
-    String url = GithubUrlUtil.removePort(GithubUrlUtil.removeProtocolPrefix(gitRemoteUrl));
-    return StringUtil.startsWithIgnoreCase(url, myHost + StringUtil.notNullize(mySuffix));
+    URI uri = GithubUrlUtil.getUriFromRemoteUrl(gitRemoteUrl);
+    if (uri == null) return false;
+
+    String host = uri.getHost();
+    if (host == null) return false;
+
+    if (!myHost.equalsIgnoreCase(host)) return false;
+
+    if (mySuffix != null) {
+      String path = uri.getPath();
+      if (path == null) return false;
+
+      return StringUtil.startsWithIgnoreCase(path, mySuffix);
+    }
+
+    return true;
   }
 
   // 1 - schema, 2 - host, 4 - port, 5 - path
@@ -146,7 +162,7 @@ public class GithubServerPath {
     return myHost.equalsIgnoreCase(DEFAULT_HOST);
   }
 
-  public String toString() {
+  public @NlsSafe String toString() {
     String schema = myUseHttp != null ? getSchemaUrlPart() : "";
     return schema + myHost + getPortUrlPart() + StringUtil.notNullize(mySuffix);
   }
@@ -161,12 +177,17 @@ public class GithubServerPath {
     return getSchema() + URLUtil.SCHEME_SEPARATOR;
   }
 
+  @SuppressWarnings("EqualsWhichDoesntCheckParameterClass")
   @Override
   public boolean equals(Object o) {
+    return equals(o, false);
+  }
+
+  public boolean equals(Object o, boolean ignoreProtocol) {
     if (this == o) return true;
     if (!(o instanceof GithubServerPath)) return false;
     GithubServerPath path = (GithubServerPath)o;
-    return Objects.equals(myUseHttp, path.myUseHttp) &&
+    return (ignoreProtocol || Objects.equals(myUseHttp, path.myUseHttp)) &&
            Objects.equals(myHost, path.myHost) &&
            Objects.equals(myPort, path.myPort) &&
            Objects.equals(mySuffix, path.mySuffix);
@@ -174,6 +195,6 @@ public class GithubServerPath {
 
   @Override
   public int hashCode() {
-    return Objects.hash(myUseHttp, myHost, myPort, mySuffix);
+    return Objects.hash(myHost, myPort, mySuffix);
   }
 }

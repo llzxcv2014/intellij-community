@@ -1,12 +1,11 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.configurationStore
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.extensions.PluginDescriptor
-import com.intellij.serviceContainer.PlatformComponentManagerImpl
+import com.intellij.serviceContainer.ComponentManagerImpl
 import com.intellij.serviceContainer.processAllImplementationClasses
-import com.intellij.serviceContainer.processComponentInstancesOfType
 import com.intellij.testFramework.ProjectRule
 import com.intellij.util.xmlb.XmlSerializerUtil
 import org.jdom.Attribute
@@ -38,7 +37,6 @@ class DoNotStorePasswordTest {
         }
       }
 
-
       // public static class Project extends WebServersConfigManagerBaseImpl<WebServersConfigManagerBaseImpl.State> {
       // so, we check not only PersistentStateComponent
       checkType(aClass.genericSuperclass)
@@ -46,21 +44,26 @@ class DoNotStorePasswordTest {
       true
     }
 
-    val app = ApplicationManager.getApplication() as PlatformComponentManagerImpl
+    val app = ApplicationManager.getApplication() as ComponentManagerImpl
     processAllImplementationClasses(app.picoContainer, processor::test)
     // yes, we don't use default project here to be sure
     processAllImplementationClasses(projectRule.project.picoContainer, processor::test)
 
-    processComponentInstancesOfType(app.picoContainer, PersistentStateComponent::class.java) {
-      processor.test(it.javaClass, null)
-    }
-    processComponentInstancesOfType(projectRule.project.picoContainer, PersistentStateComponent::class.java) {
-      processor.test(it.javaClass, null)
+    for (i in listOf(app.picoContainer, projectRule.project.picoContainer)) {
+      processAllImplementationClasses(app.picoContainer) { aClass, _ ->
+        if (PersistentStateComponent::class.java.isAssignableFrom(aClass)) {
+          processor.test(aClass, null)
+        }
+        true
+      }
     }
   }
 
   fun check(clazz: Class<*>) {
-    if (clazz === Attribute::class.java || clazz === Element::class.java || clazz === java.lang.String::class.java || Map::class.java.isAssignableFrom(clazz)) {
+    @Suppress("DEPRECATION")
+    if (clazz.isEnum || clazz === Attribute::class.java || clazz === Element::class.java ||
+        clazz === java.lang.String::class.java || clazz === java.lang.Integer::class.java || clazz === java.lang.Boolean::class.java ||
+        Map::class.java.isAssignableFrom(clazz) || com.intellij.openapi.util.JDOMExternalizable::class.java.isAssignableFrom(clazz)) {
       return
     }
 

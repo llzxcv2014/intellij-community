@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.testframework.sm;
 
 import com.intellij.execution.ExecutionException;
@@ -33,7 +33,7 @@ import java.util.List;
 /**
  * @author Roman Chernyatchik
  */
-public class SMTestRunnerConnectionUtil {
+public final class SMTestRunnerConnectionUtil {
   private static final String TEST_RUNNER_DEBUG_MODE_PROPERTY = "idea.smrunner.debug";
 
   private SMTestRunnerConnectionUtil() { }
@@ -52,7 +52,7 @@ public class SMTestRunnerConnectionUtil {
    *   // ...
    *
    *   @Override
-   *   public ExecutionResult execute(@NotNull Executor executor, @NotNull ProgramRunner runner) throws ExecutionException {
+   *   public ExecutionResult execute(@NotNull Executor executor, @NotNull ProgramRunner<?> runner) throws ExecutionException {
    *     ProcessHandler processHandler = startProcess();
    *     RunConfiguration runConfiguration = getConfiguration();
    *     ExecutionEnvironment environment = getEnvironment();
@@ -199,9 +199,13 @@ public class SMTestRunnerConnectionUtil {
       outputConsumer.setProcessor(eventsProcessor);
     });
 
-    outputConsumer.startTesting();
-
+    outputConsumer.setupProcessor();
     processHandler.addProcessListener(new ProcessAdapter() {
+      @Override
+      public void startNotified(@NotNull ProcessEvent event) {
+        outputConsumer.startTesting();
+      }
+
       @Override
       public void processTerminated(@NotNull final ProcessEvent event) {
         outputConsumer.flushBufferOnProcessTermination(event.getExitCode());
@@ -300,14 +304,17 @@ public class SMTestRunnerConnectionUtil {
     return consoleView;
   }
 
-  @SuppressWarnings({"deprecation", "rawtypes"})
-  private static class CompositeTestLocationProvider implements SMTestLocator {
+  /**
+   * @deprecated should be removed with createConsoleWithCustomLocator()
+   */
+  @SuppressWarnings("rawtypes")
+  @ApiStatus.ScheduledForRemoval()
+  @Deprecated
+  private static final class CompositeTestLocationProvider implements SMTestLocator {
     private final TestLocationProvider myPrimaryLocator;
-    private final List<TestLocationProvider> myLocators;
 
     private CompositeTestLocationProvider(@Nullable TestLocationProvider primaryLocator) {
       myPrimaryLocator = primaryLocator;
-      myLocators = TestLocationProvider.EP_NAME.getExtensionList();
     }
 
     @NotNull
@@ -329,7 +336,7 @@ public class SMTestRunnerConnectionUtil {
         }
       }
 
-      for (TestLocationProvider provider : myLocators) {
+      for (TestLocationProvider provider : TestLocationProvider.EP_NAME.getExtensionList()) {
         if (!isDumbMode || DumbService.isDumbAware(provider)) {
           List<Location> locations = provider.getLocation(protocol, path, project);
           if (!locations.isEmpty()) {

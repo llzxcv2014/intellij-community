@@ -5,6 +5,7 @@ import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.vcs.log.VcsLogBranchFilter;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -45,6 +46,15 @@ class VcsLogBranchFilterImpl implements VcsLogBranchFilter {
   }
 
   @Override
+  public boolean isEmpty() {
+    return myBranches.isEmpty()
+           && myPatterns.isEmpty()
+           && myExcludedBranches.isEmpty()
+           && myExcludedPatterns.isEmpty();
+  }
+
+  @Override
+  @NonNls
   public String toString() {
     String result = "";
     if (!myPatterns.isEmpty()) {

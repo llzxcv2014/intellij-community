@@ -37,8 +37,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.io.PrintStream;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 
 public class LivePreview implements SearchResults.SearchResultsListener, SelectionListener, DocumentListener, EditorColorsListener {
   private static final Key<RangeHighlighter> IN_SELECTION_KEY = Key.create("LivePreview.IN_SELECTION_KEY");
@@ -151,7 +151,7 @@ public class LivePreview implements SearchResults.SearchResultsListener, Selecti
     }
 
     for (RangeHighlighter highlighter : highlighters) {
-      dumpStream.println(highlighter + " : " + highlighter.getTextAttributes());
+      dumpStream.println(highlighter + " : " + highlighter.getTextAttributes(editor.getColorsScheme()));
     }
     dumpStream.println("------------");
   }
@@ -296,7 +296,7 @@ public class LivePreview implements SearchResults.SearchResultsListener, Selecti
     markupModel.processRangeHighlightersOverlappingWith(startOffset, startOffset, highlighter -> {
       if (highlighter.getUserData(SEARCH_MARKER) != null &&
           highlighter.getStartOffset() == startOffset && highlighter.getEndOffset() == endOffset &&
-          Objects.equals(highlighter.getTextAttributes(), attributes)) {
+          Objects.equals(highlighter.getTextAttributes(mySearchResults.getEditor().getColorsScheme()), attributes)) {
         existing[0] = highlighter;
         return false;
       }
@@ -433,7 +433,7 @@ public class LivePreview implements SearchResults.SearchResultsListener, Selecti
     }
 
     @Override
-    public RelativePoint recalculateLocation(final Balloon object) {
+    public RelativePoint recalculateLocation(final @NotNull Balloon object) {
       FindResult cursor = mySearchResults.getCursor();
       if (cursor == null) return null;
       final TextRange cur = cursor;

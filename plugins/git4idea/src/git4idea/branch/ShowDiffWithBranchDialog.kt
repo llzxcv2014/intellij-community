@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.branch
 
 import com.intellij.dvcs.ui.CompareBranchesDiffPanel
@@ -13,8 +13,10 @@ import com.intellij.ui.components.JBLoadingPanel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import git4idea.config.GitVcsSettings
+import git4idea.i18n.GitBundle
 import git4idea.repo.GitRepository
 import git4idea.util.GitLocalCommitCompareInfo
+import org.jetbrains.annotations.Nls
 import java.awt.BorderLayout
 import javax.swing.JComponent
 
@@ -24,13 +26,13 @@ internal class ShowDiffWithBranchDialog(val project: Project,
                                         val branchName: String,
                                         val repositories: List<GitRepository>,
                                         val currentBranchName: String
-) : FrameWrapper(project, "ShowDiffWithBranchDialog") {
-
+) : FrameWrapper(project,
+                 "ShowDiffWithBranchDialog", // NON-NLS
+                 title = GitBundle.message("show.diff.between.dialog.title", branchName)) {
   private var diffPanel : CompareBranchesDiffPanel
   private val loadingPanel: JBLoadingPanel
 
   init {
-    setTitle("Show Diff Between $branchName and Current Working Tree")
     closeOnEsc()
 
     diffPanel = CompareBranchesDiffPanel(project, GitVcsSettings.getInstance(project), branchName, currentBranchName)
@@ -45,7 +47,7 @@ internal class ShowDiffWithBranchDialog(val project: Project,
     val rootPanel = JBUI.Panels.simplePanel()
     rootPanel.addToCenter(loadingPanel)
     rootPanel.border = JBUI.Borders.empty(UIUtil.DEFAULT_VGAP, UIUtil.DEFAULT_HGAP)
-    setComponent(rootPanel)
+    component = rootPanel
   }
 
   override fun show() {
@@ -62,7 +64,7 @@ internal class ShowDiffWithBranchDialog(val project: Project,
           when (result) {
             is LoadingResult.Success -> {
               diffPanel.setCompareInfo(result.compareInfo)
-              diffPanel.setEmptyText("No differences")
+              diffPanel.setEmptyText(GitBundle.message("show.diff.between.dialog.no.differences.empty.text"))
               diffPanel.enableControls()
             }
             is LoadingResult.Error -> Messages.showErrorDialog(diffPanel, result.error)
@@ -72,7 +74,9 @@ internal class ShowDiffWithBranchDialog(val project: Project,
     }
   }
 
-  override fun getPreferredFocusedComponent(): JComponent = diffPanel.preferredFocusComponent
+  override var preferredFocusedComponent: JComponent?
+    get() = diffPanel.preferredFocusComponent
+    set(_) {}
 
   private fun loadDiff() : LoadingResult {
     try {
@@ -84,12 +88,12 @@ internal class ShowDiffWithBranchDialog(val project: Project,
     }
     catch (e: Exception) {
       LOG.warn(e)
-      return LoadingResult.Error("Couldn't load diff with $branchName: ${e.message}")
+      return LoadingResult.Error(GitBundle.message("show.diff.between.dialog.could.not.load.diff.with.branch.error", branchName, e.message))
     }
   }
 
   private sealed class LoadingResult {
     class Success(val compareInfo: GitLocalCommitCompareInfo): LoadingResult()
-    class Error(val error: String) : LoadingResult()
+    class Error(@Nls val error: String) : LoadingResult()
   }
 }

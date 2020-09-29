@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vfs.impl;
 
 import com.intellij.ide.highlighter.ArchiveFileType;
@@ -17,6 +17,7 @@ import com.intellij.openapi.vfs.pointers.VirtualFilePointer;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointerContainer;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointerListener;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointerManager;
+import com.intellij.util.ArrayUtil;
 import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.containers.ConcurrentList;
 import com.intellij.util.containers.ContainerUtil;
@@ -91,7 +92,7 @@ public class VirtualFilePointerContainerImpl extends TraceableDisposable impleme
                                    @NotNull Element element,
                                    boolean recursive) {
     List<VirtualFilePointer> jarDirectories = new ArrayList<>(myJarDirectories);
-    Collections.sort(jarDirectories, Comparator.comparing(VirtualFilePointer::getUrl, String.CASE_INSENSITIVE_ORDER));
+    jarDirectories.sort(Comparator.comparing(VirtualFilePointer::getUrl, String.CASE_INSENSITIVE_ORDER));
     for (VirtualFilePointer pointer : jarDirectories) {
       String url = pointer.getUrl();
       final Element jarDirElement = new Element(JAR_DIRECTORY_ELEMENT);
@@ -188,11 +189,10 @@ public class VirtualFilePointerContainerImpl extends TraceableDisposable impleme
   }
 
   @Override
-  @NotNull
-  public String[] getUrls() {
+  public String @NotNull [] getUrls() {
     if (myTimeStampOfCachedThings == UNINITIALIZED) {
       // optimization: when querying urls, and nothing was cached yet, do not access disk (in cacheThings()) - can be expensive
-      return myList.stream().map(VirtualFilePointer::getUrl).toArray(String[]::new);
+      return ContainerUtil.map2Array(myList, ArrayUtil.EMPTY_STRING_ARRAY, VirtualFilePointer::getUrl);
     }
     return getOrCache().first;
   }
@@ -289,14 +289,12 @@ public class VirtualFilePointerContainerImpl extends TraceableDisposable impleme
   }
 
   @Override
-  @NotNull
-  public VirtualFile[] getFiles() {
+  public VirtualFile @NotNull [] getFiles() {
     return getOrCache().second;
   }
 
   @Override
-  @NotNull
-  public VirtualFile[] getDirectories() {
+  public VirtualFile @NotNull [] getDirectories() {
     return getOrCache().third;
   }
 

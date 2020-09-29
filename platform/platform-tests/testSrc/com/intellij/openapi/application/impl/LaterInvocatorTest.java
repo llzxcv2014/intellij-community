@@ -1,9 +1,10 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.application.impl;
 
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.diagnostic.DefaultLogger;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
@@ -25,6 +26,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertNotEquals;
@@ -61,7 +63,7 @@ public class LaterInvocatorTest extends HeavyPlatformTestCase {
   };
 
   @Override
-  protected void setUp() {
+  protected void setUp() throws Exception {
     myWindow1 = new Frame() {
       public String toString() {
         return "Window1";
@@ -91,7 +93,7 @@ public class LaterInvocatorTest extends HeavyPlatformTestCase {
   }
 
   @Override
-  protected void tearDown() {
+  protected void tearDown() throws Exception {
     myOrder.clear();
     flushSwingQueue();
     UIUtil.invokeAndWaitIfNeeded((Runnable)() -> LaterInvocator.leaveAllModals());
@@ -191,10 +193,10 @@ public class LaterInvocatorTest extends HeavyPlatformTestCase {
           public String toString() {
             return "ass2";
           }
-        }, ModalityState.NON_MODAL);
-        LaterInvocator.invokeLater(ENTER_MODAL, ModalityState.NON_MODAL);
+        }, ModalityState.NON_MODAL, true);
+        LaterInvocator.invokeLater(ENTER_MODAL, ModalityState.NON_MODAL, true);
 
-        LaterInvocator.invokeLater(new MyRunnable("1"), ModalityState.NON_MODAL);
+        LaterInvocator.invokeLater(new MyRunnable("1"), ModalityState.NON_MODAL, true);
 
         //some weird things like MyFireIdleRequest may still sneak in
         //java.util.List<Object> dump = LaterInvocator.dumpQueue();
@@ -305,25 +307,22 @@ public class LaterInvocatorTest extends HeavyPlatformTestCase {
     });
   }
 
-  public void testDeadLock() throws InterruptedException {
+  public void testDeadLock() throws InterruptedException, ExecutionException {
     final Object lock = new Object();
     final boolean[] started = { false };
-    final Thread thread = new Thread("later invokator test") {
-      @Override
-      public void run() {
-        synchronized (lock) {
-          started[0] = true;
-          ApplicationManager.getApplication().invokeLater(new MyRunnable("1"), ModalityState.NON_MODAL);
-          lock.notifyAll();
-        }
-      }
-    };
+    final AtomicReference<Future<?>> thread = new AtomicReference<>();
 
     UIUtil.invokeAndWaitIfNeeded((Runnable)() -> {
       synchronized (this) {
         blockSwingThread();
         ApplicationManager.getApplication().invokeLater(() -> {
-          thread.start();
+          thread.set(ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            synchronized (lock) {
+              started[0] = true;
+              ApplicationManager.getApplication().invokeLater(new MyRunnable("1"), ModalityState.NON_MODAL);
+              lock.notifyAll();
+            }
+          }));
           while (!started[0]) {
             try {
               //noinspection BusyWait
@@ -342,7 +341,7 @@ public class LaterInvocatorTest extends HeavyPlatformTestCase {
       flushSwingQueue();
       checkOrder(1);
     });
-    thread.join();
+    thread.get().get();
   }
 
   static void flushSwingQueue() {
@@ -445,7 +444,7 @@ public class LaterInvocatorTest extends HeavyPlatformTestCase {
       LaterInvocator.enterModal(myWindow2);
       ModalityState window2State = ModalityState.current();
       LaterInvocator.leaveModal(myWindow2);
-      LaterInvocator.invokeLater(new MyRunnable("1"), window2State);
+      LaterInvocator.invokeLater(new MyRunnable("1"), window2State, true);
 
       LaterInvocator.enterModal(myWindow1);
       flushSwingQueue();
@@ -455,7 +454,7 @@ public class LaterInvocatorTest extends HeavyPlatformTestCase {
       flushSwingQueue();
       checkOrder(1);
 
-      LaterInvocator.invokeLater(new MyRunnable("2"), window2State);
+      LaterInvocator.invokeLater(new MyRunnable("2"), window2State, true);
       flushSwingQueue();
       checkOrder(2);
     });
@@ -520,7 +519,7 @@ public class LaterInvocatorTest extends HeavyPlatformTestCase {
   }
 
   public void testModalityStateCurrentAllowedOnlyFromEDT() throws Exception {
-    LoggedErrorProcessor.getInstance().disableStderrDumping(getTestRootDisposable());
+    DefaultLogger.disableStderrDumping(getTestRootDisposable());
     Future<ModalityState> future = ApplicationManager.getApplication().executeOnPooledThread(() -> ModalityState.current());
     try {
       future.get(1000, TimeUnit.MILLISECONDS);
@@ -571,7 +570,7 @@ public class LaterInvocatorTest extends HeavyPlatformTestCase {
     GCWatcher watcher = GCWatcher.tracking(s1, s2);
     //noinspection UnusedAssignment
     s1 = s2 = null;
-    watcher.tryGc();
+    watcher.ensureCollected();
     assertNotEquals(state1, state2);
   }
 

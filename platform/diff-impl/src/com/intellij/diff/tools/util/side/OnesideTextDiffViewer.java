@@ -13,6 +13,7 @@ import com.intellij.diff.tools.util.DiffDataKeys;
 import com.intellij.diff.tools.util.base.InitialScrollPositionSupport;
 import com.intellij.diff.tools.util.base.TextDiffSettingsHolder.TextDiffSettings;
 import com.intellij.diff.tools.util.base.TextDiffViewerUtil;
+import com.intellij.diff.tools.util.breadcrumbs.SimpleDiffBreadcrumbsPanel;
 import com.intellij.diff.util.DiffUtil;
 import com.intellij.diff.util.LineCol;
 import com.intellij.diff.util.Side;
@@ -20,7 +21,7 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.pom.Navigatable;
-import org.jetbrains.annotations.CalledInAwt;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,17 +47,21 @@ public abstract class OnesideTextDiffViewer extends OnesideDiffViewer<TextEditor
     new MyOpenInEditorWithMouseAction().install(getEditors());
 
     DiffUtil.installLineConvertor(getEditor(), getContent());
+
+    if (getProject() != null) {
+      myContentPanel.setBreadcrumbs(new SimpleDiffBreadcrumbsPanel(getEditor(), this), getTextSettings());
+    }
   }
 
   @Override
-  @CalledInAwt
+  @RequiresEdt
   protected void onInit() {
     super.onInit();
     installEditorListeners();
   }
 
   @Override
-  @CalledInAwt
+  @RequiresEdt
   protected void onDispose() {
     destroyEditorListeners();
     super.onDispose();
@@ -98,12 +103,12 @@ public abstract class OnesideTextDiffViewer extends OnesideDiffViewer<TextEditor
   // Listeners
   //
 
-  @CalledInAwt
+  @RequiresEdt
   protected void installEditorListeners() {
     new TextDiffViewerUtil.EditorActionsPopup(createEditorPopupActions()).install(getEditors(), myPanel);
   }
 
-  @CalledInAwt
+  @RequiresEdt
   protected void destroyEditorListeners() {
   }
 
@@ -136,7 +141,7 @@ public abstract class OnesideTextDiffViewer extends OnesideDiffViewer<TextEditor
   // Abstract
   //
 
-  @CalledInAwt
+  @RequiresEdt
   protected void scrollToLine(int line) {
     DiffUtil.scrollEditor(getEditor(), line, false);
   }

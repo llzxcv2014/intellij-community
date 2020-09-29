@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.io;
 
 import com.intellij.Patches;
@@ -11,8 +11,8 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.util.io.BufferExposingByteArrayOutputStream;
 import com.intellij.openapi.util.io.FileUtilRt;
-import com.intellij.openapi.util.io.StreamUtil;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.util.text.Strings;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.SystemProperties;
 import com.intellij.util.Url;
@@ -94,8 +94,7 @@ public final class HttpRequests {
     @NotNull
     File saveToFile(@NotNull File file, @Nullable ProgressIndicator indicator) throws IOException;
 
-    @NotNull
-    byte[] readBytes(@Nullable ProgressIndicator indicator) throws IOException;
+    byte @NotNull [] readBytes(@Nullable ProgressIndicator indicator) throws IOException;
 
     @NotNull
     String readString(@Nullable ProgressIndicator indicator) throws IOException;
@@ -112,7 +111,7 @@ public final class HttpRequests {
       write(data.getBytes(StandardCharsets.UTF_8));
     }
 
-    default void write(@NotNull byte[] data) throws IOException {
+    default void write(byte @NotNull [] data) throws IOException {
       HttpURLConnection connection = (HttpURLConnection)getConnection();
       connection.setFixedLengthStreamingMode(data.length);
       try (OutputStream stream = connection.getOutputStream()) {
@@ -217,6 +216,12 @@ public final class HttpRequests {
     });
   }
 
+  public static RequestBuilder requestWithRange(@NotNull String url,
+                                                @NotNull String bytes){
+    return requestWithBody(url, "GET", null,
+                           connection -> connection.setRequestProperty("Range", "bytes="+bytes));
+  }
+
   @NotNull
   public static String createErrorMessage(@NotNull IOException e, @NotNull Request request, boolean includeHeaders) {
     StringBuilder builder = new StringBuilder();
@@ -238,7 +243,7 @@ public final class HttpRequests {
     return builder.toString();
   }
 
-  private static class RequestBuilderImpl extends RequestBuilder {
+  private static final class RequestBuilderImpl extends RequestBuilder {
     private final String myUrl;
     private int myConnectTimeout = CONNECTION_TIMEOUT;
     private int myTimeout = READ_TIMEOUT;
@@ -351,7 +356,7 @@ public final class HttpRequests {
     }
   }
 
-  private static class RequestImpl implements Request, AutoCloseable {
+  private static final class RequestImpl implements Request, AutoCloseable {
     private final RequestBuilderImpl myBuilder;
     private String myUrl;
     private URLConnection myConnection;
@@ -424,8 +429,7 @@ public final class HttpRequests {
     }
 
     @Override
-    @NotNull
-    public byte[] readBytes(@Nullable ProgressIndicator indicator) throws IOException {
+    public byte @NotNull [] readBytes(@Nullable ProgressIndicator indicator) throws IOException {
       return doReadBytes(indicator).toByteArray();
     }
 
@@ -445,7 +449,7 @@ public final class HttpRequests {
     public CharSequence readChars(@Nullable ProgressIndicator indicator) throws IOException {
       BufferExposingByteArrayOutputStream byteStream = doReadBytes(indicator);
       if (byteStream.size() == 0) {
-        return ArrayUtil.EMPTY_CHAR_SEQUENCE;
+        return Strings.EMPTY_CHAR_SEQUENCE;
       }
       else {
         return getCharset().decode(ByteBuffer.wrap(byteStream.getInternalBuffer(), 0, byteStream.size()));
@@ -478,11 +482,13 @@ public final class HttpRequests {
     }
 
     @Override
-    public void close() {
-      StreamUtil.closeStream(myInputStream);
-      StreamUtil.closeStream(myReader);
-      if (myConnection instanceof HttpURLConnection) {
-        ((HttpURLConnection)myConnection).disconnect();
+    public void close() throws IOException {
+      //noinspection EmptyTryBlock
+      try (@SuppressWarnings("unused") InputStream s = myInputStream; @SuppressWarnings("unused") Reader r = myReader) { }
+      finally {
+        if (myConnection instanceof HttpURLConnection) {
+          ((HttpURLConnection)myConnection).disconnect();
+        }
       }
     }
   }

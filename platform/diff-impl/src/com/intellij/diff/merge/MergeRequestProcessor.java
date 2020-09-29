@@ -1,6 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.diff.merge;
 
+import com.intellij.CommonBundle;
 import com.intellij.diff.DiffManagerEx;
 import com.intellij.diff.actions.impl.NextDifferenceAction;
 import com.intellij.diff.actions.impl.PrevDifferenceAction;
@@ -19,6 +20,7 @@ import com.intellij.openapi.actionSystem.ex.ActionUtil;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.diff.DiffBundle;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.util.BackgroundTaskUtil;
 import com.intellij.openapi.project.DumbAwareAction;
@@ -33,11 +35,11 @@ import com.intellij.ui.EditorNotificationPanel;
 import com.intellij.ui.LightColors;
 import com.intellij.ui.components.panels.NonOpaquePanel;
 import com.intellij.ui.components.panels.Wrapper;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.JBEmptyBorder;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
-import org.jetbrains.annotations.CalledInAwt;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -103,14 +105,14 @@ public abstract class MergeRequestProcessor implements Disposable {
     myMainPanel.setFocusTraversalPolicyProvider(true);
     myMainPanel.setFocusTraversalPolicy(new MyFocusTraversalPolicy());
 
-    myViewer = new MessageMergeViewer(myContext, "Loading...");
+    myViewer = new MessageMergeViewer(myContext, CommonBundle.getLoadingTreeNodeText());
   }
 
   //
   // Update
   //
 
-  @CalledInAwt
+  @RequiresEdt
   public void init(@NotNull MergeRequest request) {
     setTitle(request.getTitle());
 
@@ -120,7 +122,7 @@ public abstract class MergeRequestProcessor implements Disposable {
     installCallbackListener(myRequest);
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public void init(@NotNull MergeRequestProducer request) {
     setTitle(request.getName());
     initViewer();
@@ -131,6 +133,7 @@ public abstract class MergeRequestProcessor implements Disposable {
         MergeRequest mergeRequest = request.process(myContext, ProgressManager.getInstance().getProgressIndicator());
         ApplicationManager.getApplication().invokeLater(
           () -> {
+            if (myDisposed) return;
             myRequest = mergeRequest;
             swapViewer(createViewerFor(mergeRequest));
             installCallbackListener(myRequest);
@@ -140,7 +143,10 @@ public abstract class MergeRequestProcessor implements Disposable {
       catch (Throwable e) {
         LOG.warn(e);
         ApplicationManager.getApplication().invokeLater(
-          () -> swapViewer(new MessageMergeViewer(myContext, "Can't show merge: " + e.getMessage())),
+          () -> {
+            if (myDisposed) return;
+            swapViewer(new MessageMergeViewer(myContext, DiffBundle.message("label.cant.show.merge.with.description", e.getMessage())));
+          },
           modality);
       }
     });
@@ -157,7 +163,7 @@ public abstract class MergeRequestProcessor implements Disposable {
     }
   }
 
-  @CalledInAwt
+  @RequiresEdt
   private void initViewer() {
     myContentPanel.setContent(myViewer.getComponent());
 
@@ -170,7 +176,7 @@ public abstract class MergeRequestProcessor implements Disposable {
     updateBottomActions();
   }
 
-  @CalledInAwt
+  @RequiresEdt
   private void destroyViewer() {
     Disposer.dispose(myViewer);
 
@@ -271,7 +277,7 @@ public abstract class MergeRequestProcessor implements Disposable {
   }
 
   private void setTitle(@Nullable String title) {
-    if (title == null) title = "Merge";
+    if (title == null) title = DiffBundle.message("merge.files.dialog.title");
     setWindowTitle(title);
   }
 
@@ -295,8 +301,8 @@ public abstract class MergeRequestProcessor implements Disposable {
       if (!myNotificationPanel.isNull()) return;
 
       EditorNotificationPanel notification = new EditorNotificationPanel(LightColors.RED);
-      notification.setText("Conflict is not valid and no longer can be resolved.");
-      notification.createActionLabel("Abort Resolve", () -> {
+      notification.setText(DiffBundle.message("error.conflict.is.not.valid.and.no.longer.can.be.resolved"));
+      notification.createActionLabel(DiffBundle.message("button.abort.resolve"), () -> {
         applyRequestResult(MergeResult.CANCEL);
         closeDialog();
       });
@@ -320,7 +326,7 @@ public abstract class MergeRequestProcessor implements Disposable {
     });
   }
 
-  @CalledInAwt
+  @RequiresEdt
   private void applyRequestResult(@NotNull MergeResult result) {
     if (myConflictResolved || myRequest == null) return;
     myConflictResolved = true;
@@ -329,11 +335,11 @@ public abstract class MergeRequestProcessor implements Disposable {
     }
     catch (Exception e) {
       LOG.warn(e);
-      new Notification("Merge", "Can't Finish Merge Resolve", e.getMessage(), NotificationType.ERROR).notify(myProject);
+      new Notification("Merge", DiffBundle.message("can.t.finish.merge.resolve"), e.getMessage(), NotificationType.ERROR).notify(myProject);
     }
   }
 
-  @CalledInAwt
+  @RequiresEdt
   private void reopenWithTool(@NotNull MergeTool tool) {
     if (myRequest == null) return;
     if (myConflictResolved) {
@@ -370,7 +376,7 @@ public abstract class MergeRequestProcessor implements Disposable {
   // Abstract
   //
 
-  @CalledInAwt
+  @RequiresEdt
   protected void onDispose() {
   }
 
@@ -416,7 +422,7 @@ public abstract class MergeRequestProcessor implements Disposable {
     return myContext;
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public boolean checkCloseAction() {
     return myConflictResolved || myCloseHandler == null || myCloseHandler.get();
   }
@@ -546,6 +552,12 @@ public abstract class MergeRequestProcessor implements Disposable {
       if (component == null) return null;
       return IdeFocusTraversalPolicy.getPreferredFocusedComponent(component, this);
     }
+
+    @Nullable
+    @Override
+    protected Project getProject() {
+      return myProject;
+    }
   }
 
   private class MyDiffContext extends MergeContextEx {
@@ -572,7 +584,7 @@ public abstract class MergeRequestProcessor implements Disposable {
     }
 
     @Override
-    @CalledInAwt
+    @RequiresEdt
     public void reopenWithTool(@NotNull MergeTool tool) {
       MergeRequestProcessor.this.reopenWithTool(tool);
     }

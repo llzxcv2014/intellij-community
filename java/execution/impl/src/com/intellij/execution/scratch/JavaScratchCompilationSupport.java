@@ -2,6 +2,7 @@
 package com.intellij.execution.scratch;
 
 import com.intellij.compiler.options.CompileStepBeforeRun;
+import com.intellij.execution.ExecutionBundle;
 import com.intellij.execution.configurations.RunConfiguration;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
@@ -29,6 +30,7 @@ import org.jetbrains.jps.model.java.JpsJavaSdkType;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.*;
 
 /**
@@ -58,7 +60,7 @@ final class JavaScratchCompilationSupport implements CompileTask {
     final JavaScratchConfiguration scratchConfig = (JavaScratchConfiguration)configuration;
     final String scratchUrl = scratchConfig.getScratchFileUrl();
     if (scratchUrl == null) {
-      context.addMessage(CompilerMessageCategory.ERROR, "Associated scratch file not found", null, -1, -1);
+      context.addMessage(CompilerMessageCategory.ERROR, ExecutionBundle.message("run.java.scratch.associated.file.not.specified"), null, -1, -1);
       return false;
     }
     @Nullable
@@ -66,15 +68,15 @@ final class JavaScratchCompilationSupport implements CompileTask {
     final Sdk targetSdk = module != null? ModuleRootManager.getInstance(module).getSdk() : ProjectRootManager.getInstance(project).getProjectSdk();
     if (targetSdk == null) {
       final String message = module != null?
-                             "Cannot find associated SDK for run configuration module \"" + module.getName() + "\".\nPlease check project settings." :
-                             "Cannot find associated project SDK for the run configuration.\nPlease check project settings.";
+        ExecutionBundle.message("run.java.scratch.missing.jdk.module", module.getName()) :
+        ExecutionBundle.message("run.java.scratch.missing.jdk");
       context.addMessage(CompilerMessageCategory.ERROR, message, scratchUrl, -1, -1);
       return true;
     }
     if (!(targetSdk.getSdkType() instanceof JavaSdkType)) {
       final String message = module != null?
-                             "Expected Java SDK for run configuration module \"" + module.getName() + "\".\nPlease check project settings." :
-                             "Expected Java SDK for project \"" + project.getName() + "\".\nPlease check project settings.";
+        ExecutionBundle.message("run.java.scratch.java.sdk.required.module", module.getName()) :
+        ExecutionBundle.message("run.java.scratch.java.sdk.required.project", project.getName());
       context.addMessage(CompilerMessageCategory.ERROR, message, scratchUrl, -1, -1);
       return true;
     }
@@ -88,6 +90,10 @@ final class JavaScratchCompilationSupport implements CompileTask {
     try {
       final File scratchFile = new File(VirtualFileManager.extractPath(scratchUrl));
       File srcFile = scratchFile;
+
+      VirtualFile vFile = ReadAction.compute(() -> VirtualFileManager.getInstance().findFileByUrl(scratchUrl));
+      Charset charset = ReadAction.compute(() -> vFile == null ? null : vFile.getCharset());
+
       if (!StringUtil.endsWith(srcFile.getName(), ".java")) {
 
         final File srcDir = getScratchTempDirectory(project);
@@ -97,7 +103,6 @@ final class JavaScratchCompilationSupport implements CompileTask {
         FileUtil.delete(srcDir); // perform cleanup
 
         final String srcFileName = ReadAction.compute(() -> {
-          final VirtualFile vFile = VirtualFileManager.getInstance().findFileByUrl(scratchUrl);
           if (vFile != null) {
             final PsiFile psiFile = PsiManager.getInstance(project).findFile(vFile);
             if (psiFile instanceof PsiJavaFile) {
@@ -160,7 +165,10 @@ final class JavaScratchCompilationSupport implements CompileTask {
         }
       }
       options.add("-proc:none"); // disable annotation processing
-
+      if (charset != null) {
+        options.add("-encoding");
+        options.add(charset.name());
+      }
       final Collection<ClassObject> result = CompilerManager.getInstance(project).compileJavaCode(
         options, platformCp, cp, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), files, outputDir
       );

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.siyeh.ig.style;
 
 import com.intellij.codeInspection.InspectionProfileEntry;
@@ -15,7 +15,7 @@ public class MissortedModifiersInspectionTest extends LightJavaInspectionTestCas
   @NotNull
   @Override
   protected LightProjectDescriptor getProjectDescriptor() {
-    return JAVA_8;
+    return JAVA_15;
   }
 
   public void testMissortedModifiers() {
@@ -29,17 +29,34 @@ public class MissortedModifiersInspectionTest extends LightJavaInspectionTestCas
     doTest();
   }
 
+  public void testTypeUseWithType() {
+    final MissortedModifiersInspection inspection = new MissortedModifiersInspection();
+    inspection.typeUseWithType = true;
+    myFixture.enableInspections(inspection);
+    doTestQuickFix();
+  }
+
   public void testSimpleComment() {
-    doTest();
-    checkQuickFix(InspectionGadgetsBundle.message("missorted.modifiers.sort.quickfix"));
+    doTestQuickFix();
   }
 
   public void testAnotherComment() {
-    doTest();
-    checkQuickFix(InspectionGadgetsBundle.message("missorted.modifiers.sort.quickfix"));
+    doTestQuickFix();
   }
 
   public void testKeepAnnotationOrder() {
+    doTestQuickFix();
+  }
+
+  public void testMissortedInModuleRequires(){
+    doTestQuickFix();
+  }
+
+  public void testSealedClass() {
+    doTestQuickFix();
+  }
+
+  public void doTestQuickFix() {
     doTest();
     checkQuickFix(InspectionGadgetsBundle.message("missorted.modifiers.sort.quickfix"));
   }

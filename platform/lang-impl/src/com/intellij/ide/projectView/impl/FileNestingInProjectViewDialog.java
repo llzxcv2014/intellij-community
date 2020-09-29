@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.projectView.impl;
 
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.projectView.impl.ProjectViewFileNestingService.NestingRule;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.ValidationInfo;
@@ -94,8 +95,10 @@ public class FileNestingInProjectViewDialog extends DialogWrapper {
   }
 
   private static TableView<CombinedNestingRule> createTable() {
+    String childColumn = LangBundle.message("child.file.suffix.column.name");
+    String parentColumn = LangBundle.message("parent.file.suffix.column.name");
     final ListTableModel<CombinedNestingRule> model = new ListTableModel<>(
-      new ColumnInfo<CombinedNestingRule, String>("Parent file suffix") {
+      new ColumnInfo<CombinedNestingRule, String>(parentColumn) {
         @Override
         public int getWidth(JTable table) {
           return JBUIScale.scale(125);
@@ -116,7 +119,7 @@ public class FileNestingInProjectViewDialog extends DialogWrapper {
           rule.parentSuffix = value.trim();
         }
       },
-      new ColumnInfo<CombinedNestingRule, String>("Child file suffix") {
+      new ColumnInfo<CombinedNestingRule, String>(childColumn) {
         @Override
         public boolean isCellEditable(CombinedNestingRule rule) {
           return true;
@@ -139,9 +142,8 @@ public class FileNestingInProjectViewDialog extends DialogWrapper {
     return table;
   }
 
-  @NotNull
   @Override
-  protected Action[] createLeftSideActions() {
+  protected Action @NotNull [] createLeftSideActions() {
     return new Action[]{new DialogWrapperAction(IdeBundle.message("file.nesting.reset.to.default.button")) {
       @Override
       protected void doAction(ActionEvent e) {
@@ -166,16 +168,16 @@ public class FileNestingInProjectViewDialog extends DialogWrapper {
       final CombinedNestingRule rule = items.get(i);
       final int row = i + 1;
       if (rule.parentSuffix.isEmpty()) {
-        return new ValidationInfo("Parent file suffix must not be empty (see row " + row + ")", null);
+        return new ValidationInfo(LangBundle.message("dialog.message.parent.file.suffix.must.be.empty.see.row", row), null);
       }
       if (rule.childSuffixes.isEmpty()) {
-        return new ValidationInfo("Child file suffix must not be empty (see row " + row + ")", null);
+        return new ValidationInfo(LangBundle.message("dialog.message.child.file.suffix.must.be.empty.see.row", row), null);
       }
 
       for (String childSuffix : StringUtil.split(rule.childSuffixes, ";")) {
         if (rule.parentSuffix.equals(childSuffix.trim())) {
           return new ValidationInfo(
-            "Parent and child file suffixes must not be equal ('" + rule.parentSuffix + "', see row " + row + ")", null);
+            LangBundle.message("dialog.message.parent.child.file.suffixes.must.be.equal.see.row", rule.parentSuffix, row), null);
         }
       }
     }
@@ -221,7 +223,7 @@ public class FileNestingInProjectViewDialog extends DialogWrapper {
     }
   }
 
-  private static class CombinedNestingRule {
+  private static final class CombinedNestingRule {
     @NotNull String parentSuffix;
     @NotNull String childSuffixes; // semicolon-separated, space symbols around each suffix are ignored
 

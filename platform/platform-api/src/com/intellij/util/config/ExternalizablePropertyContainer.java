@@ -1,10 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.config;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Comparing;
-import com.intellij.openapi.util.Factory;
-import com.intellij.openapi.util.JDOMExternalizable;
 import com.intellij.openapi.util.JDOMUtil;
 import com.intellij.util.SmartList;
 import gnu.trove.THashMap;
@@ -13,11 +11,10 @@ import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class ExternalizablePropertyContainer extends AbstractProperty.AbstractPropertyContainer {
+public final class ExternalizablePropertyContainer extends AbstractProperty.AbstractPropertyContainer {
   private static final Logger LOG = Logger.getInstance(ExternalizablePropertyContainer.class);
   private final Map<AbstractProperty, Object> myValues = new THashMap<>();
   private final Map<AbstractProperty, Externalizer> myExternalizers = new THashMap<>();
@@ -33,35 +30,11 @@ public class ExternalizablePropertyContainer extends AbstractProperty.AbstractPr
     myExternalizers.put(property, null);
   }
 
-  public void registerProperty(BooleanProperty property) {
-    registerProperty(property, Externalizer.BOOLEAN);
-  }
-
-  public void registerProperty(StringProperty property) {
-    registerProperty(property, Externalizer.STRING);
-  }
-
-  public void registerProperty(IntProperty property) {
-    registerProperty(property, Externalizer.INTEGER);
-  }
-
-  public void registerProperty(StorageProperty property) {
-    registerProperty(property, Externalizer.STORAGE);
-  }
-
-  public <T> void  registerProperty(ListProperty<T> property,@NonNls String itemTagName, Externalizer<T> itemExternalizer) {
+  public <T> void registerProperty(ListProperty<T> property,@NonNls String itemTagName, Externalizer<T> itemExternalizer) {
     registerProperty(property, createListExternalizer(itemExternalizer, itemTagName));
   }
 
-  /**
-   * @deprecated
-   */
-  @Deprecated
-  public <T extends JDOMExternalizable> void  registerProperty(ListProperty<T> property, @NonNls String itemTagName, Factory<? extends T> factory) {
-    registerProperty(property, itemTagName, Externalizer.FactoryBased.create(factory));
-  }
-
-  private static <T> Externalizer<List<T>> createListExternalizer(final Externalizer<T> itemExternalizer, final String itemTagName) {
+  private static <T> Externalizer<List<T>> createListExternalizer(Externalizer<T> itemExternalizer, String itemTagName) {
     return new ListExternalizer<>(itemExternalizer, itemTagName);
   }
 
@@ -94,7 +67,7 @@ public class ExternalizablePropertyContainer extends AbstractProperty.AbstractPr
     }
 
     List<AbstractProperty> properties = new ArrayList<>(myExternalizers.keySet());
-    Collections.sort(properties, AbstractProperty.NAME_COMPARATOR);
+    properties.sort(AbstractProperty.NAME_COMPARATOR);
     for (AbstractProperty property : properties) {
       Externalizer externalizer = myExternalizers.get(property);
       if (externalizer == null) {

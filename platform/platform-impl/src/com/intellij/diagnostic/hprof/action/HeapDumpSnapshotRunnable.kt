@@ -99,7 +99,7 @@ class HeapDumpSnapshotRunnable(
         return
       }
 
-      val nextCheckPropertyMs = PropertiesComponent.getInstance().getOrInitLong(NEXT_CHECK_TIMESTAMP_KEY, 0)
+      val nextCheckPropertyMs = PropertiesComponent.getInstance().getLong(NEXT_CHECK_TIMESTAMP_KEY, 0)
       val currentTimestampMs = System.currentTimeMillis()
 
       if (nextCheckPropertyMs > currentTimestampMs) {
@@ -165,15 +165,11 @@ class HeapDumpSnapshotRunnable(
     private fun confirmRestart() {
       val title = DiagnosticBundle.message("heap.dump.snapshot.restart.dialog.title")
       val message = DiagnosticBundle.message("heap.dump.snapshot.restart.dialog.message", ApplicationNamesInfo.getInstance().fullProductName)
-      val yesString = DiagnosticBundle.message("heap.dump.snapshot.restart.dialog.restart.now")
-      val noString = DiagnosticBundle.message("heap.dump.snapshot.restart.dialog.restart.later")
-      val result = MessageDialogBuilder.yesNo(title, message)
-        .yesText(yesString)
-        .noText(noString)
-        .show()
-      if (result == Messages.YES) {
-        val application = ApplicationManager.getApplication() as ApplicationEx
-        application.restart(true)
+      if (MessageDialogBuilder.yesNo(title, message)
+        .yesText(DiagnosticBundle.message("heap.dump.snapshot.restart.dialog.restart.now"))
+        .noText(DiagnosticBundle.message("heap.dump.snapshot.restart.dialog.restart.later"))
+        .guessWindowAndAsk()) {
+        (ApplicationManager.getApplication() as ApplicationEx).restart(true)
       }
     }
 

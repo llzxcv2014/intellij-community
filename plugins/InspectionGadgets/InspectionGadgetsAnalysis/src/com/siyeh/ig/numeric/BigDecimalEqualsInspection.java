@@ -16,6 +16,7 @@
 package com.siyeh.ig.numeric;
 
 import com.intellij.codeInsight.Nullability;
+import com.intellij.codeInspection.CommonQuickFixBundle;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.dataFlow.NullabilityUtil;
 import com.intellij.openapi.project.Project;
@@ -31,15 +32,11 @@ import com.siyeh.ig.psiutils.CommentTracker;
 import com.siyeh.ig.psiutils.EqualityCheck;
 import com.siyeh.ig.psiutils.ExpressionUtils;
 import com.siyeh.ig.psiutils.ParenthesesUtils;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 public class BigDecimalEqualsInspection extends BaseInspection {
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("big.decimal.equals.display.name");
-  }
 
   @Override
   @NotNull
@@ -54,9 +51,8 @@ public class BigDecimalEqualsInspection extends BaseInspection {
 
   private static class BigDecimalEqualsFix extends InspectionGadgetsFix {
     @Override
-    @NotNull
-    public String getFamilyName() {
-      return InspectionGadgetsBundle.message("big.decimal.equals.replace.quickfix");
+    public @NotNull String getFamilyName() {
+      return CommonQuickFixBundle.message("fix.replace.with.x", "compareTo()==0");
     }
 
     @Override
@@ -67,7 +63,7 @@ public class BigDecimalEqualsInspection extends BaseInspection {
       CommentTracker commentTracker = new CommentTracker();
       final String qualifierText = commentTracker.text(check.getLeft(), ParenthesesUtils.METHOD_CALL_PRECEDENCE);
       final String argText = commentTracker.text(check.getRight());
-      String replacement = qualifierText + ".compareTo(" + argText + ")==0";
+      @NonNls String replacement = qualifierText + ".compareTo(" + argText + ")==0";
       if (!check.isLeftDereferenced() && NullabilityUtil.getExpressionNullability(check.getLeft(), true) != Nullability.NOT_NULL) {
         replacement = commentTracker.text(check.getLeft(), ParenthesesUtils.EQUALITY_PRECEDENCE) + "!=null && " + replacement;
       }

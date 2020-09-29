@@ -1,21 +1,19 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.ide
 
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.util.io.FileUtilRt
-import com.intellij.openapi.util.text.StringUtil
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.ProjectRule
 import com.intellij.testFramework.TemporaryDirectory
 import com.intellij.testFramework.runInEdtAndWait
 import com.intellij.util.io.createFile
 import com.intellij.util.io.systemIndependentPath
+import com.intellij.util.text.nullize
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
-import java.io.File
 
 private const val EXCLUDED_DIR_NAME = "excludedDir"
 
@@ -23,9 +21,6 @@ internal class TestManager(private val projectRule: ProjectRule, private val tem
   var annotation: TestDescriptor? = null
 
   var filePath: String? = null
-  private var fileToDelete: VirtualFile? = null
-
-  private var ioFileToDelete: File? = null
 
   @Target(AnnotationTarget.FUNCTION)
   annotation class TestDescriptor(val filePath: String,
@@ -37,21 +32,14 @@ internal class TestManager(private val projectRule: ProjectRule, private val tem
                                   val status: Int = 200)
 
   override fun starting(description: Description) {
-    annotation = description.getAnnotation(TestDescriptor::class.java)
-    if (annotation == null) {
-      return
-    }
-
-    filePath = StringUtil.nullize(annotation!!.filePath)
-    if (filePath == null) {
-      return
-    }
+    annotation = description.getAnnotation(TestDescriptor::class.java) ?: return
+    filePath = annotation!!.filePath.nullize() ?: return
 
     // trigger project creation
     projectRule.project
 
     if (filePath!! == "_tmp_") {
-      val file = tempDirManager.newPath(".txt", refreshVfs = true)
+      val file = tempDirManager.newPath(".txt")
       if (!annotation!!.doNotCreate) {
         file.createFile()
       }
@@ -66,9 +54,9 @@ internal class TestManager(private val projectRule: ProjectRule, private val tem
     runInEdtAndWait {
       val normalizedFilePath = FileUtilRt.toSystemIndependentName(filePath!!)
       if (annotation!!.relativeToProject) {
-        val root = PlatformTestUtil.getOrCreateProjectTestBaseDir(projectRule.project)
+        val root = PlatformTestUtil.getOrCreateProjectBaseDir(projectRule.project)
         runWriteAction {
-          fileToDelete = root.findOrCreateChildData(this@TestManager, normalizedFilePath)
+          root.findOrCreateChildData(this@TestManager, normalizedFilePath)
         }
       }
       else {
@@ -79,10 +67,10 @@ internal class TestManager(private val projectRule: ProjectRule, private val tem
             val contentRoot = contentEntry.file!!
             runWriteAction {
               contentRoot.findChild(EXCLUDED_DIR_NAME)?.delete(this@TestManager)
-              fileToDelete = contentRoot.createChildDirectory(this@TestManager, EXCLUDED_DIR_NAME)
-              fileToDelete!!.createChildData(this@TestManager, normalizedFilePath)
+              val dir = contentRoot.createChildDirectory(this@TestManager, EXCLUDED_DIR_NAME)
+              dir.createChildData(this@TestManager, normalizedFilePath)
+              contentEntry.addExcludeFolder(dir)
             }
-            contentEntry.addExcludeFolder(fileToDelete!!)
           }
 
           filePath = "$EXCLUDED_DIR_NAME/$filePath"
@@ -90,7 +78,7 @@ internal class TestManager(private val projectRule: ProjectRule, private val tem
         else {
           val root = ModuleRootManager.getInstance(module).sourceRoots[0]
           runWriteAction {
-            fileToDelete = root.findOrCreateChildData(this@TestManager, normalizedFilePath)
+            root.findOrCreateChildData(this@TestManager, normalizedFilePath)
           }
         }
       }
@@ -98,17 +86,8 @@ internal class TestManager(private val projectRule: ProjectRule, private val tem
   }
 
   override fun finished(description: Description?) {
-    if (annotation!!.excluded) {
+    if (annotation?.excluded == true) {
       ModuleRootModificationUtil.updateModel(projectRule.module) { model -> model.contentEntries[0].removeExcludeFolder(EXCLUDED_DIR_NAME) }
-    }
-
-    if (fileToDelete != null) {
-      runInEdtAndWait { runWriteAction { fileToDelete?.delete(this@TestManager) } }
-      fileToDelete = null
-    }
-
-    if (ioFileToDelete != null && !FileUtilRt.delete(ioFileToDelete!!)) {
-      ioFileToDelete!!.deleteOnExit()
     }
 
     annotation = null

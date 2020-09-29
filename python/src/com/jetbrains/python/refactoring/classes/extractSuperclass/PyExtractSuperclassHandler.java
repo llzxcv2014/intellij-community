@@ -26,15 +26,13 @@ import com.jetbrains.python.refactoring.classes.PyClassRefactoringHandler;
 import com.jetbrains.python.refactoring.classes.PyMemberInfoStorage;
 import com.jetbrains.python.vp.Creator;
 import com.jetbrains.python.vp.ViewPresenterUtils;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * @author Dennis.Ushakov
  */
 public class PyExtractSuperclassHandler extends PyClassRefactoringHandler {
-  public static final String REFACTORING_NAME = RefactoringBundle.message("extract.superclass.title");
-
-
   @Override
   protected void doRefactorImpl(@NotNull final Project project,
                                 @NotNull final PyClass classUnderRefactoring,
@@ -70,11 +68,15 @@ public class PyExtractSuperclassHandler extends PyClassRefactoringHandler {
 
   @Override
   protected String getTitle() {
-    return REFACTORING_NAME;
+    return getRefactoringName();
   }
 
   @Override
   protected String getHelpId() {
     return "refactoring.extractSuperclass";
+  }
+
+  public static @Nls(capitalization = Nls.Capitalization.Title) String getRefactoringName() {
+    return RefactoringBundle.message("extract.superclass.title");
   }
 }

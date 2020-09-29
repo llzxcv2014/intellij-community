@@ -7,9 +7,9 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
+import com.intellij.remoteServer.CloudBundle;
 import com.intellij.remoteServer.ServerType;
 import com.intellij.remoteServer.impl.runtime.ui.DefaultRemoteServersServiceViewContributor;
-import com.intellij.remoteServer.util.CloudBundle;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -19,9 +19,8 @@ import java.util.List;
 import static com.intellij.remoteServer.impl.runtime.ui.RemoteServersServiceViewContributor.addNewRemoteServer;
 
 public class AddCloudConnectionActionGroup extends ActionGroup {
-  @NotNull
   @Override
-  public AnAction[] getChildren(@Nullable AnActionEvent e) {
+  public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e) {
     List<ServerType> serverTypes = ContainerUtil.filter(ServerType.EP_NAME.getExtensionList(),
                                                         type -> type.getCustomToolWindowId() == null &&
                                                                 type.createDefaultConfiguration().getCustomToolWindowId() == null);
@@ -36,15 +35,15 @@ public class AddCloudConnectionActionGroup extends ActionGroup {
     private final ServerType<?> myServerType;
 
     AddCloudConnectionAction(ServerType<?> serverType) {
-      super(serverType.getPresentableName(), String.format("Add %s connection", serverType.getPresentableName()), serverType.getIcon());
+      super(serverType.getPresentableName(), CloudBundle.message("AddCloudConnectionAction.description", serverType.getPresentableName()),
+            serverType.getIcon());
       myServerType = serverType;
     }
 
     @Override
     public void update(@NotNull AnActionEvent e) {
       if (e.getPlace().equals(ActionPlaces.ACTION_SEARCH)) {
-        e.getPresentation().setText(CloudBundle.getText("new.cloud.connection.configurable.title",
-                                                        myServerType.getPresentableName()));
+        e.getPresentation().setText(CloudBundle.messagePointer("new.cloud.connection.configurable.title", myServerType.getPresentableName()));
       }
       else {
         e.getPresentation().setText(myServerType.getPresentableName());

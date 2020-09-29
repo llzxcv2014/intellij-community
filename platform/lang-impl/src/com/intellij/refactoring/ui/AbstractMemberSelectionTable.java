@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.refactoring.ui;
 
@@ -8,6 +8,7 @@ import com.intellij.openapi.actionSystem.DataKey;
 import com.intellij.openapi.actionSystem.DataSink;
 import com.intellij.openapi.actionSystem.TypeSafeDataProvider;
 import com.intellij.openapi.util.Iconable;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.PsiElement;
 import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.classMembers.MemberInfoBase;
@@ -17,7 +18,7 @@ import com.intellij.refactoring.classMembers.MemberInfoModel;
 import com.intellij.ui.*;
 import com.intellij.ui.icons.RowIcon;
 import com.intellij.ui.table.JBTable;
-import com.intellij.util.ui.EmptyIcon;
+import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -38,19 +39,20 @@ public abstract class AbstractMemberSelectionTable<T extends PsiElement, M exten
   protected static final int CHECKED_COLUMN = 0;
   protected static final int DISPLAY_NAME_COLUMN = 1;
   protected static final int ABSTRACT_COLUMN = 2;
-  protected static final Icon EMPTY_OVERRIDE_ICON = EmptyIcon.create(AllIcons.General.OverridingMethod);
-  protected static final String DISPLAY_NAME_COLUMN_HEADER = RefactoringBundle.message("member.column");
+  protected static final Icon EMPTY_OVERRIDE_ICON = IconManager.getInstance().createEmptyIcon(AllIcons.General.OverridingMethod);
   protected static final int OVERRIDE_ICON_POSITION = 2;
   protected static final int VISIBILITY_ICON_POSITION = 1;
   protected static final int MEMBER_ICON_POSITION = 0;
 
-  protected final String myAbstractColumnHeader;
+  protected final @NlsContexts.ColumnName String myAbstractColumnHeader;
   protected List<M> myMemberInfos;
   protected final boolean myAbstractEnabled;
   protected MemberInfoModel<T, M> myMemberInfoModel;
   protected MyTableModel<T, M> myTableModel;
 
-  public AbstractMemberSelectionTable(Collection<M> memberInfos, @Nullable MemberInfoModel<T, M> memberInfoModel, @Nullable String abstractColumnHeader) {
+  public AbstractMemberSelectionTable(Collection<M> memberInfos,
+                                      @Nullable MemberInfoModel<T, M> memberInfoModel,
+                                      @Nullable @NlsContexts.ColumnName String abstractColumnHeader) {
     myAbstractEnabled = abstractColumnHeader != null;
     myAbstractColumnHeader = abstractColumnHeader;
     myTableModel = new MyTableModel<>(this);
@@ -77,7 +79,8 @@ public abstract class AbstractMemberSelectionTable<T extends PsiElement, M exten
       model.getColumn(ABSTRACT_COLUMN).setCellRenderer(new MyBooleanRenderer<>(this));
     }
 
-    setPreferredScrollableViewportSize(new Dimension(400, getRowHeight() * 12));
+    setPreferredScrollableViewportSize(JBUI.size(400, -1));
+    setVisibleRowCount(12);
     getSelectionModel().setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
     setShowGrid(false);
     setIntercellSpacing(new Dimension(0, 0));
@@ -287,7 +290,7 @@ public abstract class AbstractMemberSelectionTable<T extends PsiElement, M exten
         case ABSTRACT_COLUMN:
           return myTable.myAbstractColumnHeader;
         case DISPLAY_NAME_COLUMN:
-          return DISPLAY_NAME_COLUMN_HEADER;
+          return getDisplayNameColumnHeader();
         default:
           throw new RuntimeException("Incorrect column index");
       }
@@ -363,7 +366,7 @@ public abstract class AbstractMemberSelectionTable<T extends PsiElement, M exten
     }
 
     @Override
-    public void customizeCellRenderer(JTable table, final Object value,
+    public void customizeCellRenderer(@NotNull JTable table, final Object value,
                                       boolean isSelected, boolean hasFocus, final int row, final int column) {
 
       final int modelColumn = myTable.convertColumnIndexToModel(column);
@@ -424,5 +427,9 @@ public abstract class AbstractMemberSelectionTable<T extends PsiElement, M exten
       }
       return component;
     }
+  }
+
+  protected static @NlsContexts.ColumnName String getDisplayNameColumnHeader() {
+    return RefactoringBundle.message("member.column");
   }
 }

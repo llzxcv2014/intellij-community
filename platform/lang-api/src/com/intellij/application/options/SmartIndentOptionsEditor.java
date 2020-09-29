@@ -17,6 +17,7 @@
 package com.intellij.application.options;
 
 import com.intellij.openapi.application.ApplicationBundle;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.codeStyle.CodeStyleSettings;
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings;
 import com.intellij.psi.codeStyle.LanguageCodeStyleSettingsProvider;
@@ -35,7 +36,6 @@ import static com.intellij.psi.codeStyle.CodeStyleDefaults.DEFAULT_CONTINUATION_
  * @author yole
  */
 public class SmartIndentOptionsEditor extends IndentOptionsEditor {
-  public static final String CONTINUATION_INDENT_LABEL = ApplicationBundle.message("editbox.indent.continuation.indent");
   private JCheckBox myCbSmartTabs;
 
   private final ContinuationOption myContinuationOption;
@@ -56,33 +56,33 @@ public class SmartIndentOptionsEditor extends IndentOptionsEditor {
   public SmartIndentOptionsEditor(@Nullable LanguageCodeStyleSettingsProvider provider) {
     super(provider);
     myContinuationOption = createContinuationOption(
-      CONTINUATION_INDENT_LABEL,
-      options -> options.CONTINUATION_INDENT_SIZE,  (options, value) -> options.CONTINUATION_INDENT_SIZE = value,
+      getContinuationIndentLabel(),
+      options -> options.CONTINUATION_INDENT_SIZE, (options, value) -> options.CONTINUATION_INDENT_SIZE = value,
       DEFAULT_CONTINUATION_INDENT_SIZE);
     myContinuationOption.setSupported(true);
 
     myDeclarationParameterIndentOption = createContinuationOption(
-      "Declaration parameter indent:",
+      ApplicationBundle.message("editbox.indent.declaration.parameter"),
       options -> options.DECLARATION_PARAMETER_INDENT, (options, value) -> options.DECLARATION_PARAMETER_INDENT = value, -1);
     myGenericTypeParameterIndentOption = createContinuationOption(
-      "Generic type parameter indent:",
+      ApplicationBundle.message("editbox.indent.generic.type"),
       options -> options.GENERIC_TYPE_PARAMETER_INDENT, (options, value) -> options.GENERIC_TYPE_PARAMETER_INDENT = value, -1);
     myCallParameterIndentOption = createContinuationOption(
-      "Call parameter indent:",
+      ApplicationBundle.message("editbox.indent.call.parameter"),
       options -> options.CALL_PARAMETER_INDENT, (options, value) -> options.CALL_PARAMETER_INDENT = value, -1
     );
     myChainedCallIndentOption = createContinuationOption(
-      "Chained call indent:",
+      ApplicationBundle.message("editbox.indent.chained.call"),
       options -> options.CHAINED_CALL_INDENT, (options, value) -> options.CHAINED_CALL_INDENT = value, -1
     );
     myArrayElementIndentOption = createContinuationOption(
-      "Array element indent:",
+      ApplicationBundle.message("editbox.indent.array.element"),
       options -> options.ARRAY_ELEMENT_INDENT, (options, value) -> options.ARRAY_ELEMENT_INDENT = value, -1
     );
   }
 
   private ContinuationOption createContinuationOption(
-    @NotNull String labelText,
+    @NotNull @NlsContexts.Label String labelText,
     Function<? super CommonCodeStyleSettings.IndentOptions, Integer> getter,
     BiConsumer<? super CommonCodeStyleSettings.IndentOptions, ? super Integer> setter,
     int defaultValue
@@ -156,14 +156,14 @@ public class SmartIndentOptionsEditor extends IndentOptionsEditor {
   public void setEnabled(final boolean enabled) {
     super.setEnabled(enabled);
 
-    @SuppressWarnings("deprecation")
-    boolean smartTabsChecked = enabled && myCbUseTab.isSelected();
+    boolean smartTabsChecked = enabled && isUseTabsSelected();
     boolean smartTabsValid = smartTabsChecked && isSmartTabValid(getUIIndent(), getUITabSize());
     myCbSmartTabs.setEnabled(smartTabsValid);
     myCbSmartTabs.setToolTipText(
       smartTabsChecked && !smartTabsValid ? ApplicationBundle.message("tooltip.indent.must.be.multiple.of.tab.size.for.smart.tabs.to.operate") : null);
 
     myContinuationOption.setEnabled(enabled);
+    myCbKeepIndentsOnEmptyLines.setEnabled(enabled);
   }
 
   private static boolean isSmartTabValid(int indent, int tabSize) {
@@ -222,5 +222,9 @@ public class SmartIndentOptionsEditor extends IndentOptionsEditor {
     myCbSmartTabs.setVisible(visible);
     myContinuationOption.setVisible(visible);
     myCbKeepIndentsOnEmptyLines.setVisible(visible);
+  }
+
+  public static @NlsContexts.Label String getContinuationIndentLabel() {
+    return ApplicationBundle.message("editbox.indent.continuation.indent");
   }
 }

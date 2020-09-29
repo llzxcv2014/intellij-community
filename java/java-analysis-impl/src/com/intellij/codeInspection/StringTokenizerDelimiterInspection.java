@@ -1,10 +1,12 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection;
 
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import gnu.trove.THashSet;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
@@ -15,7 +17,9 @@ import java.util.Set;
  */
 public class StringTokenizerDelimiterInspection extends AbstractBaseJavaLocalInspectionTool {
 
+  @NonNls
   private final static String NEXT_TOKEN = "nextToken";
+  @NonNls
   private final static String STRING_TOKENIZER = "java.util.StringTokenizer";
 
   @NotNull
@@ -55,7 +59,7 @@ public class StringTokenizerDelimiterInspection extends AbstractBaseJavaLocalIns
         final Set<Character> chars = new THashSet<>();
         for (char c : delimiters.toCharArray()) {
           if (!chars.add(c)) {
-            holder.registerProblem(delimiterArgument, "Delimiters argument contains duplicated characters",
+            holder.registerProblem(delimiterArgument, JavaAnalysisBundle.message("delimiters.argument.contains.duplicated.characters"),
                                    new ReplaceDelimitersWithUnique(delimiterArgument));
             return;
           }
@@ -78,7 +82,7 @@ public class StringTokenizerDelimiterInspection extends AbstractBaseJavaLocalIns
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Replace StringTokenizer delimiters parameter with unique symbols";
+      return JavaAnalysisBundle.message("replace.stringtokenizer.delimiters.parameter.with.unique.symbols");
     }
 
     @Override

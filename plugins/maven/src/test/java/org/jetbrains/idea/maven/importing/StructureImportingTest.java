@@ -346,7 +346,7 @@ public class StructureImportingTest extends MavenImportingTestCase {
     assertEquals("m1", modules.get(0).getMavenId().getArtifactId());
   }
 
-  public void testParentInLocalRepository() throws IOException {
+  public void testParentInLocalRepository() throws Exception {
     if (!hasMavenInstallation()) return;
 
     final VirtualFile parent = createModulePom("parent",
@@ -871,7 +871,7 @@ public class StructureImportingTest extends MavenImportingTestCase {
                   "      <artifactId>maven-compiler-plugin</artifactId>\n" +
                   "      <version>3.8.0</version>\n" +
                   "      <configuration>\n" +
-                  "          <release>13</release>\n" +
+                  "          <release>14</release>\n" +
                              compilerArgs +
                   "          <forceJavacCompilerUse>true</forceJavacCompilerUse>\n" +
                   "      </configuration>\n" +
@@ -880,7 +880,7 @@ public class StructureImportingTest extends MavenImportingTestCase {
                   "</build>");
 
     assertModules("project");
-    assertEquals(LanguageLevel.JDK_13_PREVIEW, getLanguageLevelForModule());
+    assertEquals(LanguageLevel.JDK_14_PREVIEW, getLanguageLevelForModule());
   }
 
   public void testInheritingLanguageLevelFromPluginManagementSection() {

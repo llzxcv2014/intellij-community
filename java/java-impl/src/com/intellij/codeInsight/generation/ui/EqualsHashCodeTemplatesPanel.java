@@ -1,32 +1,16 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.generation.ui;
 
 import com.intellij.codeInsight.generation.EqualsHashCodeTemplatesManager;
 import com.intellij.codeInsight.generation.GenerateEqualsHelper;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.UnnamedConfigurable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.NamedItemsListEditor;
 import com.intellij.openapi.ui.Namer;
 import com.intellij.openapi.ui.Splitter;
-import com.intellij.openapi.util.Cloner;
-import com.intellij.openapi.util.Comparing;
-import com.intellij.openapi.util.Couple;
-import com.intellij.openapi.util.Factory;
+import com.intellij.openapi.util.*;
 import com.intellij.ui.TitledSeparator;
 import com.intellij.util.ui.JBUI;
 import gnu.trove.Equality;
@@ -41,9 +25,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class EqualsHashCodeTemplatesPanel extends NamedItemsListEditor<Couple<TemplateResource>> {
-  private static final Namer<Couple<TemplateResource>> NAMER = new Namer<Couple<TemplateResource>>() {
+  private static final Namer<Couple<TemplateResource>> NAMER = new Namer<>() {
 
     @Override
     public String getName(Couple<TemplateResource> couple) {
@@ -64,7 +49,7 @@ public class EqualsHashCodeTemplatesPanel extends NamedItemsListEditor<Couple<Te
 
   private static final Factory<Couple<TemplateResource>> FACTORY = () -> Couple.of(new TemplateResource(), new TemplateResource());
 
-  private static final Cloner<Couple<TemplateResource>> CLONER = new Cloner<Couple<TemplateResource>>() {
+  private static final Cloner<Couple<TemplateResource>> CLONER = new Cloner<>() {
     @Override
     public Couple<TemplateResource> cloneOf(Couple<TemplateResource> couple) {
       if (couple.first.isDefault()) return couple;
@@ -85,14 +70,14 @@ public class EqualsHashCodeTemplatesPanel extends NamedItemsListEditor<Couple<Te
     }
   };
 
-  private static final Equality<Couple<TemplateResource>> COMPARER = new Equality<Couple<TemplateResource>>() {
+  private static final Equality<Couple<TemplateResource>> COMPARER = new Equality<>() {
     @Override
     public boolean equals(Couple<TemplateResource> o1, Couple<TemplateResource> o2) {
       return equals(o1.first, o2.first) && equals(o1.second, o2.second);
     }
 
     private boolean equals(TemplateResource r1, TemplateResource r2) {
-      return Comparing.equal(r1.getTemplate(), r2.getTemplate()) && Comparing.equal(r1.getFileName(), r2.getFileName());
+      return Objects.equals(r1.getTemplate(), r2.getTemplate()) && Objects.equals(r1.getFileName(), r2.getFileName());
     }
   };
   private final Project myProject;
@@ -107,12 +92,22 @@ public class EqualsHashCodeTemplatesPanel extends NamedItemsListEditor<Couple<Te
   @Override
   @Nls
   public String getDisplayName() {
-    return "Templates";
+    return JavaBundle.message("configurable.EqualsHashCodeTemplatesPanel.display.name");
   }
 
   @Override
-  protected String subjDisplayName() {
-    return "template";
+  protected String getCopyDialogTitle() {
+    return JavaBundle.message("dialog.title.copy.template");
+  }
+
+  @Override
+  protected String getCreateNewDialogTitle() {
+    return JavaBundle.message("dialog.title.create.new.template");
+  }
+
+  @Override
+  protected @NlsContexts.Label String getNewLabelText() {
+    return JavaBundle.message("label.new.template.name");
   }
 
   @Override
@@ -143,14 +138,14 @@ public class EqualsHashCodeTemplatesPanel extends NamedItemsListEditor<Couple<Te
         final Splitter splitter = new Splitter(true);
 
         final JPanel eqPanel = new JPanel(new BorderLayout());
-        eqPanel.add(new TitledSeparator("Equals Template:"), BorderLayout.NORTH);
+        eqPanel.add(new TitledSeparator(JavaBundle.message("generate.equals.template.title")), BorderLayout.NORTH);
         final JComponent eqPane = equalsConfigurable.createComponent();
         eqPane.setPreferredSize(JBUI.size(300, 200));
         eqPanel.add(eqPane, BorderLayout.CENTER);
         splitter.setFirstComponent(eqPanel);
 
         final JPanel hcPanel = new JPanel(new BorderLayout());
-        hcPanel.add(new TitledSeparator("HashCode Template:"), BorderLayout.NORTH);
+        hcPanel.add(new TitledSeparator(JavaBundle.message("generate.hashcode.template.title")), BorderLayout.NORTH);
         final JComponent hcPane = hashCodeConfigurable.createComponent();
         hcPane.setPreferredSize(JBUI.size(300, 200));
         hcPanel.add(hcPane, BorderLayout.CENTER);

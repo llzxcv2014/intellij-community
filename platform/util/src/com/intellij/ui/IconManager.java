@@ -1,10 +1,12 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
 import com.intellij.openapi.util.Iconable;
 import com.intellij.ui.icons.RowIcon;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
 import javax.swing.*;
@@ -30,8 +32,10 @@ public interface IconManager {
     IconManagerHelper.deactivate();
   }
 
-  @NotNull
-  Icon getIcon(@NotNull String path, @NotNull Class aClass);
+  @NotNull Icon getIcon(@NotNull String path, @NotNull Class<?> aClass);
+
+  @ApiStatus.Internal
+  @NotNull Icon loadRasterizedIcon(@NotNull String path, @NotNull Class<?> aClass, long cacheKey, int flags);
 
   @NotNull
   default Icon createEmptyIcon(@NotNull Icon icon) {
@@ -44,18 +48,14 @@ public interface IconManager {
   }
 
   @NotNull
-  Icon createLayered(@NotNull Icon... icons);
+  Icon createLayered(Icon @NotNull ... icons);
 
   @NotNull
   default Icon colorize(Graphics2D g, @NotNull Icon source, @NotNull Color color) {
     return source;
   }
 
-  @NotNull
-  Icon getAnalyzeIcon();
-
-  @NotNull
-  <T> Icon createDeferredIcon(@NotNull Icon base, T param, @NotNull Function<? super T, ? extends Icon> f);
+  @NotNull <T> Icon createDeferredIcon(@Nullable Icon base, T param, @NotNull Function<? super T, ? extends Icon> f);
 
   @NotNull
   RowIcon createLayeredIcon(@NotNull Iconable instance, Icon icon, int flags);
@@ -69,9 +69,13 @@ public interface IconManager {
   RowIcon createRowIcon(int iconCount, RowIcon.Alignment alignment);
 
   @NotNull
-  RowIcon createRowIcon(@NotNull Icon... icons);
+  RowIcon createRowIcon(Icon @NotNull ... icons);
 
   void registerIconLayer(int flagMask, @NotNull Icon icon);
+
+  @NotNull Icon createOverlayIcon(Icon @NotNull ... icons);
+
+  @NotNull Icon tooltipOnlyIfComposite(@NotNull Icon icon);
 }
 
 final class IconManagerHelper {
@@ -83,7 +87,7 @@ final class IconManagerHelper {
       return;
     }
 
-    Iterator<IconManager> iterator = ServiceLoader.load(IconManager.class).iterator();
+    Iterator<IconManager> iterator = ServiceLoader.load(IconManager.class, IconManager.class.getClassLoader()).iterator();
     if (iterator.hasNext()) {
       instance = iterator.next();
     }
@@ -104,13 +108,12 @@ final class DummyIconManager implements IconManager {
 
   @NotNull
   @Override
-  public Icon getIcon(@NotNull String path, @NotNull Class aClass) {
+  public Icon getIcon(@NotNull String path, @NotNull Class<?> aClass) {
     return DummyIcon.INSTANCE;
   }
 
-  @NotNull
   @Override
-  public Icon getAnalyzeIcon() {
+  public @NotNull Icon loadRasterizedIcon(@NotNull String path, @NotNull Class<?> aClass, long cacheKey, int flags) {
     return DummyIcon.INSTANCE;
   }
 
@@ -124,9 +127,18 @@ final class DummyIconManager implements IconManager {
   public void registerIconLayer(int flagMask, @NotNull Icon icon) {
   }
 
-  @NotNull
   @Override
-  public <T> Icon createDeferredIcon(@NotNull Icon base, T param, @NotNull Function<? super T, ? extends Icon> f) {
+  public @NotNull Icon createOverlayIcon(Icon @NotNull ... icons) {
+    return new DummyIcon();
+  }
+
+  @Override
+  public @NotNull Icon tooltipOnlyIfComposite(@NotNull Icon icon) {
+    return new DummyIcon();
+  }
+
+  @Override
+  public @NotNull <T> Icon createDeferredIcon(@Nullable Icon base, T param, @NotNull Function<? super T, ? extends Icon> f) {
     return base;
   }
 
@@ -138,21 +150,18 @@ final class DummyIconManager implements IconManager {
 
   @NotNull
   @Override
-  public Icon createLayered(@NotNull Icon... icons) {
+  public Icon createLayered(Icon @NotNull ... icons) {
     return new DummyRowIcon(icons);
   }
 
   @NotNull
   @Override
-  public RowIcon createRowIcon(@NotNull Icon... icons) {
+  public RowIcon createRowIcon(Icon @NotNull ... icons) {
     return new DummyRowIcon(icons);
   }
 
   private static class DummyIcon implements Icon {
     static final DummyIcon INSTANCE = new DummyIcon();
-
-    private DummyIcon() {
-    }
 
     @Override
     public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -217,9 +226,8 @@ final class DummyIconManager implements IconManager {
       return this;
     }
 
-    @NotNull
     @Override
-    public Icon[] getAllIcons() {
+    public Icon @NotNull [] getAllIcons() {
       return icons == null ? new Icon[0] : ContainerUtil.packNullables(icons).toArray(new Icon[0]);
     }
   }

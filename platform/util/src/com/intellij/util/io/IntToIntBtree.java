@@ -1,18 +1,18 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.io;
 
-import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.BitUtil;
 import com.intellij.util.ObjectUtils;
-import gnu.trove.TIntIntHashMap;
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 
-public class IntToIntBtree {
+public final class IntToIntBtree {
   public static int version() {
     return 4 + (IOUtil.BYTE_BUFFERS_USE_NATIVE_BYTE_ORDER ? 0xFF : 0);
   }
@@ -45,15 +45,15 @@ public class IntToIntBtree {
   final int hashPageCapacity;
 
   private static final boolean hasCachedMappings = false;
-  private TIntIntHashMap myCachedMappings;
+  private Int2IntOpenHashMap myCachedMappings;
   private final int myCachedMappingsSize;
   private static final int UNDEFINED_ADDRESS = -1;
 
-  public IntToIntBtree(int pageSize, @NotNull File file, @NotNull PagedFileStorage.StorageLockContext storageLockContext, boolean initial) throws IOException {
+  public IntToIntBtree(int pageSize, @NotNull Path file, @NotNull StorageLockContext storageLockContext, boolean initial) throws IOException {
     this.pageSize = pageSize;
 
     if (initial) {
-      FileUtil.delete(file);
+      Files.deleteIfExists(file);
     }
 
     storage = new ResizeableMappedFile(file, pageSize, storageLockContext, 1024 * 1024, true, IOUtil.BYTE_BUFFERS_USE_NATIVE_BYTE_ORDER);
@@ -90,7 +90,7 @@ public class IntToIntBtree {
     maxLeafNodesInHash = (short) i;
 
     if (hasCachedMappings) {
-      myCachedMappings = new TIntIntHashMap(myCachedMappingsSize = 4 * maxLeafNodes);
+      myCachedMappings = new Int2IntOpenHashMap(myCachedMappingsSize = 4 * maxLeafNodes);
     }
     else {
       myCachedMappings = null;
@@ -126,7 +126,7 @@ public class IntToIntBtree {
     int persistInt(int offset, int value, boolean toDisk);
   }
 
-  static class BtreeRootNode {
+  final static class BtreeRootNode {
     int address;
     final BtreeIndexNodeView nodeView;
     boolean initialized;
@@ -140,7 +140,7 @@ public class IntToIntBtree {
       initialized = false;
     }
 
-    protected void syncWithStore() {
+    private void syncWithStore() {
       nodeView.setAddress(address);
       initialized = true;
     }
@@ -172,7 +172,7 @@ public class IntToIntBtree {
   private int myOptimizedInserts;
   private boolean myCanUseLastKey;
 
-  public boolean get(int key, @NotNull int[] result) {
+  public boolean get(int key, int @NotNull [] result) {
     if (key == 0) {
       if (hasZeroKey) {
         result[0] = zeroKeyValue;
@@ -265,15 +265,17 @@ public class IntToIntBtree {
 
   private void flushCachedMappings() {
     if (hasCachedMappings) {
-      int[] keys = myCachedMappings.keys();
+      int[] keys = myCachedMappings.keySet().toIntArray();
       Arrays.sort(keys);
-      for(int key:keys) doPut(key, myCachedMappings.get(key));
+      for (int key : keys) {
+        doPut(key, myCachedMappings.get(key));
+      }
       myCachedMappings.clear();
       myCanUseLastKey = false;
     }
   }
 
-  public void doClose() throws IOException {
+  public void doClose() {
     myCachedMappings = null;
     storage.close();
   }
@@ -398,7 +400,7 @@ public class IntToIntBtree {
   // (value_address {<0 if address in duplicates segment}, hash key) {getChildrenCount()}
   // (|next_node {<0} , hash key|) {getChildrenCount()} , next_node {<0}
   // next_node[i] is pointer to all less than hash_key[i] except for the last
-  private static class BtreeIndexNodeView extends BtreePage {
+  private static final class BtreeIndexNodeView extends BtreePage {
     static final int INTERIOR_SIZE = 8;
     static final int KEY_OFFSET = 4;
     static final int MIN_ITEMS_TO_SHARE = 20;
@@ -551,10 +553,10 @@ public class IntToIntBtree {
       return myBufferWrapper.getCachedBuffer() == myBuffer;
     }
 
-    private static class HashLeafData {
+    private static final class HashLeafData {
       final BtreeIndexNodeView nodeView;
       final int[] keys;
-      final TIntIntHashMap values;
+      final Int2IntOpenHashMap values;
 
       HashLeafData(BtreeIndexNodeView _nodeView, int recordCount) {
         nodeView = _nodeView;
@@ -565,7 +567,7 @@ public class IntToIntBtree {
         final ByteBuffer buffer = nodeView.myBuffer;
 
         keys = new int[recordCount];
-        values = new TIntIntHashMap(recordCount);
+        values = new Int2IntOpenHashMap(recordCount);
         int keyNumber = 0;
 
         for(int i = 0; i < btree.hashPageCapacity; ++i) {
@@ -608,7 +610,7 @@ public class IntToIntBtree {
         parent = new BtreeIndexNodeView(btree);
         parent.setAddress(parentAddress);
 
-        if (btree.offloadToSiblingsBeforeSplit) {
+        if (offloadToSiblingsBeforeSplit) {
           if (hashedLeaf) {
             hashLeafData = new HashLeafData(this, recordCount);
             if (doOffloadToSiblingsWhenHashed(parent, hashLeafData)) return parentAddress;
@@ -663,7 +665,7 @@ public class IntToIntBtree {
         if (defaultSplit) {
           hashLeafData.clean();
 
-          final TIntIntHashMap map = hashLeafData.values;
+          final Int2IntOpenHashMap map = hashLeafData.values;
 
           final int avg = keys.length / 2;
           medianKey = keys[avg];
@@ -695,7 +697,7 @@ public class IntToIntBtree {
         short recordCountInNewNode = (short)(recordCount - maxIndex);
         newIndexNode.setChildrenCount(recordCountInNewNode); // newIndexNode node becomes dirty
 
-        if (btree.isLarge) {
+        if (isLarge) {
           ByteBuffer buffer = getBytes(indexToOffset(maxIndex), recordCountInNewNode * INTERIOR_SIZE);
           newIndexNode.putBytes(newIndexNode.indexToOffset(0), buffer);
         } else {
@@ -784,7 +786,7 @@ public class IntToIntBtree {
 
           final int childrenCount = getChildrenCount();
           final int[] keys = hashLeafData.keys;
-          final TIntIntHashMap map = hashLeafData.values;
+          final Int2IntOpenHashMap map = hashLeafData.values;
 
           for(int i = 0; i < numberOfKeysToMove; ++i) {
             final int key = keys[i];
@@ -838,7 +840,7 @@ public class IntToIntBtree {
         }
 
         final int[] keys = hashLeafData.keys;
-        final TIntIntHashMap map = hashLeafData.values;
+        final Int2IntOpenHashMap map = hashLeafData.values;
 
         final int childrenCount = getChildrenCount();
         final int lastChildIndex = childrenCount - numberOfKeysToMove;
@@ -897,7 +899,7 @@ public class IntToIntBtree {
           int indexOfLastChildToMove = (int)getChildrenCount() - toMove;
           btree.movedMembersCount += indexOfLastChildToMove;
 
-          if (btree.isLarge) {
+          if (isLarge) {
             ByteBuffer buffer = getBytes(indexToOffset(toMove), indexOfLastChildToMove * INTERIOR_SIZE);
             putBytes(indexToOffset(0), buffer);
           }
@@ -1010,7 +1012,7 @@ public class IntToIntBtree {
       final boolean indexLeaf = isIndexLeaf();
 
       if (indexLeaf) {
-        if (recordCount == 0 && btree.indexNodeIsHashTable) {
+        if (recordCount == 0 && indexNodeIsHashTable) {
           setHashedLeaf(true);
           ++btree.hashedPagesCount;
         }
@@ -1038,7 +1040,7 @@ public class IntToIntBtree {
       btree.movedMembersCount += itemsToMove;
 
       if (indexLeaf) {
-        if (btree.isLarge && itemsToMove > LARGE_MOVE_THRESHOLD) {
+        if (isLarge && itemsToMove > LARGE_MOVE_THRESHOLD) {
           ByteBuffer buffer = getBytes(indexToOffset(index), itemsToMove * INTERIOR_SIZE);
           putBytes(indexToOffset(index + 1), buffer);
         } else {
@@ -1053,7 +1055,7 @@ public class IntToIntBtree {
         // <address> (<key><address>) {record_count - 1}
         //
         setAddressAt(recordCount + 1, addressAt(recordCount));
-        if (btree.isLarge && itemsToMove > LARGE_MOVE_THRESHOLD) {
+        if (isLarge && itemsToMove > LARGE_MOVE_THRESHOLD) {
           int elementsAfterIndex = recordCount - index - 1;
           if (elementsAfterIndex > 0) {
             ByteBuffer buffer = getBytes(indexToOffset(index + 1), elementsAfterIndex * INTERIOR_SIZE);

@@ -34,15 +34,16 @@ import com.siyeh.ig.psiutils.ClassUtils;
 import com.siyeh.ig.psiutils.MethodUtils;
 import com.siyeh.ig.psiutils.SerializationUtils;
 import org.jdom.Element;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 
 public class MethodMayBeStaticInspection extends BaseInspection {
-  protected static final String IGNORE_DEFAULT_METHODS_ATTR_NAME = "m_ignoreDefaultMethods";
-  protected static final String ONLY_PRIVATE_OR_FINAL_ATTR_NAME = "m_onlyPrivateOrFinal";
-  protected static final String IGNORE_EMPTY_METHODS_ATTR_NAME = "m_ignoreEmptyMethods";
-  protected static final String REPLACE_QUALIFIER_ATTR_NAME = "m_replaceQualifier";
+  @NonNls protected static final String IGNORE_DEFAULT_METHODS_ATTR_NAME = "m_ignoreDefaultMethods";
+  @NonNls protected static final String ONLY_PRIVATE_OR_FINAL_ATTR_NAME = "m_onlyPrivateOrFinal";
+  @NonNls protected static final String IGNORE_EMPTY_METHODS_ATTR_NAME = "m_ignoreEmptyMethods";
+  @NonNls protected static final String REPLACE_QUALIFIER_ATTR_NAME = "m_replaceQualifier";
   /**
    * @noinspection PublicField
    */
@@ -83,15 +84,9 @@ public class MethodMayBeStaticInspection extends BaseInspection {
     final MultipleCheckboxOptionsPanel optionsPanel = new MultipleCheckboxOptionsPanel(this);
     optionsPanel.addCheckbox(InspectionGadgetsBundle.message("method.may.be.static.only.option"), ONLY_PRIVATE_OR_FINAL_ATTR_NAME);
     optionsPanel.addCheckbox(InspectionGadgetsBundle.message("method.may.be.static.empty.option"), IGNORE_EMPTY_METHODS_ATTR_NAME);
-    optionsPanel.addCheckbox("Ignore 'default' methods", IGNORE_DEFAULT_METHODS_ATTR_NAME);
-    optionsPanel.addCheckbox("Quick fix replaces instance qualifiers with class references", REPLACE_QUALIFIER_ATTR_NAME);
+    optionsPanel.addCheckbox(InspectionGadgetsBundle.message("method.may.be.static.ignore.default.methods.option"), IGNORE_DEFAULT_METHODS_ATTR_NAME);
+    optionsPanel.addCheckbox(InspectionGadgetsBundle.message("method.may.be.static.replaces.qualifiers.with.class.references.option"), REPLACE_QUALIFIER_ATTR_NAME);
     return optionsPanel;
-  }
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("method.may.be.static.display.name");
   }
 
   @Override

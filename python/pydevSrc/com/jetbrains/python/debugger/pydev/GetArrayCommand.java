@@ -9,8 +9,6 @@ import org.jetbrains.annotations.NotNull;
  * @author amarch
  */
 public class GetArrayCommand extends GetFrameCommand {
-
-  private final PyDebugValue myParent;
   private final String myVariableName;
   private final int myRowOffset;
   private final int myColOffset;
@@ -27,7 +25,6 @@ public class GetArrayCommand extends GetFrameCommand {
     myRows = rows;
     myColumns = cols;
     myFormat = format;
-    myParent = var;
   }
 
   @Override
@@ -38,10 +35,7 @@ public class GetArrayCommand extends GetFrameCommand {
     payload.add(myColumns);
     payload.add(myFormat);
 
-    if (myParent.getVariableLocator() != null) {
-      payload.add(myParent.getVariableLocator().getThreadId()).add(myParent.getVariableLocator().getPyDBLocation());
-    }
-    else if (myVariableName.contains(GetVariableCommand.BY_ID)) {
+    if (myVariableName.contains(GetVariableCommand.BY_ID)) {
       //id instead of frame_id
       payload.add(getThreadId()).add(myVariableName);
     }
@@ -53,7 +47,7 @@ public class GetArrayCommand extends GetFrameCommand {
 
   @Override
   protected void processResponse(@NotNull final ProtocolFrame response) throws PyDebuggerException {
-    if (response.getCommand() >= 900 && response.getCommand() < 1000) {
+    if (isErrorCommand(response.getCommand())) {
       final String payload = response.getPayload();
       if (payload.contains("ExceedingArrayDimensionsException")) {
         throw new IllegalArgumentException(myVariableName + " has more than two dimensions");

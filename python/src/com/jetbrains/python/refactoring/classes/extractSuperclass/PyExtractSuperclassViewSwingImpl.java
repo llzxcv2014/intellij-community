@@ -24,6 +24,7 @@ import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.refactoring.RefactoringBundle;
 import com.jetbrains.python.psi.PyClass;
 import com.jetbrains.python.refactoring.classes.membersManager.vp.MembersBasedViewSwingImpl;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -37,7 +38,6 @@ class PyExtractSuperclassViewSwingImpl
   extends MembersBasedViewSwingImpl<PyExtractSuperclassPresenter, PyExtractSuperclassInitializationInfo>
   implements PyExtractSuperclassView {
 
-  private static final String FILE_OR_DIRECTORY = RefactoringBundle.message("extract.superclass.elements.header");
   @NotNull
   private final JTextArea myExtractedSuperNameField = new JTextArea();
   @NotNull
@@ -49,7 +49,7 @@ class PyExtractSuperclassViewSwingImpl
                                    @NotNull final Project project,
                                    @NotNull final PyExtractSuperclassPresenter presenter) {
     super(project, presenter, RefactoringBundle.message("extract.superclass.from"), true);
-    setTitle(PyExtractSuperclassHandler.REFACTORING_NAME);
+    setTitle(PyExtractSuperclassHandler.getRefactoringName());
 
 
     final Box box = Box.createVerticalBox();
@@ -80,11 +80,11 @@ class PyExtractSuperclassViewSwingImpl
     myFileChooserDescriptor.withTreeRootVisible(true);
     myTargetDirField = new TextFieldWithBrowseButton();
     myTargetDirField
-      .addBrowseFolderListener(FILE_OR_DIRECTORY, null, project, myFileChooserDescriptor, TextComponentAccessor.TEXT_FIELD_WHOLE_TEXT);
+      .addBrowseFolderListener(getFileOrDirectory(), null, project, myFileChooserDescriptor, TextComponentAccessor.TEXT_FIELD_WHOLE_TEXT);
 
     panel = new JPanel(new BorderLayout());
     final JLabel dirLabel = new JLabel();
-    dirLabel.setText(FILE_OR_DIRECTORY); //u18n
+    dirLabel.setText(getFileOrDirectory()); //u18n
 
     panel.add(dirLabel, BorderLayout.NORTH);
     panel.add(myTargetDirField, BorderLayout.CENTER);
@@ -126,5 +126,9 @@ class PyExtractSuperclassViewSwingImpl
   @Override
   protected String getHelpId() {
     return "refactoring.extract.superclass.dialog";
+  }
+
+  private static @Nls String getFileOrDirectory() {
+    return RefactoringBundle.message("extract.superclass.elements.header");
   }
 }

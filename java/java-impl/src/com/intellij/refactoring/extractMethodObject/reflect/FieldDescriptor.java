@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.extractMethodObject.reflect;
 
 import com.intellij.openapi.diagnostic.Logger;
@@ -15,7 +15,7 @@ import java.util.Objects;
 /**
  * @author Vitaliy.Bibaev
  */
-public class FieldDescriptor implements ItemToReplaceDescriptor {
+public final class FieldDescriptor implements ItemToReplaceDescriptor {
   private static final Logger LOG = Logger.getInstance(FieldDescriptor.class);
 
   private final PsiField myField;
@@ -41,7 +41,7 @@ public class FieldDescriptor implements ItemToReplaceDescriptor {
       PsiClass containingClass = field.getContainingClass();
 
 
-      if (!Objects.equals(containingClass, outerClass) && needReplace(field, expression)) {
+      if (!Objects.equals(containingClass, outerClass) && needReplace(outerClass, field, expression)) {
         Array.getLength(new int[3]);
         return new FieldDescriptor(field, expression);
       }
@@ -127,9 +127,8 @@ public class FieldDescriptor implements ItemToReplaceDescriptor {
     return methodBuilder.build(elementFactory, outerClass);
   }
 
-  private static boolean needReplace(@NotNull PsiField field, @NotNull PsiReferenceExpression expression) {
-    return !PsiReflectionAccessUtil.isAccessibleMember(field) ||
-           !PsiReflectionAccessUtil.isQualifierAccessible(expression.getQualifierExpression());
+  private static boolean needReplace(@NotNull PsiClass outerClass, @NotNull PsiField field, @NotNull PsiReferenceExpression expression) {
+    return !PsiReflectionAccessUtil.isAccessibleMember(field, outerClass, expression.getQualifierExpression());
   }
 
   @NotNull

@@ -1,14 +1,16 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInspection.visibility;
 
 import com.intellij.analysis.AnalysisScope;
-import com.intellij.codeInsight.daemon.GroupNames;
 import com.intellij.codeInsight.daemon.impl.IdentifierUtil;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.ex.EntryPointsManager;
 import com.intellij.codeInspection.ex.EntryPointsManagerBase;
 import com.intellij.codeInspection.reference.*;
+import com.intellij.codeInspection.util.InspectionMessage;
+import com.intellij.codeInspection.util.IntentionName;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
@@ -45,13 +47,9 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
   public boolean SUGGEST_PRIVATE_FOR_INNERS;
   public boolean SUGGEST_FOR_CONSTANTS = true;
   private final Map<String, Boolean> myExtensions = new TreeMap<>();
-  private static final String DISPLAY_NAME = InspectionsBundle.message("inspection.visibility.display.name");
   @NonNls public static final String SHORT_NAME = "WeakerAccess";
-  private static final String CAN_BE_PRIVATE = InspectionsBundle.message("inspection.visibility.compose.suggestion", VisibilityUtil.toPresentableText(PsiModifier.PRIVATE));
-  private static final String CAN_BE_PACKAGE_LOCAL = InspectionsBundle.message("inspection.visibility.compose.suggestion", VisibilityUtil.toPresentableText(PsiModifier.PACKAGE_LOCAL));
-  private static final String CAN_BE_PROTECTED = InspectionsBundle.message("inspection.visibility.compose.suggestion", VisibilityUtil.toPresentableText(PsiModifier.PROTECTED));
 
-  private class OptionsPanel extends JPanel {
+  private final class OptionsPanel extends JPanel {
     private final JCheckBox myPackageLocalForMembersCheckbox;
     private final JCheckBox myPrivateForInnersCheckbox;
     private final JCheckBox myPackageLocalForTopClassesCheckbox;
@@ -66,7 +64,7 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
       gc.weighty = 0;
       gc.anchor = GridBagConstraints.NORTHWEST;
 
-      myPackageLocalForMembersCheckbox = new JCheckBox(InspectionsBundle.message("inspection.visibility.option.package.private.members"));
+      myPackageLocalForMembersCheckbox = new JCheckBox(JavaAnalysisBundle.message("inspection.visibility.option.package.private.members"));
       myPackageLocalForMembersCheckbox.setSelected(SUGGEST_PACKAGE_LOCAL_FOR_MEMBERS);
       myPackageLocalForMembersCheckbox.getModel().addItemListener(
         e -> SUGGEST_PACKAGE_LOCAL_FOR_MEMBERS = myPackageLocalForMembersCheckbox.isSelected());
@@ -74,7 +72,7 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
       gc.gridy = 0;
       add(myPackageLocalForMembersCheckbox, gc);
 
-      myPackageLocalForTopClassesCheckbox = new JCheckBox(InspectionsBundle.message(
+      myPackageLocalForTopClassesCheckbox = new JCheckBox(JavaAnalysisBundle.message(
         "inspection.visibility.package.private.top.level.classes"));
       myPackageLocalForTopClassesCheckbox.setSelected(SUGGEST_PACKAGE_LOCAL_FOR_TOP_CLASSES);
       myPackageLocalForTopClassesCheckbox.getModel().addItemListener(
@@ -83,14 +81,14 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
       gc.gridy++;
       add(myPackageLocalForTopClassesCheckbox, gc);
 
-      myPrivateForInnersCheckbox = new JCheckBox(InspectionsBundle.message("inspection.visibility.private.inner.members"));
+      myPrivateForInnersCheckbox = new JCheckBox(JavaAnalysisBundle.message("inspection.visibility.private.inner.members"));
       myPrivateForInnersCheckbox.setSelected(SUGGEST_PRIVATE_FOR_INNERS);
       myPrivateForInnersCheckbox.getModel().addItemListener(e -> SUGGEST_PRIVATE_FOR_INNERS = myPrivateForInnersCheckbox.isSelected());
 
       gc.gridy++;
       add(myPrivateForInnersCheckbox, gc);
 
-      mySuggestForConstantsCheckbox = new JCheckBox(InspectionsBundle.message("inspection.visibility.option.constants"));
+      mySuggestForConstantsCheckbox = new JCheckBox(JavaAnalysisBundle.message("inspection.visibility.option.constants"));
       mySuggestForConstantsCheckbox.setSelected(SUGGEST_FOR_CONSTANTS);
       mySuggestForConstantsCheckbox.getModel().addItemListener(
         e -> SUGGEST_FOR_CONSTANTS = mySuggestForConstantsCheckbox.isSelected());
@@ -127,14 +125,8 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return DISPLAY_NAME;
-  }
-
-  @Override
-  @NotNull
   public String getGroupDisplayName() {
-    return GroupNames.DECLARATION_REDUNDANCY;
+    return InspectionsBundle.message("group.names.declaration.redundancy");
   }
 
   @Override
@@ -144,12 +136,11 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
   }
 
   @Override
-  @Nullable
-  public CommonProblemDescriptor[] checkElement(@NotNull final RefEntity refEntity,
-                                                @NotNull final AnalysisScope scope,
-                                                @NotNull final InspectionManager manager,
-                                                @NotNull final GlobalInspectionContext globalContext,
-                                                @NotNull final ProblemDescriptionsProcessor processor) {
+  public CommonProblemDescriptor @Nullable [] checkElement(@NotNull final RefEntity refEntity,
+                                                           @NotNull final AnalysisScope scope,
+                                                           @NotNull final InspectionManager manager,
+                                                           @NotNull final GlobalInspectionContext globalContext,
+                                                           @NotNull final ProblemDescriptionsProcessor processor) {
     if (!(refEntity instanceof RefJavaElement)) {
       return null;
     }
@@ -243,29 +234,28 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
       .anyMatch(point -> point.keepVisibilityLevel(isEntryPointEnabled(point), refElement));
   }
 
-  @NotNull
-  private static CommonProblemDescriptor[] createDescriptions(RefElement refElement, String access,
-                                                              @NotNull InspectionManager manager,
-                                                              @NotNull GlobalInspectionContext globalContext) {
+  private static CommonProblemDescriptor @NotNull [] createDescriptions(RefElement refElement, String access,
+                                                                        @NotNull InspectionManager manager,
+                                                                        @NotNull GlobalInspectionContext globalContext) {
     final PsiElement element = refElement.getPsiElement();
     final PsiElement nameIdentifier = element != null ? IdentifierUtil.getNameIdentifier(element) : null;
     if (nameIdentifier != null) {
       final String message;
-      String quickFixName = "Make " + ElementDescriptionUtil.getElementDescription(element, UsageViewTypeLocation.INSTANCE) + " ";
+      String targetVisibility;
       if (access.equals(PsiModifier.PRIVATE)) {
-        message = CAN_BE_PRIVATE;
-        quickFixName += VisibilityUtil.toPresentableText(PsiModifier.PRIVATE);
+        message = getCanBePrivate();
+        targetVisibility = VisibilityUtil.toPresentableText(PsiModifier.PRIVATE);
+      }
+      else if (access.equals(PsiModifier.PACKAGE_LOCAL)) {
+        message = getCanBePackageLocal();
+        targetVisibility = VisibilityUtil.toPresentableText(PsiModifier.PACKAGE_LOCAL);
       }
       else {
-        if (access.equals(PsiModifier.PACKAGE_LOCAL)) {
-          message = CAN_BE_PACKAGE_LOCAL;
-          quickFixName += VisibilityUtil.toPresentableText(PsiModifier.PACKAGE_LOCAL);
-        }
-        else {
-          message = CAN_BE_PROTECTED;
-          quickFixName += VisibilityUtil.toPresentableText(PsiModifier.PROTECTED);
-        }
+        message = getCanBeProtected();
+        targetVisibility = VisibilityUtil.toPresentableText(PsiModifier.PROTECTED);
       }
+      String quickFixName = JavaAnalysisBundle.message(
+        "change.visibility.level", ElementDescriptionUtil.getElementDescription(element, UsageViewTypeLocation.INSTANCE), targetVisibility);
       return new ProblemDescriptor[]{manager.createProblemDescriptor(nameIdentifier,
                                                                      message,
                                                                      new AcceptSuggestedAccess(globalContext.getRefManager(), access, quickFixName),
@@ -644,12 +634,12 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
     myExtensions.put(entryPointId, enabled);
   }
 
-  private static class AcceptSuggestedAccess implements LocalQuickFix{
+  private static final class AcceptSuggestedAccess implements LocalQuickFix{
     private final RefManager myManager;
     @PsiModifier.ModifierConstant private final String myHint;
-    private final String myName;
+    private final @IntentionName String myName;
 
-    private AcceptSuggestedAccess(final RefManager manager, @PsiModifier.ModifierConstant String hint, String name) {
+    private AcceptSuggestedAccess(final RefManager manager, @PsiModifier.ModifierConstant String hint, @IntentionName String name) {
       myManager = manager;
       myHint = hint;
       myName = name;
@@ -664,7 +654,7 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
     @Override
     @NotNull
     public String getFamilyName() {
-      return InspectionsBundle.message("inspection.visibility.accept.quickfix");
+      return JavaAnalysisBundle.message("inspection.visibility.accept.quickfix");
     }
 
     @Override
@@ -699,5 +689,17 @@ public final class VisibilityInspection extends GlobalJavaBatchInspectionTool {
         }
       }
     }
+  }
+
+  private static @InspectionMessage String getCanBePrivate() {
+    return JavaAnalysisBundle.message("inspection.visibility.compose.suggestion", VisibilityUtil.toPresentableText(PsiModifier.PRIVATE));
+  }
+
+  private static @InspectionMessage String getCanBePackageLocal() {
+    return JavaAnalysisBundle.message("inspection.visibility.compose.suggestion", VisibilityUtil.toPresentableText(PsiModifier.PACKAGE_LOCAL));
+  }
+
+  private static @InspectionMessage String getCanBeProtected() {
+    return JavaAnalysisBundle.message("inspection.visibility.compose.suggestion", VisibilityUtil.toPresentableText(PsiModifier.PROTECTED));
   }
 }

@@ -3,11 +3,13 @@ package com.intellij.diff.tools.fragmented;
 
 import com.intellij.diff.util.*;
 import com.intellij.icons.AllIcons;
+import com.intellij.openapi.diff.DiffBundle;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.markup.GutterIconRenderer;
 import com.intellij.openapi.editor.markup.RangeHighlighter;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -95,16 +97,16 @@ public class UnifiedDiffChangeUi {
       if (!myViewer.isEditable(sourceSide.other(), true)) return null;
 
       if (sourceSide.isLeft()) {
-        return createIconRenderer(sourceSide, "Revert", AllIcons.Diff.Remove);
+        return createIconRenderer(sourceSide, DiffBundle.message("action.presentation.diff.revert.text"), AllIcons.Diff.Revert);
       }
       else {
-        return createIconRenderer(sourceSide, "Accept", AllIcons.Actions.Checked);
+        return createIconRenderer(sourceSide, DiffBundle.message("action.presentation.diff.accept.text"), AllIcons.Actions.Checked);
       }
     });
   }
 
   private GutterIconRenderer createIconRenderer(@NotNull final Side sourceSide,
-                                                @NotNull final String tooltipText,
+                                                @NotNull final @NlsContexts.Tooltip String tooltipText,
                                                 @NotNull final Icon icon) {
     return new DiffGutterRenderer(icon, tooltipText) {
       @Override
@@ -115,7 +117,7 @@ public class UnifiedDiffChangeUi {
         final Project project = myViewer.getProject();
         final Document document = myViewer.getDocument(sourceSide.other());
 
-        DiffUtil.executeWriteCommand(document, project, "Replace change", () -> {
+        DiffUtil.executeWriteCommand(document, project, DiffBundle.message("message.replace.change.command"), () -> {
           myViewer.replaceChange(myChange, sourceSide);
           myViewer.scheduleRediff();
         });

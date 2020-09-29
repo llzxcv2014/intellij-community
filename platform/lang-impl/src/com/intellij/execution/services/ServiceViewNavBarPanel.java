@@ -4,6 +4,7 @@ package com.intellij.execution.services;
 import com.intellij.execution.services.ServiceModel.ServiceNode;
 import com.intellij.execution.services.ServiceModel.ServiceViewItem;
 import com.intellij.ide.navigationToolbar.NavBarModel;
+import com.intellij.ide.navigationToolbar.NavBarModelExtension;
 import com.intellij.ide.navigationToolbar.NavBarModelListener;
 import com.intellij.ide.navigationToolbar.NavBarPanel;
 import com.intellij.openapi.actionSystem.DataContext;
@@ -69,6 +70,10 @@ class ServiceViewNavBarPanel extends NavBarPanel {
     hideHint(true);
   }
 
+  void hidePopup() {
+    hideHint(false);
+  }
+
   private static class ServiceViewNavBarModel extends NavBarModel {
     private ServiceViewModel myViewModel;
     private final ServiceViewNavBarRoot myRoot = new ServiceViewNavBarRoot();
@@ -86,7 +91,7 @@ class ServiceViewNavBarPanel extends NavBarPanel {
     }
 
     @Override
-    protected void updateModel(PsiElement psiElement) {
+    protected void updateModel(PsiElement psiElement, NavBarModelExtension ownerExtension) {
     }
 
     @Override

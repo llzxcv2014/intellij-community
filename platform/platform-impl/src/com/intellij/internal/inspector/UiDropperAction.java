@@ -1,6 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.internal.inspector;
 
+import com.intellij.ide.IdeBundle;
+import com.intellij.internal.InternalActionsBundle;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
@@ -100,14 +102,14 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
     }
   }
 
-  private static class UiInspectorNotification extends Notification {
+  private static final class UiInspectorNotification extends Notification {
     private UiInspectorNotification() {
       super(Notifications.SYSTEM_MESSAGES_GROUP_ID, "UI Dropper", "Hold ctr + alt and navigate cursor to component.\nUse mouse wheel to get info of parent component.",
             NotificationType.INFORMATION);
     }
   }
 
-  private static class InspectorWindow extends JDialog {
+  private static final class InspectorWindow extends JDialog {
     private InspectorTable myInspectorTable;
     private Component myComponent;
     private HighlightComponent myHighlightComponent;
@@ -127,7 +129,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
       setTitle(component.getClass().getName());
 
       DefaultActionGroup actions = new DefaultActionGroup();
-      actions.addAction(new IconWithTextAction("Highlight") {
+      actions.addAction(new IconWithTextAction(IdeBundle.messagePointer("action.Anonymous.text.highlight")) {
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
           //highlightCmp(myHighlightComponent == null);
@@ -141,7 +143,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
 
       actions.addSeparator();
 
-      actions.add(new IconWithTextAction("Refresh") {
+      actions.add(new IconWithTextAction(InternalActionsBundle.messagePointer("action.Anonymous.text.refresh")) {
 
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
@@ -285,7 +287,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
           append(", double-buffered", SimpleTextAttributes.GRAYED_ATTRIBUTES);
         }
         componentNode.setText(toString());
-        setIcon(JBUI.scale(new ColorsIcon(11, component.getBackground(), component.getForeground())));
+        setIcon(JBUIScale.scaleIcon(new ColorsIcon(11, component.getBackground(), component.getForeground())));
       }
 
       setForeground(foreground);
@@ -347,7 +349,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
 
     public abstract void onComponentChanged(Component c);
 
-    private static class ComponentNode extends DefaultMutableTreeNode {
+    private static final class ComponentNode extends DefaultMutableTreeNode {
       private final Component myComponent;
       String myText;
 
@@ -433,7 +435,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
     }
   }
 
-  private static class HighlightComponent extends JComponent {
+  private static final class HighlightComponent extends JComponent {
     Color myColor;
     JComponent myGlassPane;
     Component myOriginalComponent;
@@ -467,7 +469,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
     }
   }
 
-  private static class InspectorTable extends JPanel {
+  private static final class InspectorTable extends JPanel {
     InspectorTableModel myModel;
     DimensionsComponent myDimensionComponent;
 
@@ -515,7 +517,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
     }
   }
 
-  private static class DimensionsComponent extends JComponent {
+  private static final class DimensionsComponent extends JComponent {
     Component myComponent;
     int myWidth;
     int myHeight;
@@ -745,7 +747,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
 
       if (value instanceof UIResource) sb.append(" UIResource");
       setText(sb.toString());
-      setIcon(JBUI.scale(new ColorIcon(13, 11, value, true)));
+      setIcon(JBUIScale.scaleIcon(new ColorIcon(13, 11, value, true)));
       return this;
     }
   }
@@ -895,7 +897,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
     public void setValueAt(Object value, int row, int col) {
       PropertyBean bean = myProperties.get(row);
       try {
-        myProperties.set(row, new PropertyBean(bean.propertyName, ObjectUtils.notNull(updater(bean)).fun(value)));
+        myProperties.set(row, new PropertyBean(bean.propertyName, Objects.requireNonNull(updater(bean)).fun(value)));
       }
       catch (Exception ignored) {
       }
@@ -1209,7 +1211,7 @@ public class UiDropperAction extends ToggleAction implements DumbAware {
         int first = text.indexOf("at com.intellij", text.indexOf("at java.awt"));
         int last = text.indexOf("at java.awt.EventQueue");
         if (last == -1) last = text.length();
-        String val = last > first && first > 0 ? text.substring(first, last) : null;
+        String val = last > first && first > 0 ? text.substring(first, last).trim() : null;
         ((JComponent)child).putClientProperty("uiInspector.addedAt", val);
       }
     }

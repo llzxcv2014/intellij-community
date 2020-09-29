@@ -22,6 +22,7 @@ import jetbrains.coverage.report.ReportBuilderFactory;
 import jetbrains.coverage.report.SourceCodeProvider;
 import jetbrains.coverage.report.html.HTMLReportBuilder;
 import jetbrains.coverage.report.idea.IDEACoverageData;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,11 +47,11 @@ public abstract class JavaCoverageRunner extends CoverageRunner {
     return engine instanceof JavaCoverageEngine;
   }
 
-  public abstract void appendCoverageArgument(final String sessionDataFilePath, @Nullable final String[] patterns, final SimpleJavaParameters parameters,
+  public abstract void appendCoverageArgument(final String sessionDataFilePath, final String @Nullable [] patterns, final SimpleJavaParameters parameters,
                                               final boolean collectLineInfo, final boolean isSampling);
 
   public void appendCoverageArgument(final String sessionDataFilePath,
-                                     @Nullable final String[] patterns,
+                                     final String @Nullable [] patterns,
                                      String[] excludePatterns,
                                      final SimpleJavaParameters parameters,
                                      final boolean collectLineInfo,
@@ -109,7 +110,7 @@ public abstract class JavaCoverageRunner extends CoverageRunner {
     return JavaExecutionUtil.handleSpacesInAgentPath(agentPath, "testAgent", JAVA_COVERAGE_AGENT_AGENT_PATH);
   }
 
-  protected static void write2file(File tempFile, String arg) throws IOException {
+  protected static void write2file(File tempFile, @NonNls String arg) throws IOException {
     FileUtil.writeToFile(tempFile, (arg + "\n").getBytes(StandardCharsets.UTF_8), true);
   }
 

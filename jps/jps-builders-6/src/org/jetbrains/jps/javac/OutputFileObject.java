@@ -1,28 +1,16 @@
-/*
- * Copyright 2000-2012 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.jps.javac;
 
+import com.intellij.openapi.util.io.FileUtilRt;
+import com.intellij.util.Function;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.jps.PathUtils;
 import org.jetbrains.jps.incremental.BinaryContent;
 
-import javax.tools.*;
+import javax.tools.JavaFileManager;
 import java.io.*;
 import java.net.URI;
+import java.util.Iterator;
 
 /**
  * @author Eugene Zhuravlev
@@ -36,21 +24,9 @@ public final class OutputFileObject extends JpsFileObject {
   private final File myFile;
   @Nullable
   private final String myClassName;
-  @Nullable private final URI mySourceUri;
+  private final Iterable<URI> mySources;
   private volatile BinaryContent myContent;
-  private final File mySourceFile;
   private final String myEncodingName;
-
-  public OutputFileObject(@NotNull JpsJavacFileManager.Context context,
-                          @Nullable File outputRoot,
-                          String relativePath,
-                          @NotNull File file,
-                          @NotNull Kind kind,
-                          @Nullable String className,
-                          @Nullable final URI sourceUri,
-                          @Nullable final String encodingName, final JavaFileManager.Location location) {
-    this(context, outputRoot, relativePath, file, kind, className, sourceUri, encodingName, null, location);
-  }
 
   public OutputFileObject(@Nullable JpsJavacFileManager.Context context,
                           @Nullable File outputRoot,
@@ -58,18 +34,17 @@ public final class OutputFileObject extends JpsFileObject {
                           @NotNull File file,
                           @NotNull Kind kind,
                           @Nullable String className,
-                          @Nullable final URI srcUri,
+                          @NotNull final Iterable<URI> sources,
                           @Nullable final String encodingName,
                           @Nullable BinaryContent content, final JavaFileManager.Location location) {
-    super(PathUtils.toURI(file.getPath()), kind, location);
+    super(FileUtilRt.fileToUri(file), kind, location);
     myContext = context;
-    mySourceUri = srcUri;
+    mySources = sources;
     myContent = content;
     myOutputRoot = outputRoot;
     myRelativePath = relativePath;
     myFile = file;
     myClassName = className != null? className.replace('/', '.') : null;
-    mySourceFile = srcUri != null? PathUtils.convertToFile(srcUri) : null;
     myEncodingName = encodingName;
   }
 
@@ -92,14 +67,29 @@ public final class OutputFileObject extends JpsFileObject {
     return myClassName;
   }
 
+  /**
+   * @deprecated In general, an output object may be generated from several source files. Use {@link OutputFileObject#getSourceFiles()} method instead.
+   */
+  @Deprecated
   @Nullable
   public File getSourceFile() {
-    return mySourceFile;
+    final Iterator<File> it = getSourceFiles().iterator();
+    return it.hasNext()? it.next() : null;
   }
 
-  @Nullable
-  public URI getSourceUri() {
-    return mySourceUri;
+  @NotNull
+  public Iterable<File> getSourceFiles() {
+    return Iterators.filter(Iterators.map(getSourceUris(), new Function<URI, File>() {
+      @Override
+      public File fun(URI uri) {
+        return "file".equalsIgnoreCase(uri.getScheme())? new File(uri) : null;
+      }
+    }), Iterators.<File>notNullFilter());
+  }
+
+  @NotNull
+  public Iterable<URI> getSourceUris() {
+    return mySources;
   }
 
   @Override

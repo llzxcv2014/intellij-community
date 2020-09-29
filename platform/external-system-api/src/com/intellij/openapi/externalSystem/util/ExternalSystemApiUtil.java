@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.externalSystem.util;
 
 import com.intellij.execution.rmi.RemoteUtil;
@@ -27,6 +27,7 @@ import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.ProjectModelExternalSource;
 import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.util.Computable;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
@@ -34,7 +35,10 @@ import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.util.*;
+import com.intellij.util.BooleanFunction;
+import com.intellij.util.NullableFunction;
+import com.intellij.util.PathsList;
+import com.intellij.util.SmartList;
 import com.intellij.util.concurrency.EdtExecutorService;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
@@ -53,7 +57,7 @@ import java.util.function.Consumer;
 /**
  * @author Denis Zhdanov
  */
-public class ExternalSystemApiUtil {
+public final class ExternalSystemApiUtil {
 
   @NotNull public static final String PATH_SEPARATOR = "/";
 
@@ -144,7 +148,7 @@ public class ExternalSystemApiUtil {
   }
 
   public static void orderAwareSort(@NotNull List<?> data) {
-    Collections.sort(data, ORDER_AWARE_COMPARATOR);
+    data.sort(ORDER_AWARE_COMPARATOR);
   }
 
   /**
@@ -155,7 +159,7 @@ public class ExternalSystemApiUtil {
   public static String toCanonicalPath(@NotNull String path) {
     String p = normalizePath(new File(path).getAbsolutePath());
     assert p != null;
-    return PathUtil.getCanonicalPath(p);
+    return FileUtil.toCanonicalPath(p);
   }
 
   @NotNull
@@ -474,7 +478,7 @@ public class ExternalSystemApiUtil {
   }
 
   @NotNull
-  public static String getProjectRepresentationName(@NotNull String targetProjectPath, @Nullable String rootProjectPath) {
+  public static @NlsSafe String getProjectRepresentationName(@NotNull String targetProjectPath, @Nullable String rootProjectPath) {
     if (rootProjectPath == null) {
       File rootProjectDir = new File(targetProjectPath);
       if (rootProjectDir.isFile()) {

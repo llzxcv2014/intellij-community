@@ -15,6 +15,7 @@
  */
 package com.intellij.openapi.module;
 
+import com.intellij.openapi.util.NlsSafe;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
@@ -26,16 +27,15 @@ import java.util.List;
  *
  * @see UnloadedModuleDescription
  * @see LoadedModuleDescription
- * @author nik
  */
 @ApiStatus.Experimental
 public interface ModuleDescription {
-  @NotNull
+  @NotNull @NlsSafe
   String getName();
 
   /**
    * Names of the modules on which the current module depend.
    */
   @NotNull
-  List<String> getDependencyModuleNames();
+  List<@NlsSafe String> getDependencyModuleNames();
 }

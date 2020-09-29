@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn.update;
 
 import com.intellij.openapi.options.Configurable;
@@ -51,7 +51,7 @@ public abstract class AbstractSvnUpdateIntegrateEnvironment implements UpdateEnv
 
   @Override
   @NotNull
-  public UpdateSession updateDirectories(@NotNull final FilePath[] contentRoots,
+  public UpdateSession updateDirectories(final FilePath @NotNull [] contentRoots,
                                          final UpdatedFiles updatedFiles,
                                          final ProgressIndicator progressIndicator, @NotNull final Ref<SequentialUpdatesContext> context)
     throws ProcessCanceledException {
@@ -89,13 +89,13 @@ public abstract class AbstractSvnUpdateIntegrateEnvironment implements UpdateEnv
     return new MyUpdateSessionAdapter(contentRoots, updatedFiles, exceptions);
   }
 
-  private class MyUpdateSessionAdapter extends UpdateSessionAdapter {
+  private final class MyUpdateSessionAdapter extends UpdateSessionAdapter {
     private final FilePath[] myContentRoots;
     private final UpdatedFiles myUpdatedFiles;
     private final VcsDirtyScopeManager myDirtyScopeManager;
     private final List<Runnable> myGroupWorkers;
 
-    private MyUpdateSessionAdapter(@NotNull final FilePath[] contentRoots, final UpdatedFiles updatedFiles, final List<VcsException> exceptions) {
+    private MyUpdateSessionAdapter(final FilePath @NotNull [] contentRoots, final UpdatedFiles updatedFiles, final List<VcsException> exceptions) {
       super(exceptions, false);
       myContentRoots = contentRoots;
       myUpdatedFiles = updatedFiles;
@@ -184,7 +184,7 @@ public abstract class AbstractSvnUpdateIntegrateEnvironment implements UpdateEnv
       }
     }
 
-    private class MyTextConflictWorker extends MyConflictWorker {
+    private final class MyTextConflictWorker extends MyConflictWorker {
       private MyTextConflictWorker() {
         super(FileGroup.MERGED_WITH_CONFLICT_ID);
       }

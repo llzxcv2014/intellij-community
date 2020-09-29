@@ -12,6 +12,7 @@ import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.ui.VerticalFlowLayout;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.psi.PsiDirectory;
@@ -31,8 +32,6 @@ import java.io.File;
  * @author ven
  */
 public class ExtractIncludeDialog extends DialogWrapper {
-  private static final String REFACTORING_NAME = RefactoringBundle.message("extractIncludeFile.name");
-
   private final PsiDirectory myCurrentDirectory;
   protected final String myExtension;
 
@@ -44,7 +43,7 @@ public class ExtractIncludeDialog extends DialogWrapper {
     super(true);
     myCurrentDirectory = currentDirectory;
     myExtension = extension;
-    setTitle(REFACTORING_NAME);
+    setTitle(getRefactoringName());
     init();
   }
 
@@ -106,7 +105,7 @@ public class ExtractIncludeDialog extends DialogWrapper {
     return panel;
   }
 
-  protected String getNameLabel() {
+  protected @NlsContexts.Label String getNameLabel() {
     return RefactoringBundle.message("name.for.extracted.include.file", myExtension);
   }
 
@@ -148,7 +147,7 @@ public class ExtractIncludeDialog extends DialogWrapper {
           myTargetDirectory = webPath == null ? null : targetDirectory;
         }
         catch (IncorrectOperationException e) {
-          CommonRefactoringUtil.showErrorMessage(REFACTORING_NAME, e.getMessage(), null, project);
+          CommonRefactoringUtil.showErrorMessage(getRefactoringName(), e.getMessage(), null, project);
         }
       };
       ApplicationManager.getApplication().runWriteAction(action);
@@ -165,5 +164,9 @@ public class ExtractIncludeDialog extends DialogWrapper {
   protected void hideTargetDirectory() {
     myTargetDirectoryField.setVisible(false);
     myTargetDirLabel.setVisible(false);
+  }
+
+  private static @NlsContexts.DialogTitle String getRefactoringName() {
+    return RefactoringBundle.message("extractIncludeFile.name");
   }
 }

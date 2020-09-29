@@ -32,6 +32,7 @@ import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
 import com.siyeh.ig.psiutils.ClassUtils;
 import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -40,15 +41,17 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class ComparableImplementedButEqualsNotOverriddenInspection extends BaseInspection {
-  @VisibleForTesting
-  static final String ADD_NOTE_FIX_NAME = "Add 'ordering inconsistent with equals' JavaDoc note";
-  @VisibleForTesting
-  static final String GENERATE_EQUALS_FIX_NAME = "Generate 'equals()' method";
 
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("comparable.implemented.but.equals.not.overridden.display.name");
+  @Nls
+  @VisibleForTesting
+  static String getAddNoteFixName() {
+    return InspectionGadgetsBundle.message("comparable.implemented.but.equals.not.overridden.fix.add.note.name");
+  }
+
+  @Nls
+  @VisibleForTesting
+  static String getGenerateEqualsFixName() {
+    return InspectionGadgetsBundle.message("comparable.implemented.but.equals.not.overridden.fix.generate.equals.name");
   }
 
   @Override
@@ -57,9 +60,8 @@ public class ComparableImplementedButEqualsNotOverriddenInspection extends BaseI
     return InspectionGadgetsBundle.message("comparable.implemented.but.equals.not.overridden.problem.descriptor");
   }
 
-  @NotNull
   @Override
-  protected InspectionGadgetsFix[] buildFixes(Object... infos) {
+  protected InspectionGadgetsFix @NotNull [] buildFixes(Object... infos) {
     if (infos[0] instanceof PsiAnonymousClass) {
       return new InspectionGadgetsFix[] {new GenerateEqualsMethodFix()};
     }
@@ -75,13 +77,13 @@ public class ComparableImplementedButEqualsNotOverriddenInspection extends BaseI
     @NotNull
     @Override
     public String getFamilyName() {
-      return GENERATE_EQUALS_FIX_NAME;
+      return getGenerateEqualsFixName();
     }
 
     @Override
     protected void doFix(Project project, ProblemDescriptor descriptor) {
       final PsiClass aClass = (PsiClass)descriptor.getPsiElement().getParent();
-      final StringBuilder methodText = new StringBuilder();
+      final @NonNls StringBuilder methodText = new StringBuilder();
       if (PsiUtil.isLanguageLevel5OrHigher(aClass)) {
         methodText.append("@java.lang.Override ");
       }
@@ -100,13 +102,13 @@ public class ComparableImplementedButEqualsNotOverriddenInspection extends BaseI
   private static class AddNoteFix extends InspectionGadgetsFix {
 
     private static final Pattern PARAM_PATTERN = Pattern.compile("\\*[ \t]+@");
-    private static final String NOTE = " * Note: this class has a natural ordering that is inconsistent with equals.\n";
+    private static final @Nls String NOTE = " * Note: this class has a natural ordering that is inconsistent with equals.\n";
 
     @Nls
     @NotNull
     @Override
     public String getFamilyName() {
-      return ADD_NOTE_FIX_NAME;
+      return getAddNoteFixName();
     }
 
     @Override

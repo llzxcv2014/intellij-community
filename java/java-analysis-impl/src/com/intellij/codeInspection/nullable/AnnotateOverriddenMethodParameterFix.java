@@ -19,11 +19,14 @@ import com.intellij.codeInsight.AnnotationUtil;
 import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInsight.intention.AddAnnotationPsiFix;
 import com.intellij.codeInspection.AnnotateMethodFix;
-import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.project.Project;
-import com.intellij.psi.*;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiInvalidElementAccessException;
+import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiParameter;
 import com.intellij.psi.util.ClassUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ArrayUtilRt;
@@ -34,14 +37,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/**
- * @author cdr
- */
 public class AnnotateOverriddenMethodParameterFix implements LocalQuickFix {
   private final String myAnnotation;
   private final String[] myAnnosToRemove;
 
-  AnnotateOverriddenMethodParameterFix(@NotNull String annotationFQN, @NotNull String... annosToRemove) {
+  AnnotateOverriddenMethodParameterFix(@NotNull String annotationFQN, String @NotNull ... annosToRemove) {
     myAnnotation = annotationFQN;
     myAnnosToRemove = annosToRemove;
   }
@@ -49,7 +49,7 @@ public class AnnotateOverriddenMethodParameterFix implements LocalQuickFix {
   @Override
   @NotNull
   public String getName() {
-    return InspectionsBundle.message("annotate.overridden.methods.parameters", ClassUtil.extractClassName(myAnnotation));
+    return JavaAnalysisBundle.message("annotate.overridden.methods.parameters", ClassUtil.extractClassName(myAnnotation));
   }
 
   @Override
@@ -76,7 +76,7 @@ public class AnnotateOverriddenMethodParameterFix implements LocalQuickFix {
       assert psiParam != null : toAnnotate;
       try {
         if (AnnotationUtil.isAnnotatingApplicable(psiParam, myAnnotation)) {
-          AddAnnotationPsiFix fix = new AddAnnotationPsiFix(myAnnotation, psiParam, PsiNameValuePair.EMPTY_ARRAY, myAnnosToRemove);
+          AddAnnotationPsiFix fix = new AddAnnotationPsiFix(myAnnotation, psiParam, myAnnosToRemove);
           PsiFile containingFile = psiParam.getContainingFile();
           if (psiParam.isValid() && fix.isAvailable(project, containingFile, psiParam, psiParam)) {
             fix.invoke(project, containingFile, psiParam, psiParam);
@@ -109,6 +109,6 @@ public class AnnotateOverriddenMethodParameterFix implements LocalQuickFix {
   @Override
   @NotNull
   public String getFamilyName() {
-    return InspectionsBundle.message("annotate.overridden.methods.parameters.family.name");
+    return JavaAnalysisBundle.message("annotate.overridden.methods.parameters.family.name");
   }
 }

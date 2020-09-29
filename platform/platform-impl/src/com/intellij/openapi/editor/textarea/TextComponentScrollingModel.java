@@ -28,10 +28,10 @@ import java.awt.*;
 /**
  * @author yole
  */
-public class TextComponentScrollingModel implements ScrollingModel {
+class TextComponentScrollingModel implements ScrollingModel {
   private final JTextComponent myTextComponent;
 
-  public TextComponentScrollingModel(@NotNull JTextComponent textComponent) {
+  TextComponentScrollingModel(@NotNull JTextComponent textComponent) {
     myTextComponent = textComponent;
   }
 
@@ -52,7 +52,7 @@ public class TextComponentScrollingModel implements ScrollingModel {
     final int position = myTextComponent.getCaretPosition();
     try {
       final Rectangle rectangle = myTextComponent.modelToView(position);
-      myTextComponent.scrollRectToVisible(rectangle);
+      if (rectangle != null) myTextComponent.scrollRectToVisible(rectangle);
     }
     catch (BadLocationException e) {
       throw new RuntimeException(e);

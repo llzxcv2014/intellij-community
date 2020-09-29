@@ -1,16 +1,17 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.ui;
 
 import com.intellij.ide.IdeBundle;
-import com.intellij.ide.plugins.IdeaPluginDescriptor;
-import com.intellij.ide.plugins.PluginManager;
-import com.intellij.ide.plugins.PluginManagerConfigurable;
-import com.intellij.ide.plugins.PluginManagerCore;
+import com.intellij.ide.plugins.*;
 import com.intellij.ide.ui.search.BooleanOptionDescription;
+import com.intellij.ide.ui.search.NotABooleanOptionDescription;
 import com.intellij.notification.*;
+import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
+import com.intellij.openapi.application.ex.ApplicationInfoEx;
+import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.ui.popup.Balloon;
 import org.jetbrains.annotations.NotNull;
@@ -25,18 +26,18 @@ import java.util.stream.Stream;
 /**
  * @author Konstantin Bulenkov
  */
-final class PluginBooleanOptionDescriptor extends BooleanOptionDescription {
+final class PluginBooleanOptionDescriptor extends NotABooleanOptionDescription implements BooleanOptionDescription.RequiresRebuild {
   private static final NotificationGroup PLUGINS_LIST_CHANGED_GROUP =
-    new NotificationGroup("Plugins updates", NotificationDisplayType.STICKY_BALLOON, false);
+    new NotificationGroup("Plugins updates", NotificationDisplayType.STICKY_BALLOON, true, null, null, null, PluginManagerCore.CORE_ID);
   private static final NotificationGroup PLUGINS_AUTO_SWITCH_GROUP =
-    new NotificationGroup("Plugins AutoSwitch", NotificationDisplayType.BALLOON, false);
+    new NotificationGroup("Plugins AutoSwitch", NotificationDisplayType.BALLOON, true, null, null, null, PluginManagerCore.CORE_ID);
 
   private static final Notifier ourRestartNeededNotifier = new Notifier();
 
   private final IdeaPluginDescriptor plugin;
 
   PluginBooleanOptionDescriptor(@NotNull IdeaPluginDescriptor descriptor) {
-    super(descriptor.getName(), PluginManagerConfigurable.ID);
+    super(IdeBundle.message("search.everywhere.command.plugins", descriptor.getName()), PluginManagerConfigurable.ID);
 
     plugin = descriptor;
   }
@@ -49,12 +50,14 @@ final class PluginBooleanOptionDescriptor extends BooleanOptionDescription {
   @Override
   public void setOptionState(boolean enabled) {
     Collection<IdeaPluginDescriptor> autoSwitchedIds = enabled ? getPluginsIdsToEnable(plugin) : getPluginsIdsToDisable(plugin);
-    PluginManager.getInstance().enablePlugins(autoSwitchedIds, enabled);
+    boolean enabledWithoutRestart = PluginEnabler.enablePlugins(null, autoSwitchedIds, enabled);
     if (autoSwitchedIds.size() > 1) {
       showAutoSwitchNotification(autoSwitchedIds, enabled);
     }
 
-    ourRestartNeededNotifier.showNotification();
+    if (!enabledWithoutRestart) {
+      ourRestartNeededNotifier.showNotification();
+    }
   }
 
   private void showAutoSwitchNotification(@NotNull Collection<IdeaPluginDescriptor> autoSwitchedPlugins, boolean enabled) {
@@ -78,7 +81,7 @@ final class PluginBooleanOptionDescriptor extends BooleanOptionDescription {
     PluginManager.getInstance().addDisablePluginListener(new Runnable() {
       @Override
       public void run() {
-        Stream<PluginId> ids = autoSwitchedPlugins.stream().map(descriptor -> descriptor.getPluginId());
+        Stream<PluginId> ids = autoSwitchedPlugins.stream().map(PluginDescriptor::getPluginId);
         boolean notificationValid = enabled ? ids.noneMatch(PluginManagerCore::isDisabled) : ids.allMatch(PluginManagerCore::isDisabled);
         if (!notificationValid) {
           switchNotification.expire();
@@ -98,7 +101,11 @@ final class PluginBooleanOptionDescriptor extends BooleanOptionDescription {
     Set<IdeaPluginDescriptor> result = new HashSet<>();
     result.add(rootDescriptor);
 
-    PluginManagerCore.processAllDependencies(rootDescriptor, false, descriptor -> {
+    if (!(rootDescriptor instanceof IdeaPluginDescriptorImpl)) {
+      return result;
+    }
+
+    PluginManagerCore.processAllDependencies((IdeaPluginDescriptorImpl)rootDescriptor, false, descriptor -> {
       if (descriptor.getPluginId() == PluginManagerCore.CORE_ID) {
         return FileVisitResult.SKIP_SUBTREE;
       }
@@ -120,20 +127,32 @@ final class PluginBooleanOptionDescriptor extends BooleanOptionDescription {
     Set<IdeaPluginDescriptor> result = new HashSet<>();
     result.add(rootDescriptor);
 
-    PluginManagerCore.processAllDependencies(rootDescriptor, false, descriptor -> {
-      if (descriptor.getPluginId() == PluginManagerCore.CORE_ID) {
-        return FileVisitResult.SKIP_SUBTREE;
+    ApplicationInfoEx appInfo = ApplicationInfoEx.getInstanceEx();
+    PluginId rootId = rootDescriptor.getPluginId();
+
+    for (IdeaPluginDescriptor plugin : PluginManagerCore.getPlugins()) {
+      PluginId pluginId = plugin.getPluginId();
+      if (pluginId == rootId || appInfo.isEssentialPlugin(pluginId) || !plugin.isEnabled() || plugin.isImplementationDetail()) {
+        continue;
       }
 
-      if (descriptor.isEnabled()) {
-        // if descriptor was already added, no need to process it's dependencies again
-        return result.add(descriptor) ? FileVisitResult.CONTINUE : FileVisitResult.SKIP_SUBTREE;
+      if (!(plugin instanceof IdeaPluginDescriptorImpl)) {
+        continue;
       }
-      else {
-        // if descriptor is already disabled, no need to process it's dependencies
-        return FileVisitResult.SKIP_SUBTREE;
+
+      IdeaPluginDescriptorImpl pluginDescriptor = (IdeaPluginDescriptorImpl)plugin;
+      if (pluginDescriptor.isDeleted()) {
+        continue;
       }
-    });
+
+      PluginManagerCore.processAllDependencies(pluginDescriptor, false, descriptor -> {
+        if (descriptor.getPluginId() == rootId) {
+          result.add(plugin);
+          return FileVisitResult.TERMINATE;
+        }
+        return FileVisitResult.CONTINUE;
+      });
+    }
     return result;
   }
 
@@ -151,7 +170,7 @@ final class PluginBooleanOptionDescriptor extends BooleanOptionDescription {
     @Override
     public void actionPerformed(@NotNull AnActionEvent e, @NotNull Notification notification) {
       boolean enabled = !myEnabled;
-      PluginManager.getInstance().enablePlugins(myDescriptors, enabled);
+      DisabledPluginsState.enablePlugins(myDescriptors, enabled);
       notification.expire();
       ourRestartNeededNotifier.showNotification();
     }
@@ -171,7 +190,13 @@ final class PluginBooleanOptionDescriptor extends BooleanOptionDescription {
         .createNotification(
           IdeBundle.message("plugins.changed.notification.content", ApplicationNamesInfo.getInstance().getFullProductName()),
           NotificationType.INFORMATION)
-        .setTitle(IdeBundle.message("plugins.changed.notification.title"));
+        .setTitle(IdeBundle.message("plugins.changed.notification.title"))
+        .addAction(new AnAction(IdeBundle.message("ide.restart.action")) {
+          @Override
+          public void actionPerformed(@NotNull AnActionEvent e) {
+            ApplicationManager.getApplication().restart();
+          }
+        });
 
       if (prevNotification.compareAndSet(prev, next)) {
         Notifications.Bus.notify(next);

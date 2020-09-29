@@ -30,6 +30,7 @@ import com.siyeh.ig.InspectionGadgetsFix;
 import com.siyeh.ig.PsiReplacementUtil;
 import com.siyeh.ig.psiutils.ExpressionUtils;
 import com.siyeh.ig.psiutils.VariableNameGenerator;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,13 +41,6 @@ public class IncrementDecrementUsedAsExpressionInspection
   @NotNull
   public String getID() {
     return "ValueOfIncrementOrDecrementUsed";
-  }
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "increment.decrement.display.name");
   }
 
   @Override
@@ -109,7 +103,7 @@ public class IncrementDecrementUsedAsExpressionInspection
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Extract to separate statement";
+      return InspectionGadgetsBundle.message("increment.decrement.used.as.expression.fix.family.name");
     }
 
     @Override
@@ -145,7 +139,7 @@ public class IncrementDecrementUsedAsExpressionInspection
     if (parent instanceof PsiIfStatement || parent instanceof PsiLoopStatement || parent instanceof PsiSwitchLabeledRuleStatement) {
       // need to add braces because
       // in/decrement is inside braceless control statement body
-      final StringBuilder text = new StringBuilder();
+      @NonNls final StringBuilder text = new StringBuilder();
       text.append('{');
       final String elementText = PsiReplacementUtil.getElementText(statement, element, operandText);
       if (element instanceof PsiPostfixExpression) {

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.fileTemplates.impl;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -18,6 +18,7 @@ import com.intellij.openapi.editor.colors.EditorColorsScheme;
 import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.editor.ex.EditorEx;
+import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.editor.ex.util.LayerDescriptor;
 import com.intellij.openapi.editor.ex.util.LayeredLexerEditorHighlighter;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
@@ -28,8 +29,8 @@ import com.intellij.openapi.fileTypes.ex.FileTypeChooser;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.LabeledComponent;
 import com.intellij.openapi.ui.Splitter;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.psi.PsiDocumentManager;
@@ -38,6 +39,7 @@ import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.tree.TokenSet;
 import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.ui.BrowserHyperlinkListener;
+import com.intellij.ui.EditorTextField;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.components.panels.HorizontalLayout;
 import com.intellij.util.containers.ContainerUtil;
@@ -59,6 +61,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.List;
+import java.util.Objects;
 
 public class FileTemplateConfigurable implements Configurable, Configurable.NoScroll {
   private static final Logger LOG = Logger.getInstance(FileTemplateConfigurable.class);
@@ -72,6 +75,7 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
   private JCheckBox myAdjustBox;
   private JCheckBox myLiveTemplateBox;
   private JPanel myTopPanel;
+  private EditorTextField myFileName;
   private JEditorPane myDescriptionComponent;
   private boolean myModified;
   private URL myDefaultDescriptionUrl;
@@ -81,6 +85,7 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
   private Splitter mySplitter;
   private final FileType myVelocityFileType = FileTypeManager.getInstance().getFileTypeByExtension("ft");
   private float myProportion = 0.6f;
+  private @NotNull LabeledComponent<EditorTextField> myFileNameComponent;
 
   public FileTemplateConfigurable(Project project) {
     myProject = project;
@@ -143,7 +148,10 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
     mySplitter = new Splitter(true, myProportion);
     myAdjustBox = new JCheckBox(IdeBundle.message("checkbox.reformat.according.to.style"));
     myLiveTemplateBox = new JCheckBox(IdeBundle.message("checkbox.enable.live.templates"));
+
+    myFileName = new EditorTextField(createDocument(createFile("", "file name")), myProject, myVelocityFileType);
     myTemplateEditor = createEditor(null);
+    myFileName.setFont(EditorUtil.getEditorFont());
 
     myDescriptionComponent = new JEditorPane();
     myDescriptionComponent.setEditorKit(UIUtil.getHTMLEditorKit());
@@ -193,7 +201,7 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
 
   private Editor createEditor(@Nullable PsiFile file) {
     EditorFactory editorFactory = EditorFactory.getInstance();
-    Document doc = createDocument(file, editorFactory);
+    Document doc = createDocument(file);
     Editor editor = editorFactory.createEditor(doc, myProject);
 
     EditorSettings editorSettings = editor.getSettings();
@@ -215,11 +223,13 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
 
     ((EditorEx)editor).setHighlighter(createHighlighter());
 
-    JPanel topPanel = new JPanel(new BorderLayout());
+    JPanel topPanel = new JPanel(new BorderLayout(0, 5));
     JPanel southPanel = new JPanel(new HorizontalLayout(40));
     southPanel.add(myAdjustBox);
     southPanel.add(myLiveTemplateBox);
 
+    myFileNameComponent = LabeledComponent.create(myFileName, IdeBundle.message("label.generate.file.name"), BorderLayout.WEST);
+    topPanel.add(myFileNameComponent, BorderLayout.NORTH);
     topPanel.add(southPanel, BorderLayout.SOUTH);
     topPanel.add(editor.getComponent(), BorderLayout.CENTER);
     mySplitter.setFirstComponent(topPanel);
@@ -227,9 +237,9 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
   }
 
   @NotNull
-  private Document createDocument(@Nullable PsiFile file, @NotNull EditorFactory editorFactory) {
+  private Document createDocument(@Nullable PsiFile file) {
     Document document = file != null ? PsiDocumentManager.getInstance(file.getProject()).getDocument(file) : null;
-    return document != null ? document : editorFactory.createDocument(myTemplate == null ? "" : myTemplate.getText());
+    return document != null ? document : EditorFactory.getInstance().createDocument(myTemplate == null ? "" : myTemplate.getText());
   }
 
   private void onTextChanged() {
@@ -260,14 +270,16 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
     }
     String name = myTemplate == null ? "" : myTemplate.getName();
     String extension = myTemplate == null ? "" : myTemplate.getExtension();
-    if (!Comparing.equal(name, myNameField.getText())) {
+    if (!Objects.equals(name, myNameField.getText())) {
       return true;
     }
-    if (!Comparing.equal(extension, myExtensionField.getText())) {
+    if (!Objects.equals(extension, myExtensionField.getText())) {
       return true;
     }
     if (myTemplate != null) {
-      if (myTemplate.isReformatCode() != myAdjustBox.isSelected() || myTemplate.isLiveTemplateEnabled() != myLiveTemplateBox.isSelected()) {
+      if (myTemplate.isReformatCode() != myAdjustBox.isSelected() ||
+          myTemplate.isLiveTemplateEnabled() != myLiveTemplateBox.isSelected() ||
+          !myTemplate.getFileName().equals(myFileName.getText())) {
         return true;
       }
     }
@@ -289,6 +301,7 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
         FileTypeChooser.associateFileType(filename);
       }
       myTemplate.setName(name);
+      myTemplate.setFileName(myFileName.getText());
       myTemplate.setExtension(extension);
       myTemplate.setReformatCode(myAdjustBox.isSelected());
       myTemplate.setLiveTemplateEnabled(myLiveTemplateBox.isSelected());
@@ -314,7 +327,7 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
 
     if (description.isEmpty() && myDefaultDescriptionUrl != null) {
       try {
-        description = UrlUtil.loadText(myDefaultDescriptionUrl);
+        description = UrlUtil.loadText(myDefaultDescriptionUrl); //NON-NLS
       }
       catch (IOException e) {
         LOG.error(e);
@@ -322,9 +335,11 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
     }
 
     EditorFactory.getInstance().releaseEditor(myTemplateEditor);
-    myTemplateEditor = createEditor(createFile(text, name));
+    myTemplateEditor = createEditor(myTemplate == null ? null : createFile(text, name));
 
     myNameField.setText(name);
+    String fileName = myTemplate == null ? "" : myTemplate.getFileName();
+    myFileName.setText(fileName);
     myExtensionField.setText(extension);
     myAdjustBox.setSelected(myTemplate != null && myTemplate.isReformatCode());
     myLiveTemplateBox.setSelected(myTemplate != null && myTemplate.isLiveTemplateEnabled());
@@ -336,21 +351,21 @@ public class FileTemplateConfigurable implements Configurable, Configurable.NoSc
     description = XmlStringUtil.stripHtml(description);
     description = description.replace("\n", "").replace("\r", "");
     description = XmlStringUtil.stripHtml(description);
-    description = description + "<hr> <font face=\"verdana\" size=\"-1\"><a href='http://velocity.apache.org/engine/devel/user-guide.html#Velocity_Template_Language_VTL:_An_Introduction'>\n" +
-                  "Apache Velocity</a> template language is used</font>";
+    description = IdeBundle.message("http.velocity", description);
 
     myDescriptionComponent.setText(description);
     myDescriptionComponent.setCaretPosition(0);
 
-    myNameField.setEditable(myTemplate != null && !myTemplate.isDefault());
-    myExtensionField.setEditable(myTemplate != null && !myTemplate.isDefault());
+    boolean editable = myTemplate != null && !myTemplate.isDefault();
+    myNameField.setEditable(editable);
+    myExtensionField.setEditable(editable);
+    myFileName.setViewer(!editable);
+    myFileNameComponent.setVisible(editable || !fileName.isEmpty());
     myModified = false;
   }
 
   @Nullable
   private PsiFile createFile(final String text, final String name) {
-    if (myTemplate == null) return null;
-
     final FileType fileType = myVelocityFileType;
     if (fileType == FileTypes.UNKNOWN) return null;
 

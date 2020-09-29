@@ -1,12 +1,16 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.internal.statistic.collectors.fus.fileTypes;
 
-import com.intellij.internal.statistic.eventLog.FeatureUsageData;
+import com.intellij.internal.statistic.eventLog.EventLogGroup;
+import com.intellij.internal.statistic.eventLog.events.EventField;
+import com.intellij.internal.statistic.eventLog.events.EventFields;
+import com.intellij.internal.statistic.eventLog.events.EventPair;
+import com.intellij.internal.statistic.eventLog.events.VarargEventId;
+import com.intellij.internal.statistic.eventLog.fus.FeatureUsageLogger;
 import com.intellij.internal.statistic.eventLog.validator.ValidationResultType;
 import com.intellij.internal.statistic.eventLog.validator.rules.EventContext;
-import com.intellij.internal.statistic.eventLog.validator.rules.impl.CustomWhiteListRule;
-import com.intellij.internal.statistic.service.fus.collectors.FUCounterUsageLogger;
-import com.intellij.internal.statistic.utils.StatisticsUtilKt;
+import com.intellij.internal.statistic.eventLog.validator.rules.impl.CustomValidationRule;
+import com.intellij.internal.statistic.service.fus.collectors.CounterUsagesCollector;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -19,35 +23,89 @@ import com.intellij.openapi.editor.actionSystem.EditorWriteActionHandler;
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.fileEditor.FileEditorManagerEvent;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
+import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.serviceContainer.BaseKeyedLazyInstance;
+import com.intellij.util.ArrayUtil;
 import com.intellij.util.KeyedLazyInstance;
 import com.intellij.util.xmlb.annotations.Attribute;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class FileTypeUsageCounterCollector {
+import static com.intellij.internal.statistic.utils.PluginInfoDetectorKt.getPluginInfo;
+
+public class FileTypeUsageCounterCollector extends CounterUsagesCollector {
   private static final Logger LOG = Logger.getInstance(FileTypeUsageCounterCollector.class);
 
   private static final ExtensionPointName<FileTypeUsageSchemaDescriptorEP<FileTypeUsageSchemaDescriptor>> EP =
     ExtensionPointName.create("com.intellij.fileTypeUsageSchemaDescriptor");
 
+  private static final EventLogGroup GROUP = new EventLogGroup("file.types.usage", FeatureUsageLogger.INSTANCE.getConfig().getVersion());
+
+  private static final EventField<String> FILE_TYPE = EventFields.StringValidatedByCustomRule("file_type", "file_type");
+  private static final EventField<String> SCHEMA = EventFields.StringValidatedByCustomRule("schema", "file_type_schema");
+  private static final EventField<Boolean> IS_WRITABLE = EventFields.Boolean("is_writable");
+
+  @Override
+  public EventLogGroup getGroup() {
+    return GROUP;
+  }
+
+  private static VarargEventId registerFileTypeEvent(String eventId, EventField<?>... extraFields) {
+    EventField<?>[] baseFields = {EventFields.PluginInfoFromInstance, FILE_TYPE, EventFields.AnonymizedPath, SCHEMA};
+    return GROUP.registerVarargEvent(eventId, ArrayUtil.mergeArrays(baseFields, extraFields));
+  }
+
+  private static final VarargEventId SELECT = registerFileTypeEvent("select");
+  private static final VarargEventId EDIT = registerFileTypeEvent("edit");
+  private static final VarargEventId OPEN = registerFileTypeEvent("open", IS_WRITABLE);
+  private static final VarargEventId CLOSE = registerFileTypeEvent("close", IS_WRITABLE);
+
   public static void triggerEdit(@NotNull Project project, @NotNull VirtualFile file) {
-    trigger(project, file, "edit");
+    log(EDIT, project, file);
+  }
+
+  public static void triggerSelect(@NotNull Project project, @Nullable VirtualFile file) {
+    if (file != null) {
+      log(SELECT, project, file);
+    }
+    else {
+      logEmptyFile();
+    }
   }
 
   public static void triggerOpen(@NotNull Project project, @NotNull VirtualFile file) {
-    trigger(project, file, "open");
+    OPEN.log(project, ArrayUtil.append(buildCommonEventPairs(project, file), IS_WRITABLE.with(file.isWritable())));
   }
 
-  private static void trigger(@NotNull Project project,
-                              @NotNull VirtualFile file,
-                              @NotNull String event) {
-    final FeatureUsageData data = FileTypeUsagesCollector.newFeatureUsageData(file.getFileType()).addAnonymizedPath(file.getPath());
+  public static void triggerClosed(@NotNull Project project, @NotNull VirtualFile file) {
+    CLOSE.log(project, ArrayUtil.append(buildCommonEventPairs(project, file), IS_WRITABLE.with(file.isWritable())));
+  }
+
+  private static void log(@NotNull VarargEventId eventId, @NotNull Project project, @NotNull VirtualFile file) {
+    eventId.log(project, buildCommonEventPairs(project, file));
+  }
+
+  private static EventPair<?> @NotNull [] buildCommonEventPairs(@NotNull Project project,
+                                                                @NotNull VirtualFile file) {
+    FileType fileType = file.getFileType();
+    return new EventPair[]{EventFields.PluginInfoFromInstance.with(fileType),
+      FILE_TYPE.with(FileTypeUsagesCollector.getSafeFileTypeName(fileType)),
+      EventFields.AnonymizedPath.with(file.getPath()),
+      SCHEMA.with(findSchema(project, file))};
+  }
+
+  private static void logEmptyFile() {
+    SELECT.log(EventFields.AnonymizedPath.with(null));
+  }
+
+  public static @Nullable String findSchema(@NotNull Project project,
+                                            @NotNull VirtualFile file) {
     for (FileTypeUsageSchemaDescriptorEP<FileTypeUsageSchemaDescriptor> ext : EP.getExtensionList()) {
       FileTypeUsageSchemaDescriptor instance = ext.getInstance();
       if (ext.schema == null) {
@@ -55,13 +113,11 @@ public class FileTypeUsageCounterCollector {
         continue;
       }
 
-      if (instance.describes(file)) {
-        data.addData("schema", StatisticsUtilKt.getPluginType(instance.getClass()).isSafeToReport() ? ext.schema : "third.party");
-        break;
+      if (instance.describes(project, file)) {
+        return getPluginInfo(instance.getClass()).isSafeToReport() ? ext.schema : "third.party";
       }
     }
-
-    FUCounterUsageLogger.getInstance().logEvent(project, "file.types.usage", event, data);
+    return null;
   }
 
   public static final class FileTypeUsageSchemaDescriptorEP<T> extends BaseKeyedLazyInstance<T> implements KeyedLazyInstance<T> {
@@ -84,7 +140,7 @@ public class FileTypeUsageCounterCollector {
     }
   }
 
-  public static final class FileTypeSchemaValidator extends CustomWhiteListRule {
+  public static final class FileTypeSchemaValidator extends CustomValidationRule {
 
     @Override
     public boolean acceptRuleId(@Nullable String ruleId) {
@@ -98,7 +154,7 @@ public class FileTypeUsageCounterCollector {
 
       for (FileTypeUsageSchemaDescriptorEP<FileTypeUsageSchemaDescriptor> ext : EP.getExtensionList()) {
         if (StringUtil.equals(ext.schema, data)) {
-          return StatisticsUtilKt.getPluginType(ext.getInstance().getClass()).isSafeToReport() ?
+          return getPluginInfo(ext.getInstance().getClass()).isSafeToReport() ?
                  ValidationResultType.ACCEPTED : ValidationResultType.THIRD_PARTY;
         }
       }
@@ -111,7 +167,7 @@ public class FileTypeUsageCounterCollector {
 
     @Override
     public void beforeActionPerformed(@NotNull AnAction action, @NotNull DataContext dataContext, @NotNull AnActionEvent event) {
-      if (action instanceof EditorAction && ((EditorAction)action).getHandler() instanceof EditorWriteActionHandler) {
+      if (action instanceof EditorAction && ((EditorAction)action).getHandlerOfType(EditorWriteActionHandler.class) != null) {
         onChange(dataContext);
       }
     }
@@ -141,6 +197,16 @@ public class FileTypeUsageCounterCollector {
     @Override
     public void fileOpened(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
       triggerOpen(source.getProject(), file);
+    }
+
+    @Override
+    public void fileClosed(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
+      triggerClosed(source.getProject(), file);
+    }
+
+    @Override
+    public void selectionChanged(@NotNull FileEditorManagerEvent event) {
+      triggerSelect(event.getManager().getProject(), event.getNewFile());
     }
   }
 }

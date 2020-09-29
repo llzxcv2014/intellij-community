@@ -15,9 +15,11 @@
  */
 package com.jetbrains.python.codeInsight.functionTypeComments;
 
-import com.intellij.lang.PsiBuilder;
+import com.intellij.lang.SyntaxTreeBuilder;
+import com.intellij.openapi.util.NlsContexts.ParsingError;
 import com.intellij.psi.tree.IElementType;
 import com.jetbrains.python.PyElementTypes;
+import com.jetbrains.python.PyPsiBundle;
 import com.jetbrains.python.PyTokenTypes;
 import com.jetbrains.python.documentation.doctest.PyDocstringTokenTypes;
 import com.jetbrains.python.parsing.ExpressionParsing;
@@ -33,7 +35,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public class PyFunctionTypeAnnotationParser extends PyParser {
   @Override
-  protected ParsingContext createParsingContext(PsiBuilder builder, LanguageLevel languageLevel, StatementParsing.FUTURE futureFlag) {
+  protected ParsingContext createParsingContext(SyntaxTreeBuilder builder, LanguageLevel languageLevel, StatementParsing.FUTURE futureFlag) {
     return new ParsingContext(builder, languageLevel, futureFlag) {
       private final StatementParsing myStatementParsing = new AnnotationParser(this, futureFlag);
       private final ExpressionParsing myExpressionParsing = new ExpressionParsing(this) {
@@ -68,38 +70,38 @@ public class PyFunctionTypeAnnotationParser extends PyParser {
 
     private void parseFunctionType() {
       if (atToken(PyTokenTypes.LPAR)) {
-        final PsiBuilder.Marker funcTypeMark = myBuilder.mark();
+        final SyntaxTreeBuilder.Marker funcTypeMark = myBuilder.mark();
         parseParameterTypeList();
-        checkMatches(PyTokenTypes.RARROW, "'->' expected");
+        checkMatches(PyTokenTypes.RARROW, PyPsiBundle.message("rarrow.expected"));
         final boolean parsed = getExpressionParser().parseSingleExpression(false);
         if (!parsed) {
-          myBuilder.error("expression expected");
+          myBuilder.error(PyPsiBundle.message("PARSE.expected.expression"));
         }
         funcTypeMark.done(PyFunctionTypeAnnotationElementTypes.FUNCTION_SIGNATURE);
       }
-      recoverUntilMatches("unexpected tokens");
+      recoverUntilMatches(PyPsiBundle.message("unexpected.tokens"));
     }
 
     private void parseParameterTypeList() {
       assert atToken(PyTokenTypes.LPAR);
-      final PsiBuilder.Marker listMark = myBuilder.mark();
+      final SyntaxTreeBuilder.Marker listMark = myBuilder.mark();
       myBuilder.advanceLexer();
       
       final ExpressionParsing exprParser = getExpressionParser();
       int paramCount = 0;
       while (!(atAnyOfTokens(PyTokenTypes.RPAR, PyTokenTypes.RARROW, PyTokenTypes.STATEMENT_BREAK) || myBuilder.eof()) ) {
         if (paramCount > 0) {
-          checkMatches(PyTokenTypes.COMMA, "',' expected");
+          checkMatches(PyTokenTypes.COMMA, PyPsiBundle.message("PARSE.expected.comma"));
         }
         boolean parsed;
         if (atToken(PyTokenTypes.MULT)) {
-          final PsiBuilder.Marker starMarker = myBuilder.mark();
+          final SyntaxTreeBuilder.Marker starMarker = myBuilder.mark();
           myBuilder.advanceLexer();
           parsed = exprParser.parseSingleExpression(false);
           starMarker.done(PyElementTypes.STAR_EXPRESSION);
         }
         else if (atToken(PyTokenTypes.EXP)) {
-          final PsiBuilder.Marker doubleStarMarker = myBuilder.mark();
+          final SyntaxTreeBuilder.Marker doubleStarMarker = myBuilder.mark();
           myBuilder.advanceLexer();
           parsed = exprParser.parseSingleExpression(false);
           doubleStarMarker.done(PyElementTypes.DOUBLE_STAR_EXPRESSION);
@@ -108,17 +110,17 @@ public class PyFunctionTypeAnnotationParser extends PyParser {
           parsed = exprParser.parseSingleExpression(false);
         }
         if (!parsed) {
-          myBuilder.error("expression expected");
-          recoverUntilMatches("expression expected", PyTokenTypes.COMMA, PyTokenTypes.RPAR, PyTokenTypes.RARROW, PyTokenTypes.STATEMENT_BREAK);
+          myBuilder.error(PyPsiBundle.message("PARSE.expected.expression"));
+          recoverUntilMatches(PyPsiBundle.message("PARSE.expected.expression"), PyTokenTypes.COMMA, PyTokenTypes.RPAR, PyTokenTypes.RARROW, PyTokenTypes.STATEMENT_BREAK);
         }
         paramCount++;
       }
-      checkMatches(PyTokenTypes.RPAR, "')' expected");
+      checkMatches(PyTokenTypes.RPAR, PyPsiBundle.message("PARSE.expected.rpar"));
       listMark.done(PyFunctionTypeAnnotationElementTypes.PARAMETER_TYPE_LIST);
     }
 
-    private void recoverUntilMatches(@NotNull String errorMessage, @NotNull IElementType... types) {
-      final PsiBuilder.Marker errorMarker = myBuilder.mark();
+    private void recoverUntilMatches(@NotNull @ParsingError String errorMessage, IElementType @NotNull ... types) {
+      final SyntaxTreeBuilder.Marker errorMarker = myBuilder.mark();
       boolean hasNonWhitespaceTokens = false;
       while (!(atAnyOfTokens(types) || myBuilder.eof())) {
         // Regular whitespace tokens are already skipped by advancedLexer() 

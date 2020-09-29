@@ -16,6 +16,7 @@
 
 package com.intellij.refactoring.inheritanceToDelegation;
 
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.lang.ContextAwareActionHandler;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
@@ -23,6 +24,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.ScrollType;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.jsp.jspJava.JspClass;
 import com.intellij.psi.util.PsiUtil;
@@ -42,9 +44,7 @@ import java.util.*;
 public class InheritanceToDelegationHandler implements RefactoringActionHandler, ContextAwareActionHandler {
   private static final Logger LOG = Logger.getInstance(InheritanceToDelegationHandler.class);
 
-  public static final String REFACTORING_NAME = RefactoringBundle.message("replace.inheritance.with.delegation.title");
-
-  private static final MemberInfo.Filter<PsiMember> MEMBER_INFO_FILTER = new MemberInfo.Filter<PsiMember>() {
+  private static final MemberInfo.Filter<PsiMember> MEMBER_INFO_FILTER = new MemberInfo.Filter<>() {
     @Override
     public boolean includeMember(PsiMember element) {
       if (element instanceof PsiMethod) {
@@ -72,7 +72,7 @@ public class InheritanceToDelegationHandler implements RefactoringActionHandler,
     while (true) {
       if (element == null || element instanceof PsiFile) {
         String message = RefactoringBundle.getCannotRefactorMessage(RefactoringBundle.message("error.wrong.caret.position.class"));
-        CommonRefactoringUtil.showErrorHint(project, editor, message, REFACTORING_NAME, HelpID.INHERITANCE_TO_DELEGATION);
+        CommonRefactoringUtil.showErrorHint(project, editor, message, getRefactoringName(), HelpID.INHERITANCE_TO_DELEGATION);
         return;
       }
 
@@ -85,20 +85,20 @@ public class InheritanceToDelegationHandler implements RefactoringActionHandler,
   }
 
   @Override
-  public void invoke(@NotNull Project project, @NotNull PsiElement[] elements, DataContext dataContext) {
+  public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext dataContext) {
     if (elements.length != 1) return;
 
     final PsiClass aClass = (PsiClass)elements[0];
 
     Editor editor = CommonDataKeys.EDITOR.getData(dataContext);
     if (aClass.isInterface()) {
-      String message = RefactoringBundle.getCannotRefactorMessage(RefactoringBundle.message("class.is.interface", aClass.getQualifiedName()));
-      CommonRefactoringUtil.showErrorHint(project, editor, message, REFACTORING_NAME, HelpID.INHERITANCE_TO_DELEGATION);
+      String message = RefactoringBundle.getCannotRefactorMessage(JavaRefactoringBundle.message("class.is.interface", aClass.getQualifiedName()));
+      CommonRefactoringUtil.showErrorHint(project, editor, message, getRefactoringName(), HelpID.INHERITANCE_TO_DELEGATION);
       return;
     }
 
     if (aClass instanceof JspClass) {
-      RefactoringMessageUtil.showNotSupportedForJspClassesError(project, editor, REFACTORING_NAME, HelpID.INHERITANCE_TO_DELEGATION);
+      RefactoringMessageUtil.showNotSupportedForJspClassesError(project, editor, getRefactoringName(), HelpID.INHERITANCE_TO_DELEGATION);
       return;
     }
 
@@ -108,8 +108,8 @@ public class InheritanceToDelegationHandler implements RefactoringActionHandler,
     @NonNls final String javaLangObject = CommonClassNames.JAVA_LANG_OBJECT;
 
     if (bases.length == 0 || bases.length == 1 && javaLangObject.equals(bases[0].getQualifiedName())) {
-      String message = RefactoringBundle.getCannotRefactorMessage(RefactoringBundle.message("class.does.not.have.base.classes.or.interfaces", aClass.getQualifiedName()));
-      CommonRefactoringUtil.showErrorHint(project, editor, message, REFACTORING_NAME, HelpID.INHERITANCE_TO_DELEGATION);
+      String message = RefactoringBundle.getCannotRefactorMessage(JavaRefactoringBundle.message("class.does.not.have.base.classes.or.interfaces", aClass.getQualifiedName()));
+      CommonRefactoringUtil.showErrorHint(project, editor, message, getRefactoringName(), HelpID.INHERITANCE_TO_DELEGATION);
       return;
     }
 
@@ -136,5 +136,9 @@ public class InheritanceToDelegationHandler implements RefactoringActionHandler,
     memberInfoList.addAll(memberInfoStorage.getClassMemberInfos(deepestBase));
     memberInfoList.addAll(memberInfoStorage.getIntermediateMemberInfosList(deepestBase));
     return memberInfoList;
+  }
+
+  public static @NlsContexts.DialogTitle String getRefactoringName() {
+    return JavaRefactoringBundle.message("replace.inheritance.with.delegation.title");
   }
 }

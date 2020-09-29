@@ -1,6 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.fileChooser.actions;
 
+import com.intellij.ide.IdeBundle;
+import com.intellij.ide.lightEdit.LightEditCompatible;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.fileChooser.FileSystemTree;
@@ -8,18 +10,25 @@ import com.intellij.openapi.fileChooser.ex.FileSystemTreeImpl;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.ui.InputValidatorEx;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.UIBundle;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.util.function.Supplier;
 
-public class NewFolderAction extends FileChooserAction {
+public class NewFolderAction extends FileChooserAction implements LightEditCompatible {
   public NewFolderAction() {
   }
 
   public NewFolderAction(final String text, final String description, final Icon icon) {
+    this(() -> text, () -> description, icon);
+  }
+
+  public NewFolderAction(@NotNull Supplier<String> text, @NotNull Supplier<String> description, final Icon icon) {
     super(text, description, icon);
   }
 
@@ -57,7 +66,7 @@ public class NewFolderAction extends FileChooserAction {
   private static class NewFolderValidator implements InputValidatorEx {
 
     private final VirtualFile myDirectory;
-    private String myErrorText;
+    private @NlsContexts.DetailedDescription String myErrorText;
 
     NewFolderValidator(VirtualFile directory) {
       myDirectory = directory;
@@ -76,18 +85,22 @@ public class NewFolderAction extends FileChooserAction {
         if (firstToken) {
           final VirtualFile child = myDirectory.findChild(token);
           if (child != null) {
-            myErrorText = "A " + (child.isDirectory() ? "folder" : "file") +
-                          " with name '" + token + "' already exists";
+            if (child.isDirectory()) {
+              myErrorText = IdeBundle.message("dialog.message.folder.with.name.already.exists", token);
+            }
+            else {
+              myErrorText = IdeBundle.message("dialog.message.file.with.name.already.exists", token);
+            }
             return false;
           }
         }
         firstToken = false;
         if (token.equals(".") || token.equals("..")) {
-          myErrorText = "Can't create a folder with name '" + token + "'";
+          myErrorText = IdeBundle.message("directory.message.cant.create.folder", token);
           return false;
         }
         if (FileTypeManager.getInstance().isFileIgnored(token)) {
-          myErrorText = "Trying to create a folder with an ignored name, the result will not be visible";
+          myErrorText = IdeBundle.message("dialog.message.trying.to.create.folder.with.ignored.name");
           return true;
         }
       }

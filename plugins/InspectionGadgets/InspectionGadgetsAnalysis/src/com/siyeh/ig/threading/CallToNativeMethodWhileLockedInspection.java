@@ -26,12 +26,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Set;
 
 public class CallToNativeMethodWhileLockedInspection extends BaseInspection {
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "call.to.native.method.while.locked.display.name");
-  }
 
   @Override
   @NotNull
@@ -48,7 +42,7 @@ public class CallToNativeMethodWhileLockedInspection extends BaseInspection {
   private static class CallToNativeMethodWhileLockedVisitor extends BaseInspectionVisitor {
 
     private static final Set<String> EXCLUDED_CLASS_NAMES =
-      ContainerUtil.immutableSet(CommonClassNames.JAVA_LANG_OBJECT, "java.lang.System", "sun.misc.Unsafe", "java.lang.invoke.MethodHandle");
+      Set.of(CommonClassNames.JAVA_LANG_OBJECT, "java.lang.System", "sun.misc.Unsafe", "java.lang.invoke.MethodHandle");
 
     @Override
     public void visitMethodCallExpression(

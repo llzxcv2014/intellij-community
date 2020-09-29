@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.navigationToolbar.ui;
 
 import com.intellij.icons.AllIcons;
@@ -98,11 +98,17 @@ public abstract class AbstractNavBarUI implements NavBarUI {
 
     StartupUiUtil.drawImage(g, image, 0, 0, null);
 
-    Icon icon = item.getIcon();
     final int offset = item.isFirstElement() ? getFirstElementLeftOffset() : 0;
-    final int iconOffset = getElementPadding().left + offset;
-    icon.paintIcon(item, g, iconOffset, (item.getHeight() - icon.getIconHeight()) / 2);
-    final int textOffset = icon.getIconWidth() + getElementPadding().width() + offset;
+    int textOffset = getElementPadding().width() + offset;
+    if (item.needPaintIcon()) {
+      Icon icon = item.getIcon();
+      if (icon != null) {
+        int iconOffset = getElementPadding().left + offset;
+        icon.paintIcon(item, g, iconOffset, (item.getHeight() - icon.getIconHeight()) / 2);
+        textOffset += icon.getIconWidth();
+      }
+    }
+
     item.doPaintText(g, textOffset);
   }
 
@@ -117,7 +123,7 @@ public abstract class AbstractNavBarUI implements NavBarUI {
     int offset = (w - getDecorationOffset());
     int h2 = h / 2;
 
-    BufferedImage result = UIUtil.createImage(ctx, w, h, BufferedImage.TYPE_INT_ARGB, PaintUtil.RoundingMode.FLOOR);
+    BufferedImage result = ImageUtil.createImage(ctx, w, h, BufferedImage.TYPE_INT_ARGB, PaintUtil.RoundingMode.FLOOR);
 
     Color defaultBg = StartupUiUtil.isUnderDarcula() ? Gray._100 : JBColor.WHITE;
     final Paint bg = floating ? defaultBg : null;

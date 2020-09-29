@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2017 Dave Griffith, Bas Leijdekkers
+ * Copyright 2003-2020 Dave Griffith, Bas Leijdekkers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package com.intellij.codeInspection;
 
 import com.intellij.ide.todo.TodoConfiguration;
 import com.intellij.ide.todo.TodoIndexPatternProvider;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
@@ -33,9 +34,8 @@ import java.util.stream.Collectors;
 
 public class TodoCommentInspection extends LocalInspectionTool {
 
-  @Nullable
   @Override
-  public ProblemDescriptor[] checkFile(@NotNull PsiFile file, @NotNull InspectionManager manager, boolean isOnTheFly) {
+  public ProblemDescriptor @Nullable [] checkFile(@NotNull PsiFile file, @NotNull InspectionManager manager, boolean isOnTheFly) {
     final List<TextRange> ranges = getTodoRanges(file);
     if (ranges.isEmpty()) {
       return null;
@@ -52,7 +52,7 @@ public class TodoCommentInspection extends LocalInspectionTool {
       if (element != null) {
         final int elementStart = element.getTextRange().getStartOffset();
         final TextRange range = new TextRange(todoStart - elementStart, todoEnd - elementStart);
-        result.add(manager.createProblemDescriptor(element, range, InspectionsBundle.message("todo.comment.problem.descriptor"),
+        result.add(manager.createProblemDescriptor(element, range, LangBundle.message("todo.comment.problem.descriptor"),
                                                    ProblemHighlightType.GENERIC_ERROR_OR_WARNING, isOnTheFly));
         lastEndOffset = todoEnd;
       }
@@ -62,10 +62,8 @@ public class TodoCommentInspection extends LocalInspectionTool {
 
   private static List<TextRange> getTodoRanges(@NotNull PsiFile file) {
     final TodoIndexPatternProvider todoIndexPatternProvider = TodoIndexPatternProvider.getInstance();
-    assert todoIndexPatternProvider != null;
-    final Collection<IndexPatternOccurrence> occurrences = IndexPatternSearch.search(file, todoIndexPatternProvider,
-                                                                                     TodoConfiguration.getInstance().isMultiLine())
-                                                                             .findAll();
+    final Collection<IndexPatternOccurrence> occurrences =
+      IndexPatternSearch.search(file, todoIndexPatternProvider, TodoConfiguration.getInstance().isMultiLine()).findAll();
     return occurrences.stream()
                       .map(occurrence -> {
                         TextRange mainRange = occurrence.getTextRange();

@@ -6,6 +6,7 @@ import com.intellij.codeInspection.dataFlow.JavaMethodContractUtil;
 import com.intellij.codeInspection.resources.ImplicitResourceCloser;
 import com.intellij.codeInspection.ui.ListTable;
 import com.intellij.codeInspection.ui.ListWrappingTableModel;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
@@ -15,6 +16,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.components.panels.VerticalLayout;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.CheckBox;
 import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseInspectionVisitor;
@@ -24,9 +26,9 @@ import com.siyeh.ig.psiutils.ExpressionUtils;
 import com.siyeh.ig.psiutils.MethodMatcher;
 import com.siyeh.ig.psiutils.TypeUtils;
 import com.siyeh.ig.ui.UiUtils;
-import one.util.streamex.StreamEx;
 import org.jdom.Element;
 import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -81,9 +83,10 @@ public class AutoCloseableResourceInspection extends ResourceInspection {
                                  InspectionGadgetsBundle.message("result.of.method.call.ignored.class.column.title"),
                                  InspectionGadgetsBundle.message("method.name.regex")));
     table2.setEnabled(!ignoreFromMethodCall);
-    final JPanel tablePanel2 = UiUtils.createAddRemoveTreeClassChooserPanel(table2, "Choose class");
+    final JPanel tablePanel2 = UiUtils.createAddRemoveTreeClassChooserPanel(table2, JavaBundle.message("dialog.title.choose.class"));
     final JPanel wrapperPanel = new JPanel(new BorderLayout());
-    wrapperPanel.setBorder(IdeBorderFactory.createTitledBorder("Ignore AutoCloseable instances returned from these methods", false));
+    wrapperPanel.setBorder(IdeBorderFactory.createTitledBorder(
+      InspectionGadgetsBundle.message("inspection.autocloseable.resource.ignored.methods.title"), false));
     wrapperPanel.add(tablePanel2);
     panel.add(tablePanel);
     panel.add(wrapperPanel);
@@ -93,13 +96,6 @@ public class AutoCloseableResourceInspection extends ResourceInspection {
     panel.add(checkBox);
     panel.add(new CheckBox(InspectionGadgetsBundle.message("any.method.may.close.resource.argument"), this, "anyMethodMayClose"));
     return panel;
-  }
-
-  @Nls
-  @NotNull
-  @Override
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("auto.closeable.resource.display.name");
   }
 
   @NotNull
@@ -130,7 +126,7 @@ public class AutoCloseableResourceInspection extends ResourceInspection {
   public void readSettings(@NotNull Element node) throws InvalidDataException {
     super.readSettings(node);
     for (Element option : node.getChildren("option")) {
-      final String name = option.getAttributeValue("name");
+      final @NonNls String name = option.getAttributeValue("name");
       if ("ignoredTypes".equals(name)) {
         final String ignoredTypesString = option.getAttributeValue("value");
         if (ignoredTypesString != null) {
@@ -215,16 +211,21 @@ public class AutoCloseableResourceInspection extends ResourceInspection {
       if (ignoreFromMethodCall || myMethodMatcher.matches(expression) || isSafelyClosedResource(expression)) {
         return;
       }
+      if (isReturnedByContract(expression)) return;
+      registerMethodCallError(expression, expression.getType(), !isStreamHoldingResource(expression));
+    }
+
+    private boolean isReturnedByContract(PsiMethodCallExpression expression) {
       PsiExpression returnedValue = JavaMethodContractUtil.findReturnedValue(expression);
       PsiExpression[] arguments = expression.getArgumentList().getExpressions();
       PsiExpression qualifier = expression.getMethodExpression().getQualifierExpression();
-      if (qualifier == returnedValue) return;
+      if (returnedValue != null && qualifier == returnedValue) return true;
       for (PsiExpression argument : arguments) {
         if (returnedValue == argument) {
-          return;
+          return true;
         }
       }
-      registerMethodCallError(expression, expression.getType(), !isStreamHoldingResource(expression));
+      return false;
     }
 
     @Override
@@ -253,8 +254,7 @@ public class AutoCloseableResourceInspection extends ResourceInspection {
       final PsiVariable variable = ResourceInspection.getVariable(expression);
       if (variable instanceof PsiResourceVariable || isResourceEscapingFromMethod(variable, expression)) return true;
       if (variable == null) return false;
-      return StreamEx.of(ImplicitResourceCloser.EP_NAME.getExtensionList())
-                     .anyMatch(closer -> closer.isSafelyClosed(variable));
+      return ContainerUtil.or(ImplicitResourceCloser.EP_NAME.getExtensionList(), closer -> closer.isSafelyClosed(variable));
     }
   }
 }

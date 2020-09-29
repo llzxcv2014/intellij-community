@@ -35,6 +35,7 @@ import com.intellij.util.xml.DomUtil;
 import com.intellij.util.xml.GenericDomValue;
 import com.intellij.util.xml.highlighting.DomElementAnnotationHolder;
 import com.intellij.util.xml.highlighting.DomHighlightingHelper;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -44,12 +45,6 @@ import java.util.*;
 public class AntResolveInspection extends AntInspection {
 
   public static final String SHORT_NAME = "AntResolveInspection";
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return "Ant references resolve problems";
-  }
 
   @Override
   @NotNull
@@ -69,7 +64,7 @@ public class AntResolveInspection extends AntInspection {
       final AntDomTypeDef typeDef = (AntDomTypeDef)element;
       final List<String> errors = typeDef.getErrorDescriptions();
       if (!errors.isEmpty()) {
-        final StringBuilder builder = new StringBuilder();
+        @Nls final StringBuilder builder = new StringBuilder();
         builder.append(AntBundle.message("failed.to.load.types")).append(":");
         for (String error : errors) {
           builder.append("\n").append(error);

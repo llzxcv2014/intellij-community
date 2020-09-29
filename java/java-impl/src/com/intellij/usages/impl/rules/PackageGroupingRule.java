@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2013 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.usages.impl.rules;
 
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -27,18 +13,14 @@ import com.intellij.psi.JavaDirectoryService;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiPackage;
-import com.intellij.usageView.UsageViewBundle;
 import com.intellij.usages.UsageGroup;
 import com.intellij.usages.UsageView;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 
-/**
- * @author max
- */
 public class PackageGroupingRule extends DirectoryGroupingRule {
-  public PackageGroupingRule(Project project) {
+  public PackageGroupingRule(@NotNull Project project) {
     super(project);
   }
 
@@ -57,11 +39,11 @@ public class PackageGroupingRule extends DirectoryGroupingRule {
   }
 
   @Override
-  public String getActionTitle() {
-    return UsageViewBundle.message("action.group.by.package");
+  public @NotNull String getGroupingActionId() {
+    return "UsageGrouping.Package";
   }
 
-  private class PackageGroup implements UsageGroup, TypeSafeDataProvider {
+  private final class PackageGroup implements UsageGroup, TypeSafeDataProvider {
     private final PsiPackage myPackage;
     private Icon myIcon;
 

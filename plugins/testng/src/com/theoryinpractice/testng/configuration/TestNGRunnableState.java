@@ -16,15 +16,10 @@
 
 package com.theoryinpractice.testng.configuration;
 
-import com.beust.jcommander.JCommander;
 import com.intellij.execution.ExecutionException;
-import com.intellij.execution.Executor;
 import com.intellij.execution.JavaTestFrameworkRunnableState;
 import com.intellij.execution.configurations.JavaParameters;
 import com.intellij.execution.configurations.ParametersList;
-import com.intellij.execution.process.KillableColoredProcessHandler;
-import com.intellij.execution.process.OSProcessHandler;
-import com.intellij.execution.process.ProcessTerminatedListener;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.testframework.SourceScope;
 import com.intellij.execution.testframework.TestSearchScope;
@@ -41,6 +36,7 @@ import com.intellij.rt.testng.IDEATestNGListener;
 import com.intellij.rt.testng.RemoteTestNGStarter;
 import com.intellij.util.PathUtil;
 import com.intellij.util.net.NetUtils;
+import com.theoryinpractice.testng.TestngBundle;
 import com.theoryinpractice.testng.model.TestData;
 import com.theoryinpractice.testng.model.TestType;
 import org.jetbrains.annotations.NonNls;
@@ -66,22 +62,6 @@ public class TestNGRunnableState extends JavaTestFrameworkRunnableState<TestNGCo
 
   @NotNull
   @Override
-  protected OSProcessHandler startProcess() throws ExecutionException {
-    final OSProcessHandler processHandler = new KillableColoredProcessHandler(createCommandLine());
-    ProcessTerminatedListener.attach(processHandler);
-    createSearchingForTestsTask().attachTaskToProcess(processHandler);
-    return processHandler;
-  }
-
-  @NotNull
-  @Override
-  protected OSProcessHandler createHandler(Executor executor) throws ExecutionException {
-    appendForkInfo(executor);
-    return startProcess();
-  }
-
-  @NotNull
-  @Override
   protected String getFrameworkName() {
     return TESTNG_TEST_FRAMEWORK_NAME;
   }
@@ -94,7 +74,6 @@ public class TestNGRunnableState extends JavaTestFrameworkRunnableState<TestNGCo
   @Override
   protected void configureRTClasspath(JavaParameters javaParameters, Module module) {
     javaParameters.getClassPath().addFirst(PathUtil.getJarPathForClass(RemoteTestNGStarter.class));
-    javaParameters.getClassPath().addTail(PathUtil.getJarPathForClass(JCommander.class));
   }
 
   @Override
@@ -106,7 +85,7 @@ public class TestNGRunnableState extends JavaTestFrameworkRunnableState<TestNGCo
       port = NetUtils.findAvailableSocketPort();
     }
     catch (IOException e) {
-      throw new ExecutionException("Unable to bind to port " + port, e);
+      throw new ExecutionException(TestngBundle.message("dialog.message.unable.to.bind.to.port", port), e);
     }
 
     final TestData data = getConfiguration().getPersistantData();
@@ -222,13 +201,13 @@ public class TestNGRunnableState extends JavaTestFrameworkRunnableState<TestNGCo
     }
   }
 
-  @Override
+   @Override
   protected void collectPackagesToOpen(List<String> options) {
     TestData data = getConfiguration().getPersistantData();
-    if (data.TEST_OBJECT == TestType.METHOD.getType() || data.TEST_OBJECT == TestType.CLASS.getType()) {
+    if (TestType.METHOD.getType().equals(data.TEST_OBJECT) || TestType.CLASS.getType().equals(data.TEST_OBJECT)) {
       options.add(StringUtil.getPackageName(data.MAIN_CLASS_NAME));
     }
-    else if (data.TEST_OBJECT == TestType.PACKAGE.getType()){
+    else if (TestType.PACKAGE.getType().equals(data.TEST_OBJECT)){
       PsiPackage aPackage = JavaPsiFacade.getInstance(getConfiguration().getProject()).findPackage(data.PACKAGE_NAME);
       if (aPackage != null) {
         SourceScope sourceScope = data.getScope().getSourceScope(getConfiguration());
@@ -237,5 +216,10 @@ public class TestNGRunnableState extends JavaTestFrameworkRunnableState<TestNGCo
         }
       }
     }
+  }
+
+  @Override
+  protected boolean useModulePath() {
+    return getConfiguration().isUseModulePath();
   }
 }

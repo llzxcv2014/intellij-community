@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.json.codeinsight;
 
 import com.intellij.codeInspection.LocalInspectionTool;
@@ -50,13 +36,6 @@ import java.util.stream.Collectors;
 public class JsonDuplicatePropertyKeysInspection extends LocalInspectionTool {
   private static final String COMMENT = "$comment";
 
-  @Nls
-  @NotNull
-  @Override
-  public String getDisplayName() {
-    return JsonBundle.message("inspection.duplicate.keys.name");
-  }
-
   @NotNull
   @Override
   public PsiElementVisitor buildVisitor(@NotNull final ProblemsHolder holder, boolean isOnTheFly) {
@@ -82,7 +61,7 @@ public class JsonDuplicatePropertyKeysInspection extends LocalInspectionTool {
     };
   }
 
-  private static class NavigateToDuplicatesFix extends LocalQuickFixAndIntentionActionOnPsiElement {
+  private static final class NavigateToDuplicatesFix extends LocalQuickFixAndIntentionActionOnPsiElement {
     @NotNull private final Collection<SmartPsiElementPointer> mySameNamedKeys;
     @NotNull private final String myEntryKey;
 
@@ -95,7 +74,7 @@ public class JsonDuplicatePropertyKeysInspection extends LocalInspectionTool {
     @NotNull
     @Override
     public String getText() {
-      return "Navigate to duplicates";
+      return JsonBundle.message("navigate.to.duplicates");
     }
 
     @Nls(capitalization = Nls.Capitalization.Sentence)
@@ -123,7 +102,7 @@ public class JsonDuplicatePropertyKeysInspection extends LocalInspectionTool {
       else {
         final List<PsiElement> allElements =
           mySameNamedKeys.stream().map(k -> k.getElement()).filter(k -> k != startElement).collect(Collectors.toList());
-        JBPopupFactory.getInstance().createListPopup(new BaseListPopupStep<PsiElement>("Duplicates of '" + myEntryKey + "'", allElements) {
+        JBPopupFactory.getInstance().createListPopup(new BaseListPopupStep<PsiElement>(JsonBundle.message("navigate.to.duplicates.header", myEntryKey), allElements) {
           @NotNull
           @Override
           public Icon getIconFor(PsiElement aValue) {
@@ -133,7 +112,7 @@ public class JsonDuplicatePropertyKeysInspection extends LocalInspectionTool {
           @NotNull
           @Override
           public String getTextFor(PsiElement value) {
-            return "'" + myEntryKey + "' at line #" + editor.getDocument().getLineNumber(value.getTextOffset());
+            return JsonBundle.message("navigate.to.duplicates.desc", myEntryKey, editor.getDocument().getLineNumber(value.getTextOffset()));
           }
 
           @Override

@@ -10,6 +10,7 @@ import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.process.ProcessTerminatedListener;
 import com.intellij.execution.runners.ProgramRunner;
 import com.intellij.execution.ui.ConsoleView;
+import com.intellij.execution.wsl.WSLDistribution;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
@@ -17,14 +18,18 @@ import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.sh.ShBundle;
 import com.intellij.terminal.TerminalExecutionConsole;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.execution.ParametersListUtil;
 import com.intellij.util.io.BaseDataReader;
 import com.intellij.util.io.BaseOutputReader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static com.intellij.sh.ShStringUtil.quote;
 
@@ -39,16 +44,18 @@ public class ShRunConfigurationProfileState implements RunProfileState {
 
   @Nullable
   @Override
-  public ExecutionResult execute(Executor executor, @NotNull ProgramRunner runner) throws ExecutionException {
-    Key<Boolean> userDataKey = ShBeforeRunTaskProvider.getRunBeforeUserDataKey(myRunConfiguration);
-    Boolean userDataValue = myProject.getUserData(userDataKey);
-    boolean isRunBeforeConfig = userDataValue != null && userDataValue.booleanValue();
+  public ExecutionResult execute(Executor executor, @NotNull ProgramRunner<?> runner) throws ExecutionException {
     ShRunner shRunner = ServiceManager.getService(myProject, ShRunner.class);
-    if (shRunner == null || !shRunner.isAvailable(myProject) || isRunBeforeConfig) {
+    if (shRunner == null || !myRunConfiguration.isExecuteInTerminal() || !shRunner.isAvailable(myProject) || isRunBeforeConfig()) {
       return buildExecutionResult();
     }
-    shRunner.run(buildCommand(), myRunConfiguration.getScriptWorkingDirectory());
+    shRunner.run(buildCommand(), myRunConfiguration.getScriptWorkingDirectory(), myRunConfiguration.getName(), isActivateToolWindow());
     return null;
+  }
+
+  private boolean isActivateToolWindow() {
+    RunnerAndConfigurationSettings settings = RunManager.getInstance(myProject).findSettings(myRunConfiguration);
+    return settings != null && settings.isActivateToolWindowBeforeRun();
   }
 
   private ExecutionResult buildExecutionResult() throws ExecutionException {
@@ -90,40 +97,96 @@ public class ShRunConfigurationProfileState implements RunProfileState {
   private GeneralCommandLine createCommandLine() throws ExecutionException {
     VirtualFile virtualFile = LocalFileSystem.getInstance().findFileByPath(myRunConfiguration.getScriptPath());
     if (virtualFile == null || virtualFile.getParent() == null) {
-      throw new ExecutionException("Cannot determine shell script parent directory");
+      throw new ExecutionException(ShBundle.message("error.message.cannot.determine.shell.script.parent.directory"));
     }
 
+    final WSLDistribution wslDistribution = ShRunConfiguration.getWSLDistributionIfNeeded(myRunConfiguration.getInterpreterPath(),
+                                                                                          myRunConfiguration.getScriptPath());
+
     PtyCommandLine commandLine = new PtyCommandLine();
-    if (!SystemInfo.isWindows) {
-      commandLine.getEnvironment().put("TERM", "xterm-256color");
+    if (!SystemInfo.isWindows || wslDistribution != null) {
+      commandLine.getEnvironment().put("TERM", "xterm-256color"); //NON-NLS
     }
     commandLine.withConsoleMode(false);
     commandLine.withInitialColumns(120);
+    commandLine.withEnvironment(myRunConfiguration.getEnvData().getEnvs());
     commandLine.withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE);
-    commandLine.setWorkDirectory(myRunConfiguration.getScriptWorkingDirectory());
+    commandLine.setWorkDirectory(convertToWslIfNeeded(myRunConfiguration.getScriptWorkingDirectory(), wslDistribution));
 
     commandLine.setExePath(myRunConfiguration.getInterpreterPath());
     if (StringUtil.isNotEmpty(myRunConfiguration.getInterpreterOptions())) {
       commandLine.addParameters(ParametersListUtil.parse(myRunConfiguration.getInterpreterOptions()));
     }
-    commandLine.addParameter(myRunConfiguration.getScriptPath());
+    commandLine.addParameter(convertToWslIfNeeded(myRunConfiguration.getScriptPath(), wslDistribution));
     if (StringUtil.isNotEmpty(myRunConfiguration.getScriptOptions())) {
       commandLine.addParameters(ParametersListUtil.parse(myRunConfiguration.getScriptOptions()));
     }
+
+    if (wslDistribution != null) {
+      commandLine = wslDistribution.patchCommandLine(commandLine, myProject, null, false);
+    }
+
     return commandLine;
+  }
+
+  private boolean isRunBeforeConfig() {
+    Key<Boolean> userDataKey = ShBeforeRunProviderDelegate.getRunBeforeUserDataKey(myRunConfiguration);
+    Boolean userDataValue = myProject.getUserData(userDataKey);
+    boolean isRunBeforeConfig = userDataValue != null && userDataValue.booleanValue();
+    myRunConfiguration.getProject().putUserData(userDataKey, false);
+    return isRunBeforeConfig;
   }
 
   @NotNull
   private String buildCommand() {
-    return String.join(" ", Arrays.asList(adaptPathForExecution(myRunConfiguration.getInterpreterPath()),
-                                          myRunConfiguration.getInterpreterOptions(),
-                                          adaptPathForExecution(myRunConfiguration.getScriptPath()),
-                                          myRunConfiguration.getScriptOptions()));
+    final WSLDistribution wslDistribution = ShRunConfiguration.getWSLDistributionIfNeeded(myRunConfiguration.getInterpreterPath(),
+                                                                                          myRunConfiguration.getScriptPath());
+    final List<String> commandLine = new ArrayList<>();
+
+
+    addIfPresent(commandLine, myRunConfiguration.getEnvData().getEnvs());
+    addIfPresent(commandLine, adaptPathForExecution(myRunConfiguration.getInterpreterPath(), null));
+    addIfPresent(commandLine, myRunConfiguration.getInterpreterOptions());
+    commandLine.add(adaptPathForExecution(myRunConfiguration.getScriptPath(), wslDistribution));
+    addIfPresent(commandLine, myRunConfiguration.getScriptOptions());
+
+    if (wslDistribution != null) {
+      return wslDistribution
+        .patchCommandLine(new GeneralCommandLine(commandLine), myProject, wslDistribution.getWslPath(myRunConfiguration.getScriptWorkingDirectory()), false)
+        .getCommandLineString();
+    }
+    else {
+      return String.join(" ", commandLine);
+    }
   }
 
-  private static String adaptPathForExecution(@NotNull String systemDependentPath) {
+  private static void addIfPresent(@NotNull List<String> commandLine, @Nullable String options) {
+    ContainerUtil.addIfNotNull(commandLine, StringUtil.nullize(options));
+  }
+
+  private static void addIfPresent(@NotNull List<String> commandLine, @NotNull Map<String, String> envs) {
+    envs.forEach((key, value) -> {
+      String quotedString;
+      if (Platform.current() != Platform.WINDOWS) {
+        quotedString = quote(value);
+      }
+      else {
+        String escapedValue = StringUtil.escapeQuotes(value);
+        quotedString = StringUtil.containsWhitespaces(value) ? StringUtil.QUOTER.fun(escapedValue) : escapedValue;
+      }
+      commandLine.add(key + "=" + quotedString);
+    });
+  }
+
+  private static String adaptPathForExecution(@NotNull String systemDependentPath,
+                                              @Nullable WSLDistribution wslDistribution) {
+    if (wslDistribution != null) return quote(wslDistribution.getWslPath(systemDependentPath));
     if (Platform.current() != Platform.WINDOWS) return quote(systemDependentPath);
     String escapedPath = StringUtil.escapeQuotes(systemDependentPath);
     return StringUtil.containsWhitespaces(systemDependentPath) ? StringUtil.QUOTER.fun(escapedPath) : escapedPath;
+  }
+
+  private static String convertToWslIfNeeded(@NotNull String path, @Nullable WSLDistribution wslDistribution) {
+    return wslDistribution != null ? wslDistribution.getWslPath(path) : path;
   }
 }

@@ -14,6 +14,7 @@ import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.fileTypes.StdFileTypes;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.psi.PsiDirectory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,8 +44,7 @@ public class CreateFromTemplateGroup extends ActionGroup implements DumbAware {
   }
 
   @Override
-  @NotNull
-  public AnAction[] getChildren(@Nullable AnActionEvent e){
+  public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e){
     if (e == null) return EMPTY_ARRAY;
     Project project = e.getProject();
     if (project == null || project.isDisposed()) return EMPTY_ARRAY;
@@ -128,7 +128,7 @@ public class CreateFromTemplateGroup extends ActionGroup implements DumbAware {
 
   private static class CreateFromTemplatesAction extends CreateFromTemplateActionBase{
 
-    CreateFromTemplatesAction(String title){
+    CreateFromTemplatesAction(@NlsActions.ActionText String title){
       super(title,null,null);
     }
 

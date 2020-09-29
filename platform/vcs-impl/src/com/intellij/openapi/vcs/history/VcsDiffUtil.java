@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.history;
 
 import com.intellij.diff.DiffManager;
@@ -9,6 +9,8 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogBuilder;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vcs.VcsException;
@@ -23,8 +25,10 @@ import com.intellij.openapi.vcs.diff.DiffProvider;
 import com.intellij.openapi.vcs.impl.BackgroundableActionLock;
 import com.intellij.openapi.vcs.impl.VcsBackgroundableActions;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
+import com.intellij.vcsUtil.VcsFileUtil;
 import com.intellij.vcsUtil.VcsUtil;
-import org.jetbrains.annotations.CalledInAwt;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,29 +38,28 @@ import static com.intellij.diff.util.DiffUserDataKeysEx.VCS_DIFF_LEFT_CONTENT_TI
 import static com.intellij.diff.util.DiffUserDataKeysEx.VCS_DIFF_RIGHT_CONTENT_TITLE;
 import static com.intellij.vcsUtil.VcsUtil.getShortRevisionString;
 
-public class VcsDiffUtil {
-
-  @CalledInAwt
+public final class VcsDiffUtil {
+  @RequiresEdt
   public static void showDiffFor(@NotNull Project project,
-                                 @NotNull final Collection<? extends Change> changes,
-                                 @NotNull final String revNumTitle1,
-                                 @NotNull final String revNumTitle2,
-                                 @NotNull final FilePath filePath) {
+                                 @NotNull Collection<? extends Change> changes,
+                                 @NotNull @Nls String revNumTitle1,
+                                 @NotNull @Nls String revNumTitle2,
+                                 @NotNull FilePath filePath) {
     if (filePath.isDirectory()) {
       showChangesDialog(project, getDialogTitle(filePath, revNumTitle1, revNumTitle2), new ArrayList<>(changes));
     }
     else {
       if (changes.isEmpty()) {
-        DiffManager.getInstance().showDiff(project, new MessageDiffRequest("No Changes Found"));
+        DiffManager.getInstance().showDiff(project, new MessageDiffRequest(VcsBundle.message("history.no.changes.found")));
       }
       else {
-        final HashMap<Key, Object> revTitlesMap = new HashMap<>(2);
+        Map<Key<?>, Object> revTitlesMap = new HashMap<>(2);
         revTitlesMap.put(VCS_DIFF_LEFT_CONTENT_TITLE, revNumTitle1);
         revTitlesMap.put(VCS_DIFF_RIGHT_CONTENT_TITLE, revNumTitle2);
         ShowDiffContext showDiffContext = new ShowDiffContext() {
           @NotNull
           @Override
-          public Map<Key, Object> getChangeContext(@NotNull Change change) {
+          public Map<Key<?>, Object> getChangeContext(@NotNull Change change) {
             return revTitlesMap;
           }
         };
@@ -66,19 +69,61 @@ public class VcsDiffUtil {
   }
 
   @NotNull
-  private static String getDialogTitle(@NotNull final FilePath filePath, @NotNull final String revNumTitle1,
-                                       @NotNull final String revNumTitle2) {
-    return String.format("Difference between %s and %s versions in %s", revNumTitle1, revNumTitle2, filePath.getName());
+  private static @NlsContexts.DialogTitle String getDialogTitle(@NotNull final FilePath filePath, @NotNull final String revNumTitle1,
+                                                                @NotNull final String revNumTitle2) {
+    return VcsBundle.message("history.dialog.title.difference.between.versions.in",
+                             revNumTitle1,
+                             revNumTitle2,
+                             filePath.getName());
   }
 
+  @Nls
   @NotNull
-  public static String getRevisionTitle(@NotNull String revision, boolean localMark) {
+  public static String getRevisionTitle(@NotNull @NlsSafe String revision, boolean localMark) {
     return revision +
            (localMark ? " (" + VcsBundle.message("diff.title.local") + ")" : "");
   }
 
-  @CalledInAwt
-  public static void showChangesDialog(@NotNull Project project, @NotNull String title, @NotNull List<? extends Change> changes) {
+  public static void putFilePathsIntoChangeContext(@NotNull Change change, @NotNull Map<Key<?>, Object> context) {
+    ContentRevision afterRevision = change.getAfterRevision();
+    ContentRevision beforeRevision = change.getBeforeRevision();
+    FilePath aFile = afterRevision == null ? null : afterRevision.getFile();
+    FilePath bFile = beforeRevision == null ? null : beforeRevision.getFile();
+    context.put(VCS_DIFF_RIGHT_CONTENT_TITLE, getRevisionTitle(afterRevision, aFile, null));
+    context.put(VCS_DIFF_LEFT_CONTENT_TITLE, getRevisionTitle(beforeRevision, bFile, aFile));
+  }
+
+  @Nls
+  @NotNull
+  public static String getRevisionTitle(@Nullable ContentRevision revision,
+                                        @Nullable FilePath file,
+                                        @Nullable FilePath baseFile) {
+    return getShortHash(revision) +
+           (file == null || VcsFileUtil.CASE_SENSITIVE_FILE_PATH_HASHING_STRATEGY.equals(baseFile, file)
+            ? ""
+            : " (" + getRelativeFileName(baseFile, file) + ")");
+  }
+
+  @NlsSafe
+  @NotNull
+  private static String getShortHash(@Nullable ContentRevision revision) {
+    if (revision == null) return "";
+    VcsRevisionNumber revisionNumber = revision.getRevisionNumber();
+    if (revisionNumber instanceof ShortVcsRevisionNumber) return ((ShortVcsRevisionNumber)revisionNumber).toShortString();
+    return revisionNumber.asString();
+  }
+
+  @NlsSafe
+  @NotNull
+  private static String getRelativeFileName(@Nullable FilePath baseFile, @NotNull FilePath file) {
+    if (baseFile == null || !baseFile.getName().equals(file.getName())) return file.getName();
+    FilePath aParentPath = baseFile.getParentPath();
+    if (aParentPath == null) return file.getName();
+    return VcsFileUtil.relativePath(aParentPath.getIOFile(), file.getIOFile());
+  }
+
+  @RequiresEdt
+  public static void showChangesDialog(@NotNull Project project, @NotNull @NlsContexts.DialogTitle String title, @NotNull List<? extends Change> changes) {
     DialogBuilder dialogBuilder = new DialogBuilder(project);
 
     dialogBuilder.setTitle(title);
@@ -104,7 +149,7 @@ public class VcsDiffUtil {
 
     BackgroundableActionLock lock = BackgroundableActionLock.getLock(project, VcsBackgroundableActions.COMPARE_WITH, file);
 
-    final Task.Backgroundable task = new Task.Backgroundable(project, "Collecting Changes...", true) {
+    final Task.Backgroundable task = new Task.Backgroundable(project, VcsBundle.message("file.history.diff.with.local.process"), true) {
       private Collection<Change> changes;
       private VcsRevisionNumber currentRevNumber;
 
@@ -115,10 +160,10 @@ public class VcsDiffUtil {
           currentRevNumber = provider.getCurrentRevision(file);
         }
         catch (VcsException e) {
-          String title = String.format("Compare with %s failed", getShortRevisionString(targetRevNumber));
-          String message = String.format("Couldn't compare %s with revision [%s];\n %s",
-                                         file, getShortRevisionString(targetRevNumber), e.getMessage());
-          VcsNotifier.getInstance(project).notifyError(title, message);
+          String title = VcsBundle.message("history.notification.title.compare.with.failed", getShortRevisionString(targetRevNumber));
+          String message =
+            VcsBundle.message("history.notification.content.couldn.t.compare.with.revision", file,getShortRevisionString(targetRevNumber));
+          VcsNotifier.getInstance(project).notifyError("vcs.compare.failed", title, message + "\n " + e.getMessage());
         }
       }
 

@@ -11,6 +11,7 @@ import com.intellij.ui.Gray;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.Nls;
 
 import java.awt.*;
 import java.util.Arrays;
@@ -35,6 +36,9 @@ public abstract class InspectionTreeTailRenderer<E extends Exception> {
   }
 
   public void appendTailText(InspectionTreeNode node) throws E {
+    if (myContext.isViewClosed()) {
+      return;
+    }
     final String customizedTailText = node.getTailText();
     if (customizedTailText != null) {
       if (!customizedTailText.isEmpty()) {
@@ -61,28 +65,20 @@ public abstract class InspectionTreeTailRenderer<E extends Exception> {
     }
   }
 
-  protected abstract void appendText(String text, SimpleTextAttributes attributes) throws E;
+  protected abstract void appendText(@Nls String text, SimpleTextAttributes attributes) throws E;
 
-  protected abstract void appendText(String text) throws E;
+  protected abstract void appendText(@Nls String text) throws E;
 
   private String getPresentableName(HighlightDisplayLevel level, boolean pluralize) {
     final HighlightSeverity severity = level.getSeverity();
     if (pluralize) {
-      String name = myPluralizedSeverityNames.get(severity);
-      if (name == null) {
-        final String lowerCaseName = StringUtil.toLowerCase(level.getName());
-        name = SeverityRegistrar.isDefaultSeverity(severity) ? StringUtil.pluralize(lowerCaseName) : lowerCaseName;
-        myPluralizedSeverityNames.put(severity, name);
-      }
-      return name;
+      return myPluralizedSeverityNames.computeIfAbsent(severity, s -> {
+        String lowerCaseName = StringUtil.toLowerCase(level.getName());
+        return SeverityRegistrar.isDefaultSeverity(s) ? StringUtil.pluralize(lowerCaseName) : lowerCaseName;
+      });
     }
     else {
-      String name = myUnpluralizedSeverityNames.get(severity);
-      if (name == null) {
-        name = StringUtil.toLowerCase(level.getName());
-        myUnpluralizedSeverityNames.put(severity, name);
-      }
-      return name;
+      return myUnpluralizedSeverityNames.computeIfAbsent(severity, s -> StringUtil.toLowerCase(level.getName()));
     }
   }
 }

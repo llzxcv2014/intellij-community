@@ -19,11 +19,13 @@ import com.intellij.ide.DataManager;
 import com.intellij.ide.util.ClassFilter;
 import com.intellij.ide.util.TreeClassChooser;
 import com.intellij.ide.util.TreeClassChooserFactory;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.InputValidatorEx;
 import com.intellij.openapi.ui.ex.MultiLineLabel;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiNameHelper;
@@ -35,6 +37,7 @@ import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.ItemRemovable;
 import com.intellij.util.ui.JBDimension;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
@@ -51,7 +54,7 @@ class ClassPatternsPanel extends JPanel {
     super(new BorderLayout());
     myModifiedPatterns = patterns;
     myTable = createTableForPatterns();
-    final String addClassMessage = "Add Class";
+    final String addClassMessage = JavaBundle.message("class.patterns.panel.add.class");
     final ToolbarDecorator toolbarDecorator = ToolbarDecorator.createDecorator(myTable)
       .setAddAction(button -> {
         Project project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(myTable));
@@ -70,10 +73,9 @@ class ClassPatternsPanel extends JPanel {
         myTable.repaint();
       })
       .setRemoveActionUpdater(e -> myTable.getSelectedRow() >= 0);
-    add(SeparatorFactory.createSeparator("Mark code as entry point if qualified name matches", null), BorderLayout.NORTH);
+    add(SeparatorFactory.createSeparator(JavaBundle.message("class.patterns.separator.mark.code.as.entry.point.if.qualified.name.matches"), null), BorderLayout.NORTH);
     add(toolbarDecorator.createPanel(), BorderLayout.CENTER);
-    add(new MultiLineLabel("Leave method blank to represent constructors\n" +
-                           "Any * will match against one or more characters in the qualified name (including dots)"), BorderLayout.SOUTH);
+    add(new MultiLineLabel(JavaBundle.message("label.class.pattern.syntax.explanation")), BorderLayout.SOUTH);
     setPreferredSize(new JBDimension(-1, 250));
   }
 
@@ -102,7 +104,7 @@ class ClassPatternsPanel extends JPanel {
                                                      int column) {
         final Component component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
         if (value instanceof String && ((String)value).isEmpty()) {
-          setText("constructors");
+          setText(JavaBundle.message("table.cell.constructors"));
           setForeground(UIUtil.getInactiveTextColor());
         }
         else if (value instanceof String) {
@@ -127,7 +129,7 @@ class ClassPatternsPanel extends JPanel {
     return result;
   }
 
-  public String getValidationError(Project project) {
+  public @Nls String getValidationError(Project project) {
     TableUtil.stopEditing(myTable);
     final PsiNameHelper nameHelper = PsiNameHelper.getInstance(project);
     final ClassPatternValidator validator = new ClassPatternValidator(nameHelper);
@@ -140,7 +142,7 @@ class ClassPatternsPanel extends JPanel {
       final String subst = pattern.method.replace("*", "");
       if (!subst.isEmpty()) {
         if (!nameHelper.isIdentifier(subst)) {
-          return "Method pattern '" + pattern.method + "' must be a valid java identifier, only '*' are accepted as placeholders";
+          return JavaBundle.message("class.patterns.error.method.pattern.0.must.be.a.valid.java.identifier", pattern.method);
         }
       }
     }
@@ -148,7 +150,6 @@ class ClassPatternsPanel extends JPanel {
   }
 
   private static class ClassPatternValidator implements InputValidatorEx {
-    public static final String ERROR_MESSAGE = "Pattern must be a valid java qualified name, only '*' are accepted as placeholders";
     private final PsiNameHelper myNameHelper;
 
     ClassPatternValidator(PsiNameHelper nameHelper) {
@@ -158,9 +159,10 @@ class ClassPatternsPanel extends JPanel {
     @Nullable
     @Override
     public String getErrorText(String inputString) {
-      if (inputString.startsWith(".")) return ERROR_MESSAGE;
+      String errorMessage = JavaBundle.message("class.patterns.error.class.pattern.0.must.be.a.valid.java.qualifier");
+      if (inputString.startsWith(".")) return errorMessage;
       final String qName = inputString.replace("*", "").replace(".", "");
-      return !StringUtil.isEmpty(qName) && !myNameHelper.isQualifiedName(qName) ? ERROR_MESSAGE : null;
+      return !StringUtil.isEmpty(qName) && !myNameHelper.isQualifiedName(qName) ? errorMessage : null;
     }
 
     @Override
@@ -175,10 +177,13 @@ class ClassPatternsPanel extends JPanel {
   }
 
   private class MyTableModel extends AbstractTableModel implements ItemRemovable {
-    private final String[] myNames;
+    private final @NlsContexts.ColumnName String[] myNames;
 
     MyTableModel() {
-      myNames = new String[] {"With Subclasses",  "Class", "Method"};
+      myNames = new String[] {
+        JavaBundle.message("column.name.with.subclasses.entry.point"),
+        JavaBundle.message("column.name.class.entry.point"), 
+        JavaBundle.message("column.name.method.entry.point")};
     }
 
     @Override
@@ -207,7 +212,7 @@ class ClassPatternsPanel extends JPanel {
     }
 
     @Override
-    public String getColumnName(int column) {
+    public @NlsContexts.ColumnName String getColumnName(int column) {
       return myNames[column];
     }
 

@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.daemon.impl;
 
 import com.intellij.codeInsight.daemon.LineMarkerInfo;
@@ -26,7 +26,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Collection;
 import java.util.List;
 
-class LineMarkersUtil {
+final class LineMarkersUtil {
   private static final Logger LOG = Logger.getInstance(LineMarkersUtil.class);
 
   static boolean processLineMarkers(@NotNull Project project,
@@ -46,7 +46,7 @@ class LineMarkersUtil {
   static void setLineMarkersToEditor(@NotNull Project project,
                                      @NotNull Document document,
                                      @NotNull Segment bounds,
-                                     @NotNull Collection<? extends LineMarkerInfo<PsiElement>> markers,
+                                     @NotNull Collection<? extends LineMarkerInfo<?>> markers,
                                      int group) {
     ApplicationManager.getApplication().assertIsDispatchThread();
 
@@ -94,8 +94,8 @@ class LineMarkersUtil {
     if (highlighter == null) {
       newHighlighter = true;
       highlighter = markupModel.addRangeHighlighterAndChangeAttributes(
-        info.startOffset, info.endOffset,
-        HighlighterLayer.ADDITIONAL_SYNTAX, null, HighlighterTargetArea.LINES_IN_RANGE, false,
+        null, info.startOffset, info.endOffset,
+        HighlighterLayer.ADDITIONAL_SYNTAX, HighlighterTargetArea.LINES_IN_RANGE, false,
         markerEx -> {
           markerEx.setGutterIconRenderer(newRenderer);
           markerEx.setLineSeparatorColor(info.separatorColor);

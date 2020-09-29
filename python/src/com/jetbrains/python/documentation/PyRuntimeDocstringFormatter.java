@@ -4,11 +4,12 @@ package com.jetbrains.python.documentation;
 import com.google.common.collect.Lists;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.projectRoots.Sdk;
-import com.jetbrains.python.PyBundle;
+import com.intellij.openapi.util.text.HtmlChunk;
+import com.intellij.ui.ColorUtil;
+import com.intellij.ui.JBColor;
 import com.jetbrains.python.PyPsiBundle;
 import com.jetbrains.python.PythonHelper;
 import com.jetbrains.python.documentation.docstrings.DocStringFormat;
@@ -31,10 +32,6 @@ public class PyRuntimeDocstringFormatter {
   public static String runExternalTool(@NotNull final Module module,
                                 @NotNull final DocStringFormat format,
                                 @NotNull final String docstring) {
-    if (ApplicationManager.getApplication().isUnitTestMode()) {
-      return "Unittest placeholder";
-    }
-
     final Sdk sdk;
     final String missingInterpreterMessage;
     if (format == DocStringFormat.EPYTEXT) {
@@ -47,7 +44,7 @@ public class PyRuntimeDocstringFormatter {
     }
     if (sdk == null) {
       LOG.warn("Python SDK for docstring formatter " + format +  " is not found");
-      return "<p color=\"red\">" + missingInterpreterMessage + "</p>";
+      return HtmlChunk.p().attr("color", ColorUtil.toHtmlColor(JBColor.RED)).addText(missingInterpreterMessage).toString();
     }
 
     final String sdkHome = sdk.getHomePath();

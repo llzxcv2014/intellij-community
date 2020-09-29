@@ -28,18 +28,10 @@ import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
 import com.siyeh.ig.psiutils.MethodUtils;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 public class UnnecessaryInheritDocInspection extends BaseInspection {
-
-  @Nls
-  @NotNull
-  @Override
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("unnecessary.inherit.doc.display.name");
-  }
 
   @NotNull
   @Override
@@ -157,7 +149,7 @@ public class UnnecessaryInheritDocInspection extends BaseInspection {
       final PsiElement parent = tag.getParent();
       if (parent instanceof PsiDocTag) {
         final PsiDocTag docTag = (PsiDocTag)parent;
-        final String docTagName = docTag.getName();
+        @NonNls final String docTagName = docTag.getName();
         if ((docTagName.equals("throws") || docTagName.equals("exception")) &&
             !isCheckExceptionAndPresentInThrowsList((PsiMethod)owner, docTag)) {
           return;

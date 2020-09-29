@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.java.propertyBased;
 
 import com.intellij.codeInsight.intention.IntentionAction;
+import com.intellij.codeInspection.SuppressionUtil;
 import com.intellij.codeInspection.TextBlockBackwardMigrationInspection;
 import com.intellij.codeInspection.TextBlockMigrationInspection;
 import com.intellij.lang.injection.InjectedLanguageManager;
@@ -13,8 +14,8 @@ import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
-import com.intellij.psi.impl.source.tree.java.PsiLiteralExpressionImpl;
 import com.intellij.psi.util.PsiLiteralUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
@@ -26,9 +27,10 @@ import com.intellij.testFramework.propertyBased.MadTestingAction;
 import com.intellij.testFramework.propertyBased.MadTestingUtil;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
+import com.siyeh.ig.psiutils.ExpressionUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.jetCheck.Generator;
+import org.jetbrains.jetCheck.ImperativeCommand;
 import org.jetbrains.jetCheck.PropertyChecker;
 
 import java.util.List;
@@ -43,7 +45,7 @@ public class JavaTextBlockMigrationPropertyTest extends LightJavaCodeInsightFixt
   @NotNull
   @Override
   protected LightProjectDescriptor getProjectDescriptor() {
-    return JAVA_13;
+    return JAVA_14;
   }
 
   @Override
@@ -68,40 +70,50 @@ public class JavaTextBlockMigrationPropertyTest extends LightJavaCodeInsightFixt
 
   public void testPreserveStringContent() {
     Supplier<MadTestingAction> fileAction =
-      MadTestingUtil.actionsOnFileContents(myFixture, PathManager.getHomePath(), f -> f.getName().endsWith(".java"),
-                                           file -> Generator.constant(env -> transformContent(file)));
-    PropertyChecker.checkScenarios(fileAction);
+      MadTestingUtil.performOnFileContents(myFixture, PathManager.getHomePath(), f -> f.getName().endsWith(".java"),
+                                           this::transformContent);
+    PropertyChecker.
+      checkScenarios(fileAction);
   }
 
-  private void transformContent(@NotNull PsiFile file) {
+  private void transformContent(@NotNull ImperativeCommand.Environment env, @NotNull VirtualFile file) {
     List<PsiPolyadicExpression> concatenations =
-      ContainerUtil.filter(PsiTreeUtil.findChildrenOfType(file, PsiPolyadicExpression.class),
+      ContainerUtil.filter(PsiTreeUtil.findChildrenOfType(getPsiManager().findFile(file), PsiPolyadicExpression.class),
                            e -> e.getType() != null && e.getType().equalsToText(JAVA_LANG_STRING));
     if (concatenations.isEmpty()) return;
 
-    myFixture.openFileInEditor(file.getVirtualFile());
+    myFixture.openFileInEditor(file);
+    MigrationInvoker migrationInvoker = new MigrationInvoker();
+    BackwardMigrationInvoker backwardMigrationInvoker = new BackwardMigrationInvoker();
     for (PsiPolyadicExpression concatenation : concatenations) {
+      if (SuppressionUtil.isSuppressed(concatenation, MigrationInvoker.getToolId()) ||
+          SuppressionUtil.isSuppressed(concatenation, BackwardMigrationInvoker.getToolId())) {
+        continue;
+      }
       PsiExpression[] operands = concatenation.getOperands();
       if (operands.length < 2) continue;
-      List<Pair<PsiElement, TextRange>> injected = InjectedLanguageManager.getInstance(file.getProject()).getInjectedPsiFiles(operands[0]);
+
+      env.logMessage("Tweaking concatenation at " + concatenation.getTextRange());
+
+      List<Pair<PsiElement, TextRange>> injected = InjectedLanguageManager.getInstance(getProject()).getInjectedPsiFiles(operands[0]);
       // IDEA-224671
       if (injected != null && !injected.isEmpty()) continue;
       String expected = getConcatenationText(operands);
       if (expected == null || countNewLines(expected) < 2) continue;
-      expected = expected.replaceAll("\\\\040", " ");
+      expected = replaceUnescapedSpaces(expected);
 
       Computable<PsiElement> replaceAction = () -> {
-        PsiElementFactory factory = JavaPsiFacade.getInstance(file.getProject()).getElementFactory();
+        PsiElementFactory factory = JavaPsiFacade.getInstance(getProject()).getElementFactory();
         PsiExpression newExpression = factory.createExpressionFromText("(" + concatenation.getText() + ")", null);
         return concatenation.replace(newExpression);
       };
       PsiExpression parent = (PsiExpression)WriteCommandAction.runWriteCommandAction(concatenation.getProject(), replaceAction);
       PsiPolyadicExpression replaced = (PsiPolyadicExpression)PsiUtil.skipParenthesizedExprDown(parent);
 
-      invokeIntention(replaced, myFixture, new MigrationInvoker());
+      invokeIntention(replaced, myFixture, migrationInvoker);
       PsiLiteralExpression textBlock = (PsiLiteralExpression)PsiUtil.skipParenthesizedExprDown(parent);
 
-      invokeIntention(textBlock, myFixture, new BackwardMigrationInvoker());
+      invokeIntention(textBlock, myFixture, backwardMigrationInvoker);
       PsiElement element = PsiUtil.skipParenthesizedExprDown(parent);
       PsiPolyadicExpression after = (PsiPolyadicExpression)element;
 
@@ -110,16 +122,44 @@ public class JavaTextBlockMigrationPropertyTest extends LightJavaCodeInsightFixt
     }
   }
 
+  @NotNull
+  private static String replaceUnescapedSpaces(@NotNull String text) {
+    if (!text.contains("040")) return text;
+    StringBuilder result = new StringBuilder();
+    int i = 0;
+    int length = text.length();
+    while (i < length) {
+      int nSlashes = 0;
+      int next;
+      while (i < length && (next = PsiLiteralUtil.parseBackSlash(text, i)) != -1) {
+        nSlashes++;
+        i = next;
+      }
+      if (i >= length) {
+        result.append(StringUtil.repeatSymbol('\\', nSlashes));
+        break;
+      }
+      if (nSlashes % 2 != 0 && StringUtil.startsWith(text, i, "040")) {
+        result.append(StringUtil.repeatSymbol('\\', nSlashes - 1)).append(" ");
+        i += 3;
+        continue;
+      }
+      result.append(StringUtil.repeatSymbol('\\', nSlashes)).append(text.charAt(i));
+      i++;
+    }
+    return result.toString();
+  }
+
   @Nullable
-  private static String getConcatenationText(@NotNull PsiExpression[] operands) {
+  private static String getConcatenationText(PsiExpression @NotNull [] operands) {
     String[] lines = new String[operands.length];
     for (int i = 0; i < operands.length; i++) {
       PsiExpression operand = operands[i];
-      PsiLiteralExpressionImpl literal = ObjectUtils.tryCast(operand, PsiLiteralExpressionImpl.class);
+      PsiLiteralExpression literal = ObjectUtils.tryCast(operand, PsiLiteralExpression.class);
       if (literal == null) return null;
       String line;
-      if (literal.getLiteralElementType() == JavaTokenType.STRING_LITERAL) {
-        line = literal.getInnerText();
+      if (ExpressionUtils.hasStringType(literal) && !literal.isTextBlock()) {
+        line = PsiLiteralUtil.getStringLiteralContent(literal);
       }
       else {
         Object value = literal.getValue();
@@ -129,8 +169,18 @@ public class JavaTextBlockMigrationPropertyTest extends LightJavaCodeInsightFixt
       lines[i] = line;
     }
     // IDEA-226395
-    if (PsiLiteralUtil.getTextBlockIndent(lines) != 0) return null;
+    String[] textBlockLines = getTextBlockLines(lines);
+    int indent = PsiLiteralUtil.getTextBlockIndent(textBlockLines, true, true);
+    if (indent > 0 && textBlockLines.length > 0 && textBlockLines[textBlockLines.length - 1].endsWith("\n")) indent = 0;
+    if (indent > 0) return null;
+
     return StringUtil.join(lines);
+  }
+
+  @NotNull
+  private static String @NotNull [] getTextBlockLines(String @NotNull [] lines) {
+    String blockLines = PsiLiteralUtil.escapeTextBlockCharacters(StringUtil.join(lines), true, true, true);
+    return blockLines.split("(?<=\n)");
   }
 
   private static <T extends PsiElement> void invokeIntention(@NotNull T element,
@@ -195,6 +245,11 @@ public class JavaTextBlockMigrationPropertyTest extends LightJavaCodeInsightFixt
     public String getFixHint() {
       return "Replace with text block";
     }
+
+    @NotNull
+    private static String getToolId() {
+      return "TextBlockMigration";
+    }
   }
 
   private static class BackwardMigrationInvoker implements ActionInvoker<PsiLiteralExpression> {
@@ -207,6 +262,11 @@ public class JavaTextBlockMigrationPropertyTest extends LightJavaCodeInsightFixt
     @Override
     public String getFixHint() {
       return "Replace with regular string literal";
+    }
+
+    @NotNull
+    private static String getToolId() {
+      return "TextBlockBackwardMigration";
     }
   }
 }

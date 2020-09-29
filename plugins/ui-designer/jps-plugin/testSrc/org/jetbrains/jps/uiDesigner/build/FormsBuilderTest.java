@@ -33,9 +33,6 @@ import org.jetbrains.org.objectweb.asm.Opcodes;
 import java.io.File;
 import java.io.IOException;
 
-/**
- * @author nik
- */
 public class FormsBuilderTest extends JpsBuildTestCase {
   private static final String SIMPLE_FORM_PATH = "plugins/ui-designer/jps-plugin/testData/build/simple";
 
@@ -77,7 +74,7 @@ public class FormsBuilderTest extends JpsBuildTestCase {
 
     change(getAbsolutePath("src/xxx/MyForm.java"));
     buildAllModules().assertSuccessful();
-    assertCompiled(JavaBuilder.BUILDER_NAME, "src/xxx/MyForm.java");
+    assertCompiled(JavaBuilder.BUILDER_ID, "src/xxx/MyForm.java");
     assertCompiled(FormsInstrumenter.BUILDER_NAME, "src/xxx/MyForm.form");
     assertInstrumented(m, "xxx/MyForm.class");
     buildAllModules().assertUpToDate();
@@ -94,7 +91,7 @@ public class FormsBuilderTest extends JpsBuildTestCase {
                                                       "  public static int CONST = 10;\n" +
                                                       "}");
     buildAllModules().assertSuccessful();
-    assertCompiled(JavaBuilder.BUILDER_NAME, "src/xxx/MyForm.java", "src/xxx/Constants.java");
+    assertCompiled(JavaBuilder.BUILDER_ID, "src/xxx/MyForm.java", "src/xxx/Constants.java");
     assertCompiled(FormsInstrumenter.BUILDER_NAME, "src/xxx/MyForm.form");
     assertInstrumented(m, "xxx/MyForm.class");
     buildAllModules().assertUpToDate();

@@ -24,19 +24,21 @@ import com.intellij.openapi.fileTypes.LanguageFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.util.DimensionService;
 import com.intellij.openapi.util.Pair;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiReference;
 import com.intellij.psi.xml.XmlElement;
 import com.intellij.ui.*;
+import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.table.JBTable;
 import com.intellij.util.containers.BidirectionalMap;
+import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.PlatformColors;
-import com.intellij.util.ui.Table;
 import com.intellij.util.ui.UIUtil;
 import org.intellij.lang.xpath.XPathFileType;
 import org.intellij.lang.xpath.context.*;
 import org.intellij.lang.xpath.psi.XPathElement;
+import org.intellij.plugins.xpathView.XPathBundle;
 import org.intellij.plugins.xpathView.util.MyPsiUtil;
 import org.intellij.plugins.xpathView.util.Namespace;
 import org.intellij.plugins.xpathView.util.Variable;
@@ -55,14 +57,13 @@ import java.util.*;
 import static org.intellij.plugins.xpathView.util.Copyable.Util.copy;
 
 public class EditContextDialog extends DialogWrapper {
-  private final DimensionService myDimensionService = DimensionService.getInstance();
 
   private final Set<String> myUnresolvedPrefixes;
 
-  private final JTable myVariableTable;
+  private final JBTable myVariableTable;
   private final VariableTableModel myVariableTableModel;
 
-  private final JTable myNamespaceTable;
+  private final JBTable myNamespaceTable;
   private final NamespaceTableModel myNamespaceTableModel;
   private final ContextProvider myContextProvider;
   private JBSplitter mySplitter;
@@ -75,32 +76,32 @@ public class EditContextDialog extends DialogWrapper {
     super(project, false);
     myUnresolvedPrefixes = unresolvedPrefixes;
 
-    setTitle("Edit XPath Context");
+    setTitle(XPathBundle.message("dialog.title.edit.xpath.context"));
     setModal(true);
 
     myContextProvider = new MyContextProvider(contextProvider);
 
     final List<Variable> m = copy(variables);
     myVariableTableModel = new VariableTableModel(m, project, XPathFileType.XPATH);
-    myVariableTable = new Table(myVariableTableModel);
+    myVariableTable = new JBTable(myVariableTableModel);
     myVariableTable.setDefaultRenderer(String.class, new VariableCellRenderer(m));
     myVariableTable.setDefaultRenderer(Expression.class, new ExpressionCellRenderer(project));
     myVariableTable.setDefaultEditor(Expression.class, new ExpressionCellEditor(project));
 
-    int width = new JLabel("Name").getPreferredSize().width;
+    int width = new JBLabel(XPathBundle.message("label.name")).getPreferredSize().width;
     myVariableTable.getColumnModel().getColumn(0).setMinWidth(width);
     myVariableTable.getColumnModel().getColumn(0).setMaxWidth(width * 5);
-    myVariableTable.setPreferredScrollableViewportSize(new Dimension(200, 130));
+    myVariableTable.setPreferredScrollableViewportSize(JBUI.size(200, 130));
 
     final List<Namespace> n = copy(namespaces);
     myNamespaceTableModel = new NamespaceTableModel(n);
-    myNamespaceTable = new Table(myNamespaceTableModel);
+    myNamespaceTable = new JBTable(myNamespaceTableModel);
     myNamespaceTable.setDefaultRenderer(String.class, new NamespaceCellRenderer(n));
 
-    width = new JLabel("Prefix").getPreferredSize().width;
+    width = new JBLabel(XPathBundle.message("label.prefix")).getPreferredSize().width;
     myNamespaceTable.getColumnModel().getColumn(0).setMinWidth(width);
     myNamespaceTable.getColumnModel().getColumn(0).setMaxWidth(width * 4);
-    myNamespaceTable.setPreferredScrollableViewportSize(new Dimension(200, 150));
+    myNamespaceTable.setPreferredScrollableViewportSize(JBUI.size(200, 150));
 
     init();
   }
@@ -121,7 +122,7 @@ public class EditContextDialog extends DialogWrapper {
           myVariableTableModel.removeVariable(myVariableTable.getSelectedRow());
         }
       }).disableUpDownActions().createPanel();
-    UIUtil.addBorder(p, IdeBorderFactory.createTitledBorder("Variables", false));
+    UIUtil.addBorder(p, IdeBorderFactory.createTitledBorder(XPathBundle.message("border.title.variables"), false));
 
     final JPanel n = ToolbarDecorator.createDecorator(myNamespaceTable)
       .setAddAction(myContextProvider.getContextElement() != null ? null : new AnActionButtonRunnable() {
@@ -149,7 +150,7 @@ public class EditContextDialog extends DialogWrapper {
             myNamespaceTableModel.removeNamespace(myNamespaceTable.getSelectedRow());
           }
         }).disableUpDownActions().createPanel();
-    UIUtil.addBorder(n, IdeBorderFactory.createTitledBorder("Namespaces", false));
+    UIUtil.addBorder(n, IdeBorderFactory.createTitledBorder(XPathBundle.message("border.title.namespaces"), false));
 
     mySplitter = new JBSplitter(true, getDimensionServiceKey(), 400 / 1000f);
     mySplitter.setHonorComponentsMinimumSize(true);
@@ -187,8 +188,9 @@ public class EditContextDialog extends DialogWrapper {
       }
       final String error = getError(expression);
       if (error != null) {
-        Messages.showErrorDialog(expression.getFile().getProject(), "Error in XPath Expression for Variable '" + name + "': " + error,
-                                 "XPath Error");
+        Messages.showErrorDialog(expression.getFile().getProject(),
+                                 XPathBundle.message("dialog.message.error.in.xpath.expression.for.variable", name, error),
+                                 XPathBundle.message("dialog.title.xpath.error"));
         myVariableTable.getSelectionModel().setSelectionInterval(i, i);
         return;
       }
@@ -196,7 +198,7 @@ public class EditContextDialog extends DialogWrapper {
     super.doOKAction();
   }
 
-  private String getError(final Expression expression) {
+  private static String getError(final Expression expression) {
     return MyPsiUtil.checkFile(expression.getFile());
   }
 
@@ -246,7 +248,7 @@ public class EditContextDialog extends DialogWrapper {
 
     @Override
     public String getColumnName(int column) {
-      return column == 0 ? "Name" : "Expression";
+      return column == 0 ? XPathBundle.message("name") : XPathBundle.message("expression");
     }
 
     @Override
@@ -329,11 +331,11 @@ public class EditContextDialog extends DialogWrapper {
         Variable variable = myVariables.get(i);
         if (i != row && variable.getName().equals(_value)) {
           setForeground(JBColor.RED);
-          setToolTipText("Duplicate Variable");
+          setToolTipText(XPathBundle.message("tooltip.duplicate.variable"));
         }
         else if (variable.getExpression().length() == 0) {
           setForeground(PlatformColors.BLUE);
-          setToolTipText("Empty expression. Variable will evaluate to empty nodeset.");
+          setToolTipText(XPathBundle.message("tooltip.empty.expression.variable.will.evaluate.to.empty.nodeset"));
         }
       }
       return this;
@@ -363,7 +365,7 @@ public class EditContextDialog extends DialogWrapper {
 
     @Override
     public String getColumnName(int column) {
-      return column == 0 ? "Prefix" : "URI";
+      return column == 0 ? XPathBundle.message("prefix") : XPathBundle.message("uri");
     }
 
     @Override
@@ -473,8 +475,7 @@ public class EditContextDialog extends DialogWrapper {
 
   private class MyVariableContext extends SimpleVariableContext {
     @Override
-    @NotNull
-    public String[] getVariablesInScope(XPathElement element) {
+    public String @NotNull [] getVariablesInScope(XPathElement element) {
       final Collection<Variable> variables = myVariableTableModel.getVariables();
       return Variable.asSet(variables).toArray(new String[variables.size()]);
     }

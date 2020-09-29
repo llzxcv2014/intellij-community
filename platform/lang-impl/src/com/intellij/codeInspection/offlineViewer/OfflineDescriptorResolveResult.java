@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.offlineViewer;
 
 import com.intellij.codeInsight.daemon.impl.CollectHighlightsUtil;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 /**
  * @author Dmitry Batkovich
  */
-public class OfflineDescriptorResolveResult {
+public final class OfflineDescriptorResolveResult {
   private static final Logger LOG = Logger.getInstance(OfflineDescriptorResolveResult.class);
   private final RefEntity myResolvedEntity;
   private final CommonProblemDescriptor myResolvedDescriptor;
@@ -131,7 +131,7 @@ public class OfflineDescriptorResolveResult {
   @NotNull
   private static CommonProblemDescriptor createProblemDescriptorFromOfflineDescriptor(@Nullable RefEntity element,
                                                                                       @NotNull OfflineProblemDescriptor offlineDescriptor,
-                                                                                      @NotNull QuickFix[] fixes,
+                                                                                      QuickFix @NotNull [] fixes,
                                                                                       @NotNull Project project) {
     final InspectionManager inspectionManager = InspectionManager.getInstance(project);
     if (element instanceof RefElement) {
@@ -172,7 +172,7 @@ public class OfflineDescriptorResolveResult {
         for (Pair<PsiElement, TextRange> file : injectedPsiFiles) {
           file.getFirst().accept(new PsiRecursiveElementWalkingVisitor() {
             @Override
-            public void visitElement(PsiElement element) {
+            public void visitElement(@NotNull PsiElement element) {
               element.accept(visitor);
               super.visitElement(element);
             }
@@ -200,8 +200,7 @@ public class OfflineDescriptorResolveResult {
     return null;
   }
 
-  @NotNull
-  private static PsiElement[] getElementsIntersectingRange(PsiFile file, final int startOffset, final int endOffset) {
+  private static PsiElement @NotNull [] getElementsIntersectingRange(PsiFile file, final int startOffset, final int endOffset) {
     final FileViewProvider viewProvider = file.getViewProvider();
     final Set<PsiElement> result = new LinkedHashSet<>();
     for (Language language : viewProvider.getLanguages()) {
@@ -213,10 +212,9 @@ public class OfflineDescriptorResolveResult {
     return PsiUtilCore.toPsiElementArray(result);
   }
 
-  @Nullable
-  private static QuickFix[] getFixes(@NotNull CommonProblemDescriptor descriptor,
-                                     RefEntity entity,
-                                     InspectionToolPresentation presentation, List<String> hints) {
+  private static QuickFix @Nullable [] getFixes(@NotNull CommonProblemDescriptor descriptor,
+                                                RefEntity entity,
+                                                InspectionToolPresentation presentation, List<String> hints) {
     final List<QuickFix> fixes = new ArrayList<>(hints == null ? 1 : hints.size());
     if (hints == null) {
       addFix(descriptor, entity, fixes, null, presentation);
@@ -236,14 +234,14 @@ public class OfflineDescriptorResolveResult {
   private static CommonProblemDescriptor createRerunGlobalToolDescriptor(@NotNull GlobalInspectionToolWrapper wrapper,
                                                                          @Nullable RefEntity entity,
                                                                          OfflineProblemDescriptor offlineDescriptor) {
-    
+
 
     QuickFix rerunFix = new QuickFix() {
       @Nls
       @NotNull
       @Override
       public String getFamilyName() {
-        return "Rerun \'" + wrapper.getDisplayName() + "\' inspection";
+        return InspectionsBundle.message("rerun.inspection.family.name", wrapper.getDisplayName());
       }
 
       @Override
@@ -273,7 +271,7 @@ public class OfflineDescriptorResolveResult {
     return new CommonProblemDescriptorImpl(new QuickFix[]{rerunFix}, offlineDescriptor.getDescription());
   }
 
-  private static class ProblemDescriptorBackedByRefElement implements ProblemDescriptor {
+  private static final class ProblemDescriptorBackedByRefElement implements ProblemDescriptor {
     private final RefElement myElement;
     private final OfflineProblemDescriptor myOfflineProblemDescriptor;
     private final QuickFix[] myFixes;
@@ -349,9 +347,8 @@ public class OfflineDescriptorResolveResult {
       return myOfflineProblemDescriptor.getDescription();
     }
 
-    @Nullable
     @Override
-    public QuickFix[] getFixes() {
+    public QuickFix @Nullable [] getFixes() {
       return myFixes;
     }
   }

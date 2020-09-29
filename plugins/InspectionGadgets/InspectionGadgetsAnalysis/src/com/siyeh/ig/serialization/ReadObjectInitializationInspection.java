@@ -34,13 +34,6 @@ public class ReadObjectInitializationInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "readobject.initialization.display.name");
-  }
-
-  @Override
-  @NotNull
   public String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message(
       "readobject.initialization.problem.descriptor");
@@ -61,7 +54,7 @@ public class ReadObjectInitializationInspection extends BaseInspection {
       if (aClass == null) {
         return;
       }
-      if (aClass.isInterface() || aClass.isAnnotationType()) {
+      if (aClass.isInterface() || aClass.isAnnotationType() || aClass.isRecord()) {
         return;
       }
       if (!SerializationUtils.isSerializable(aClass)) {

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.ui;
 
 import com.intellij.configurationStore.XmlSerializer;
@@ -14,10 +14,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-@State(name = "masterDetails", storages = {
-  @Storage(StoragePathMacros.PRODUCT_WORKSPACE_FILE),
-  @Storage(value = StoragePathMacros.WORKSPACE_FILE, deprecated = true)
-})
+@State(name = "masterDetails", storages = @Storage(StoragePathMacros.PRODUCT_WORKSPACE_FILE))
 public final class MasterDetailsStateService implements PersistentStateComponent<MasterDetailsStateService.States>{
   private final Map<String, ComponentState> myStates = new HashMap<>();
 
@@ -45,7 +42,7 @@ public final class MasterDetailsStateService implements PersistentStateComponent
   public States getState() {
     States states = new States();
     states.myStates.addAll(myStates.values());
-    Collections.sort(states.getStates(), Comparator.comparing(o -> o.myKey));
+    states.getStates().sort(Comparator.comparing(o -> o.myKey));
     return states;
   }
 
@@ -60,7 +57,7 @@ public final class MasterDetailsStateService implements PersistentStateComponent
   @Tag("state")
   public static final class ComponentState {
     @Attribute("key")
-    public String myKey;
+    public @NonNls String myKey;
 
     @Tag("settings")
     public Element mySettings;

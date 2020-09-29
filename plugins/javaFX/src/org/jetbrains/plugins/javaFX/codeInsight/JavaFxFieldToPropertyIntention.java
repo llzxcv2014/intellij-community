@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.javaFX.codeInsight;
 
 import com.intellij.codeInsight.intention.LowPriorityAction;
@@ -30,9 +30,9 @@ import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.ContainerUtil;
 import com.siyeh.ig.psiutils.ParenthesesUtils;
 import gnu.trove.THashSet;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.javaFX.JavaFXBundle;
 import org.jetbrains.plugins.javaFX.fxml.JavaFxCommonNames;
 import org.jetbrains.plugins.javaFX.fxml.JavaFxModuleUtil;
 import org.jetbrains.plugins.javaFX.fxml.JavaFxPsiUtil;
@@ -45,19 +45,17 @@ import java.util.Set;
  */
 public class JavaFxFieldToPropertyIntention extends PsiElementBaseIntentionAction implements LowPriorityAction {
   private static final Logger LOG = Logger.getInstance(JavaFxFieldToPropertyIntention.class);
-  public static final String FAMILY_NAME = "Convert to JavaFX property";
 
-  @Nls
   @NotNull
   @Override
   public String getFamilyName() {
-    return FAMILY_NAME;
+    return JavaFXBundle.message("intention.family.name.convert.to.javafx.property");
   }
 
   @NotNull
   @Override
   public String getText() {
-    return FAMILY_NAME;
+    return JavaFXBundle.message("intention.family.name.convert.to.javafx.property");
   }
 
   @Override
@@ -88,7 +86,7 @@ public class JavaFxFieldToPropertyIntention extends PsiElementBaseIntentionActio
 
     SearchUsagesTask(@NotNull Project project,
                             @NotNull PropertyInfo property) {
-      super(project, "Searching for usages of '" + property.myFieldName + "'", true);
+      super(project, JavaFXBundle.message("javafx.field.to.property.intention.search.for.usages", property.myFieldName), true);
       myProperty = property;
     }
 
@@ -107,7 +105,7 @@ public class JavaFxFieldToPropertyIntention extends PsiElementBaseIntentionActio
         });
       });
       WriteCommandAction
-        .runWriteCommandAction(myProject, "Convert '" + myProperty.myFieldName + "' to JavaFX property", null,
+        .runWriteCommandAction(myProject, JavaFXBundle.message("command.name.convert.to.javafx.property", myProperty.myFieldName), null,
                                this::replaceOccurrences, myFiles.toArray(PsiFile.EMPTY_ARRAY));
     }
 
@@ -156,7 +154,7 @@ public class JavaFxFieldToPropertyIntention extends PsiElementBaseIntentionActio
     return field;
   }
 
-  private static class PropertyInfo {
+  private static final class PropertyInfo {
     final PsiField myField;
     final PsiClass myContainingClass;
     final PsiTypeElement myTypeElement;

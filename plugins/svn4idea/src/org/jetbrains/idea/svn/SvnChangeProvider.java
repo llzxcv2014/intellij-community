@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn;
 
 import com.intellij.openapi.application.ReadAction;
@@ -16,6 +16,7 @@ import com.intellij.openapi.vcs.changes.*;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.EventDispatcher;
 import com.intellij.vcsUtil.VcsUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.svn.actions.CleanupWorker;
@@ -29,9 +30,9 @@ import org.jetbrains.idea.svn.status.StatusType;
 import java.io.File;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
-import static com.intellij.util.ObjectUtils.notNull;
 import static com.intellij.util.containers.ContainerUtil.map2SetNotNull;
 import static org.jetbrains.idea.svn.SvnUtil.getRelativeUrl;
 import static org.jetbrains.idea.svn.SvnUtil.isAncestor;
@@ -42,7 +43,7 @@ import static org.jetbrains.idea.svn.SvnUtil.isAncestor;
  */
 public class SvnChangeProvider implements ChangeProvider {
   private static final Logger LOG = Logger.getInstance(SvnChangeProvider.class);
-  public static final String PROPERTY_LAYER = "Property";
+  public static final @NonNls String PROPERTY_LAYER = "Property";
 
   @NotNull private final SvnVcs myVcs;
   @NotNull private final VcsContextFactory myFactory;
@@ -88,7 +89,7 @@ public class SvnChangeProvider implements ChangeProvider {
 
   private static void processUnsaved(@NotNull VcsDirtyScope dirtyScope,
                                      @NotNull ChangeListManagerGate addGate,
-                                     @NotNull SvnChangeProviderContext context) throws SvnBindException {
+                                     @NotNull SvnChangeProviderContext context) {
     FileDocumentManager fileDocumentManager = FileDocumentManager.getInstance();
 
     for (Document unsavedDocument : fileDocumentManager.getUnsavedDocuments()) {
@@ -102,13 +103,12 @@ public class SvnChangeProvider implements ChangeProvider {
     }
   }
 
-  private void processCopiedAndDeleted(@NotNull SvnChangeProviderContext context, @Nullable VcsDirtyScope dirtyScope)
-    throws SvnBindException {
-    for(SvnChangedFile copiedFile: context.getCopiedFiles()) {
+  private void processCopiedAndDeleted(@NotNull SvnChangeProviderContext context, @Nullable VcsDirtyScope dirtyScope) {
+    for (SvnChangedFile copiedFile : context.getCopiedFiles()) {
       context.checkCanceled();
       processCopiedFile(copiedFile, context, dirtyScope);
     }
-    for(SvnChangedFile deletedFile: context.getDeletedFiles()) {
+    for (SvnChangedFile deletedFile : context.getDeletedFiles()) {
       context.checkCanceled();
       context.processStatus(deletedFile.getFilePath(), deletedFile.getStatus());
     }
@@ -123,10 +123,10 @@ public class SvnChangeProvider implements ChangeProvider {
 
   private void processCopiedFile(@NotNull SvnChangedFile copiedFile,
                                  @NotNull SvnChangeProviderContext context,
-                                 @Nullable VcsDirtyScope dirtyScope) throws SvnBindException {
+                                 @Nullable VcsDirtyScope dirtyScope) {
     boolean foundRename = false;
     final Status copiedStatus = copiedFile.getStatus();
-    Url copyFromURL = notNull(copiedFile.getCopyFromURL());
+    Url copyFromURL = Objects.requireNonNull(copiedFile.getCopyFromURL());
     final Set<SvnChangedFile> deletedToDelete = new HashSet<>();
 
     for (SvnChangedFile deletedFile : context.getDeletedFiles()) {
@@ -198,7 +198,7 @@ public class SvnChangeProvider implements ChangeProvider {
                                 @NotNull Set<SvnChangedFile> deletedToDelete,
                                 @NotNull SvnChangedFile deletedFile,
                                 @Nullable Status copiedStatus,
-                                @Nullable String clName) throws SvnBindException {
+                                @Nullable String clName) {
     final Change change = context
       .createMovedChange(createBeforeRevision(deletedFile, true), CurrentContentRevision.create(oldPath), copiedStatus,
                          deletedFile.getStatus());

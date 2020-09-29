@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xml.impl.dtd;
 
 import com.intellij.codeInsight.daemon.Validator;
@@ -33,16 +19,12 @@ import com.intellij.xml.XmlElementDescriptor;
 import com.intellij.xml.XmlNSDescriptorEx;
 import com.intellij.xml.impl.ExternalDocumentValidator;
 import com.intellij.xml.util.XmlUtil;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-/**
- * @author Mike
- */
-public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocument>, DumbAware {
+public final class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocument>, DumbAware {
   private XmlElement myElement;
   private XmlFile myDescriptorFile;
 
@@ -106,7 +88,7 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
       final List<XmlElementDecl> result = new ArrayList<>();
       myElement.processElements(new FilterElementProcessor(new ClassFilter(XmlElementDecl.class), result), getDeclaration());
       final Map<String, XmlElementDescriptor> ret = new LinkedHashMap<>((int)(result.size() * 1.5));
-      Set<PsiFile> dependencies = new THashSet<>(1);
+      Set<PsiFile> dependencies = new HashSet<>(1);
       dependencies.add(myDescriptorFile);
 
       for (final XmlElementDecl xmlElementDecl : result) {
@@ -134,8 +116,7 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
   }
 
   @Override
-  @NotNull
-  public XmlElementDescriptor[] getRootElementsDescriptors(@Nullable final XmlDocument document) {
+  public XmlElementDescriptor @NotNull [] getRootElementsDescriptors(@Nullable final XmlDocument document) {
     // Suggest more appropriate variant if DOCTYPE <element_name> exists
     final XmlProlog prolog = document != null ? document.getProlog():null;
 
@@ -185,9 +166,8 @@ public class XmlNSDescriptorImpl implements XmlNSDescriptorEx,Validator<XmlDocum
     }
   }
 
-  @NotNull
   @Override
-  public Object[] getDependencies(){
+  public Object @NotNull [] getDependencies(){
     return new Object[]{myElement, ExternalResourceManager.getInstance()};
   }
 

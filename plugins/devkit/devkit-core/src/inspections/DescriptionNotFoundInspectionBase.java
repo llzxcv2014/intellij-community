@@ -1,94 +1,107 @@
-/*
- * Copyright 2000-2019 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.inspections;
 
 import com.intellij.codeInspection.InspectionManager;
-import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ProblemHighlightType;
+import com.intellij.codeInspection.ProblemsHolder;
+import com.intellij.codeInspection.util.InspectionMessage;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.devkit.inspections.quickfix.CreateHtmlDescriptionFix;
 import org.jetbrains.idea.devkit.util.PsiUtil;
+import org.jetbrains.uast.UAnonymousClass;
+import org.jetbrains.uast.UClass;
+import org.jetbrains.uast.UElementKt;
 
-abstract class DescriptionNotFoundInspectionBase extends DevKitInspectionBase {
+abstract class DescriptionNotFoundInspectionBase extends DevKitUastInspectionBase {
 
   private final DescriptionType myDescriptionType;
 
   protected DescriptionNotFoundInspectionBase(DescriptionType descriptionType) {
+    super(UClass.class);
     myDescriptionType = descriptionType;
   }
 
   @Override
-  public ProblemDescriptor[] checkClass(@NotNull PsiClass aClass, @NotNull InspectionManager manager, boolean isOnTheFly) {
-    final Project project = aClass.getProject();
-    final PsiIdentifier nameIdentifier = aClass.getNameIdentifier();
-    final Module module = ModuleUtilCore.findModuleForPsiElement(aClass);
+  public final ProblemDescriptor @Nullable [] checkClass(@NotNull UClass uClass, @NotNull InspectionManager manager, boolean isOnTheFly) {
+    if (uClass instanceof UAnonymousClass) return null;
 
-    if (nameIdentifier == null || module == null || !PsiUtil.isInstantiable(aClass)) return null;
+    PsiClass psiClass = uClass.getJavaPsi();
+    final PsiIdentifier nameIdentifier = psiClass.getNameIdentifier();
+    final Module module = ModuleUtilCore.findModuleForPsiElement(psiClass);
+    if (nameIdentifier == null || module == null || !PsiUtil.isInstantiable(psiClass)) return null;
 
-    final PsiClass base = JavaPsiFacade.getInstance(project).findClass(getClassName(), aClass.getResolveScope());
-    if (base == null || !aClass.isInheritor(base, true)) return null;
+    final PsiClass base = JavaPsiFacade.getInstance(manager.getProject()).findClass(myDescriptionType.getClassName(),
+                                                                                    psiClass.getResolveScope());
+    if (base == null || !psiClass.isInheritor(base, true)) return null;
 
-    String descriptionDir = DescriptionCheckerUtil.getDescriptionDirName(aClass);
-    if (StringUtil.isEmptyOrSpaces(descriptionDir)) {
+    if (skipIfNotRegistered(psiClass)) {
       return null;
+    }
+
+    ProblemsHolder holder = new ProblemsHolder(manager, psiClass.getContainingFile(), isOnTheFly);
+    boolean registered;
+    if (myDescriptionType.isFixedDescriptionFilename()) {
+      registered = checkFixedDescription(holder, module, psiClass, uClass);
+    }
+    else {
+      registered = checkDynamicDescription(holder, module, psiClass);
+    }
+
+    if (registered) return holder.getResultsArray();
+
+
+    final PsiElement highlightElement = getInspectionHighlightElement(uClass);
+    if (highlightElement == null) return null;
+
+    holder.registerProblem(highlightElement, getHasNotDescriptionError(module, psiClass),
+                           ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                           new CreateHtmlDescriptionFix(getDescriptionDir(module, psiClass), module, myDescriptionType));
+    return holder.getResultsArray();
+  }
+
+  @Nullable
+  private static PsiElement getInspectionHighlightElement(UClass uClass) {
+    return UElementKt.getSourcePsiElement(uClass.getUastAnchor());
+  }
+
+  protected abstract boolean skipIfNotRegistered(PsiClass epClass);
+
+  protected boolean checkDynamicDescription(ProblemsHolder holder, Module module, PsiClass psiClass) {
+    throw new IllegalStateException("must be implemented for " + getClass());
+  }
+
+  protected boolean checkFixedDescription(ProblemsHolder holder,
+                                          Module module,
+                                          PsiClass psiClass,
+                                          UClass uClass) {
+    String descriptionDir = getDescriptionDir(module, psiClass);
+    if (StringUtil.isEmptyOrSpaces(descriptionDir)) {
+      return false;
     }
 
     for (PsiDirectory description : getDescriptionsDirs(module)) {
       PsiDirectory dir = description.findSubdirectory(descriptionDir);
       if (dir == null) continue;
       final PsiFile descr = dir.findFile("description.html");
-      if (descr != null) {
-        if (!skipIfNotRegistered(aClass) &&
-            !hasBeforeAndAfterTemplate(dir.getVirtualFile())) {
-          PsiElement problem = aClass.getNameIdentifier();
-          ProblemDescriptor problemDescriptor = manager.createProblemDescriptor(problem == null ? nameIdentifier : problem,
-                                                                                getHasNotBeforeAfterError(),
-                                                                                isOnTheFly,
-                                                                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING, false);
-          return new ProblemDescriptor[]{problemDescriptor};
+      if (descr == null) continue;
+
+      if (!hasBeforeAndAfterTemplate(dir.getVirtualFile())) {
+        final PsiElement highlightElement = getInspectionHighlightElement(uClass);
+        if (highlightElement != null) {
+          holder.registerProblem(highlightElement, getHasNotBeforeAfterError(), ProblemHighlightType.GENERIC_ERROR_OR_WARNING);
         }
-
-        return null;
       }
+      return true;
     }
-
-    if (skipIfNotRegistered(aClass)) {
-      return null;
-    }
-
-    final PsiElement problem = aClass.getNameIdentifier();
-    final ProblemDescriptor problemDescriptor = manager
-      .createProblemDescriptor(problem == null ? nameIdentifier : problem,
-                               getHasNotDescriptionError(), isOnTheFly, new LocalQuickFix[]{getFix(module, descriptionDir)},
-                               ProblemHighlightType.GENERIC_ERROR_OR_WARNING);
-    return new ProblemDescriptor[]{problemDescriptor};
+    return false;
   }
-
-  protected CreateHtmlDescriptionFix getFix(Module module, String descriptionDir) {
-    return new CreateHtmlDescriptionFix(descriptionDir, module, myDescriptionType);
-  }
-
-  protected abstract boolean skipIfNotRegistered(PsiClass epClass);
 
   private static boolean hasBeforeAndAfterTemplate(@NotNull VirtualFile dir) {
     boolean hasBefore = false;
@@ -109,24 +122,20 @@ abstract class DescriptionNotFoundInspectionBase extends DevKitInspectionBase {
     return hasBefore && hasAfter;
   }
 
-  @Override
-  public boolean isEnabledByDefault() {
-    return true;
+  @Nullable
+  protected String getDescriptionDir(Module module, PsiClass psiClass) {
+    return DescriptionCheckerUtil.getDescriptionDirName(psiClass);
   }
 
-  @NotNull
-  protected String getClassName() {
-    return myDescriptionType.getClassName();
-  }
-
-  @NotNull
-  protected PsiDirectory[] getDescriptionsDirs(@NotNull Module module) {
+  protected PsiDirectory @NotNull [] getDescriptionsDirs(Module module) {
     return DescriptionCheckerUtil.getDescriptionsDirs(module, myDescriptionType);
   }
 
+  @InspectionMessage
   @NotNull
-  protected abstract String getHasNotDescriptionError();
+  protected abstract String getHasNotDescriptionError(Module module, PsiClass psiClass);
 
+  @InspectionMessage
   @NotNull
   protected abstract String getHasNotBeforeAfterError();
 }

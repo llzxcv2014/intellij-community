@@ -1,26 +1,13 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xdebugger.impl.evaluate.quick.common;
 
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopup;
-import com.intellij.openapi.ui.popup.JBPopupAdapter;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
+import com.intellij.openapi.ui.popup.JBPopupListener;
 import com.intellij.openapi.ui.popup.LightweightWindowEvent;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.ScreenUtil;
 import com.intellij.ui.awt.RelativePoint;
@@ -38,10 +25,7 @@ import javax.swing.event.TreeModelListener;
 import javax.swing.tree.TreePath;
 import java.awt.*;
 
-/**
- * @author nik
- */
-class DebuggerTreeWithHistoryPopup<D> extends DebuggerTreeWithHistoryContainer<D> {
+final class DebuggerTreeWithHistoryPopup<D> extends DebuggerTreeWithHistoryContainer<D> {
   @NonNls private final static String DIMENSION_SERVICE_KEY = "DebuggerActiveHint";
   private JBPopup myPopup;
   private final Editor myEditor;
@@ -75,7 +59,7 @@ class DebuggerTreeWithHistoryPopup<D> extends DebuggerTreeWithHistoryContainer<D
   }
 
   @Override
-  protected void updateContainer(final Tree tree, String title) {
+  protected void updateContainer(final Tree tree, @NlsContexts.PopupTitle String title) {
     if (myPopup != null) {
       myPopup.cancel();
     }
@@ -96,7 +80,7 @@ class DebuggerTreeWithHistoryPopup<D> extends DebuggerTreeWithHistoryContainer<D
         }
         return false;
       })
-      .addListener(new JBPopupAdapter() {
+      .addListener(new JBPopupListener() {
         @Override
         public void onClosed(@NotNull LightweightWindowEvent event) {
           if (myHideRunnable != null) {

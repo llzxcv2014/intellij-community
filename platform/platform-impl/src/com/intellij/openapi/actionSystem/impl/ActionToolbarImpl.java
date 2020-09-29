@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.actionSystem.impl;
 
 import com.intellij.icons.AllIcons;
@@ -15,10 +15,10 @@ import com.intellij.openapi.actionSystem.ex.CustomComponentAction;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.impl.LaterInvocator;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.keymap.ex.KeymapManagerEx;
 import com.intellij.openapi.ui.popup.*;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.openapi.wm.ToolWindow;
@@ -26,6 +26,7 @@ import com.intellij.openapi.wm.ToolWindowAnchor;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.openapi.wm.ex.WindowManagerEx;
 import com.intellij.ui.ColorUtil;
+import com.intellij.ui.ComponentUtil;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.awt.RelativeRectangle;
@@ -94,8 +95,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
   private int myLayoutPolicy;
   private int myOrientation;
   private final ActionGroup myActionGroup;
-  @NotNull
-  private final String myPlace;
+  private final @NotNull String myPlace;
   List<? extends AnAction> myVisibleActions;
   private final PresentationFactory myPresentationFactory = new PresentationFactory();
   private final boolean myDecorateButtons;
@@ -109,17 +109,25 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
 
   private final ActionButtonLook myMinimalButtonLook = ActionButtonLook.INPLACE_LOOK;
   private final DataManager myDataManager;
-  protected final ActionManagerEx myActionManager;
 
   private Rectangle myAutoPopupRec;
 
-  private final DefaultActionGroup mySecondaryActions = new DefaultActionGroup();
-  private PopupStateModifier mySecondaryButtonPopupStateModifier;
+  private final DefaultActionGroup mySecondaryActions = new DefaultActionGroup() {
+    @Override
+    public void update(@NotNull AnActionEvent e) {
+      super.update(e);
+      if (mySecondaryGroupUpdater != null) {
+        e.getPresentation().setIcon(getTemplatePresentation().getIcon());
+        mySecondaryGroupUpdater.update(e);
+      }
+    }
+  };
+  private SecondaryGroupUpdater mySecondaryGroupUpdater;
   private boolean myForceMinimumSize;
   private boolean myForceShowFirstComponent;
   private boolean mySkipWindowAdjustments;
   private boolean myMinimalMode;
-  private boolean myForceUseMacEnhancements;
+  private boolean myNoGapMode;//if true secondary actions button would be layout side-by-side with other buttons
 
   public ActionButton getSecondaryActionsButton() {
     return mySecondaryActionsButton;
@@ -134,9 +142,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
   private boolean myReservePlaceAutoPopupIcon = true;
   private boolean myShowSeparatorTitles;
 
-  public ActionToolbarImpl(@NotNull String place,
-                           @NotNull final ActionGroup actionGroup,
-                           boolean horizontal) {
+  public ActionToolbarImpl(@NotNull String place, @NotNull ActionGroup actionGroup, boolean horizontal) {
     this(place, actionGroup, horizontal, false, false);
   }
 
@@ -153,13 +159,13 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
                            final boolean decorateButtons,
                            boolean updateActionsNow) {
     super(null);
-    myActionManager = ActionManagerEx.getInstanceEx();
+
     myPlace = place;
     myActionGroup = actionGroup;
     myVisibleActions = new ArrayList<>();
     myDataManager = DataManager.getInstance();
     myDecorateButtons = decorateButtons;
-    myUpdater = new ToolbarUpdater(KeymapManagerEx.getInstanceEx(), this) {
+    myUpdater = new ToolbarUpdater(this) {
       @Override
       protected void updateActionsImpl(boolean transparentOnly, boolean forced) {
         if (!ApplicationManager.getApplication().isDisposed()) {
@@ -168,7 +174,6 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       }
     };
 
-    setLayout(new BorderLayout());
     setOrientation(horizontal ? SwingConstants.HORIZONTAL : SwingConstants.VERTICAL);
 
     mySecondaryActions.getTemplatePresentation().setIcon(AllIcons.General.GearPlain);
@@ -191,8 +196,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     }
   }
 
-  @NotNull
-  public String getPlace() {
+  public @NotNull String getPlace() {
     return myPlace;
   }
 
@@ -204,10 +208,6 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     // should update action right on the showing, otherwise toolbar may not be displayed at all,
     // since by default all updates are postponed until frame gets focused.
     updateActionsImmediately();
-  }
-
-  public void setForceUseMacEnhancements(boolean useMacEnhancements) {
-    myForceUseMacEnhancements = useMacEnhancements;
   }
 
   private boolean isInsideNavBar() {
@@ -238,9 +238,8 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     }
   }
 
-  @NotNull
   @Override
-  public JComponent getComponent() {
+  public @NotNull JComponent getComponent() {
     return this;
   }
 
@@ -262,8 +261,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     return JBSwingUtilities.runGlobalCGTransform(this, super.getComponentGraphics(graphics));
   }
 
-  @NotNull
-  public ActionGroup getActionGroup() {
+  public @NotNull ActionGroup getActionGroup() {
     return myActionGroup;
   }
 
@@ -283,15 +281,15 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     }
   }
 
-  public void setSecondaryButtonPopupStateModifier(@NotNull PopupStateModifier popupStateModifier) {
-    mySecondaryButtonPopupStateModifier = popupStateModifier;
+  public void setSecondaryButtonPopupStateModifier(@NotNull ActionToolbarImpl.SecondaryGroupUpdater secondaryGroupUpdater) {
+    mySecondaryGroupUpdater = secondaryGroupUpdater;
   }
 
-  private void fillToolBar(@NotNull final List<? extends AnAction> actions, boolean layoutSecondaries) {
+  protected void fillToolBar(@NotNull List<? extends AnAction> actions, boolean layoutSecondaries) {
     boolean isLastElementSeparator = false;
-    final List<AnAction> rightAligned = new ArrayList<>();
+    List<AnAction> rightAligned = new ArrayList<>();
     for (int i = 0; i < actions.size(); i++) {
-      final AnAction action = actions.get(i);
+      AnAction action = actions.get(i);
       if (action instanceof RightAlignedToolbarAction) {
         rightAligned.add(action);
         continue;
@@ -307,16 +305,16 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       if (action instanceof Separator) {
         if (isLastElementSeparator) continue;
         if (i > 0 && i < actions.size() - 1) {
-          add(new MySeparator(myShowSeparatorTitles ? ((Separator) action).getText() : null));
+          add(SEPARATOR_CONSTRAINT, new MySeparator(myShowSeparatorTitles ? ((Separator) action).getText() : null));
           isLastElementSeparator = true;
           continue;
         }
       }
       else if (action instanceof CustomComponentAction) {
-        add(getCustomComponent(action));
+        add(CUSTOM_COMPONENT_CONSTRAINT, getCustomComponent(action));
       }
       else {
-        add(createToolbarButton(action));
+        add(ACTION_BUTTON_CONSTRAINT, createToolbarButton(action));
       }
       isLastElementSeparator = false;
     }
@@ -325,21 +323,13 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       mySecondaryActionsButton =
         new ActionButton(mySecondaryActions, myPresentationFactory.getPresentation(mySecondaryActions), myPlace, getMinimumButtonSize()) {
           @Override
-          @ButtonState
-          public int getPopState() {
-            return mySecondaryButtonPopupStateModifier != null && mySecondaryButtonPopupStateModifier.willModify()
-                   ? mySecondaryButtonPopupStateModifier.getModifiedPopupState()
-                   : super.getPopState();
-          }
-
-          @Override
           protected String getShortcutText() {
             Object shortcut = myPresentation.getClientProperty(SECONDARY_SHORTCUT);
             return shortcut != null ? shortcut.toString() : super.getShortcutText();
           }
         };
       mySecondaryActionsButton.setNoIconsInPopup(true);
-      add(mySecondaryActionsButton);
+      add(SECONDARY_ACTION_CONSTRAINT, mySecondaryActionsButton);
     }
 
     for (AnAction action : rightAligned) {
@@ -351,14 +341,13 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     }
   }
 
-  @NotNull
-  private JComponent getCustomComponent(@NotNull AnAction action) {
+  final protected @NotNull JComponent getCustomComponent(@NotNull AnAction action) {
     Presentation presentation = myPresentationFactory.getPresentation(action);
     JComponent customComponent = presentation.getClientProperty(CustomComponentAction.COMPONENT_KEY);
     if (customComponent == null) {
-      customComponent = ((CustomComponentAction)action).createCustomComponent(presentation, myPlace);
+      customComponent = createCustomComponent((CustomComponentAction)action, presentation);
       presentation.putClientProperty(CustomComponentAction.COMPONENT_KEY, customComponent);
-      UIUtil.putClientProperty(customComponent, CustomComponentAction.ACTION_KEY, action);
+      ComponentUtil.putClientProperty(customComponent, CustomComponentAction.ACTION_KEY, action);
     }
     tweakActionComponentUI(customComponent);
 
@@ -375,6 +364,10 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     return customComponent;
   }
 
+  protected JComponent createCustomComponent(@NotNull CustomComponentAction action, @NotNull Presentation presentation) {
+    return action.createCustomComponent(presentation, myPlace);
+  }
+
   private void tweakActionComponentUI(@NotNull Component actionComponent) {
     if (ActionPlaces.EDITOR_TOOLBAR.equals(myPlace)) {
       // tweak font & color for editor toolbar to match editor tabs style
@@ -383,17 +376,15 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     }
   }
 
-  @NotNull
-  private Dimension getMinimumButtonSize() {
+  private @NotNull Dimension getMinimumButtonSize() {
     return isInsideNavBar() ? NAVBAR_MINIMUM_BUTTON_SIZE : DEFAULT_MINIMUM_BUTTON_SIZE;
   }
 
-  @NotNull
-  protected ActionButton createToolbarButton(@NotNull AnAction action,
-                                             final ActionButtonLook look,
-                                             @NotNull String place,
-                                             @NotNull Presentation presentation,
-                                             @NotNull Dimension minimumSize) {
+  protected @NotNull ActionButton createToolbarButton(@NotNull AnAction action,
+                                                      final ActionButtonLook look,
+                                                      @NotNull String place,
+                                                      @NotNull Presentation presentation,
+                                                      @NotNull Dimension minimumSize) {
     if (action.displayTextInToolbar()) {
       int mnemonic = KeyEvent.getExtendedKeyCodeForChar(action.getTemplatePresentation().getMnemonic());
 
@@ -413,18 +404,19 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
         return getToolbarDataContext();
       }
 
-      @NotNull
       @Override
-      protected Icon getFallbackIcon(boolean enabled) {
+      protected @NotNull Icon getFallbackIcon(boolean enabled) {
         return enabled ? AllIcons.Toolbar.Unknown : IconLoader.getDisabledIcon(AllIcons.Toolbar.Unknown);
       }
     };
+
     actionButton.setLook(look);
+    actionButton.setBorder(myOrientation == SwingConstants.VERTICAL ? JBUI.Borders.empty(2, 1) : JBUI.Borders.empty(1, 2));
+
     return actionButton;
   }
 
-  @NotNull
-  private ActionButton createToolbarButton(@NotNull AnAction action) {
+  final protected @NotNull ActionButton createToolbarButton(@NotNull AnAction action) {
     return createToolbarButton(
       action,
       myMinimalMode ? myMinimalButtonLook : myDecorateButtons ? new ActionButtonLook() {
@@ -467,7 +459,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     }
   }
 
-  private Dimension getChildPreferredSize(int index) {
+  protected Dimension getChildPreferredSize(int index) {
     Component component = getComponent(index);
     return component.isVisible() ? component.getPreferredSize() : new Dimension();
   }
@@ -583,7 +575,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
           if (inside) {
             if (eachComp == mySecondaryActionsButton) {
               assert isLast;
-              if (sizeToFit.width != Integer.MAX_VALUE) {
+              if (sizeToFit.width != Integer.MAX_VALUE && !myNoGapMode) {
                 eachBound.x = sizeToFit.width - insets.right - eachBound.width;
                 eachX = (int)eachBound.getMaxX() - insets.left;
               }
@@ -795,7 +787,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
   /**
    * Calculates bounds of all the components in the toolbar
    */
-  private void calculateBounds(@NotNull Dimension size2Fit, @NotNull List<Rectangle> bounds) {
+  protected void calculateBounds(@NotNull Dimension size2Fit, @NotNull List<Rectangle> bounds) {
     bounds.clear();
     for (int i = 0; i < getComponentCount(); i++) {
       bounds.add(new Rectangle());
@@ -836,8 +828,11 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
   }
 
   @Override
-  @NotNull
-  public Dimension getPreferredSize() {
+  public @NotNull Dimension getPreferredSize() {
+    return updatePreferredSize(super.getPreferredSize());
+  }
+
+  protected Dimension updatePreferredSize(Dimension preferredSize) {
     final ArrayList<Rectangle> bounds = new ArrayList<>();
     calculateBounds(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE), bounds);//it doesn't take into account wrapping
     if (bounds.isEmpty()) return JBUI.emptySize();
@@ -907,12 +902,16 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
 
   @Override
   public Dimension getMinimumSize() {
+    return updateMinimumSize(super.getMinimumSize());
+  }
+
+  protected Dimension updateMinimumSize(Dimension minimumSize) {
     if (myForceMinimumSize) {
-      return getPreferredSize();
+      return updatePreferredSize(minimumSize);
     }
     if (myLayoutPolicy == AUTO_LAYOUT_POLICY) {
       final Insets i = getInsets();
-      if (myForceShowFirstComponent && getComponentCount() > 0) {
+      if (myForceShowFirstComponent && getComponentCount() > 0 && getComponent(0).isShowing()) {
         Component c = getComponent(0);
         Dimension firstSize = c.getPreferredSize();
         if (myOrientation == SwingConstants.HORIZONTAL) {
@@ -927,7 +926,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       return new Dimension(AllIcons.Ide.Link.getIconWidth() + i.left + i.right, myMinimumButtonSize.height() + i.top + i.bottom);
     }
     else {
-      return super.getMinimumSize();
+      return minimumSize;
     }
   }
 
@@ -957,6 +956,14 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     }
   }
 
+  protected @NotNull Color getSeparatorColor() {
+    return JBUI.CurrentTheme.CustomFrameDecorations.separatorForeground();
+  }
+
+  protected int getSeparatorHeight() {
+    return JBUIScale.scale(24);
+  }
+
   private final class MySeparator extends JComponent {
     private final String myText;
 
@@ -970,7 +977,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       int gap = JBUIScale.scale(2);
       int center = JBUIScale.scale(3);
       int width = gap * 2 + center;
-      int height = JBUIScale.scale(24);
+      int height = getSeparatorHeight();
 
       if (myOrientation == SwingConstants.HORIZONTAL) {
         if (myText != null) {
@@ -1004,7 +1011,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
         offset = ActionToolbarImpl.this.getWidth() - getMaxButtonWidth() - 1;
       }
 
-      g.setColor(JBUI.CurrentTheme.CustomFrameDecorations.separatorForeground());
+      g.setColor(getSeparatorColor());
       if (myOrientation == SwingConstants.HORIZONTAL) {
         int y2 = ActionToolbarImpl.this.getHeight() - gap * 2 - offset;
         LinePainter2D.paint((Graphics2D)g, center, gap, center, y2);
@@ -1049,7 +1056,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
   }
 
   @Override
-  public void setMinimumButtonSize(@NotNull final Dimension size) {
+  public void setMinimumButtonSize(final @NotNull Dimension size) {
     myMinimumButtonSize = JBDimension.create(size, true);
     for (int i = getComponentCount() - 1; i >= 0; i--) {
       final Component component = getComponent(i);
@@ -1081,6 +1088,12 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
   }
 
   private boolean myAlreadyUpdated;
+  private boolean myHideDisabled = false;
+
+  public void setHideDisabled(boolean hideDisabled) {
+    myHideDisabled = hideDisabled;
+    updateActionsImmediately();
+  }
 
   private void updateActionsImpl(boolean transparentOnly, boolean forced) {
     DataContext dataContext = getDataContext();
@@ -1091,18 +1104,22 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     if (async) {
       if (myLastUpdate != null) myLastUpdate.cancel();
 
-      myLastUpdate = updater.expandActionGroupAsync(myActionGroup, false);
+      myLastUpdate = updater.expandActionGroupAsync(myActionGroup, myHideDisabled);
       myLastUpdate.onSuccess(actions -> actionsUpdated(forced, actions)).onProcessed(__ -> myLastUpdate = null);
     }
     else {
-      actionsUpdated(forced, updater.expandActionGroupWithTimeout(myActionGroup, false));
+      actionsUpdated(forced, updater.expandActionGroupWithTimeout(myActionGroup, myHideDisabled));
       myAlreadyUpdated = true;
+    }
+    if (mySecondaryActionsButton != null) {
+      mySecondaryActionsButton.update();
+      mySecondaryActionsButton.repaint();
     }
   }
 
   private CancellablePromise<List<AnAction>> myLastUpdate;
 
-  private void actionsUpdated(boolean forced, @NotNull List<? extends AnAction> newVisibleActions) {
+  protected void actionsUpdated(boolean forced, @NotNull List<? extends AnAction> newVisibleActions) {
     if (forced || !newVisibleActions.equals(myVisibleActions)) {
       boolean shouldRebuildUI = newVisibleActions.isEmpty() || myVisibleActions.isEmpty();
       myVisibleActions = newVisibleActions;
@@ -1115,14 +1132,14 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       fillToolBar(myVisibleActions, getLayoutPolicy() == AUTO_LAYOUT_POLICY && myOrientation == SwingConstants.HORIZONTAL);
 
       Dimension newSize = getPreferredSize();
-
       if (!mySkipWindowAdjustments) {
         ((WindowManagerEx)WindowManager.getInstance()).adjustContainerWindow(this, oldSize, newSize);
       }
 
       if (shouldRebuildUI) {
         revalidate();
-      } else {
+      }
+      else {
         Container parent = getParent();
         if (parent != null) {
           parent.invalidate();
@@ -1133,7 +1150,6 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       repaint();
     }
   }
-
 
   @Override
   public boolean hasVisibleActions() {
@@ -1150,7 +1166,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
   }
 
   private static void updateWhenFirstShown(@NotNull JComponent targetComponent, @NotNull ToolbarReference ref) {
-    Activatable activatable = new Activatable.Adapter() {
+    Activatable activatable = new Activatable() {
       @Override
       public void showNotify() {
         ActionToolbarImpl toolbar = ref.get();
@@ -1169,9 +1185,8 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     };
   }
 
-  @NotNull
   @Override
-  public DataContext getToolbarDataContext() {
+  public @NotNull DataContext getToolbarDataContext() {
     return getDataContext();
   }
 
@@ -1180,8 +1195,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     myShowSeparatorTitles = showSeparatorTitles;
   }
 
-  @NotNull
-  protected DataContext getDataContext() {
+  protected @NotNull DataContext getDataContext() {
     return myTargetComponent != null ? myDataManager.getDataContext(myTargetComponent) : ((DataManagerImpl)myDataManager).getDataContextTest(this);
   }
 
@@ -1193,7 +1207,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       return;
     }
     if (myAutoPopupRec != null && myAutoPopupRec.contains(e.getPoint())) {
-      IdeFocusManager.getInstance(null).doWhenFocusSettlesDown(() -> showAutoPopup());
+      IdeFocusManager.getInstance(null).doWhenFocusSettlesDown(this::showAutoPopup);
     }
   }
 
@@ -1218,9 +1232,8 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
         hidePopup();
       }
 
-      @NotNull
       @Override
-      protected DataContext getDataContext() {
+      protected @NotNull DataContext getDataContext() {
         return ActionToolbarImpl.this.getDataContext();
       }
     };
@@ -1243,26 +1256,29 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       location.y = location.y + getHeight() - popupToolbar.getPreferredSize().height;
     }
 
-
+    ActionManagerEx actionManager = ActionManagerEx.getInstanceEx();
     final ComponentPopupBuilder builder = JBPopupFactory.getInstance().createComponentPopupBuilder(popupToolbar, null);
     builder.setResizable(false)
       .setMovable(true) // fit the screen automatically
-      .setRequestFocus(false)
+      .setRequestFocus(true)
+      .setMayBeParent(true)
       .setTitle(null)
       .setCancelOnClickOutside(true)
       .setCancelOnOtherWindowOpen(true)
       .setCancelCallback(() -> {
-        final boolean toClose = myActionManager.isActionPopupStackEmpty();
+        final boolean toClose = actionManager.isActionPopupStackEmpty();
         if (toClose) {
           myUpdater.updateActions(false, true);
         }
         return toClose;
       })
-      .setCancelOnMouseOutCallback(event -> myAutoPopupRec != null &&
-                                        myActionManager.isActionPopupStackEmpty() &&
-                                        !new RelativeRectangle(this, myAutoPopupRec).contains(new RelativePoint(event)));
+      .setCancelOnMouseOutCallback(event -> {
+        return myAutoPopupRec != null &&
+               actionManager.isActionPopupStackEmpty() &&
+               !new RelativeRectangle(this, myAutoPopupRec).contains(new RelativePoint(event));
+      });
 
-    builder.addListener(new JBPopupAdapter() {
+    builder.addListener(new JBPopupListener() {
       @Override
       public void onClosed(@NotNull LightweightWindowEvent event) {
         processClosed();
@@ -1273,34 +1289,35 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
 
     myPopup.showInScreenCoordinates(this, location);
 
-    final Window window = SwingUtilities.getWindowAncestor(this);
-    if (window != null) {
-      final ComponentAdapter componentAdapter = new ComponentAdapter() {
-        @Override
-        public void componentResized(final ComponentEvent e) {
-          hidePopup();
-        }
-
-        @Override
-        public void componentMoved(final ComponentEvent e) {
-          hidePopup();
-        }
-
-        @Override
-        public void componentShown(final ComponentEvent e) {
-          hidePopup();
-        }
-
-        @Override
-        public void componentHidden(final ComponentEvent e) {
-          hidePopup();
-        }
-      };
-      window.addComponentListener(componentAdapter);
-      Disposer.register(popupToolbar, () -> window.removeComponentListener(componentAdapter));
+    Window window = SwingUtilities.getWindowAncestor(this);
+    if (window == null) {
+      return;
     }
-  }
 
+    ComponentAdapter componentAdapter = new ComponentAdapter() {
+      @Override
+      public void componentResized(final ComponentEvent e) {
+        hidePopup();
+      }
+
+      @Override
+      public void componentMoved(final ComponentEvent e) {
+        hidePopup();
+      }
+
+      @Override
+      public void componentShown(final ComponentEvent e) {
+        hidePopup();
+      }
+
+      @Override
+      public void componentHidden(final ComponentEvent e) {
+        hidePopup();
+      }
+    };
+    window.addComponentListener(componentAdapter);
+    Disposer.register(popupToolbar, () -> window.removeComponentListener(componentAdapter));
+  }
 
   private boolean isPopupShowing() {
     return myPopup != null && !myPopup.isDisposed();
@@ -1324,7 +1341,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     myUpdater.updateActions(false, false);
   }
 
-  abstract static class PopupToolbar extends ActionToolbarImpl implements AnActionListener, DataProvider, Disposable {
+  abstract static class PopupToolbar extends ActionToolbarImpl implements AnActionListener, Disposable {
     private final JComponent myParent;
 
     PopupToolbar(@NotNull String place,
@@ -1335,12 +1352,6 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
       ApplicationManager.getApplication().getMessageBus().connect(this).subscribe(AnActionListener.TOPIC, this);
       myParent = parent;
       setBorder(myParent.getBorder());
-    }
-
-    @Nullable
-    @Override
-    public Object getData(@NotNull String dataId) {
-      return getDataContext().getData(dataId);
     }
 
     @Override
@@ -1354,7 +1365,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     }
 
     @Override
-    public void afterActionPerformed(@NotNull final AnAction action, @NotNull final DataContext dataContext, @NotNull AnActionEvent event) {
+    public void afterActionPerformed(final @NotNull AnAction action, final @NotNull DataContext dataContext, @NotNull AnActionEvent event) {
       if (!myVisibleActions.contains(action)) {
         onOtherActionPerformed();
       }
@@ -1369,7 +1380,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
   }
 
   @Override
-  public void setSecondaryActionsTooltip(@NotNull String secondaryActionsTooltip) {
+  public void setSecondaryActionsTooltip(@NotNull @NlsContexts.Tooltip String secondaryActionsTooltip) {
     mySecondaryActions.getTemplatePresentation().setText(secondaryActionsTooltip);
   }
 
@@ -1389,15 +1400,17 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     presentation.putClientProperty(ActionButton.HIDE_DROPDOWN_ICON, hideDropdownIcon ? Boolean.TRUE : null);
   }
 
-  @NotNull
+  public void setNoGapMode() {
+    myNoGapMode = true;
+  }
+
   @Override
-  public List<AnAction> getActions(boolean originalProvider) {
+  public @NotNull List<AnAction> getActions(boolean originalProvider) {
     return getActions();
   }
 
-  @NotNull
   @Override
-  public List<AnAction> getActions() {
+  public @NotNull List<AnAction> getActions() {
     ArrayList<AnAction> result = new ArrayList<>();
 
     ArrayList<AnAction> secondary = new ArrayList<>();
@@ -1444,9 +1457,7 @@ public class ActionToolbarImpl extends JPanel implements ActionToolbar, QuickAct
     myPresentationFactory.reset();
   }
 
-  public interface PopupStateModifier {
-    @ActionButtonComponent.ButtonState
-    int getModifiedPopupState();
-    boolean willModify();
+  public interface SecondaryGroupUpdater {
+    void update(@NotNull AnActionEvent e);
   }
 }

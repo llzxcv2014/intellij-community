@@ -1,7 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch;
 
-import com.intellij.openapi.fileTypes.StdFileTypes;
+import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.psi.PsiElement;
 import com.intellij.structuralsearch.plugin.ui.Configuration;
 
@@ -141,7 +141,7 @@ public class JavaPredefinedConfigurationsTest extends PredefinedConfigurationsTe
            "}",
            "<T> X(String s) {}", "<T extends U, V> X(int i) {}");
     doTest(configurationMap.remove(SSRBundle.message("predefined.configuration.all.methods.of.the.class.within.hierarchy")),
-           "class X {}", StdFileTypes.JAVA,
+           "class X {}", JavaFileType.INSTANCE,
            PsiElement::getText,
            "registerNatives", "getClass", "hashCode", "equals", "clone", "toString", "notify", "notifyAll", "wait", "wait", "wait", "finalize");
     doTest(configurationMap.remove(SSRBundle.message("predefined.configuration.methods.with.final.parameters")),
@@ -241,11 +241,47 @@ public class JavaPredefinedConfigurationsTest extends PredefinedConfigurationsTe
            "   int z(int i) {" +
            "     return i;" +
            "   }");
+    doTest(configurationMap.remove(SSRBundle.message("predefined.configuration.switches")),
+           "class X {{" +
+           "  int i = switch (1) {" +
+           "            default -> {}" +
+           "          }" +
+           "  switch (2) {" +
+           "    case 1,2:" +
+           "      break;" +
+           "    default:" +
+           "  }" +
+           "}}",
+           "switch (1) {" +
+           "            default -> {}" +
+           "          }",
+           "switch (2) {" +
+           "    case 1,2:" +
+           "      break;" +
+           "    default:" +
+           "  }");
+    doTest(configurationMap.remove(SSRBundle.message("predefined.configuration.comments.containing.word")),
+           "// bug\n" +
+           "/* bugs are here */\n" +
+           "/**\n" +
+           "* may\n" +
+           "* contain\n" +
+           "* one bug\n" +
+           "*/\n" +
+           "/* buggy */\n" +
+           "// bug?",
+           "// bug",
+           "/**\n"+
+           "* may\n" +
+           "* contain\n" +
+           "* one bug\n" +
+           "*/",
+           "// bug?");
     //assertTrue((templates.length - configurationMap.size()) + " of " + templates.length +
     //           " existing templates tested. Untested templates: " + configurationMap.keySet(), configurationMap.isEmpty());
   }
 
   protected void doTest(Configuration template, String source, String... results) {
-    doTest(template, source, StdFileTypes.JAVA, results);
+    doTest(template, source, JavaFileType.INSTANCE, results);
   }
 }

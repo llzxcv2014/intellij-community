@@ -8,6 +8,7 @@ import com.intellij.util.io.BaseDataReader;
 import com.intellij.util.io.BaseInputStreamReader;
 import com.intellij.util.io.BaseOutputReader;
 import com.intellij.util.io.BaseOutputReader.Options;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -136,7 +137,7 @@ public class BaseOSProcessHandler extends BaseProcessHandler<Process> {
   protected class SimpleOutputReader extends BaseOutputReader {
     private final Key<?> myProcessOutputType;
 
-    public SimpleOutputReader(Reader reader, Key<?> outputType, Options options, @NotNull String presentableName) {
+    public SimpleOutputReader(Reader reader, Key<?> outputType, Options options, @NotNull @NonNls String presentableName) {
       super(reader, options);
       myProcessOutputType = outputType;
       start(presentableName);
@@ -167,7 +168,7 @@ public class BaseOSProcessHandler extends BaseProcessHandler<Process> {
         LOG.warn("Process hasn't generated any output for a long time.\n" +
                  "If it's a long-running mostly idle daemon process, consider overriding OSProcessHandler#readerOptions with" +
                  " 'BaseOutputReader.Options.forMostlySilentProcess()' to reduce CPU usage.\n" +
-                 "Command line: " + StringUtil.trimLog(myCommandLine, 1000),
+                 "Command line: " + StringUtil.trimLog(StringUtil.notNullize(myCommandLine), 1000),
                  myProcessStart);
       }
     }

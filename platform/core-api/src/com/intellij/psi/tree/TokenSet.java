@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.tree;
 
 import com.intellij.openapi.diagnostic.LogUtil;
@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 /**
  * A set of element types.
  */
-public class TokenSet {
+public final class TokenSet {
   public static final TokenSet EMPTY = new TokenSet(Short.MAX_VALUE, (short)0, null);
   public static final TokenSet ANY = forAllMatching(IElementType.TRUE);
   public static final TokenSet WHITE_SPACE = doCreate(TokenType.WHITE_SPACE);
@@ -60,8 +60,7 @@ public class TokenSet {
    *
    * @return the contents of the set.
    */
-  @NotNull
-  public IElementType[] getTypes() {
+  public IElementType @NotNull [] getTypes() {
     if (myOrCondition != null) {
       // don't cache, since new element types matching the given condition can be registered at any moment
       return IElementType.enumerate(this::contains);
@@ -102,7 +101,7 @@ public class TokenSet {
    * @return the new token set.
    */
   @NotNull
-  public static TokenSet create(@NotNull IElementType... types) {
+  public static TokenSet create(IElementType @NotNull ... types) {
     if (types.length == 0) return EMPTY;
     if (types.length == 1 && types[0] == TokenType.WHITE_SPACE) {
       return WHITE_SPACE;
@@ -111,7 +110,7 @@ public class TokenSet {
   }
 
   @NotNull
-  private static TokenSet doCreate(@NotNull IElementType... types) {
+  private static TokenSet doCreate(IElementType @NotNull ... types) {
     short min = Short.MAX_VALUE;
     short max = 0;
     for (IElementType type : types) {
@@ -149,7 +148,7 @@ public class TokenSet {
    * @return the new token set.
    */
   @NotNull
-  public static TokenSet orSet(@NotNull TokenSet... sets) {
+  public static TokenSet orSet(TokenSet @NotNull ... sets) {
     if (sets.length == 0) return EMPTY;
 
     List<IElementType.Predicate> orConditions = new ArrayList<>();

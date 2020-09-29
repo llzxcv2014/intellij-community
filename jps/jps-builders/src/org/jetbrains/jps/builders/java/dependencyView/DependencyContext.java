@@ -62,7 +62,7 @@ class DependencyContext implements NamingContext {
 
   DependencyContext(final File rootDir, PathRelativizerService relativizer) throws IOException {
     final File file = getTableFile(rootDir, STRING_TABLE_NAME);
-    myEnumerator = new PersistentStringEnumerator(file, true);
+    myEnumerator = new PersistentStringEnumerator(file.toPath(), true);
     myEmptyName = myEnumerator.enumerate("");
     myRelativizer = relativizer;
   }
@@ -111,21 +111,21 @@ class DependencyContext implements NamingContext {
 
       @Override
       public void debug(String comment, Integer s) {
-        if (log.isDebugEnabled()) {
+        if (isDebugEnabled()) {
           log.debug(comment + getValue(s));
         }
       }
 
       @Override
       public void debug(String comment, String t) {
-        if (log.isDebugEnabled()){
+        if (isDebugEnabled()){
           log.debug(comment + t);
         }
       }
 
       @Override
       public void debug(String comment, boolean t) {
-        if (log.isDebugEnabled()) {
+        if (isDebugEnabled()) {
           log.debug(comment + t);
         }
       }

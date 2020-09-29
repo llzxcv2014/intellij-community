@@ -19,10 +19,12 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.containers.ContainerUtil;
 import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.psiutils.TypeUtils;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,10 +32,11 @@ import java.util.*;
 
 public class LoggingConditionDisagreesWithLogStatementInspection extends BaseInspection {
 
-  private static final Set<String> loggingLevels = new HashSet(Arrays.asList(
-    "debug", "error", "fatal", "info", "trace", "warn", "severe", "warning", "info", "config", "fine", "finer", "finest"));
+  private static final @NonNls Set<String> loggingLevels = ContainerUtil.set(
+    "debug", "error", "fatal", "info", "trace", "warn", "severe", "warning", "info", "config", "fine", "finer", "finest"
+  );
 
-  private static final Map<String, LoggingProblemChecker> problemCheckers = new HashMap();
+  private static final Map<String, LoggingProblemChecker> problemCheckers = new HashMap<>();
 
   static {
     final Log4jLikeProblemChecker checker = new Log4jLikeProblemChecker();
@@ -42,12 +45,6 @@ public class LoggingConditionDisagreesWithLogStatementInspection extends BaseIns
     problemCheckers.put("org.apache.commons.logging.Log", checker);
     problemCheckers.put("org.slf4j.Logger", checker);
     problemCheckers.put("java.util.logging.Logger", new JavaUtilLoggingProblemChecker());
-  }
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("logging.condition.disagrees.with.log.statement.display.name");
   }
 
   @Override
@@ -227,7 +224,7 @@ public class LoggingConditionDisagreesWithLogStatementInspection extends BaseIns
   private static class Log4jLikeProblemChecker implements LoggingProblemChecker {
 
     @Override
-    public boolean hasLoggingProblem(String priority, PsiMethodCallExpression methodCallExpression) {
+    public boolean hasLoggingProblem(@NonNls String priority, PsiMethodCallExpression methodCallExpression) {
       final PsiReferenceExpression methodExpression = methodCallExpression.getMethodExpression();
       final String methodName = methodExpression.getReferenceName();
       if ("isDebugEnabled".equals(methodName)) {

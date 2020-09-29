@@ -7,17 +7,23 @@ import com.intellij.find.FindUtil;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.highlighter.HighlighterFactory;
 import com.intellij.openapi.actionSystem.*;
-import com.intellij.openapi.editor.*;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.editor.EditorFactory;
+import com.intellij.openapi.editor.EditorSettings;
+import com.intellij.openapi.editor.ScrollType;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorProvider;
 import com.intellij.openapi.fileEditor.ex.FileEditorProviderManager;
-import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider;
+import com.intellij.openapi.fileEditor.impl.text.QuickDefinitionProvider;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsActions;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.FileStatusManager;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -67,11 +73,11 @@ public class ImplementationViewComponent extends JPanel {
   private FileEditor myNonTextEditor;
   private FileEditorProvider myCurrentNonTextEditorProvider;
   private JBPopup myHint;
-  private String myTitle;
+  private @NlsContexts.TabTitle String myTitle;
   private final ActionToolbar myToolbar;
   private JLabel myLabel;
 
-  public void setHint(final JBPopup hint, @NotNull String title) {
+  public void setHint(final JBPopup hint, @NotNull @NlsContexts.TabTitle String title) {
     myHint = hint;
     myTitle = title;
   }
@@ -82,7 +88,7 @@ public class ImplementationViewComponent extends JPanel {
 
   private static class FileDescriptor {
     @NotNull public final VirtualFile myFile;
-    @NotNull public final String myPresentableText;
+    @NotNull public final @NlsSafe String myPresentableText;
 
     FileDescriptor(@NotNull VirtualFile file, ImplementationViewElement element) {
       myFile = file;
@@ -332,7 +338,7 @@ public class ImplementationViewComponent extends JPanel {
 
     final FileEditorProvider[] providers = FileEditorProviderManager.getInstance().getProviders(project, vFile);
     for (FileEditorProvider provider : providers) {
-      if (provider instanceof TextEditorProvider) {
+      if (provider instanceof QuickDefinitionProvider) {
         updateTextElement(foundElement);
         myBinarySwitch.show(myViewingPanel, TEXT_PAGE_KEY);
         break;
@@ -484,7 +490,7 @@ public class ImplementationViewComponent extends JPanel {
 
   private class BackAction extends AnAction implements HintManagerImpl.ActionToIgnore {
     BackAction() {
-      super(CodeInsightBundle.message("quick.definition.back"), null, AllIcons.Actions.Back);
+      super(CodeInsightBundle.messagePointer("quick.definition.back"), AllIcons.Actions.Back);
     }
 
     @Override
@@ -502,7 +508,7 @@ public class ImplementationViewComponent extends JPanel {
 
   private class ForwardAction extends AnAction implements HintManagerImpl.ActionToIgnore {
     ForwardAction() {
-      super(CodeInsightBundle.message("quick.definition.forward"), null, AllIcons.Actions.Forward);
+      super(CodeInsightBundle.messagePointer("quick.definition.forward"), AllIcons.Actions.Forward);
     }
 
     @Override
@@ -539,7 +545,7 @@ public class ImplementationViewComponent extends JPanel {
   private class EditSourceActionBase extends AnAction {
     private final boolean myFocusEditor;
 
-    EditSourceActionBase(boolean focusEditor, Icon icon, String text) {
+    EditSourceActionBase(boolean focusEditor, Icon icon, @NlsActions.ActionText String text) {
       super(text, null, icon);
       myFocusEditor = focusEditor;
     }

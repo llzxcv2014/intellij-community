@@ -1,8 +1,11 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.util;
 
+import com.intellij.execution.ExecutionBundle;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.LabeledComponent;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.ui.UserActivityProviderComponent;
 import com.intellij.util.PathMappingSettings;
 import com.intellij.util.containers.ContainerUtil;
@@ -17,9 +20,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.List;
 
-/**
- * @author traff
- */
 public final class PathMappingsComponent extends LabeledComponent<TextFieldWithBrowseButton> implements UserActivityProviderComponent {
 
   private final List<ChangeListener> myListeners = ContainerUtil.createLockFreeCopyOnWriteList();
@@ -32,7 +32,7 @@ public final class PathMappingsComponent extends LabeledComponent<TextFieldWithB
     final TextFieldWithBrowseButton pathTextField = new TextFieldWithBrowseButton();
     pathTextField.setEditable(false);
     setComponent(pathTextField);
-    setText("Path mappings:");
+    setText(ExecutionBundle.message("label.path.mappings"));
     getComponent().addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(final ActionEvent e) {
@@ -64,7 +64,7 @@ public final class PathMappingsComponent extends LabeledComponent<TextFieldWithB
   }
 
   private void setTextRepresentation(@NotNull PathMappingSettings mappingSettings) {
-    final StringBuilder sb = new StringBuilder();
+    @NlsSafe StringBuilder sb = new StringBuilder();
     for (PathMappingSettings.PathMapping mapping : mappingSettings.getPathMappings()) {
       sb.append(mapping.getLocalRoot()).append("=").append(mapping.getRemoteRoot()).append(";");
     }
@@ -103,7 +103,7 @@ public final class PathMappingsComponent extends LabeledComponent<TextFieldWithB
 
       myPathMappingTable.setValues(mappingsComponent.getMappingSettings().getPathMappings());
       myWholePanel.add(myPathMappingTable.getComponent(), BorderLayout.CENTER);
-      setTitle("Edit Path Mappings");
+      setTitle(ExecutionBundle.message("dialog.title.edit.path.mappings"));
       init();
     }
 

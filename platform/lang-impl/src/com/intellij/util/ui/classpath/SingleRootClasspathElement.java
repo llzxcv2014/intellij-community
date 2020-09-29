@@ -1,6 +1,7 @@
 package com.intellij.util.ui.classpath;
 
 import com.intellij.openapi.roots.libraries.Library;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.JarFileSystem;
 import org.jdom.Element;
 import org.jetbrains.annotations.NonNls;
@@ -10,12 +11,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * @author nik
- */
 public class SingleRootClasspathElement implements SimpleClasspathElement {
   @NonNls public static final String URL_ELEMENT = "url";
-  private final String myUrl;
+  @NlsSafe private final String myUrl;
 
   public SingleRootClasspathElement(@NotNull String url) {
     myUrl = url;

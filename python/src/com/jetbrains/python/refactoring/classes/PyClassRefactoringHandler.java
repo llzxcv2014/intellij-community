@@ -9,6 +9,7 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts.DialogTitle;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.refactoring.RefactoringActionHandler;
@@ -18,6 +19,7 @@ import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.psi.PyClass;
 import com.jetbrains.python.psi.PyUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.PropertyKey;
 
 /**
  * @author Dennis.Ushakov
@@ -50,7 +52,7 @@ public abstract class PyClassRefactoringHandler implements RefactoringActionHand
   }
 
   @Override
-  public void invoke(@NotNull Project project, @NotNull PsiElement[] elements, DataContext dataContext) {
+  public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext dataContext) {
     final PsiFile file = CommonDataKeys.PSI_FILE.getData(dataContext);
     final Editor editor = CommonDataKeys.EDITOR.getData(dataContext);
     doRefactor(project, elements[0], elements[elements.length - 1], editor, file, dataContext);
@@ -78,7 +80,7 @@ public abstract class PyClassRefactoringHandler implements RefactoringActionHand
 
 
 
-  protected boolean inClass(PyClass clazz, Project project, Editor editor, String errorMessageId) {
+  protected boolean inClass(PyClass clazz, Project project, Editor editor, @PropertyKey(resourceBundle = PyBundle.BUNDLE) String errorMessageId) {
     if (clazz == null) {
       CommonRefactoringUtil.showErrorHint(project, editor, PyBundle.message(errorMessageId), getTitle(), getHelpId());
       return false;
@@ -86,7 +88,7 @@ public abstract class PyClassRefactoringHandler implements RefactoringActionHand
     return true;
   }
 
-  protected abstract String getTitle();
+  protected abstract @DialogTitle String getTitle();
   protected abstract String getHelpId();
 
   @Override

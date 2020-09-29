@@ -20,6 +20,7 @@ import com.intellij.execution.testframework.ui.BaseTestProxyNodeDescriptor;
 import com.intellij.ide.OccurenceNavigator;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.util.ui.tree.TreeUtil;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,8 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class FailedTestsNavigator implements OccurenceNavigator {
-  private static final String NEXT_NAME = ExecutionBundle.message("next.faled.test.action.name");
-  private static final String PREVIOUS_NAME = ExecutionBundle.message("prev.faled.test.action.name");
   private TestFrameworkRunningModel myModel;
 
   @Override
@@ -71,13 +70,13 @@ public class FailedTestsNavigator implements OccurenceNavigator {
   @NotNull
   @Override
   public String getNextOccurenceActionName() {
-    return NEXT_NAME;
+    return getNextName();
   }
 
   @NotNull
   @Override
   public String getPreviousOccurenceActionName() {
-    return PREVIOUS_NAME;
+    return getPreviousName();
   }
 
   private FailedTestInfo getNextOccurenceInfo() {
@@ -183,5 +182,13 @@ public class FailedTestsNavigator implements OccurenceNavigator {
     protected int getBoundIndex() {
       return 0;
     }
+  }
+
+  static @NlsActions.ActionText String getNextName() {
+    return ExecutionBundle.message("next.faled.test.action.name");
+  }
+
+  static @NlsActions.ActionText String getPreviousName() {
+    return ExecutionBundle.message("prev.faled.test.action.name");
   }
 }

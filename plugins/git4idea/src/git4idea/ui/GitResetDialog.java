@@ -2,13 +2,16 @@
 package git4idea.ui;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.vfs.VirtualFile;
 import git4idea.commands.GitCommand;
 import git4idea.commands.GitLineHandler;
 import git4idea.i18n.GitBundle;
 import git4idea.util.GitUIUtil;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.PropertyKey;
 
 import javax.swing.*;
 import java.util.List;
@@ -17,18 +20,6 @@ import java.util.List;
  * The dialog for the "git reset" operation
  */
 public class GitResetDialog extends DialogWrapper {
-  /**
-   * The --soft reset type
-   */
-  private static final String SOFT = GitBundle.getString("reset.type.soft");
-  /**
-   * The --mixed reset type
-   */
-  private static final String MIXED = GitBundle.getString("reset.type.mixed");
-  /**
-   * The --hard reset type
-   */
-  private static final String HARD = GitBundle.getString("reset.type.hard");
   /**
    * Git root selector
    */
@@ -40,7 +31,7 @@ public class GitResetDialog extends DialogWrapper {
   /**
    * The selector for reset type
    */
-  private JComboBox myResetTypeComboBox;
+  private ComboBox<ResetMode> myResetTypeComboBox;
   /**
    * The text field that contains commit expressions
    */
@@ -74,11 +65,11 @@ public class GitResetDialog extends DialogWrapper {
     super(project, true);
     myProject = project;
     setTitle(GitBundle.getString("reset.title"));
-    setOKButtonText(GitBundle.getString("reset.button"));
-    myResetTypeComboBox.addItem(MIXED);
-    myResetTypeComboBox.addItem(SOFT);
-    myResetTypeComboBox.addItem(HARD);
-    myResetTypeComboBox.setSelectedItem(MIXED);
+    setOKButtonText(GitBundle.message("git.reset.button"));
+    myResetTypeComboBox.addItem(ResetMode.MIXED);
+    myResetTypeComboBox.addItem(ResetMode.SOFT);
+    myResetTypeComboBox.addItem(ResetMode.HARD);
+    myResetTypeComboBox.setSelectedItem(ResetMode.MIXED);
     GitUIUtil.setupRootChooser(project, roots, defaultRoot, myGitRootComboBox, myCurrentBranchLabel);
     myGitReferenceValidator = new GitReferenceValidator(myProject, myGitRootComboBox, myCommitTextField, myValidateButton,
                                                         () -> validateFields());
@@ -108,14 +99,14 @@ public class GitResetDialog extends DialogWrapper {
    */
   public GitLineHandler handler() {
     GitLineHandler handler = new GitLineHandler(myProject, getGitRoot(), GitCommand.RESET);
-    String type = (String)myResetTypeComboBox.getSelectedItem();
-    if (SOFT.equals(type)) {
+    ResetMode type = myResetTypeComboBox.getItem();
+    if (type == ResetMode.SOFT) {
       handler.addParameters("--soft");
     }
-    else if (HARD.equals(type)) {
+    else if (type == ResetMode.HARD) {
       handler.addParameters("--hard");
     }
-    else if (MIXED.equals(type)) {
+    else if (type == ResetMode.MIXED) {
       handler.addParameters("--mixed");
     }
     final String commit = myCommitTextField.getText().trim();
@@ -155,5 +146,22 @@ public class GitResetDialog extends DialogWrapper {
   @Override
   protected String getHelpId() {
     return "gitResetHead";
+  }
+
+  private enum ResetMode {
+    SOFT("git.reset.mode.soft"),
+    MIXED("git.reset.mode.mixed"),
+    HARD("git.reset.mode.hard");
+
+    private final String myId;
+
+    ResetMode(@NotNull @PropertyKey(resourceBundle = GitBundle.BUNDLE) String id) {
+      myId = id;
+    }
+
+    @Override
+    public String toString() {
+      return GitBundle.message(myId);
+    }
   }
 }

@@ -1,8 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
-/*
- * @author max
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.find.findUsages;
 
 import com.intellij.codeInsight.TargetElementUtil;
@@ -18,8 +14,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class ThrowsUsageTargetProvider implements UsageTargetProvider {
   @Override
-  @Nullable
-  public UsageTarget[] getTargets(@NotNull Editor editor, @NotNull final PsiFile file) {
+  public UsageTarget @Nullable [] getTargets(@NotNull Editor editor, @NotNull final PsiFile file) {
     PsiElement element = file.findElementAt(TargetElementUtil.adjustOffset(file, editor.getDocument(), editor.getCaretModel().getOffset()));
     if (element == null) return null;
 

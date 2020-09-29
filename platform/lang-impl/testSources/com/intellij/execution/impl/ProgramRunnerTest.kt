@@ -1,12 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.impl
 
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.ConfigurationInfoProvider
 import com.intellij.execution.configurations.RunProfile
-import com.intellij.execution.configurations.RunProfileState
 import com.intellij.execution.configurations.RunnerSettings
-import com.intellij.execution.runners.BaseProgramRunner
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.util.Disposer
@@ -19,7 +17,7 @@ class ProgramRunnerTest : BasePlatformTestCase() {
   fun testRunnerSettingsSurvivesRunnerUnload() {
     val programRunnerWithSettings = MockProgramRunnerWithSettings()
     val disposable = Disposer.newDisposable()
-    ProgramRunner.PROGRAM_RUNNER_EP.getPoint(null).registerExtension(programRunnerWithSettings, disposable)
+    ProgramRunner.PROGRAM_RUNNER_EP.getPoint().registerExtension(programRunnerWithSettings, disposable)
 
     val runManager = RunManager.getInstance(project)
     val runnerAndConfigurationSettings = runManager.createConfiguration("Test", FakeConfigurationFactory()) as RunnerAndConfigurationSettingsImpl
@@ -34,7 +32,7 @@ class ProgramRunnerTest : BasePlatformTestCase() {
 
     runnerAndConfigurationSettings.readExternal(element, false)
 
-    ProgramRunner.PROGRAM_RUNNER_EP.getPoint(null).registerExtension(programRunnerWithSettings, testRootDisposable)
+    ProgramRunner.PROGRAM_RUNNER_EP.getPoint().registerExtension(programRunnerWithSettings, testRootDisposable)
     val settingsAfterReload = runnerAndConfigurationSettings.getRunnerSettings(programRunnerWithSettings)
     assertEquals("myTest", settingsAfterReload!!.test)
   }
@@ -54,15 +52,14 @@ class ProgramRunnerTest : BasePlatformTestCase() {
     }
   }
 
-  private class MockProgramRunnerWithSettings : BaseProgramRunner<MockSettings>() {
+  private class MockProgramRunnerWithSettings : ProgramRunner<MockSettings> {
     override fun getRunnerId(): String = "MOCK_RUNNER_WITH_SETTINGS"
 
     override fun canRun(executorId: String, profile: RunProfile): Boolean {
       TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun execute(environment: ExecutionEnvironment, callback: ProgramRunner.Callback?, state: RunProfileState) {
-      TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    override fun execute(environment: ExecutionEnvironment) {
     }
 
     override fun createConfigurationData(settingsProvider: ConfigurationInfoProvider): MockSettings? {

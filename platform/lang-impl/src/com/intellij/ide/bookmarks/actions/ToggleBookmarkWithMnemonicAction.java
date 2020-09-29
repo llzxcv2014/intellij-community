@@ -1,9 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.bookmarks.actions;
 
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.bookmarks.Bookmark;
 import com.intellij.ide.bookmarks.BookmarkManager;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.actionSystem.ActionPlaces;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -20,14 +21,11 @@ import com.intellij.ui.popup.PopupFactoryImpl;
 import com.intellij.util.ui.StartupUiUtil;
 import org.jetbrains.annotations.NotNull;
 
-/**
- * @author max
- */
 public class ToggleBookmarkWithMnemonicAction extends ToggleBookmarkAction {
   private boolean myPopupShown;
 
   public ToggleBookmarkWithMnemonicAction() {
-    getTemplatePresentation().setText(IdeBundle.message("action.bookmark.toggle.mnemonic"));
+    getTemplatePresentation().setText(IdeBundle.messagePointer("action.bookmark.toggle.mnemonic"));
   }
 
   @Override
@@ -41,11 +39,11 @@ public class ToggleBookmarkWithMnemonicAction extends ToggleBookmarkAction {
         e.getPresentation().setVisible(false);
       }
       else {
-        e.getPresentation().setText("Set Bookmark with Mnemonic");
+        e.getPresentation().setText(IdeBundle.messagePointer("action.presentation.ToggleBookmarkWithMnemonicAction.text"));
       }
     }
     else {
-      e.getPresentation().setText(IdeBundle.message("action.bookmark.toggle.mnemonic"));
+      e.getPresentation().setText(IdeBundle.messagePointer("action.bookmark.toggle.mnemonic"));
     }
   }
 
@@ -91,12 +89,16 @@ public class ToggleBookmarkWithMnemonicAction extends ToggleBookmarkAction {
       };
 
       popup[0] = JBPopupFactory.getInstance().createComponentPopupBuilder(mc, mc).
-        setTitle("Bookmark Mnemonic").
+        setTitle(LangBundle.message("popup.title.bookmark.mnemonic")).
         setFocusable(true).
         setRequestFocus(true).
         setMovable(false).
         setCancelKeyEnabled(false).
-        setAdText(bookmarks.hasBookmarksWithMnemonics() ? (StartupUiUtil.isUnderDarcula() ? "Brown" : "Yellow") + " cells are in use" : null).
+        setAdText(bookmarks.hasBookmarksWithMnemonics()
+                  ? LangBundle.message("popup.advertisement.cells.are.in.use",
+                                       StartupUiUtil.isUnderDarcula() ?
+                                       LangBundle.message("popup.advertisement.cells.are.in.use.brown") :
+                                       LangBundle.message("popup.advertisement.cells.are.in.use.yellow")) : null).
         setResizable(false).
         createPopup();
       popup[0].addListener(new JBPopupListener() {

@@ -15,6 +15,7 @@ package org.zmlx.hg4idea.action;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.zmlx.hg4idea.HgBundle;
 import org.zmlx.hg4idea.command.HgTagCreateCommand;
 import org.zmlx.hg4idea.execution.HgCommandException;
 import org.zmlx.hg4idea.execution.HgCommandResult;
@@ -39,13 +40,16 @@ public class HgCreateTagAction extends HgAbstractGlobalSingleRepoAction {
           public void process(@Nullable HgCommandResult result) {
             if (HgErrorUtil.hasErrorsInCommandExecution(result)) {
               new HgCommandResultNotifier(project)
-                .notifyError(result, "Creation failed", "Tag creation [" + dialog.getTagName() + "] failed");
+                .notifyError("hg.tag.creation.error",
+                             result,
+                             HgBundle.message("hg4idea.branch.creation.error"),
+                             HgBundle.message("action.hg4idea.CreateTag.error.msg", dialog.getTagName()));
             }
           }
         });
       }
       catch (HgCommandException e) {
-        HgErrorUtil.handleException(project, e);
+        HgErrorUtil.handleException(project, "hg.tag.creation.failed", e);
       }
     }
   }

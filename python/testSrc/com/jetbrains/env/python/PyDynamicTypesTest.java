@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.env.python;
 
 import com.google.common.collect.Lists;
@@ -11,7 +11,7 @@ import com.intellij.testFramework.EdtTestUtil;
 import com.jetbrains.env.EnvTestTagsRequired;
 import com.jetbrains.env.PyEnvTestCase;
 import com.jetbrains.env.python.debug.PyDebuggerTask;
-import com.jetbrains.python.PyBundle;
+import com.jetbrains.python.PyPsiBundle;
 import com.jetbrains.python.codeInsight.PyCodeInsightSettings;
 import com.jetbrains.python.debugger.PyDebuggerOptionsProvider;
 import com.jetbrains.python.debugger.PySignatureCacheManagerImpl;
@@ -20,10 +20,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-
-/**
- * @author traff
- */
 
 public class PyDynamicTypesTest extends PyEnvTestCase {
 
@@ -69,7 +65,7 @@ public class PyDynamicTypesTest extends PyEnvTestCase {
 
           EditorTestUtil.setCaretsAndSelection(myFixture.getEditor(), new EditorTestUtil.CaretAndSelectionState(
             Lists.newArrayList(new EditorTestUtil.CaretInfo(new LogicalPosition(0, 6), null)), null));
-          final IntentionAction action = myFixture.findSingleIntention(PyBundle.message("INTN.doc.string.stub"));
+          final IntentionAction action = myFixture.findSingleIntention(PyPsiBundle.message("INTN.insert.docstring.stub"));
           boolean saved = PyCodeInsightSettings.getInstance().INSERT_TYPE_DOCSTUB;
           try {
             PyCodeInsightSettings.getInstance().INSERT_TYPE_DOCSTUB = true;

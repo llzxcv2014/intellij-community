@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 /*
  * @author Eugene Zhuravlev
@@ -6,7 +6,7 @@
 package com.intellij.debugger.actions;
 
 import com.intellij.CommonBundle;
-import com.intellij.debugger.DebuggerBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.SourcePosition;
 import com.intellij.debugger.engine.DebugProcessImpl;
 import com.intellij.debugger.engine.JavaStackFrame;
@@ -30,6 +30,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.MessageDialogBuilder;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.ui.UIBundle;
@@ -46,6 +47,7 @@ import com.intellij.xdebugger.impl.breakpoints.XExpressionImpl;
 import com.sun.jdi.InvalidStackFrameException;
 import com.sun.jdi.NativeMethodException;
 import com.sun.jdi.VMDisconnectedException;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -82,14 +84,14 @@ public class PopFrameAction extends DebuggerAction implements DumbAware {
 
                                   @Override
                                   public void errorOccurred(@NotNull final String errorMessage) {
-                                    showError(project, DebuggerBundle.message("error.executing.finally", errorMessage),
+                                    showError(project, JavaDebuggerBundle.message("error.executing.finally", errorMessage),
                                               UIUtil.removeMnemonic(ActionsBundle.actionText(DebuggerActions.POP_FRAME)));
                                   }
                                 })) return;
       popFrame(debugProcess, debuggerContext, stackFrame);
     }
     catch (NativeMethodException e2){
-      Messages.showMessageDialog(project, DebuggerBundle.message("error.native.method.exception"),
+      Messages.showMessageDialog(project, JavaDebuggerBundle.message("error.native.method.exception"),
                                  UIUtil.removeMnemonic(ActionsBundle.actionText(DebuggerActions.POP_FRAME)), Messages.getErrorIcon());
     }
     catch (InvalidStackFrameException | VMDisconnectedException ignored) {
@@ -97,9 +99,9 @@ public class PopFrameAction extends DebuggerAction implements DumbAware {
   }
 
   static boolean evaluateFinallyBlocks(Project project,
-                                String title,
-                                JavaStackFrame stackFrame,
-                                XDebuggerEvaluator.XEvaluationCallback callback) {
+                                       @Nls String title,
+                                       JavaStackFrame stackFrame,
+                                       XDebuggerEvaluator.XEvaluationCallback callback) {
     if (!DebuggerSettings.EVALUATE_FINALLY_NEVER.equals(DebuggerSettings.getInstance().EVALUATE_FINALLY_ON_POP_FRAME)) {
       List<PsiStatement> statements = getFinallyStatements(project, stackFrame.getDescriptor().getSourcePosition());
       if (!statements.isEmpty()) {
@@ -114,48 +116,46 @@ public class PopFrameAction extends DebuggerAction implements DumbAware {
         else {
           int res = MessageDialogBuilder
             .yesNoCancel(title,
-                         DebuggerBundle.message("warning.finally.block.detected") + sb)
-            .project(project)
+                         JavaDebuggerBundle.message("warning.finally.block.detected") + sb)
             .icon(Messages.getWarningIcon())
-            .yesText(DebuggerBundle.message("button.execute.finally"))
-            .noText(DebuggerBundle.message("button.drop.anyway"))
-            .cancelText(CommonBundle.message("button.cancel"))
-            .doNotAsk(
-              new DialogWrapper.DoNotAskOption() {
-                @Override
-                public boolean isToBeShown() {
-                  return !DebuggerSettings.EVALUATE_FINALLY_ALWAYS.equals(DebuggerSettings.getInstance().EVALUATE_FINALLY_ON_POP_FRAME) &&
-                         !DebuggerSettings.EVALUATE_FINALLY_NEVER.equals(DebuggerSettings.getInstance().EVALUATE_FINALLY_ON_POP_FRAME);
-                }
+            .yesText(JavaDebuggerBundle.message("button.execute.finally"))
+            .noText(JavaDebuggerBundle.message("button.drop.anyway"))
+            .cancelText(CommonBundle.getCancelButtonText())
+            .doNotAsk(new DialogWrapper.DoNotAskOption() {
+              @Override
+              public boolean isToBeShown() {
+                return !DebuggerSettings.EVALUATE_FINALLY_ALWAYS.equals(DebuggerSettings.getInstance().EVALUATE_FINALLY_ON_POP_FRAME) &&
+                       !DebuggerSettings.EVALUATE_FINALLY_NEVER.equals(DebuggerSettings.getInstance().EVALUATE_FINALLY_ON_POP_FRAME);
+              }
 
-                @Override
-                public void setToBeShown(boolean value, int exitCode) {
-                  if (!value) {
-                    DebuggerSettings.getInstance().EVALUATE_FINALLY_ON_POP_FRAME =
-                      exitCode == Messages.YES ? DebuggerSettings.EVALUATE_FINALLY_ALWAYS : DebuggerSettings.EVALUATE_FINALLY_NEVER;
-                  }
-                  else {
-                    DebuggerSettings.getInstance().EVALUATE_FINALLY_ON_POP_FRAME = DebuggerSettings.EVALUATE_FINALLY_ASK;
-                  }
+              @Override
+              public void setToBeShown(boolean value, int exitCode) {
+                if (!value) {
+                  DebuggerSettings.getInstance().EVALUATE_FINALLY_ON_POP_FRAME =
+                    exitCode == Messages.YES ? DebuggerSettings.EVALUATE_FINALLY_ALWAYS : DebuggerSettings.EVALUATE_FINALLY_NEVER;
                 }
+                else {
+                  DebuggerSettings.getInstance().EVALUATE_FINALLY_ON_POP_FRAME = DebuggerSettings.EVALUATE_FINALLY_ASK;
+                }
+              }
 
-                @Override
-                public boolean canBeHidden() {
-                  return true;
-                }
+              @Override
+              public boolean canBeHidden() {
+                return true;
+              }
 
-                @Override
-                public boolean shouldSaveOptionsOnCancel() {
-                  return false;
-                }
+              @Override
+              public boolean shouldSaveOptionsOnCancel() {
+                return false;
+              }
 
-                @NotNull
-                @Override
-                public String getDoNotShowMessage() {
-                  return UIBundle.message("dialog.options.do.not.show");
-                }
-              })
-            .show();
+              @NotNull
+              @Override
+              public String getDoNotShowMessage() {
+                return UIBundle.message("dialog.options.do.not.show");
+              }
+            })
+            .show(project);
 
           switch (res) {
             case Messages.CANCEL:
@@ -194,7 +194,7 @@ public class PopFrameAction extends DebuggerAction implements DumbAware {
     }
   }
 
-  static void showError(Project project, String message, String title) {
+  static void showError(Project project, @NlsContexts.DialogMessage String message, @NlsContexts.DialogTitle String title) {
     ApplicationManager.getApplication().invokeLater(
       () -> Messages.showMessageDialog(project, message, title, Messages.getErrorIcon()),
       ModalityState.any());

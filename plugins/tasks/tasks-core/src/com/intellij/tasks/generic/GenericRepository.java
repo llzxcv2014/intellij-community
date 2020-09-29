@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.tasks.generic;
 
 import com.intellij.openapi.util.Comparing;
@@ -22,6 +22,8 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -146,9 +148,9 @@ public class GenericRepository extends BaseRepositoryImpl {
     if (!(o instanceof GenericRepository)) return false;
     if (!super.equals(o)) return false;
     GenericRepository that = (GenericRepository)o;
-    if (!Comparing.equal(getLoginUrl(), that.getLoginUrl())) return false;
-    if (!Comparing.equal(getTasksListUrl(), that.getTasksListUrl())) return false;
-    if (!Comparing.equal(getSingleTaskUrl(), that.getSingleTaskUrl())) return false;
+    if (!Objects.equals(getLoginUrl(), that.getLoginUrl())) return false;
+    if (!Objects.equals(getTasksListUrl(), that.getTasksListUrl())) return false;
+    if (!Objects.equals(getSingleTaskUrl(), that.getSingleTaskUrl())) return false;
     if (!Comparing.equal(getLoginMethodType(), that.getLoginMethodType())) return false;
     if (!Comparing.equal(getTasksListMethodType(), that.getTasksListMethodType())) return false;
     if (!Comparing.equal(getSingleTaskMethodType(), that.getSingleTaskMethodType())) return false;
@@ -205,7 +207,14 @@ public class GenericRepository extends BaseRepositoryImpl {
     }
     else {
       InputStream stream = method.getResponseBodyAsStream();
-      responseBody = stream == null ? "" : StreamUtil.readText(stream, StandardCharsets.UTF_8);
+      if (stream == null) {
+        responseBody = "";
+      }
+      else {
+        try (Reader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+          responseBody = StreamUtil.readText(reader);
+        }
+      }
     }
     if (method.getStatusCode() != HttpStatus.SC_OK) {
       throw new Exception("Request failed with HTTP error: " + method.getStatusText());

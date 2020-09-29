@@ -1,12 +1,17 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.intention.numeric;
 
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.intention.IntentionAction;
+import com.intellij.codeInspection.util.IntentionFamilyName;
+import com.intellij.codeInspection.util.IntentionName;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -14,7 +19,6 @@ import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.SmartPsiElementPointer;
 import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.Contract;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,21 +27,20 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public abstract class AbstractNumberConversionIntention implements IntentionAction {
-  private static final String TITLE = "Convert number to...";
-  private String myText;
+  private @IntentionName String myText;
 
-  @Nls(capitalization = Nls.Capitalization.Sentence)
+  @IntentionName
   @NotNull
   @Override
   public String getText() {
-    return myText == null ? TITLE : myText;
+    return myText == null ? LangBundle.message("intention.name.convert.number.to") : myText;
   }
 
-  @Nls(capitalization = Nls.Capitalization.Sentence)
+  @IntentionFamilyName
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Convert number";
+    return CodeInsightBundle.message("intention.family.convert.number");
   }
 
   @Override
@@ -77,8 +80,8 @@ public abstract class AbstractNumberConversionIntention implements IntentionActi
     return context;
   }
 
-  public String getActionName(NumberConverter converter, String convertedText) {
-    return String.format("Convert number to %s (%s)", converter, convertedText);
+  public @IntentionName String getActionName(NumberConverter converter, String convertedText) {
+    return LangBundle.message("intention.name.convert.number.to.with.text", converter, convertedText);
   }
 
   @Override
@@ -107,7 +110,7 @@ public abstract class AbstractNumberConversionIntention implements IntentionActi
         }, file);
       }
 
-      private String getName() {
+      private @NlsContexts.Command String getName() {
         return getActionName(myConverter, myResult);
       }
 
@@ -127,8 +130,8 @@ public abstract class AbstractNumberConversionIntention implements IntentionActi
     }
     JBPopup popup = JBPopupFactory.getInstance().createPopupChooserBuilder(list)
       .setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-      .setAccessibleName(TITLE)
-      .setTitle(StringUtil.wordsToBeginFromUpperCase(TITLE))
+      .setAccessibleName(LangBundle.message("intention.name.convert.number.to"))
+      .setTitle(StringUtil.wordsToBeginFromUpperCase(LangBundle.message("intention.name.convert.number.to")))
       .setMovable(false)
       .setResizable(false)
       .setRequestFocus(true)

@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.java.codeInsight.actions;
 
 import com.intellij.codeInsight.actions.ReformatCodeAction;
@@ -109,7 +95,7 @@ public class ReformatCodeActionTest extends JavaPsiTestCase {
   @Override
   public void setUp() throws Exception {
     super.setUp();
-    myWorkingDirectory = createDirectory(getProject().getBaseDir(), TEMP_DIR_NAME);
+    myWorkingDirectory = createDirectory(getOrCreateProjectBaseDir(), TEMP_DIR_NAME);
   }
 
   @Override
@@ -131,7 +117,7 @@ public class ReformatCodeActionTest extends JavaPsiTestCase {
     return myWorkingDirectory;
   }
 
-  protected void injectMockDialogFlags(ReformatFilesOptions options) {
+  protected void injectMockDialogFlags(@NotNull ReformatFilesOptions options) {
     ReformatCodeAction.setTestOptions(options);
   }
 
@@ -141,7 +127,7 @@ public class ReformatCodeActionTest extends JavaPsiTestCase {
   }
 
   @NotNull
-  protected List<PsiFile> createTestFiles(@NotNull VirtualFile parentDirectory, @NotNull String[] fileNames) throws IOException {
+  protected List<PsiFile> createTestFiles(@NotNull VirtualFile parentDirectory, String @NotNull [] fileNames) throws IOException {
     String[] fileText = createTestJavaClassesWithAdditionalImports(fileNames);
     List<PsiFile> files = new ArrayList<>();
     for (int i = 0; i < fileNames.length; i++) {
@@ -152,7 +138,7 @@ public class ReformatCodeActionTest extends JavaPsiTestCase {
   }
 
   @NotNull
-  protected List<PsiFile> createTestFiles(@NotNull PsiDirectory parentDirectory, @NotNull String[] fileNames) throws IOException {
+  protected List<PsiFile> createTestFiles(@NotNull PsiDirectory parentDirectory, String @NotNull [] fileNames) throws IOException {
     return createTestFiles(parentDirectory.getVirtualFile(), fileNames);
   }
 
@@ -166,7 +152,7 @@ public class ReformatCodeActionTest extends JavaPsiTestCase {
     action.actionPerformed(createEventFor(action, files, getProject(), new AdditionalEventInfo().setModule(module)));
   }
 
-  protected void checkFormationAndImportsOptimizationFor(@NotNull List<PsiFile>... fileCollection) {
+  protected void checkFormationAndImportsOptimizationFor(List<PsiFile> @NotNull ... fileCollection) {
     for (List<PsiFile> files : fileCollection) {
       for (PsiFile file : files) {
         String className = getClassNameFromJavaFile(file);
@@ -175,7 +161,7 @@ public class ReformatCodeActionTest extends JavaPsiTestCase {
     }
   }
 
-  protected void checkNoProcessingWasPerformedOn(@NotNull List<PsiFile>... fileCollections) {
+  protected void checkNoProcessingWasPerformedOn(List<PsiFile> @NotNull ... fileCollections) {
     for (List<PsiFile> files : fileCollections) {
       for (PsiFile file : files) {
         String className = getClassNameFromJavaFile(file);
@@ -213,8 +199,7 @@ public class ReformatCodeActionTest extends JavaPsiTestCase {
     return file.getName().split("\\.")[0];
   }
 
-  @NotNull
-  protected String[] createTestJavaClassesWithAdditionalImports(String[] classNames) {
+  protected String @NotNull [] createTestJavaClassesWithAdditionalImports(String[] classNames) {
     String[] classes = new String[classNames.length];
     for (int i = 0; i < classNames.length; i++) {
       classes[i] = getUntouchedJavaSourceForTotalProcessing(classNames[i]);

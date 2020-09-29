@@ -21,9 +21,6 @@ import org.jetbrains.jps.model.artifact.JpsArtifactType;
 
 import java.util.List;
 
-/**
- * @author nik
- */
 public class JpsArtifactDummyPropertiesSerializer extends JpsArtifactPropertiesSerializer<JpsDummyElement> {
   public JpsArtifactDummyPropertiesSerializer(String typeId, JpsArtifactType<JpsDummyElement> type) {
     super(typeId, type);
@@ -32,9 +29,5 @@ public class JpsArtifactDummyPropertiesSerializer extends JpsArtifactPropertiesS
   @Override
   public JpsDummyElement loadProperties(List<ArtifactPropertiesState> stateList) {
     return JpsElementFactory.getInstance().createDummyElement();
-  }
-
-  @Override
-  public void saveProperties(JpsDummyElement properties, List<ArtifactPropertiesState> stateList) {
   }
 }

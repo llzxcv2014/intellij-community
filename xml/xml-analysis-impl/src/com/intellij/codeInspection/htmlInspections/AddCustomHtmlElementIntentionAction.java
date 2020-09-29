@@ -19,19 +19,20 @@ package com.intellij.codeInspection.htmlInspections;
 import com.intellij.codeInspection.InspectionProfile;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.profile.codeInspection.InspectionProjectProfileManager;
 import com.intellij.psi.PsiElement;
-import com.intellij.xml.XmlBundle;
+import com.intellij.xml.analysis.XmlAnalysisBundle;
 import org.jetbrains.annotations.NotNull;
 
 public class AddCustomHtmlElementIntentionAction implements LocalQuickFix {
   private final String myName;
-  private final String myText;
+  private final @IntentionName String myText;
   @NotNull private final Key<HtmlUnknownElementInspection> myInspectionKey;
 
-  public AddCustomHtmlElementIntentionAction(@NotNull Key<HtmlUnknownElementInspection> inspectionKey, String name, String text) {
+  public AddCustomHtmlElementIntentionAction(@NotNull Key<HtmlUnknownElementInspection> inspectionKey, String name, @IntentionName String text) {
     myInspectionKey = inspectionKey;
     myName = name;
     myText = text;
@@ -46,7 +47,7 @@ public class AddCustomHtmlElementIntentionAction implements LocalQuickFix {
   @Override
   @NotNull
   public String getFamilyName() {
-    return XmlBundle.message("fix.html.family");
+    return XmlAnalysisBundle.message("html.quickfix.family");
   }
 
   @Override

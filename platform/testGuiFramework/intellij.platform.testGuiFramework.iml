@@ -27,5 +27,7 @@
     <orderEntry type="library" exported="" name="jediterm-pty" level="project" />
     <orderEntry type="module" module-name="intellij.platform.lang" exported="" />
     <orderEntry type="library" name="kotlin-test" level="project" />
+    <orderEntry type="module" module-name="intellij.platform.util.classLoader" />
+    <orderEntry type="module" module-name="intellij.platform.core.ui" exported="" />
   </component>
 </module>

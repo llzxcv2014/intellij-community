@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.formatter.java;
 
 import com.intellij.formatting.*;
@@ -19,7 +19,6 @@ import com.intellij.psi.impl.source.codeStyle.ShiftIndentInsideHelper;
 import com.intellij.psi.impl.source.tree.*;
 import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil;
 import com.intellij.psi.impl.source.tree.java.ClassElement;
-import com.intellij.psi.impl.source.tree.java.PsiLiteralExpressionImpl;
 import com.intellij.psi.jsp.JspElementType;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.util.ObjectUtils;
@@ -271,7 +270,8 @@ public abstract class AbstractJavaBlock extends AbstractBlock implements JavaBlo
   private static boolean isLikeExtendsList(final IElementType elementType) {
     return elementType == JavaElementType.EXTENDS_LIST
            || elementType == JavaElementType.IMPLEMENTS_LIST
-           || elementType == JavaElementType.THROWS_LIST;
+           || elementType == JavaElementType.THROWS_LIST
+           || elementType == JavaElementType.PERMITS_LIST;
   }
 
   private static boolean isBlockType(final IElementType elementType) {
@@ -302,13 +302,13 @@ public abstract class AbstractJavaBlock extends AbstractBlock implements JavaBlo
       return Indent.getNoneIndent();
     }
 
-    final ASTNode prevElement = FormatterUtil.getPreviousNonWhitespaceSibling(child);
+    final ASTNode prevElement = skipCommentsAndWhitespacesBackwards(child);
     if (prevElement != null && prevElement.getElementType() == JavaElementType.MODIFIER_LIST && !isMethodParameterAnnotation(prevElement)) {
       return Indent.getNoneIndent();
     }
 
     if (childNodeType == JavaDocElementType.DOC_TAG) return Indent.getNoneIndent();
-    if (childNodeType == JavaDocTokenType.DOC_COMMENT_LEADING_ASTERISKS) return Indent.getSpaceIndent(1);
+     if (childNodeType == JavaDocTokenType.DOC_COMMENT_LEADING_ASTERISKS) return Indent.getSpaceIndent(1);
     if (child.getPsi() instanceof PsiFile) return Indent.getNoneIndent();
     if (parent != null) {
       final Indent defaultChildIndent = getChildIndent(parent, indentOptions);
@@ -319,6 +319,16 @@ public abstract class AbstractJavaBlock extends AbstractBlock implements JavaBlo
     }
 
     return null;
+  }
+
+  @Nullable
+  private static ASTNode skipCommentsAndWhitespacesBackwards(@NotNull ASTNode node) {
+    ASTNode currNode = node.getTreePrev();
+    while (currNode != null &&
+           (currNode.getElementType() == JavaTokenType.END_OF_LINE_COMMENT || FormatterUtil.isWhitespaceOrEmpty(currNode))) {
+      currNode = currNode.getTreePrev();
+    }
+    return currNode;
   }
 
   private static boolean isMethodParameterAnnotation(@NotNull ASTNode element) {
@@ -421,7 +431,9 @@ public abstract class AbstractJavaBlock extends AbstractBlock implements JavaBlo
     if (nodeType == JavaElementType.FOR_STATEMENT) {
       return createAlignment(mySettings.ALIGN_MULTILINE_FOR, null);
     }
-    if (nodeType == JavaElementType.EXTENDS_LIST || nodeType == JavaElementType.IMPLEMENTS_LIST) {
+    if (nodeType == JavaElementType.EXTENDS_LIST ||
+        nodeType == JavaElementType.IMPLEMENTS_LIST ||
+        nodeType == JavaElementType.PERMITS_LIST) {
       return createAlignment(mySettings.ALIGN_MULTILINE_EXTENDS_LIST, null);
     }
     if (nodeType == JavaElementType.THROWS_LIST) {
@@ -467,8 +479,8 @@ public abstract class AbstractJavaBlock extends AbstractBlock implements JavaBlo
   }
 
   private static boolean isTextBlock(@NotNull PsiElement childPsi) {
-    PsiLiteralExpressionImpl literal = ObjectUtils.tryCast(childPsi, PsiLiteralExpressionImpl.class);
-    return literal != null && literal.getLiteralElementType() == JavaTokenType.TEXT_BLOCK_LITERAL;
+    PsiLiteralExpression literal = ObjectUtils.tryCast(childPsi, PsiLiteralExpression.class);
+    return literal != null && literal.isTextBlock();
   }
 
   private boolean shouldInheritAlignment() {
@@ -550,6 +562,11 @@ public abstract class AbstractJavaBlock extends AbstractBlock implements JavaBlo
         WrappingStrategy wrapStrategy = WrappingStrategy.createDoNotWrapCommaStrategy(wrapToUse);
         child = processParenthesisBlock(result, child, wrapStrategy, mySettings.ALIGN_MULTILINE_PARAMETERS);
       }
+      else if (childType == JavaTokenType.LPARENTH && nodeType == JavaElementType.RECORD_HEADER) {
+        Wrap wrap = Wrap.createWrap(getWrapType(myJavaSettings.RECORD_COMPONENTS_WRAP), false);
+        WrappingStrategy wrapStrategy = WrappingStrategy.createDoNotWrapCommaStrategy(wrap);
+        child = processParenthesisBlock(result, child, wrapStrategy, myJavaSettings.ALIGN_MULTILINE_RECORDS);
+      }
       else if (childType == JavaTokenType.LPARENTH && nodeType == JavaElementType.RESOURCE_LIST) {
         Wrap wrap = Wrap.createWrap(getWrapType(mySettings.RESOURCE_LIST_WRAP), false);
         child = processParenthesisBlock(result, child,
@@ -616,8 +633,7 @@ public abstract class AbstractJavaBlock extends AbstractBlock implements JavaBlo
 
         if (block instanceof AbstractJavaBlock) {
           final AbstractJavaBlock javaBlock = (AbstractJavaBlock)block;
-          if (nodeType == JavaElementType.METHOD_CALL_EXPRESSION && childType == JavaElementType.REFERENCE_EXPRESSION ||
-              nodeType == JavaElementType.REFERENCE_EXPRESSION && childType == JavaElementType.METHOD_CALL_EXPRESSION) {
+          if (nodeType == JavaElementType.METHOD_CALL_EXPRESSION && childType == JavaElementType.REFERENCE_EXPRESSION) {
             javaBlock.setReservedWrap(getReservedWrap(nodeType), nodeType);
             javaBlock.setReservedWrap(getReservedWrap(childType), childType);
           }
@@ -793,6 +809,7 @@ public abstract class AbstractJavaBlock extends AbstractBlock implements JavaBlo
     }
     else if (nodeType == JavaElementType.EXTENDS_LIST ||
              nodeType == JavaElementType.IMPLEMENTS_LIST ||
+             nodeType == JavaElementType.PERMITS_LIST ||
              nodeType == JavaElementType.THROWS_LIST) {
       return role == ChildRole.REFERENCE_IN_LIST;
     }
@@ -1220,7 +1237,7 @@ public abstract class AbstractJavaBlock extends AbstractBlock implements JavaBlo
     return mySettings;
   }
 
-  protected boolean isAfter(final int newChildIndex, @NotNull final IElementType[] elementTypes) {
+  protected boolean isAfter(final int newChildIndex, final IElementType @NotNull [] elementTypes) {
     if (newChildIndex == 0) return false;
     final Block previousBlock = getSubBlocks().get(newChildIndex - 1);
     if (!(previousBlock instanceof AbstractBlock)) return false;

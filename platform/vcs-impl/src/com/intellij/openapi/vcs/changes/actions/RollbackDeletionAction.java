@@ -20,12 +20,12 @@ import java.util.List;
 
 public class RollbackDeletionAction extends AbstractMissingFilesAction {
   @Override
-  protected List<VcsException> processFiles(final AbstractVcs vcs, final List<FilePath> files) {
+  protected List<VcsException> processFiles(final AbstractVcs vcs, final List<? extends FilePath> files) {
     RollbackEnvironment environment = vcs.getRollbackEnvironment();
     if (environment == null) return Collections.emptyList();
     final ProgressIndicator indicator = ProgressManager.getInstance().getProgressIndicator();
     if (indicator != null) {
-      indicator.setText(vcs.getDisplayName() + ": performing rollback...");
+      indicator.setText(VcsBundle.message("progress.text.performing.rollback", vcs.getDisplayName()));
     }
     final List<VcsException> result = new ArrayList<>(0);
     try {

@@ -41,12 +41,6 @@ public class SuspiciousToArrayCallInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("suspicious.to.array.call.display.name");
-  }
-
-  @Override
-  @NotNull
   protected String buildErrorString(Object... infos) {
     final PsiType type = (PsiType)infos[0];
     final PsiType foundType = (PsiType)infos[1];
@@ -150,7 +144,9 @@ public class SuspiciousToArrayCallInspection extends BaseInspection {
         final PsiType castType = castTypeElement.getType();
         if (castType.equals(arrayType) || !(castType instanceof PsiArrayType)) return null;
         final PsiArrayType castArrayType = (PsiArrayType)castType;
-        return castArrayType.getComponentType();
+        PsiType type = castArrayType.getComponentType();
+        if (JavaGenericsUtil.isReifiableType(type)) return type;
+        return null;
       }
       if (itemType == null || componentType.isAssignableFrom(itemType)) return null;
       if (itemType instanceof PsiClassType) {
@@ -172,8 +168,8 @@ public class SuspiciousToArrayCallInspection extends BaseInspection {
   }
 
   private static class SuspiciousToArrayCallFix extends InspectionGadgetsFix {
-    private final String myReplacement;
-    private final String myPresented;
+    @NonNls private final String myReplacement;
+    @NonNls private final String myPresented;
     
     SuspiciousToArrayCallFix(PsiType wantedType, boolean isFunction) {
       if (isFunction) {
@@ -205,7 +201,7 @@ public class SuspiciousToArrayCallInspection extends BaseInspection {
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Replace with proper array";
+      return InspectionGadgetsBundle.message("suspicious.to.array.call.fix.family.name");
     }
   }
 }

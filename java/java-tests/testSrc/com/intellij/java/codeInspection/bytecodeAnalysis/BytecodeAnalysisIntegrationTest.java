@@ -11,7 +11,6 @@ import com.intellij.codeInsight.daemon.impl.LineMarkerSettingsImpl;
 import com.intellij.codeInspection.bytecodeAnalysis.ClassDataIndexer;
 import com.intellij.codeInspection.bytecodeAnalysis.ProjectBytecodeAnalysis;
 import com.intellij.codeInspection.dataFlow.JavaMethodContractUtil;
-import com.intellij.java.testutil.MavenDependencyUtil;
 import com.intellij.openapi.application.ex.PathManagerEx;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
@@ -34,6 +33,7 @@ import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.PsiTestUtil;
 import com.intellij.testFramework.fixtures.DefaultLightProjectDescriptor;
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase;
+import com.intellij.testFramework.fixtures.MavenDependencyUtil;
 import one.util.streamex.EntryStream;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -141,7 +141,9 @@ public class BytecodeAnalysisIntegrationTest extends LightJavaCodeInsightFixture
       protected void visitSubPackage(PsiPackage aPackage, PsiClass[] classes) {
         for (PsiClass aClass : classes) {
           for (PsiMethod method : aClass.getMethods()) {
-            checkMethodAnnotations(method, diffs);
+            if (method.isPhysical()) {
+              checkMethodAnnotations(method, diffs);
+            }
           }
           for (PsiField field : aClass.getFields()) {
             checkFieldAnnotations(field, diffs);
@@ -214,7 +216,7 @@ public class BytecodeAnalysisIntegrationTest extends LightJavaCodeInsightFixture
     JavaRecursiveElementVisitor visitor = new PackageVisitor(GlobalSearchScope.moduleWithLibrariesScope(getModule())) {
       @Override
       protected void visitSubPackage(PsiPackage aPackage, PsiClass[] classes) {
-        System.out.println(aPackage.getQualifiedName());
+        LOG.debug(aPackage.getQualifiedName());
         Map<String, Map<String, PsiNameValuePair[]>> annotations = new TreeMap<>();
         for (PsiClass aClass : classes) processClass(aClass, annotations);
         saveXmlForPackage(aPackage.getQualifiedName(), annotations, annotationsRoot);

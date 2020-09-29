@@ -2,7 +2,6 @@
 package com.jetbrains.python.psi.impl.references;
 
 import com.intellij.codeInsight.lookup.LookupElement;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.containers.ContainerUtil;
@@ -16,10 +15,7 @@ import com.jetbrains.python.psi.types.*;
 import one.util.streamex.StreamEx;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static com.jetbrains.python.psi.PyUtil.as;
 
@@ -39,9 +35,14 @@ public class KeywordArgumentCompletionUtil {
             calleeType = context.getType(implicit);
           }
         }
+        Set<String> namedArgsAlready = StreamEx.of(callExpr.getArgumentList().getArguments())
+          .select(PyKeywordArgument.class)
+          .map(PyKeywordArgument::getKeyword)
+          .toSet();
         final List<LookupElement> extra = PyTypeUtil.toStream(calleeType)
           .select(PyCallableType.class)
           .flatMap(type -> collectParameterNamesFromType(type, callExpr, context).stream())
+          .filter(it -> !namedArgsAlready.contains(it))
           .map(name -> PyUtil.createNamedParameterLookup(name, element.getContainingFile(), addEquals))
           .toList();
 
@@ -58,15 +59,16 @@ public class KeywordArgumentCompletionUtil {
     if (type.isCallable()) {
       final List<PyCallableParameter> parameters = type.getParameters(context);
       if (parameters != null) {
-        for (PyCallableParameter parameter : parameters) {
+        int indexOfPySlashParameter = getIndexOfPySlashParameter(parameters);
+        for (PyCallableParameter parameter : parameters.subList(indexOfPySlashParameter + 1, parameters.size())) {
           if (parameter.isKeywordContainer() || parameter.isPositionalContainer()) {
             continue;
           }
           ContainerUtil.addIfNotNull(result, parameter.getName());
         }
         PyFunction func = null;
-        if (type instanceof PyFunctionType) {
-          func = as(((PyFunctionType)type).getCallable(), PyFunction.class);
+        if (type.getCallable() instanceof PyFunction) {
+          func = as(type.getCallable(), PyFunction.class);
         }
         else if (type instanceof PyClassType) {
           func = ((PyClassType)type).getPyClass().findInitOrNew(true, context);
@@ -80,9 +82,13 @@ public class KeywordArgumentCompletionUtil {
   }
 
   private static PsiElement getElementByChain(@NotNull PyReferenceExpression callee, @NotNull TypeEvalContext context) {
-    final PyResolveContext resolveContext = PyResolveContext.defaultContext().withTypeEvalContext(context);
+    final PyResolveContext resolveContext = PyResolveContext.implicitContext().withTypeEvalContext(context);
     final QualifiedResolveResult result = callee.followAssignmentsChain(resolveContext);
     return result.getElement();
+  }
+
+  private static int getIndexOfPySlashParameter(@NotNull List<PyCallableParameter> parameters) {
+    return ContainerUtil.indexOf(parameters, parameter -> parameter.getParameter() instanceof PySlashParameter);
   }
 
   private static void addKeywordArgumentVariantsForFunction(@NotNull final PyCallExpression callExpr,
@@ -97,8 +103,12 @@ public class KeywordArgumentCompletionUtil {
     boolean needSelf = function.getContainingClass() != null && function.getModifier() != PyFunction.Modifier.STATICMETHOD;
     final KwArgParameterCollector collector = new KwArgParameterCollector(needSelf, ret);
 
+    List<PyCallableParameter> parameters = function.getParameters(context);
+    int indexOfPySlashParameter = getIndexOfPySlashParameter(parameters);
+
     StreamEx
-      .of(function.getParameters(context))
+      .of(parameters)
+      .skip(indexOfPySlashParameter + 1)
       .map(PyCallableParameter::getParameter)
       .nonNull()
       .forEach(parameter -> parameter.accept(collector));
@@ -136,7 +146,7 @@ public class KeywordArgumentCompletionUtil {
     }
 
     @Override
-    public void visitPyParameter(PyParameter par) {
+    public void visitPyParameter(@NotNull PyParameter par) {
       myCount++;
       if (myCount == 1 && myNeedSelf) {
         myHasSelf = true;
@@ -174,18 +184,18 @@ public class KeywordArgumentCompletionUtil {
     }
 
     @Override
-    public void visitPyElement(PyElement node) {
+    public void visitPyElement(@NotNull PyElement node) {
       node.acceptChildren(this);
     }
 
     @Override
-    public void visitPySubscriptionExpression(PySubscriptionExpression node) {
+    public void visitPySubscriptionExpression(@NotNull PySubscriptionExpression node) {
       String operandName = node.getOperand().getName();
       processGet(operandName, node.getIndexExpression());
     }
 
     @Override
-    public void visitPyCallExpression(PyCallExpression node) {
+    public void visitPyCallExpression(@NotNull PyCallExpression node) {
       if (node.isCalleeText("pop", "get", "getattr")) {
         PyReferenceExpression child = PsiTreeUtil.getChildOfType(node.getCallee(), PyReferenceExpression.class);
         if (child != null) {
@@ -201,7 +211,7 @@ public class KeywordArgumentCompletionUtil {
         for (PyExpression e : node.getArguments()) {
           if (e instanceof PyStarArgument) {
             PyStarArgument kw = (PyStarArgument)e;
-            if (Comparing.equal(myKwArgs.getName(), kw.getFirstChild().getNextSibling().getText())) {
+            if (Objects.equals(myKwArgs.getName(), kw.getFirstChild().getNextSibling().getText())) {
               kwArgsTransit = true;
               break;
             }
@@ -212,7 +222,7 @@ public class KeywordArgumentCompletionUtil {
     }
 
     private void processGet(String operandName, PyExpression argument) {
-      if (Comparing.equal(myKwArgs.getName(), operandName) &&
+      if (Objects.equals(myKwArgs.getName(), operandName) &&
           argument instanceof PyStringLiteralExpression) {
         String name = ((PyStringLiteralExpression)argument).getStringValue();
         if (PyNames.isIdentifier(name)) {

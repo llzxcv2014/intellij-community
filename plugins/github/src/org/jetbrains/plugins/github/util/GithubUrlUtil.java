@@ -1,17 +1,23 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.github.util;
 
+import com.intellij.openapi.util.NlsSafe;
+import com.intellij.util.UriUtil;
+import com.intellij.util.io.URLUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.github.api.GHRepositoryPath;
 import org.jetbrains.plugins.github.api.GithubServerPath;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+
 /**
  * @author Aleksey Pivovarov
  */
 public class GithubUrlUtil {
-  @NotNull
-  public static String removeProtocolPrefix(String url) {
+
+  public static @NlsSafe @NotNull String removeProtocolPrefix(String url) {
     int index = url.indexOf('@');
     if (index != -1) {
       return url.substring(index + 1).replace(':', '/');
@@ -23,27 +29,7 @@ public class GithubUrlUtil {
     return url;
   }
 
-  /**
-   * Will only work correctly after {@link #removeProtocolPrefix(String)}
-   */
-  @NotNull
-  public static String removePort(@NotNull String url) {
-    int index = url.indexOf(':');
-    if (index == -1) return url;
-    int slashIndex = url.indexOf('/');
-    if (slashIndex != -1 && slashIndex < index) return url;
-
-    String beforePort = url.substring(0, index);
-    if (slashIndex == -1) {
-      return beforePort;
-    }
-    else {
-      return beforePort + url.substring(slashIndex);
-    }
-  }
-
-  @NotNull
-  public static String removeTrailingSlash(@NotNull String s) {
+  public static @NlsSafe @NotNull String removeTrailingSlash(@NotNull String s) {
     if (s.endsWith("/")) {
       return s.substring(0, s.length() - 1);
     }
@@ -81,14 +67,28 @@ public class GithubUrlUtil {
     return new GHRepositoryPath(username, reponame);
   }
 
-  @NotNull
-  private static String removeEndingDotGit(@NotNull String url) {
+  private static @NlsSafe @NotNull String removeEndingDotGit(@NotNull String url) {
     url = removeTrailingSlash(url);
     final String DOT_GIT = ".git";
     if (url.endsWith(DOT_GIT)) {
       return url.substring(0, url.length() - DOT_GIT.length());
     }
     return url;
+  }
+
+  @Nullable
+  public static URI getUriFromRemoteUrl(@NotNull String remoteUrl) {
+    String fixed = removeEndingDotGit(UriUtil.trimTrailingSlashes(remoteUrl));
+    try {
+      if (!fixed.contains(URLUtil.SCHEME_SEPARATOR)) {
+        //scp-style
+        return new URI(URLUtil.HTTPS_PROTOCOL + URLUtil.SCHEME_SEPARATOR + removeProtocolPrefix(fixed).replace(':', '/'));
+      }
+      return new URI(fixed);
+    }
+    catch (URISyntaxException e) {
+      return null;
+    }
   }
 
   //region Deprecated

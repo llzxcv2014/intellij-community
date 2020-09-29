@@ -1,13 +1,13 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.util;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.util.ConcurrencyUtil;
-import com.intellij.util.Consumer;
 import com.intellij.util.SystemProperties;
 import com.intellij.util.concurrency.SequentialTaskExecutor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.TestOnly;
 
 import javax.management.Notification;
 import javax.management.NotificationEmitter;
@@ -16,8 +16,8 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryNotificationInfo;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryType;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 public final class LowMemoryWatcherManager implements Disposable {
   @NotNull
@@ -28,11 +28,11 @@ public final class LowMemoryWatcherManager implements Disposable {
   private static final long MEM_THRESHOLD = 5 /*MB*/ * 1024 * 1024;
   @NotNull private final ExecutorService myExecutorService;
 
-  private Future<?> mySubmitted; // guarded by ourJanitor
+  private Future<?> mySubmitted; // guarded by myJanitor
   private final Future<?> myMemoryPoolMXBeansFuture;
   private final Consumer<Boolean> myJanitor = new Consumer<Boolean>() {
     @Override
-    public void consume(@NotNull Boolean afterGc) {
+    public void accept(@NotNull Boolean afterGc) {
       // null mySubmitted before all listeners called to avoid data race when listener added in the middle of the execution and is lost
       // this may however cause listeners to execute more than once (potentially even in parallel)
       synchronized (myJanitor) {
@@ -54,23 +54,31 @@ public final class LowMemoryWatcherManager implements Disposable {
   @NotNull
   private Future<?> initializeMXBeanListenersLater(@NotNull ExecutorService backendExecutorService) {
     // do it in the other thread to get it out of the way during startup
-    return backendExecutorService.submit(() -> {
-      try {
-        for (MemoryPoolMXBean bean : ManagementFactory.getMemoryPoolMXBeans()) {
-          if (bean.getType() == MemoryType.HEAP && bean.isCollectionUsageThresholdSupported() && bean.isUsageThresholdSupported()) {
-            long max = bean.getUsage().getMax();
-            long threshold = Math.min((long)(max * getOccupiedMemoryThreshold()), max - MEM_THRESHOLD);
-            if (threshold > 0) {
-              bean.setUsageThreshold(threshold);
-              bean.setCollectionUsageThreshold(threshold);
+    return backendExecutorService.submit(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          for (MemoryPoolMXBean bean : ManagementFactory.getMemoryPoolMXBeans()) {
+            if (bean.getType() == MemoryType.HEAP && bean.isCollectionUsageThresholdSupported() && bean.isUsageThresholdSupported()) {
+              long max = bean.getUsage().getMax();
+              long threshold = Math.min((long)(max * getOccupiedMemoryThreshold()), max - MEM_THRESHOLD);
+              if (threshold > 0) {
+                bean.setUsageThreshold(threshold);
+                bean.setCollectionUsageThreshold(threshold);
+              }
             }
           }
+          ((NotificationEmitter)ManagementFactory.getMemoryMXBean()).addNotificationListener(myLowMemoryListener, null, null);
         }
-        ((NotificationEmitter)ManagementFactory.getMemoryMXBean()).addNotificationListener(myLowMemoryListener, null, null);
+        catch (Throwable e) {
+          // should not happen normally
+          getLogger().info("Errors initializing LowMemoryWatcher: ", e);
+        }
       }
-      catch (Throwable e) {
-        // should not happen normally
-        getLogger().info("Errors initializing LowMemoryWatcher: ", e);
+
+      @Override
+      public String toString() {
+        return "initializeMXBeanListeners runnable";
       }
     });
   }
@@ -85,7 +93,7 @@ public final class LowMemoryWatcherManager implements Disposable {
       if (memoryThreshold || memoryCollectionThreshold) {
         synchronized (myJanitor) {
           if (mySubmitted == null) {
-            mySubmitted = myExecutorService.submit(() -> myJanitor.consume(memoryCollectionThreshold));
+            mySubmitted = myExecutorService.submit(() -> myJanitor.accept(memoryCollectionThreshold));
             // maybe it's executed too fast or even synchronously
             if (mySubmitted.isDone()) {
               mySubmitted = null;
@@ -117,5 +125,10 @@ public final class LowMemoryWatcherManager implements Disposable {
     }
 
     LowMemoryWatcher.stopAll();
+  }
+
+  @TestOnly
+  public void waitForInitComplete(int timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+    myMemoryPoolMXBeansFuture.get(timeout, unit);
   }
 }

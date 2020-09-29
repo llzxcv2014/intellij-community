@@ -67,6 +67,7 @@ public class HardcodedContractsTest extends DataFlowInspectionTestCase {
                        "public S isNotEmpty() {}" +
                        "public S isEmpty() {}" +
                        "public S isPresent() {}" +
+                       "public S map(java.util.function.Function<String, Object> mapper) {}" +
                        "}");
 
     checkHighlighting();
@@ -152,6 +153,14 @@ public class HardcodedContractsTest extends DataFlowInspectionTestCase {
                        "  static public void assertNotNull(Object object, String message) {}\n" +
                        "  static public void assertNotNull(Object object) {}\n" +
                        "}");
+    checkHighlighting();
+  }
+  
+  public void testAssertJAssert() {
+    checkHighlighting();
+  }
+  
+  public void testHardcodedContractNotNullOverride() {
     checkHighlighting();
   }
 

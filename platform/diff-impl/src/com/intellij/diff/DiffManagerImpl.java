@@ -21,6 +21,7 @@ import com.intellij.diff.editor.ChainDiffVirtualFile;
 import com.intellij.diff.impl.DiffRequestPanelImpl;
 import com.intellij.diff.impl.DiffWindow;
 import com.intellij.diff.merge.*;
+import com.intellij.diff.merge.external.AutomaticExternalMergeTool;
 import com.intellij.diff.requests.DiffRequest;
 import com.intellij.diff.tools.binary.BinaryDiffTool;
 import com.intellij.diff.tools.dir.DirDiffTool;
@@ -30,12 +31,13 @@ import com.intellij.diff.tools.fragmented.UnifiedDiffTool;
 import com.intellij.diff.tools.simple.SimpleDiffTool;
 import com.intellij.diff.util.DiffUtil;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.diff.DiffBundle;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.WindowWrapper;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.registry.Registry;
-import org.jetbrains.annotations.CalledInAwt;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -81,8 +83,9 @@ public class DiffManagerImpl extends DiffManagerEx {
   public void showDiffBuiltin(@Nullable Project project, @NotNull DiffRequestChain requests, @NotNull DiffDialogHints hints) {
     if (Registry.is("show.diff.as.editor.tab") &&
         project != null &&
-        DiffUtil.getWindowMode(hints) == WindowWrapper.Mode.FRAME) {
-      ChainDiffVirtualFile diffFile = new ChainDiffVirtualFile(requests, "Diff");
+        DiffUtil.getWindowMode(hints) == WindowWrapper.Mode.FRAME &&
+        hints.getWindowConsumer() == null) {
+      ChainDiffVirtualFile diffFile = new ChainDiffVirtualFile(requests, DiffBundle.message("label.default.diff.editor.tab.name"));
       FileEditorManager.getInstance(project).openFile(diffFile, true);
       return;
     }
@@ -120,8 +123,15 @@ public class DiffManagerImpl extends DiffManagerEx {
   }
 
   @Override
-  @CalledInAwt
+  @RequiresEdt
   public void showMerge(@Nullable Project project, @NotNull MergeRequest request) {
+    // plugin may provide a better tool for this MergeRequest
+    AutomaticExternalMergeTool tool = AutomaticExternalMergeTool.EP_NAME.findFirstSafe(mergeTool -> mergeTool.canShow(project, request));
+    if (tool!=null) {
+      tool.show(project, request);
+      return;
+    }
+
     if (ExternalMergeTool.isDefault()) {
       ExternalMergeTool.show(project, request);
       return;
@@ -131,13 +141,13 @@ public class DiffManagerImpl extends DiffManagerEx {
   }
 
   @Override
-  @CalledInAwt
+  @RequiresEdt
   public void showMergeBuiltin(@Nullable Project project, @NotNull MergeRequest request) {
     new MergeWindow.ForRequest(project, request, DiffDialogHints.MODAL).show();
   }
 
   @Override
-  @CalledInAwt
+  @RequiresEdt
   public void showMergeBuiltin(@Nullable Project project, @NotNull MergeRequestProducer requestProducer, @NotNull DiffDialogHints hints) {
     new MergeWindow.ForProducer(project, requestProducer, hints).show();
   }

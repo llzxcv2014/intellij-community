@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn;
 
 import com.intellij.notification.NotificationType;
@@ -32,10 +32,7 @@ import com.intellij.util.EnvironmentUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.Convertor;
 import com.intellij.util.containers.MultiMap;
-import org.jetbrains.annotations.Contract;
-import org.jetbrains.annotations.NonNls;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.*;
 import org.jetbrains.idea.svn.api.*;
 import org.jetbrains.idea.svn.branchConfig.SvnBranchConfigurationManager;
 import org.jetbrains.idea.svn.branchConfig.SvnBranchConfigurationNew;
@@ -66,7 +63,7 @@ import static com.intellij.util.SystemProperties.getUserHome;
 import static com.intellij.util.containers.ContainerUtil.map2Array;
 import static java.util.Collections.emptyList;
 
-public class SvnUtil {
+public final class SvnUtil {
   @NonNls public static final String SVN_ADMIN_DIR_NAME =
     SystemInfo.isWindows && EnvironmentUtil.getValue("SVN_ASP_DOT_NET_HACK") != null ? "_svn" : ".svn";
   @NonNls public static final String ENTRIES_FILE_NAME = "entries";
@@ -75,11 +72,11 @@ public class SvnUtil {
 
   public static final AtomicNotNullLazyValue<Path> USER_CONFIGURATION_PATH = createValue(
     () -> SystemInfo.isWindows
-          ? Paths.get(notNull(EnvironmentUtil.getValue("APPDATA")), "Subversion")
+          ? Paths.get(Objects.requireNonNull(EnvironmentUtil.getValue("APPDATA")), "Subversion")
           : Paths.get(getUserHome(), ".subversion"));
   public static final AtomicNotNullLazyValue<Path> SYSTEM_CONFIGURATION_PATH = createValue(
     () -> SystemInfo.isWindows
-          ? Paths.get(notNull(EnvironmentUtil.getValue("ALLUSERSPROFILE")), "Application Data", "Subversion")
+          ? Paths.get(Objects.requireNonNull(EnvironmentUtil.getValue("ALLUSERSPROFILE")), "Application Data", "Subversion")
           : Paths.get("/etc/subversion"));
 
   private static final Logger LOG = Logger.getInstance(SvnUtil.class);
@@ -88,6 +85,8 @@ public class SvnUtil {
   public static final Pattern WARNING_PATTERN = Pattern.compile("^svn: warning: (W(\\d+)): (.*)$", Pattern.MULTILINE);
 
   private static final Pair<Url, WorkingCopyFormat> UNKNOWN_REPOSITORY_AND_FORMAT = Pair.create(null, WorkingCopyFormat.UNKNOWN);
+
+  private static final @NonNls String NOT_VERSIONED_RESOURCE = "(not a versioned resource)";
 
   private SvnUtil() { }
 
@@ -164,12 +163,11 @@ public class SvnUtil {
     ProgressIndicatorUtils.checkCancelledEvenWithPCEDisabled(progress);
   }
 
-  @NotNull
-  public static File[] toIoFiles(@NotNull VirtualFile[] files) {
+  public static File @NotNull [] toIoFiles(VirtualFile @NotNull [] files) {
     return map2Array(files, File.class, VfsUtilCore::virtualToIoFile);
   }
 
-  public static void doLockFiles(Project project, final SvnVcs activeVcs, @NotNull final File[] ioFiles) throws VcsException {
+  public static void doLockFiles(Project project, final SvnVcs activeVcs, final File @NotNull [] ioFiles) throws VcsException {
     final String lockMessage;
     final boolean force;
     // TODO[yole]: check for shift pressed
@@ -232,12 +230,11 @@ public class SvnUtil {
       for (String file : failedFiles) {
         exceptions.add(new VcsException(SvnBundle.message("exception.text.locking.file.failed", file)));
       }
-      final StringBuilder sb = new StringBuilder(SvnBundle.message("message.text.files.lock.failed", failedFiles.length == 1 ? 0 : 1));
+      @Nls StringBuilder sb = new StringBuilder(SvnBundle.message("message.text.files.lock.failed", failedFiles.length == 1 ? 0 : 1));
       for (VcsException vcsException : exceptions) {
         if (sb.length() > 0) sb.append('\n');
         sb.append(vcsException.getMessage());
       }
-      //AbstractVcsHelper.getInstance(project).showErrors(exceptions, SvnBundle.message("message.title.lock.failures"));
       throw new VcsException(sb.toString());
     }
 
@@ -345,7 +342,8 @@ public class SvnUtil {
 
   private static void notifyDatabaseError() {
     VcsBalloonProblemNotifier.NOTIFICATION_GROUP
-      .createNotification("Some errors occurred while accessing svn working copy database.", NotificationType.ERROR).notify(null);
+      .createNotification(SvnBundle.message("notification.content.can.not.access.working.copy.database"), NotificationType.ERROR)
+      .notify(null);
   }
 
   private static File resolveDatabase(final File path) {
@@ -490,9 +488,13 @@ public class SvnUtil {
     return info != null && info.getDepth() != null ? info.getDepth() : Depth.UNKNOWN;
   }
 
-  public static boolean seemsLikeVersionedDir(final VirtualFile file) {
+  public static boolean seemsLikeVersionedDir(@NotNull VirtualFile file) {
     final VirtualFile child = file.findChild(SVN_ADMIN_DIR_NAME);
     return child != null && child.isDirectory();
+  }
+
+  public static boolean seemsLikeVersionedDir(@NotNull File file) {
+    return new File(file, SVN_ADMIN_DIR_NAME).isDirectory();
   }
 
   public static boolean isAdminDirectory(final VirtualFile file) {
@@ -615,7 +617,7 @@ public class SvnUtil {
   }
 
   @NotNull
-  public static String join(@NotNull final String... parts) {
+  public static String join(final String @NotNull ... parts) {
     return StringUtil.join(parts, "/");
   }
 
@@ -630,10 +632,10 @@ public class SvnUtil {
     Info info = vcs.getInfo(url, Revision.HEAD);
 
     if (info == null) {
-      throw new SvnBindException("Could not get info for " + url);
+      throw new SvnBindException(SvnBundle.message("error.could.not.get.info.for.path", url));
     }
     if (!info.getRevision().isValid()) {
-      throw new SvnBindException("Could not get revision for " + url);
+      throw new SvnBindException(SvnBundle.message("error.could.not.get.revision.for.url", url));
     }
 
     return info.getRevision();
@@ -689,9 +691,7 @@ public class SvnUtil {
 
   @NotNull
   public static IllegalArgumentException createIllegalArgument(@NotNull Exception e) {
-    IllegalArgumentException runtimeException = new IllegalArgumentException();
-    runtimeException.initCause(e);
-    return runtimeException;
+    return new IllegalArgumentException(e);
   }
 
   @Nullable
@@ -708,7 +708,7 @@ public class SvnUtil {
            // thrown when getting info from repository for non-existent item - like HEAD revision for deleted file
            e.contains(ErrorCode.ILLEGAL_TARGET) ||
            // for svn 1.6
-           StringUtil.containsIgnoreCase(e.getMessage(), "(not a versioned resource)");
+           StringUtil.containsIgnoreCase(e.getMessage(), NOT_VERSIONED_RESOURCE);
   }
 
   public static boolean isAuthError(@NotNull SvnBindException e) {
@@ -762,7 +762,9 @@ public class SvnUtil {
 
   private static class SqLiteJdbcWorkingCopyFormatOperation
     implements FileUtilRt.RepeatableIOOperation<WorkingCopyFormat, RuntimeException> {
+
     private static final String SQLITE_JDBC_TEMP_DIR_PROPERTY = "org.sqlite.tmpdir";
+    private static final @NonNls String USER_VERSION_QUERY = "pragma user_version";
 
     @NotNull private final File myDbFile;
 
@@ -783,7 +785,7 @@ public class SvnUtil {
       try {
         Class.forName("org.sqlite.JDBC");
         connection = DriverManager.getConnection("jdbc:sqlite:" + FileUtil.toSystemIndependentName(myDbFile.getPath()));
-        ResultSet resultSet = connection.createStatement().executeQuery("pragma user_version");
+        ResultSet resultSet = connection.createStatement().executeQuery(USER_VERSION_QUERY);
 
         if (resultSet.next()) {
           userVersion = resultSet.getInt(1);

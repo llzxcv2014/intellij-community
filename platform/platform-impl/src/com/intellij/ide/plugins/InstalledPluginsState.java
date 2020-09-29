@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.plugins;
 
 import com.intellij.diagnostic.LoadingState;
@@ -6,8 +6,6 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.updateSettings.impl.PluginDownloader;
-import com.intellij.util.containers.ContainerUtil;
-import com.intellij.util.containers.SmartHashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,16 +26,48 @@ public final class InstalledPluginsState {
   }
 
   private final Object myLock = new Object();
-  private final Map<PluginId, IdeaPluginDescriptor> myInstalledPlugins = ContainerUtil.newIdentityHashMap();
+  private final Map<PluginId, IdeaPluginDescriptor> myInstalledPlugins = new IdentityHashMap<>();
   private final Set<PluginId> myInstalledWithoutRestartPlugins = new HashSet<>();
   private final Set<PluginId> myUpdatedPlugins = new HashSet<>();
   private final Set<PluginId> myUninstalledWithoutRestartPlugins = new HashSet<>();
-  private final Set<String> myOutdatedPlugins = new SmartHashSet<>();
+  private final Set<String> myOutdatedPlugins = new HashSet<>();
+  private boolean myInstallationInProgress = false;
+  private boolean myRestartRequired = false;
+
+  private Runnable myShutdownCallback;
+
+  private static List<IdeaPluginDescriptor> myPreInstalledPlugins;
+
+  public static void addPreInstalledPlugin(@NotNull IdeaPluginDescriptor descriptor) {
+    if (myPreInstalledPlugins == null) {
+      myPreInstalledPlugins = new ArrayList<>();
+    }
+    myPreInstalledPlugins.add(descriptor);
+  }
+
+  public InstalledPluginsState() {
+    if (myPreInstalledPlugins != null) {
+      for (IdeaPluginDescriptor plugin : myPreInstalledPlugins) {
+        if (!PluginManagerCore.isPluginInstalled(plugin.getPluginId())) {
+          onPluginInstall(plugin, false, false);
+        }
+      }
+      //noinspection AssignmentToStaticFieldFromInstanceMethod
+      myPreInstalledPlugins = null;
+    }
+  }
 
   @NotNull
   public Collection<IdeaPluginDescriptor> getInstalledPlugins() {
     synchronized (myLock) {
       return Collections.unmodifiableCollection(myInstalledPlugins.values());
+    }
+  }
+
+  @NotNull
+  public Collection<PluginId> getUpdatedPlugins() {
+    synchronized (myLock) {
+      return Collections.unmodifiableCollection(myUpdatedPlugins);
     }
   }
 
@@ -82,7 +112,7 @@ public final class InstalledPluginsState {
     }
 
     boolean supersedes = PluginManagerCore.isCompatible(descriptor) &&
-                         PluginDownloader.compareVersionsSkipBrokenAndIncompatible(existing, descriptor.getVersion()) > 0;
+                         PluginDownloader.compareVersionsSkipBrokenAndIncompatible(descriptor.getVersion(), existing) > 0;
 
     String idString = id.getIdString();
 
@@ -125,7 +155,47 @@ public final class InstalledPluginsState {
   }
 
   public void resetChangesAppliedWithoutRestart() {
-    myInstalledWithoutRestartPlugins.clear();
-    myUninstalledWithoutRestartPlugins.clear();
+    // The plugins configurable may be recreated when installing a plugin that registers any configurables,
+    // and this leads to a call of disposeUIResources() that lands here. In this case we must not forget
+    // the list of plugins installed/uninstalled without restart (IDEA-233045)
+    if (!myInstallationInProgress) {
+      myInstalledWithoutRestartPlugins.clear();
+      myUninstalledWithoutRestartPlugins.clear();
+    }
+  }
+
+  public void trackPluginInstallation(Runnable runnable) {
+    myInstallationInProgress = true;
+    try {
+      runnable.run();
+    }
+    finally {
+      myInstallationInProgress = false;
+    }
+  }
+
+  public void setShutdownCallback(Runnable runnable) {
+    if (myShutdownCallback == null) {
+      myShutdownCallback = runnable;
+    }
+  }
+
+  public void clearShutdownCallback() {
+    myShutdownCallback = null;
+  }
+
+  public void runShutdownCallback() {
+    if (myShutdownCallback != null) {
+      myShutdownCallback.run();
+      myShutdownCallback = null;
+    }
+  }
+
+  public boolean isRestartRequired() {
+    return myRestartRequired;
+  }
+
+  public void setRestartRequired(boolean restartRequired) {
+    myRestartRequired = restartRequired;
   }
 }

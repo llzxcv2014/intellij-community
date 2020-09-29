@@ -26,8 +26,10 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Pair;
 import com.intellij.psi.*;
+import com.intellij.psi.xml.XmlAttribute;
 import com.intellij.psi.xml.XmlElement;
 import com.intellij.psi.xml.XmlFile;
+import com.intellij.psi.xml.XmlTag;
 import com.intellij.ui.EditorComboBox;
 import com.intellij.ui.SimpleListCellRenderer;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -42,6 +44,7 @@ import org.intellij.lang.xpath.psi.QNameElement;
 import org.intellij.lang.xpath.psi.XPathElement;
 import org.intellij.plugins.xpathView.Config;
 import org.intellij.plugins.xpathView.HistoryElement;
+import org.intellij.plugins.xpathView.XPathBundle;
 import org.intellij.plugins.xpathView.eval.EvalExpressionDialog;
 import org.intellij.plugins.xpathView.support.XPathSupport;
 import org.intellij.plugins.xpathView.util.Namespace;
@@ -207,7 +210,7 @@ public abstract class InputExpressionDialog<FormType extends InputForm> extends 
 
         myXPathFile.accept(new PsiRecursiveElementVisitor(){
             @Override
-            public void visitElement(PsiElement element) {
+            public void visitElement(@NotNull PsiElement element) {
                 if (element instanceof QNameElement) {
                     final PsiReference[] references = element.getReferences();
                     for (PsiReference reference : references) {
@@ -407,8 +410,7 @@ public abstract class InputExpressionDialog<FormType extends InputForm> extends 
         }
 
         @Override
-        @NotNull
-        public String[] getVariablesInScope(XPathElement element) {
+        public String @NotNull [] getVariablesInScope(XPathElement element) {
             final HistoryElement selectedItem = myModel.getSelectedItem();
             if (selectedItem != null) {
                 return Variable.asSet(selectedItem.variables).toArray(new String[selectedItem.variables.size()]);
@@ -468,7 +470,7 @@ public abstract class InputExpressionDialog<FormType extends InputForm> extends 
                     final String uri = name.getNamespaceURI();
                     if (uri != null && uri.length() > 0) {
                         final String assignedPrefix = myNamespaceContext.getPrefixForURI(uri, null);
-                        if (assignedPrefix == null || assignedPrefix.length() == 0) {
+                        if (assignedPrefix == null) {
                             it.remove();
                         }
                     }
@@ -527,8 +529,13 @@ public abstract class InputExpressionDialog<FormType extends InputForm> extends 
 
         @Override
         public String getDefaultNamespace(XmlElement context) {
-          return null;
-      }
+            if (context instanceof XmlTag)
+                return ((XmlTag)context).getNamespaceByPrefix("");
+            else if (context instanceof XmlAttribute && ((XmlAttribute)context).getNamespacePrefix().isEmpty()) {
+                return ((XmlAttribute)context).getNamespace();
+            }
+            return null;
+        }
     }
 
     private class MyRegisterPrefixAction implements IntentionAction {
@@ -541,13 +548,13 @@ public abstract class InputExpressionDialog<FormType extends InputForm> extends 
         @Override
         @NotNull
         public String getText() {
-            return "Register namespace prefix";
+            return getFamilyName();
         }
 
         @Override
         @NotNull
         public String getFamilyName() {
-            return getText();
+            return XPathBundle.message("intention.family.name.register.namespace.prefix");
         }
 
         @Override
@@ -591,7 +598,6 @@ public abstract class InputExpressionDialog<FormType extends InputForm> extends 
                 }
                 else {
                     n = Collections.singleton(namespace);
-                    //noinspection unchecked
                     v = Collections.emptySet();
                 }
 

@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.dashboard.actions;
 
 import com.intellij.execution.*;
@@ -17,6 +17,7 @@ import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.ui.content.Content;
 import com.intellij.util.containers.JBIterable;
 import org.jetbrains.annotations.NotNull;
@@ -33,7 +34,7 @@ public abstract class ExecutorAction extends DumbAwareAction {
   protected ExecutorAction() {
   }
 
-  protected ExecutorAction(String text, String description, Icon icon) {
+  protected ExecutorAction(@NlsActions.ActionText String text, @NlsActions.ActionDescription String description, Icon icon) {
     super(text, description, icon);
   }
 
@@ -87,7 +88,7 @@ public abstract class ExecutorAction extends DumbAwareAction {
 
     ProgramRunner<?> runner = ProgramRunner.getRunner(executorId, configuration);
     return runner != null && ExecutionTargetManager.canRun(configuration, target) &&
-          !ExecutorRegistry.getInstance().isStarting(project, executorId, runner.getRunnerId());
+          !ExecutionManager.getInstance(project).isStarting(executorId, runner.getRunnerId());
   }
 
   private static boolean isValid(RunnerAndConfigurationSettings settings) {

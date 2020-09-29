@@ -26,6 +26,7 @@ import com.intellij.openapi.wm.StatusBar;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiElement;
+import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.PyNames;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -49,9 +50,9 @@ public class CleanPycAction extends AnAction {
         collectPycFiles(new File(dir.getVirtualFile().getPath()), pycFiles);
       }
       FileUtil.asyncDelete(pycFiles);
-    }, "Cleaning up .pyc files...", false, e.getProject());
+    }, PyBundle.message("action.CleanPyc.progress.title.cleaning.up.pyc.files"), false, e.getProject());
     final StatusBar statusBar = WindowManager.getInstance().getIdeFrame(e.getProject()).getStatusBar();
-    statusBar.setInfo("Deleted " + pycFiles.size() + " bytecode file" + (pycFiles.size() != 1 ? "s" : ""));
+    statusBar.setInfo(PyBundle.message("action.CleanPyc.status.bar.text.deleted.bytecode.files", pycFiles.size()));
   }
 
   private static void collectPycFiles(File directory, final List<File> pycFiles) {
@@ -72,7 +73,7 @@ public class CleanPycAction extends AnAction {
     e.getPresentation().setEnabled(isAllDirectories(elements));
   }
 
-  private static boolean isAllDirectories(@Nullable PsiElement[] elements) {
+  private static boolean isAllDirectories(PsiElement @Nullable [] elements) {
     if (elements == null || elements.length == 0) return false;
     for (PsiElement element : elements) {
       if (!(element instanceof PsiDirectory) || FileIndexFacade.getInstance(element.getProject())

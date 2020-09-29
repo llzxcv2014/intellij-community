@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.template.emmet.filters;
 
 import com.intellij.application.options.emmet.EmmetOptions;
@@ -9,6 +9,7 @@ import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.containers.ContainerUtil;
+import com.intellij.xml.XmlBundle;
 import com.intellij.xml.util.HtmlUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,7 +30,7 @@ public class BemEmmetFilter extends ZenCodingFilter {
   @NotNull
   @Override
   public String getDisplayName() {
-    return "BEM";
+    return XmlBundle.message("emmet.filter.BEM");
   }
 
   @NotNull
@@ -235,7 +236,7 @@ public class BemEmmetFilter extends ZenCodingFilter {
     return result.append(className).toString();
   }
 
-  private static class BemState {
+  private static final class BemState {
     @Nullable private String block;
     @Nullable private String element;
     @Nullable private String modifier;

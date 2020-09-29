@@ -108,6 +108,9 @@ public abstract class JavaStatisticsManager {
       return "field#" + member.getName();
     }
 
+    if (member instanceof PsiRecordComponent) {
+      return "record#" + member.getName();
+    }
     return CLASS_PREFIX + ((PsiClass)member).getQualifiedName();
   }
 
@@ -116,8 +119,7 @@ public abstract class JavaStatisticsManager {
     return new StatisticsInfo(getMemberUseKey1(qualifierType), getMemberUseKey2(member));
   }
 
-  @NotNull
-  public static String[] getAllVariableNamesUsed(VariableKind variableKind, String propertyName, PsiType type) {
+  public static String @NotNull [] getAllVariableNamesUsed(VariableKind variableKind, String propertyName, PsiType type) {
     StatisticsInfo[] keys2 = StatisticsManager.getInstance().getAllValues(getVariableNameUseKey1(propertyName, type));
 
     List<String> list = new ArrayList<>();
@@ -132,7 +134,7 @@ public abstract class JavaStatisticsManager {
     return ArrayUtilRt.toStringArray(list);
   }
 
-  @NotNull
+  @NotNull @NonNls
   public static String getAfterNewKey(@Nullable PsiType expectedType) {
     return getMemberUseKey1(expectedType) + "###smartAfterNew";
   }

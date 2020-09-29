@@ -1,25 +1,13 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.util.concurrency;
 
 import com.intellij.util.ReflectionUtil;
 import org.jetbrains.annotations.NotNull;
-import sun.misc.Unsafe;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
@@ -28,39 +16,59 @@ import java.lang.reflect.Modifier;
  * - removed access check in getAndSet() hot path for performance
  * - new methods "forFieldXXX" added that search by field type instead of field name, which is useful in scrambled classes
  */
-public class AtomicFieldUpdater<ContainingClass, FieldType> {
-  private static final Unsafe unsafe;
+public final class AtomicFieldUpdater<ContainingClass, FieldType> {
+  private static final Object unsafe;
+
+  private static final MethodHandle compareAndSwapIntHandle;
+  private static final MethodHandle compareAndSwapLongHandle;
+  private static final MethodHandle compareAndSwapObjectHandle;
+  private static final MethodHandle putObjectVolatileHandle;
+  private static final MethodHandle getObjectVolatileHandle;
+
   static {
-    unsafe = ReflectionUtil.getStaticFieldValue(Unsafe.class, Unsafe.class, "theUnsafe");
+    Class<?> unsafeClass;
+    try {
+      unsafeClass = Class.forName("sun.misc.Unsafe");
+    }
+    catch (ClassNotFoundException e) {
+      throw new RuntimeException(e);
+    }
+    unsafe = ReflectionUtil.getStaticFieldValue(unsafeClass, unsafeClass, "theUnsafe");
     if (unsafe == null) {
-      throw new RuntimeException("Could not find 'theUnsafe' field in the " + Unsafe.class);
+      throw new RuntimeException("Could not find 'theUnsafe' field in the Unsafe class");
+    }
+    MethodHandles.Lookup lookup = MethodHandles.publicLookup();
+    try {
+      compareAndSwapIntHandle = lookup.findVirtual(unsafeClass, "compareAndSwapInt", MethodType.methodType(boolean.class, Object.class, long.class, int.class, int.class)).bindTo(unsafe);
+      compareAndSwapLongHandle = lookup.findVirtual(unsafeClass, "compareAndSwapLong", MethodType.methodType(boolean.class, Object.class, long.class, long.class, long.class)).bindTo(unsafe);
+      compareAndSwapObjectHandle = lookup.findVirtual(unsafeClass, "compareAndSwapObject", MethodType.methodType(boolean.class, Object.class, long.class, Object.class, Object.class)).bindTo(unsafe);
+      putObjectVolatileHandle = lookup.findVirtual(unsafeClass, "putObjectVolatile", MethodType.methodType(void.class, Object.class, long.class, Object.class)).bindTo(unsafe);
+      getObjectVolatileHandle = lookup.findVirtual(unsafeClass, "getObjectVolatile", MethodType.methodType(Object.class, Object.class, long.class)).bindTo(unsafe);
+    }
+    catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 
-  @NotNull
-  public static Unsafe getUnsafe() {
+  public static @NotNull Object getUnsafe() {
     return unsafe;
   }
 
   private final long offset;
 
-  @NotNull
-  public static <T, V> AtomicFieldUpdater<T, V> forFieldOfType(@NotNull Class<T> ownerClass, @NotNull Class<V> fieldType) {
+  public static @NotNull <T, V> AtomicFieldUpdater<T, V> forFieldOfType(@NotNull Class<T> ownerClass, @NotNull Class<V> fieldType) {
     return new AtomicFieldUpdater<>(ownerClass, fieldType);
   }
 
-  @NotNull
-  public static <T> AtomicFieldUpdater<T, Long> forLongFieldIn(@NotNull Class<T> ownerClass) {
+  public static @NotNull <T> AtomicFieldUpdater<T, Long> forLongFieldIn(@NotNull Class<T> ownerClass) {
     return new AtomicFieldUpdater<>(ownerClass, long.class);
   }
 
-  @NotNull
-  public static <T> AtomicFieldUpdater<T, Integer> forIntFieldIn(@NotNull Class<T> ownerClass) {
+  public static @NotNull <T> AtomicFieldUpdater<T, Integer> forIntFieldIn(@NotNull Class<T> ownerClass) {
     return new AtomicFieldUpdater<>(ownerClass, int.class);
   }
 
-  @NotNull
-  public static <O,E> AtomicFieldUpdater<O, E> forField(@NotNull Field field) {
+  public static @NotNull <O,E> AtomicFieldUpdater<O, E> forField(@NotNull Field field) {
     return new AtomicFieldUpdater<>(field);
   }
 
@@ -71,27 +79,58 @@ public class AtomicFieldUpdater<ContainingClass, FieldType> {
   private AtomicFieldUpdater(@NotNull Field field) {
     field.setAccessible(true);
     if (!Modifier.isVolatile(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) throw new IllegalArgumentException(field + " must be volatile instance");
-    offset = unsafe.objectFieldOffset(field);
+    try {
+      MethodHandle objectFieldOffset =
+        MethodHandles.publicLookup().findVirtual(unsafe.getClass(), "objectFieldOffset", MethodType.methodType(long.class, Field.class));
+      offset = (long)objectFieldOffset.invoke(unsafe, field);
+    }
+    catch (Throwable t) {
+      throw new RuntimeException(t);
+    }
   }
 
   public boolean compareAndSet(@NotNull ContainingClass owner, FieldType expected, FieldType newValue) {
-    return unsafe.compareAndSwapObject(owner, offset, expected, newValue);
+    try {
+      return (boolean)compareAndSwapObjectHandle.invokeExact(owner, offset, expected, newValue);
+    }
+    catch (Throwable throwable) {
+      throw new RuntimeException(throwable);
+    }
   }
 
   public boolean compareAndSetLong(@NotNull ContainingClass owner, long expected, long newValue) {
-    return unsafe.compareAndSwapLong(owner, offset, expected, newValue);
+    try {
+      return (boolean)compareAndSwapLongHandle.invokeExact(owner, offset, expected, newValue);
+    }
+    catch (Throwable throwable) {
+      throw new RuntimeException(throwable);
+    }
   }
 
   public boolean compareAndSetInt(@NotNull ContainingClass owner, int expected, int newValue) {
-    return unsafe.compareAndSwapInt(owner, offset, expected, newValue);
+    try {
+      return (boolean)compareAndSwapIntHandle.invokeExact(owner, offset, expected, newValue);
+    }
+    catch (Throwable throwable) {
+      throw new RuntimeException(throwable);
+    }
   }
 
   public void set(@NotNull ContainingClass owner, FieldType newValue) {
-    unsafe.putObjectVolatile(owner, offset, newValue);
+    try {
+      putObjectVolatileHandle.invokeExact(owner, offset, newValue);
+    }
+    catch (Throwable throwable) {
+      throw new RuntimeException(throwable);
+    }
   }
 
   public FieldType get(@NotNull ContainingClass owner) {
-    //noinspection unchecked
-    return (FieldType)unsafe.getObjectVolatile(owner, offset);
+    try {
+      return (FieldType)getObjectVolatileHandle.invokeExact(owner, offset);
+    }
+    catch (Throwable throwable) {
+      throw new RuntimeException(throwable);
+    }
   }
 }

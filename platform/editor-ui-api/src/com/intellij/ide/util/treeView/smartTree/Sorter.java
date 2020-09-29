@@ -16,7 +16,7 @@
 package com.intellij.ide.util.treeView.smartTree;
 
 import com.intellij.icons.AllIcons;
-import com.intellij.ide.IdeBundle;
+import com.intellij.openapi.editor.PlatformEditorBundle;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
@@ -25,7 +25,7 @@ import java.util.Comparator;
 /**
  * Action for sorting items in a generic tree.
  *
- * @see com.intellij.ide.util.treeView.smartTree.TreeModel#getSorters()
+ * @see TreeModel#getSorters()
  */
 public interface Sorter extends TreeAction {
   Sorter[] EMPTY_ARRAY = new Sorter[0];
@@ -59,6 +59,7 @@ public interface Sorter extends TreeAction {
       return true;
     }
 
+    @NonNls
     public String toString() {
       return getName();
     }
@@ -66,8 +67,8 @@ public interface Sorter extends TreeAction {
     @Override
     @NotNull
     public ActionPresentation getPresentation() {
-      return new ActionPresentationData(IdeBundle.message("action.sort.alphabetically"),
-                                        IdeBundle.message("action.sort.alphabetically"),
+      return new ActionPresentationData(PlatformEditorBundle.message("action.sort.alphabetically"),
+                                        null,
                                         AllIcons.ObjectBrowser.Sorted);
     }
 

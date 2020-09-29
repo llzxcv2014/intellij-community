@@ -1,10 +1,11 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.util.scopeChooser;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.impl.FlattenModulesToggleAction;
 import com.intellij.ide.projectView.impl.nodes.ProjectViewDirectoryHelper;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.ex.ComboBoxAction;
 import com.intellij.openapi.application.ApplicationManager;
@@ -23,13 +24,13 @@ import com.intellij.packageDependencies.ui.*;
 import com.intellij.psi.search.scope.packageSet.*;
 import com.intellij.ui.*;
 import com.intellij.ui.components.panels.VerticalLayout;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Consumer;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.ColorIcon;
-import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.tree.TreeUtil;
 import com.intellij.util.ui.update.Activatable;
@@ -40,7 +41,6 @@ import org.jetbrains.annotations.PropertyKey;
 
 import javax.swing.*;
 import javax.swing.event.*;
-import javax.swing.tree.ExpandVetoException;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.FocusEvent;
@@ -154,8 +154,8 @@ public class ScopeEditorPanel {
         cancelCurrentProgress();
       }
     });
-    myPartiallyIncluded.setIcon(JBUI.scale(new ColorIcon(10, MyTreeCellRenderer.PARTIAL_INCLUDED)));
-    myRecursivelyIncluded.setIcon(JBUI.scale(new ColorIcon(10, MyTreeCellRenderer.WHOLE_INCLUDED)));
+    myPartiallyIncluded.setIcon(JBUIScale.scaleIcon(new ColorIcon(10, MyTreeCellRenderer.PARTIAL_INCLUDED)));
+    myRecursivelyIncluded.setIcon(JBUIScale.scaleIcon(new ColorIcon(10, MyTreeCellRenderer.WHOLE_INCLUDED)));
   }
 
   private void updateCaretPositionText() {
@@ -446,12 +446,12 @@ public class ScopeEditorPanel {
     new TreeSpeedSearch(tree);
     tree.addTreeWillExpandListener(new TreeWillExpandListener() {
       @Override
-      public void treeWillExpand(TreeExpansionEvent event) throws ExpandVetoException {
+      public void treeWillExpand(TreeExpansionEvent event) {
         ((PackageDependenciesNode)event.getPath().getLastPathComponent()).sortChildren();
       }
 
       @Override
-      public void treeWillCollapse(TreeExpansionEvent event) throws ExpandVetoException {
+      public void treeWillCollapse(TreeExpansionEvent event) {
       }
     });
 
@@ -482,7 +482,7 @@ public class ScopeEditorPanel {
           if (myErrorMessage == null) {
             String message = IdeBundle.message("label.scope.contains.files", model.getMarkedFileCount(), model.getTotalFileCount());
             if (FilePatternPackageSet.SCOPE_FILE.equals(DependencyUISettings.getInstance().SCOPE_TYPE)) {
-              message = UIUtil.toHtml(message + "<br/>(Non-project files are not shown)");
+              message = UIUtil.toHtml(message + "<br>" + LangBundle.message("non.project.files.are.not.shown"));
             }
             myMatchingCountLabel.setText(message);
             myMatchingCountLabel.setForeground(new JLabel().getForeground());
@@ -646,7 +646,7 @@ public class ScopeEditorPanel {
 
     public MyPanelProgressIndicator(final boolean requestFocus) {
       //noinspection Convert2Lambda
-      super(new Consumer<JComponent>() {
+      super(new Consumer<>() {
         @Override
         public void consume(final JComponent component) {
           setToComponent(component, requestFocus);

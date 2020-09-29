@@ -22,6 +22,7 @@ import com.intellij.codeInsight.template.TemplateEditingAdapter;
 import com.intellij.codeInsight.template.TemplateManager;
 import com.intellij.codeInspection.ex.GlobalInspectionContextBase;
 import com.intellij.ide.util.MemberChooser;
+import com.intellij.java.JavaBundle;
 import com.intellij.lang.ContextAwareActionHandler;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.application.ApplicationManager;
@@ -32,6 +33,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.*;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
@@ -49,10 +51,10 @@ import java.util.Objects;
 public abstract class GenerateMembersHandlerBase implements CodeInsightActionHandler, ContextAwareActionHandler {
   private static final Logger LOG = Logger.getInstance(GenerateMembersHandlerBase.class);
 
-  private final String myChooserTitle;
+  private final @NlsContexts.DialogTitle String myChooserTitle;
   protected boolean myToCopyJavaDoc;
 
-  public GenerateMembersHandlerBase(String chooserTitle) {
+  public GenerateMembersHandlerBase(@NlsContexts.DialogTitle String chooserTitle) {
     myChooserTitle = chooserTitle;
   }
 
@@ -170,8 +172,8 @@ public abstract class GenerateMembersHandlerBase implements CodeInsightActionHan
     generatedMembers.get(0).positionCaret(editor, false);
   }
 
-  protected String getNothingFoundMessage() {
-    return "Nothing found to insert";
+  protected @NlsContexts.HintText String getNothingFoundMessage() {
+    return JavaBundle.message("generate.members.nothing.to.insert");
   }
 
   private static void runTemplates(final Project myProject, final Editor editor, final List<? extends TemplateGenerationInfo> templates, final int index) {
@@ -197,23 +199,20 @@ public abstract class GenerateMembersHandlerBase implements CodeInsightActionHan
   }
 
 
-  @Nullable
-  protected ClassMember[] chooseOriginalMembers(PsiClass aClass, Project project) {
+  protected ClassMember @Nullable [] chooseOriginalMembers(PsiClass aClass, Project project) {
     ClassMember[] allMembers = getAllOriginalMembers(aClass);
     return chooseMembers(allMembers, false, false, project, null);
   }
 
-  @Nullable
-  protected ClassMember[] chooseOriginalMembers(PsiClass aClass, Project project, Editor editor) {
+  protected ClassMember @Nullable [] chooseOriginalMembers(PsiClass aClass, Project project, Editor editor) {
     return chooseOriginalMembers(aClass, project);
   }
 
-  @Nullable
-  protected ClassMember[] chooseMembers(ClassMember[] members,
-                                        boolean allowEmptySelection,
-                                        boolean copyJavadocCheckbox,
-                                        Project project,
-                                        @Nullable Editor editor) {
+  protected ClassMember @Nullable [] chooseMembers(ClassMember[] members,
+                                                   boolean allowEmptySelection,
+                                                   boolean copyJavadocCheckbox,
+                                                   Project project,
+                                                   @Nullable Editor editor) {
     MemberChooser<ClassMember> chooser = createMembersChooser(members, allowEmptySelection, copyJavadocCheckbox, project);
     if (editor != null) {
       final int offset = editor.getCaretModel().getOffset();
@@ -221,13 +220,11 @@ public abstract class GenerateMembersHandlerBase implements CodeInsightActionHan
       ClassMember preselection = null;
       for (ClassMember member : members) {
         if (member instanceof PsiElementClassMember) {
-          final PsiDocCommentOwner owner = ((PsiElementClassMember)member).getElement();
-          if (owner != null) {
-            final TextRange textRange = owner.getTextRange();
-            if (textRange != null && textRange.contains(offset)) {
-              preselection = member;
-              break;
-            }
+          final PsiDocCommentOwner owner = ((PsiElementClassMember<?>)member).getElement();
+          final TextRange textRange = owner.getTextRange();
+          if (textRange != null && textRange.contains(offset)) {
+            preselection = member;
+            break;
           }
         }
       }
@@ -246,13 +243,14 @@ public abstract class GenerateMembersHandlerBase implements CodeInsightActionHan
                                                             boolean allowEmptySelection,
                                                             boolean copyJavadocCheckbox,
                                                             Project project) {
-    MemberChooser<ClassMember> chooser = new MemberChooser<ClassMember>(members, allowEmptySelection, true, project, getHeaderPanel(project), getOptionControls()) {
-      @Nullable
-      @Override
-      protected String getHelpId() {
-        return GenerateMembersHandlerBase.this.getHelpId();
-      }
-    };
+    MemberChooser<ClassMember> chooser =
+      new MemberChooser<>(members, allowEmptySelection, true, project, getHeaderPanel(project), getOptionControls()) {
+        @Nullable
+        @Override
+        protected String getHelpId() {
+          return GenerateMembersHandlerBase.this.getHelpId();
+        }
+      };
     chooser.setTitle(myChooserTitle);
     chooser.setCopyJavadocVisible(copyJavadocCheckbox);
     return chooser;
@@ -263,8 +261,7 @@ public abstract class GenerateMembersHandlerBase implements CodeInsightActionHan
     return null;
   }
 
-  @Nullable
-  protected JComponent[] getOptionControls() {
+  protected JComponent @Nullable [] getOptionControls() {
     return null;
   }
 

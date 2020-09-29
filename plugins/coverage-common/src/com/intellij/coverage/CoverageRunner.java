@@ -16,18 +16,19 @@ public abstract class CoverageRunner {
   public abstract ProjectData loadCoverageData(@NotNull final File sessionDataFile, @Nullable final CoverageSuite baseCoverageSuite);
 
   @NotNull
+  @NonNls
   public abstract String getPresentableName();
 
   @NotNull
+  @NonNls
   public abstract String getId();
 
   @NotNull
   @NonNls
   public abstract String getDataFileExtension();
 
-  @NotNull
   @NonNls
-  public String[] getDataFileExtensions() {
+  public String @NotNull [] getDataFileExtensions() {
     return new String[]{getDataFileExtension()};
   }
 

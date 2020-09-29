@@ -22,11 +22,13 @@ import com.intellij.codeInsight.daemon.impl.quickfix.AnonymousTargetClassPresele
 import com.intellij.codeInsight.generation.GenerateMembersUtil;
 import com.intellij.codeInsight.navigation.NavigationUtil;
 import com.intellij.ide.util.PsiClassListCellRenderer;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.search.GlobalSearchScope;
@@ -35,7 +37,6 @@ import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.util.FileTypeUtils;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.refactoring.HelpID;
-import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.introduce.inplace.AbstractInplaceIntroducer;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
 import com.intellij.refactoring.util.EnumConstantsUtil;
@@ -55,7 +56,6 @@ import static com.intellij.refactoring.introduceField.BaseExpressionToFieldHandl
 public abstract class LocalToFieldHandler {
   private static final Logger LOG = Logger.getInstance(LocalToFieldHandler.class);
 
-  private static final String REFACTORING_NAME = RefactoringBundle.message("convert.local.to.field.title");
   private final Project myProject;
   private final boolean myIsConstant;
 
@@ -75,8 +75,8 @@ public abstract class LocalToFieldHandler {
         classes.add((PsiClass)parent);
       }
       if (parent instanceof PsiFile && FileTypeUtils.isInServerPageFile(parent)) {
-        String message = RefactoringBundle.message("error.not.supported.for.jsp", REFACTORING_NAME);
-        CommonRefactoringUtil.showErrorHint(myProject, editor, message, REFACTORING_NAME, HelpID.LOCAL_TO_FIELD);
+        String message = JavaRefactoringBundle.message("error.not.supported.for.jsp", getRefactoringName());
+        CommonRefactoringUtil.showErrorHint(myProject, editor, message, getRefactoringName(), HelpID.LOCAL_TO_FIELD);
         return false;
       }
       if (parent instanceof PsiModifierListOwner &&((PsiModifierListOwner)parent).hasModifierProperty(PsiModifier.STATIC)) {
@@ -95,14 +95,17 @@ public abstract class LocalToFieldHandler {
       final boolean isStatic = tempIsStatic;
       final PsiClass firstClass = classes.get(0);
       final PsiClass preselection = AnonymousTargetClassPreselectionUtil.getPreselection(classes, firstClass);
-      NavigationUtil.getPsiElementPopup(classes.toArray(PsiClass.EMPTY_ARRAY), new PsiClassListCellRenderer(), "Choose class to introduce " + (myIsConstant ? "constant" : "field"), new PsiElementProcessor<PsiClass>() {
-        @Override
-        public boolean execute(@NotNull PsiClass aClass) {
-          AnonymousTargetClassPreselectionUtil.rememberSelection(aClass, aClass);
-          convertLocalToField(local, aClass, editor, isStatic);
-          return false;
-        }
-      }, preselection).showInBestPositionFor(editor);
+      String title = myIsConstant ? JavaRefactoringBundle.message("local.to.field.popup.title.choose.class.to.introduce.constant")
+                                  : JavaRefactoringBundle.message("local.to.field.popup.title.choose.class.to.introduce.field");
+      NavigationUtil.getPsiElementPopup(classes.toArray(PsiClass.EMPTY_ARRAY), new PsiClassListCellRenderer(),
+                                        title, new PsiElementProcessor<>() {
+          @Override
+          public boolean execute(@NotNull PsiClass aClass) {
+            AnonymousTargetClassPreselectionUtil.rememberSelection(aClass, aClass);
+            convertLocalToField(local, aClass, editor, isStatic);
+            return false;
+          }
+        }, preselection).showInBestPositionFor(editor);
     }
 
     return true;
@@ -132,7 +135,8 @@ public abstract class LocalToFieldHandler {
     final boolean rebindNeeded1 = rebindNeeded;
     final Runnable runnable =
       new IntroduceFieldRunnable(rebindNeeded1, local, aaClass, settings, isStatic, occurences);
-    CommandProcessor.getInstance().executeCommand(myProject, () -> ApplicationManager.getApplication().runWriteAction(runnable), REFACTORING_NAME, null);
+    CommandProcessor.getInstance().executeCommand(myProject, () -> ApplicationManager.getApplication().runWriteAction(runnable),
+                                                  getRefactoringName(), null);
     return false;
   }
 
@@ -398,5 +402,9 @@ public abstract class LocalToFieldHandler {
       }
       parent.addBefore(comment, element);
     }
+  }
+
+  private static @NlsContexts.DialogTitle String getRefactoringName() {
+    return JavaRefactoringBundle.message("convert.local.to.field.title");
   }
 }

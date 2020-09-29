@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.branch
 
 import com.intellij.dvcs.repo.Repository
@@ -12,6 +12,7 @@ import com.intellij.openapi.vcs.Executor.*
 import com.intellij.openapi.vcs.changes.Change
 import com.intellij.openapi.vcs.changes.ChangesUtil
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.project.stateStore
 import com.intellij.testFramework.runInEdtAndWait
 import com.intellij.util.LineSeparator
 import git4idea.GitCommit
@@ -27,10 +28,9 @@ import git4idea.repo.GitRepository
 import git4idea.test.*
 import git4idea.test.GitScenarios.*
 import java.io.File
-import java.util.*
+import java.nio.file.Files
 
 class GitBranchWorkerTest : GitPlatformTest() {
-
   private lateinit var first: GitRepository
   private lateinit var second: GitRepository
   private lateinit var last: GitRepository
@@ -214,7 +214,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
 
     assertCurrentBranch("master")
     assertCurrentRevision("master")
-    assertErrorNotification("Couldn't checkout unknown_ref", "Revision not found in community, contrib and project")
+    assertErrorNotification("Couldn't checkout unknown_ref", "Revision not found in community, contrib and ${project.stateStore.projectBasePath.fileName}")
   }
 
   fun `test checkout revision checkout ref with partial success`() {
@@ -227,7 +227,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
     assertDetachedState(second, "feature")
 
     assertSuccessfulNotification("Checked out ${bcode("feature")} in community and contrib<br/>" +
-                                 "Revision not found in project<br><a href='rollback'>Rollback</a>")
+                                 "Revision not found in ${project.stateStore.projectBasePath.fileName}<br><a href=\"rollback\">Rollback</a>")
   }
 
   fun `test checkout with untracked files overwritten by checkout in first repo should show notification`() {
@@ -274,7 +274,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
     branchWithCommit(myRepositories, "feature")
 
 
-    val untracked = Arrays.asList<String>("untracked.txt")
+    val untracked = listOf("untracked.txt")
     untrackedFileOverwrittenBy(second, "feature", untracked)
 
     val untrackedPaths = mutableListOf<String>()
@@ -288,7 +288,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
       }
     })
 
-    assertTrue("Untracked files dialog was not shown", !untrackedPaths.isEmpty())
+    assertTrue("Untracked files dialog was not shown", untrackedPaths.isNotEmpty())
     assertEquals("Incorrect set of untracked files was shown in the dialog", untracked, untrackedPaths)
   }
 
@@ -316,7 +316,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
                                             operation: String,
                                             forceButton: String?): GitSmartOperationDialog.Choice {
         actualChanges.addAll(changes)
-        return GitSmartOperationDialog.Choice.CANCEL
+        return CANCEL
       }
     })
 
@@ -343,7 +343,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
 
   fun `test agree to smart merge should smart merge`() {
     val localChanges = `agree to smart operation`("merge",
-                                                  "Merged <b><code>feature</code></b> to <b><code>master</code></b><br/><a href='delete'>Delete feature</a>")
+                                                  "Merged <b><code>feature</code></b> to <b><code>master</code></b><br/><a href=\"delete\">Delete feature</a>")
 
     cd(last)
     val actual = cat(localChanges.first())
@@ -414,7 +414,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
                                             forceButton: String?): GitSmartOperationDialog.Choice {
         smartOperationDialogTimes++
         filesInDialog.addAll(ChangesUtil.getPaths(changes).map { it.path })
-        return GitSmartOperationDialog.Choice.SMART
+        return SMART
       }
     })
 
@@ -430,7 +430,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
                                             changes: List<Change>,
                                             paths: Collection<String>,
                                             operation: String,
-                                            forceButton: String?) = GitSmartOperationDialog.Choice.CANCEL
+                                            forceButton: String?) = CANCEL
     })
 
     assertNull("Notification was unexpectedly shown:" + vcsNotifier.lastNotification, vcsNotifier.lastNotification)
@@ -653,7 +653,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
     mergeBranch("master2", TestUiHandler())
 
     assertSuccessfulNotification("Merged ${bcode("master2")} to ${bcode("master")}<br/>" +
-                                 "<a href='delete'>Delete master2</a>")
+                                 "<a href=\"delete\">Delete master2</a>")
     assertFile(last, "branch_file.txt", "branch content")
     assertFile(first, "branch_file.txt", "branch content")
     assertFile(second, "branch_file.txt", "branch content")
@@ -709,7 +709,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
     mergeBranch("master2", TestUiHandler())
 
     assertNotNull("Success message wasn't shown", vcsNotifier.lastNotification)
-    assertEquals("Success message is incorrect", "Already up-to-date<br/><a href='delete'>Delete master2</a>",
+    assertEquals("Success message is incorrect", "Already up-to-date<br/><a href=\"delete\">Delete master2</a>",
                  vcsNotifier.lastNotification.content)
   }
 
@@ -722,7 +722,7 @@ class GitBranchWorkerTest : GitPlatformTest() {
 
     assertNotNull("Success message wasn't shown", vcsNotifier.lastNotification)
     assertEquals("Success message is incorrect",
-                 "Merged " + bcode("master2") + " to " + bcode("master") + "<br/><a href='delete'>Delete master2</a>",
+                 "Merged " + bcode("master2") + " to " + bcode("master") + "<br/><a href=\"delete\">Delete master2</a>",
                  vcsNotifier.lastNotification.content)
     assertFile(first, "branch_file.txt", "branch content")
   }
@@ -859,17 +859,22 @@ class GitBranchWorkerTest : GitPlatformTest() {
   }
 
   private fun prepareLocalAndRemoteBranch(name: String, track: Boolean) {
-    val parentRoot = File(testRoot, "parentRoot")
-    parentRoot.mkdir()
+    val parentRoot = testNioRoot.resolve("parentRoot")
+    Files.createDirectories(parentRoot)
     for (repository in myRepositories) {
       repository.git("branch $name")
-      prepareRemoteRepo(repository, File(parentRoot, "${repository.root.name}-parent.git"))
+      prepareRemoteRepo(repository, parentRoot.resolve("${repository.root.name}-parent.git"))
       repository.git("push ${if (track) "-u" else ""} origin $name")
     }
   }
 
   private fun `assert remote branch deleted`(repository: GitRepository, name: String) {
-    assertNull("Branch should be deleted", repository.branches.findBranchByName(name))
+    val branch = repository.branches.findBranchByName(name)
+    if (branch != null) {
+      assertNull("Branch $name should be deleted in $repository but was found in the repo info." +
+                 "native git branch list: \n${git("branch --list --all")}", branch)
+
+    }
   }
 
   private fun assertDetachedState(reference: String) {

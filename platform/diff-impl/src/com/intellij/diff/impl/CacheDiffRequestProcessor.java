@@ -15,6 +15,7 @@
  */
 package com.intellij.diff.impl;
 
+import com.intellij.CommonBundle;
 import com.intellij.diff.chains.DiffRequestProducer;
 import com.intellij.diff.chains.DiffRequestProducerException;
 import com.intellij.diff.requests.*;
@@ -32,8 +33,9 @@ import com.intellij.openapi.progress.util.ProgressWindow;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.UserDataHolder;
-import org.jetbrains.annotations.CalledInAwt;
-import org.jetbrains.annotations.CalledInBackground;
+import com.intellij.util.concurrency.annotations.RequiresBackgroundThread;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -63,13 +65,14 @@ public abstract class CacheDiffRequestProcessor<T> extends DiffRequestProcessor 
   // Abstract
   //
 
+  @Nls
   @Nullable
   protected abstract String getRequestName(@NotNull T provider);
 
   protected abstract T getCurrentRequestProvider();
 
   @NotNull
-  @CalledInBackground
+  @RequiresBackgroundThread
   protected abstract DiffRequest loadRequest(@NotNull T provider, @NotNull ProgressIndicator indicator)
     throws ProcessCanceledException, DiffRequestProducerException;
 
@@ -83,12 +86,12 @@ public abstract class CacheDiffRequestProcessor<T> extends DiffRequestProcessor 
   }
 
   @Override
-  @CalledInAwt
+  @RequiresEdt
   public void updateRequest(final boolean force, @Nullable final ScrollToPolicy scrollToChangePolicy) {
     updateRequest(force, true, scrollToChangePolicy);
   }
 
-  @CalledInAwt
+  @RequiresEdt
   public void updateRequest(final boolean force, boolean useCache, @Nullable final ScrollToPolicy scrollToChangePolicy) {
     ApplicationManager.getApplication().assertIsDispatchThread();
     if (isDisposed()) return;
@@ -149,7 +152,7 @@ public abstract class CacheDiffRequestProcessor<T> extends DiffRequestProcessor 
   }
 
   @Override
-  @CalledInAwt
+  @RequiresEdt
   protected void onDispose() {
     super.onDispose();
     myQueue.abort();
@@ -168,7 +171,7 @@ public abstract class CacheDiffRequestProcessor<T> extends DiffRequestProcessor 
     @NotNull private final T myProducer;
 
     public ReloadRequestAction(@NotNull T provider) {
-      super("Reload", null, AllIcons.Actions.Refresh);
+      super(CommonBundle.message("action.text.reload"), null, AllIcons.Actions.Refresh);
       myProducer = provider;
     }
 

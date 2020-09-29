@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.usages.impl.rules;
 
 import com.intellij.openapi.project.Project;
@@ -24,22 +10,19 @@ import com.intellij.usages.*;
 import com.intellij.usages.impl.UnknownUsagesInUnloadedModules;
 import com.intellij.usages.rules.PsiElementUsage;
 import com.intellij.usages.rules.SingleParentUsageGroupingRule;
+import com.intellij.usages.rules.UsageGroupingRuleEx;
 import com.intellij.usages.rules.UsageInFile;
-import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * @author max
- */
-public class NonCodeUsageGroupingRule extends SingleParentUsageGroupingRule {
+class NonCodeUsageGroupingRule extends SingleParentUsageGroupingRule implements UsageGroupingRuleEx {
   private final Project myProject;
 
-  public NonCodeUsageGroupingRule(Project project) {
+  NonCodeUsageGroupingRule(@NotNull Project project) {
     myProject = project;
   }
 
-  private static class CodeUsageGroup extends UsageGroupBase {
+  private static final class CodeUsageGroup extends UsageGroupBase {
     private static final UsageGroup INSTANCE = new CodeUsageGroup();
 
     private CodeUsageGroup() {
@@ -57,7 +40,7 @@ public class NonCodeUsageGroupingRule extends SingleParentUsageGroupingRule {
     }
   }
 
-  private static class UsageInGeneratedCodeGroup extends UsageGroupBase {
+  private static final class UsageInGeneratedCodeGroup extends UsageGroupBase {
     public static final UsageGroup INSTANCE = new UsageInGeneratedCodeGroup();
 
     private UsageInGeneratedCodeGroup() {
@@ -75,7 +58,7 @@ public class NonCodeUsageGroupingRule extends SingleParentUsageGroupingRule {
     }
   }
 
-  private static class NonCodeUsageGroup extends UsageGroupBase {
+  private static final class NonCodeUsageGroup extends UsageGroupBase {
     public static final UsageGroup INSTANCE = new NonCodeUsageGroup();
 
     private NonCodeUsageGroup() {
@@ -95,7 +78,6 @@ public class NonCodeUsageGroupingRule extends SingleParentUsageGroupingRule {
 
   private static class DynamicUsageGroup extends UsageGroupBase {
     public static final UsageGroup INSTANCE = new DynamicUsageGroup();
-    @NonNls private static final String DYNAMIC_CAPTION = "Dynamic usages";
 
     DynamicUsageGroup() {
       super(2);
@@ -104,13 +86,13 @@ public class NonCodeUsageGroupingRule extends SingleParentUsageGroupingRule {
     @Override
     @NotNull
     public String getText(UsageView view) {
-      if (view == null) {
-        return DYNAMIC_CAPTION;
+      if (view != null) {
+        String dynamicCodeUsagesString = view.getPresentation().getDynamicCodeUsagesString();
+        if (dynamicCodeUsagesString != null) {
+          return dynamicCodeUsagesString;
+        }
       }
-      else {
-        final String dynamicCodeUsagesString = view.getPresentation().getDynamicCodeUsagesString();
-        return dynamicCodeUsagesString == null ? DYNAMIC_CAPTION : dynamicCodeUsagesString;
-      }
+      return UsageViewBundle.message("list.item.dynamic.usages");
     }
 
     public String toString() {
@@ -128,7 +110,7 @@ public class NonCodeUsageGroupingRule extends SingleParentUsageGroupingRule {
     @NotNull
     @Override
     public String getText(@Nullable UsageView view) {
-      return "Usages in Unloaded Modules";
+      return UsageViewBundle.message("list.item.usages.in.unloaded.modules");
     }
 
     @Override
@@ -139,7 +121,7 @@ public class NonCodeUsageGroupingRule extends SingleParentUsageGroupingRule {
 
   @Nullable
   @Override
-  protected UsageGroup getParentGroupFor(@NotNull Usage usage, @NotNull UsageTarget[] targets) {
+  protected UsageGroup getParentGroupFor(@NotNull Usage usage, UsageTarget @NotNull [] targets) {
     if (usage instanceof UnknownUsagesInUnloadedModules) {
       return UnloadedModulesUsageGroup.INSTANCE;
     }
@@ -164,5 +146,10 @@ public class NonCodeUsageGroupingRule extends SingleParentUsageGroupingRule {
       }
     }
     return null;
+  }
+
+  @Override
+  public boolean isGroupingToggleable() {
+    return false;
   }
 }

@@ -21,6 +21,7 @@ import com.intellij.openapi.application.impl.ApplicationInfoImpl;
 import com.intellij.openapi.application.impl.LaterInvocator;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
+import com.intellij.openapi.externalSystem.service.execution.*;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.module.Module;
@@ -30,12 +31,15 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.projectRoots.Sdk;
+import com.intellij.openapi.projectRoots.*;
+import com.intellij.openapi.projectRoots.impl.JavaAwareProjectJdkTableImpl;
 import com.intellij.openapi.roots.ModuleRootManager;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.io.FileUtilRt;
+import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.*;
 import com.intellij.psi.PsiFile;
@@ -46,15 +50,18 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.text.VersionComparatorUtil;
 import com.intellij.util.xml.NanoXmlBuilder;
 import com.intellij.util.xml.NanoXmlUtil;
+import com.intellij.workspaceModel.ide.impl.legacyBridge.LegacyBridgeProjectLifecycleListener;
 import gnu.trove.THashSet;
 import org.jdom.Element;
 import org.jdom.JDOMException;
 import org.jdom.Namespace;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.maven.buildtool.MavenSyncConsole;
 import org.jetbrains.idea.maven.dom.MavenDomUtil;
+import org.jetbrains.idea.maven.execution.MavenRunnerSettings;
 import org.jetbrains.idea.maven.model.MavenArtifact;
 import org.jetbrains.idea.maven.model.MavenConstants;
 import org.jetbrains.idea.maven.model.MavenId;
@@ -75,6 +82,7 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import java.io.*;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -95,8 +103,10 @@ import static icons.ExternalSystemIcons.Task;
 
 public class MavenUtil {
   @ApiStatus.Experimental
-  public static final ProjectSystemId SYSTEM_ID = new ProjectSystemId("MAVEN");
-  public static final String MAVEN_NOTIFICATION_GROUP = "Maven";
+  @NonNls public static final String MAVEN_NAME = "Maven";
+  @NonNls public static final String MAVEN_NAME_UPCASE = MAVEN_NAME.toUpperCase();
+  public static final ProjectSystemId SYSTEM_ID = new ProjectSystemId(MAVEN_NAME_UPCASE);
+  public static final String MAVEN_NOTIFICATION_GROUP = MAVEN_NAME;
   public static final String SETTINGS_XML = "settings.xml";
   public static final String DOT_M2_DIR = ".m2";
   public static final String PROP_USER_HOME = "user.home";
@@ -111,13 +121,12 @@ public class MavenUtil {
   public static final String CLIENT_EXPLODED_ARTIFACT_SUFFIX = CLIENT_ARTIFACT_SUFFIX + " exploded";
 
 
-
-
   @SuppressWarnings("unchecked")
   private static final Pair<Pattern, String>[] SUPER_POM_PATHS = new Pair[]{
     Pair.create(Pattern.compile("maven-\\d+\\.\\d+\\.\\d+-uber\\.jar"), "org/apache/maven/project/" + MavenConstants.SUPER_POM_XML),
     Pair.create(Pattern.compile("maven-model-builder-\\d+\\.\\d+\\.\\d+\\.jar"), "org/apache/maven/model/" + MavenConstants.SUPER_POM_XML)
   };
+  public static final String MAVEN_NEW_PROJECT_MODEL_KEY = "maven.new.project.model";
 
   private static volatile Map<String, String> ourPropertiesFromMvnOpts;
 
@@ -154,11 +163,11 @@ public class MavenUtil {
     }
   }
 
-  public static void invokeAndWait(Project p, Runnable r) {
+  public static void invokeAndWait(@NotNull Project p, @NotNull Runnable r) {
     invokeAndWait(p, ModalityState.defaultModalityState(), r);
   }
 
-  public static void invokeAndWait(final Project p, final ModalityState state, final Runnable r) {
+  public static void invokeAndWait(final Project p, final ModalityState state, @NotNull Runnable r) {
     if (isNoBackgroundMode()) {
       r.run();
     }
@@ -186,11 +195,19 @@ public class MavenUtil {
     }
   }
 
-  public static void invokeAndWaitWriteAction(Project p, final Runnable r) {
-    invokeAndWait(p, () -> ApplicationManager.getApplication().runWriteAction(r));
+  public static void invokeAndWaitWriteAction(@NotNull Project p, @NotNull Runnable r) {
+    if(ApplicationManager.getApplication().isWriteAccessAllowed()) {
+      r.run();
+    } else if( ApplicationManager.getApplication().isDispatchThread()){
+      ApplicationManager.getApplication().runWriteAction(r);
+    } else {
+      ApplicationManager.getApplication().invokeAndWait(DisposeAwareRunnable.create(
+        ()->ApplicationManager.getApplication().runWriteAction(r), p),
+                                                        ModalityState.defaultModalityState());
+    }
   }
 
-  public static void runDumbAware(final Project project, final Runnable r) {
+  public static void runDumbAware(@NotNull Project project, @NotNull Runnable r) {
     if (DumbService.isDumbAware(r)) {
       r.run();
     }
@@ -199,20 +216,20 @@ public class MavenUtil {
     }
   }
 
-  public static void runWhenInitialized(@NotNull Project project, @NotNull Runnable r) {
+  public static void runWhenInitialized(@NotNull Project project, @NotNull Runnable runnable) {
     if (project.isDisposed()) return;
 
     if (isNoBackgroundMode()) {
-      r.run();
+      runnable.run();
       return;
     }
 
     if (!project.isInitialized()) {
-      StartupManager.getInstance(project).registerPostStartupActivity(DisposeAwareRunnable.create(r, project));
+      StartupManager.getInstance(project).runAfterOpened(runnable);
       return;
     }
 
-    runDumbAware(project, r);
+    runDumbAware(project, runnable);
   }
 
   public static boolean isNoBackgroundMode() {
@@ -225,7 +242,7 @@ public class MavenUtil {
     return LaterInvocator.isInModalContext();
   }
 
-  public static void showError(Project project, String title, Throwable e) {
+  public static void showError(Project project, @NlsContexts.NotificationTitle String title, Throwable e) {
     MavenLog.LOG.warn(title, e);
     Notifications.Bus.notify(new Notification(MAVEN_NOTIFICATION_GROUP, title, e.getMessage(), NotificationType.ERROR), project);
   }
@@ -236,15 +253,21 @@ public class MavenUtil {
   }
 
   public static File getBaseDir(@NotNull VirtualFile file) {
-    File baseDir = VfsUtilCore.virtualToIoFile(file.isDirectory() || file.getParent() == null ? file : file.getParent());
-    File dir = baseDir;
+    return VfsUtilCore.virtualToIoFile(getVFileBaseDir(file));
+  }
+
+  public static VirtualFile getVFileBaseDir(@NotNull VirtualFile file) {
+    VirtualFile baseDir = file.isDirectory() || file.getParent() == null ? file : file.getParent();
+    VirtualFile dir = baseDir;
     do {
-      if (new File(dir, ".mvn").isDirectory()) {
+      VirtualFile child = dir.findChild(".mvn");
+
+      if (child != null && child.isDirectory()) {
         baseDir = dir;
         break;
       }
     }
-    while ((dir = dir.getParentFile()) != null);
+    while ((dir = dir.getParent()) != null);
     return baseDir;
   }
 
@@ -323,6 +346,7 @@ public class MavenUtil {
     properties.setProperty("GROUP_ID", projectId.getGroupId());
     properties.setProperty("ARTIFACT_ID", projectId.getArtifactId());
     properties.setProperty("VERSION", projectId.getVersion());
+
     if (parentId != null) {
       conditions.setProperty("HAS_PARENT", "true");
       properties.setProperty("PARENT_GROUP_ID", parentId.getGroupId());
@@ -341,6 +365,18 @@ public class MavenUtil {
             properties.setProperty("PARENT_RELATIVE_PATH", relativePath);
           }
         }
+      }
+    } else {
+      //set language level only for root pom
+      Sdk sdk = ProjectRootManager.getInstance(project).getProjectSdk();
+      if (sdk != null && sdk.getSdkType() instanceof JavaSdk) {
+        JavaSdk javaSdk = (JavaSdk)sdk.getSdkType();
+        JavaSdkVersion version = javaSdk.getVersion(sdk);
+        String description = version == null ? null : version.getDescription();
+        boolean shouldSetLangLevel = version != null && version.isAtLeast(JavaSdkVersion.JDK_1_6);
+        conditions.setProperty("SHOULD_SET_LANG_LEVEL", String.valueOf(shouldSetLangLevel));
+        properties.setProperty("COMPILER_LEVEL_SOURCE", description);
+        properties.setProperty("COMPILER_LEVEL_TARGET", description);
       }
     }
     runOrApplyFileTemplate(project, file, MavenFileTemplateGroupFactory.MAVEN_PROJECT_XML_TEMPLATE, properties, conditions, interactive);
@@ -424,7 +460,7 @@ public class MavenUtil {
     return true;
   }
 
-  public static void run(Project project, String title, final MavenTask task)
+  public static void run(Project project, @NlsContexts.DialogTitle String title, final MavenTask task)
     throws MavenProcessCanceledException {
     final Exception[] canceledEx = new Exception[1];
     final RuntimeException[] runtimeEx = new RuntimeException[1];
@@ -457,7 +493,7 @@ public class MavenUtil {
 
   @NotNull
   public static MavenTaskHandler runInBackground(@NotNull final Project project,
-                                                 @NotNull final String title,
+                                                 @NotNull @NlsContexts.Command final String title,
                                                  final boolean cancellable,
                                                  @NotNull final MavenTask task) {
     return runInBackground(project, title, cancellable, task, null);
@@ -466,7 +502,7 @@ public class MavenUtil {
 
   @NotNull
   public static MavenTaskHandler runInBackground(@NotNull final Project project,
-                                                 @NotNull final String title,
+                                                 @NotNull @NlsContexts.Command final String title,
                                                  final boolean cancellable,
                                                  @NotNull final MavenTask task,
                                                  @Nullable("null means application pooled thread")
@@ -741,6 +777,33 @@ public class MavenUtil {
     }
   }
 
+  @Nullable
+  public static VirtualFile getRepositoryFile(@NotNull Project project,
+                                              @NotNull MavenId id,
+                                              @NotNull String extension,
+                                              @Nullable String classifier) {
+    if (id.getGroupId() == null || id.getArtifactId() == null || id.getVersion() == null) {
+      return null;
+    }
+    MavenProjectsManager projectsManager = MavenProjectsManager.getInstance(project);
+    File file = makeLocalRepositoryFile(id, projectsManager.getLocalRepository(), extension, classifier);
+    return LocalFileSystem.getInstance().findFileByIoFile(file);
+  }
+
+  private static File makeLocalRepositoryFile(MavenId id,
+                                              File localRepository,
+                                              @NotNull String extension,
+                                              @Nullable String classifier) {
+    String relPath = id.getGroupId().replace(".", "/");
+
+    relPath += "/" + id.getArtifactId();
+    relPath += "/" + id.getVersion();
+    relPath += "/" + id.getArtifactId() + "-" + id.getVersion();
+    relPath = classifier == null ? relPath + "." + extension : relPath + "-" + classifier + "." + extension;
+
+    return new File(localRepository, relPath);
+  }
+
   @NotNull
   public static File doResolveLocalRepository(@Nullable File userSettingsFile, @Nullable File globalSettingsFile) {
     if (userSettingsFile != null) {
@@ -779,17 +842,94 @@ public class MavenUtil {
     }
   }
 
-  private static Element getRepositoryElement(File file) throws JDOMException, IOException {
-    Element fileElement = JDOMUtil.load(file);
+  public static String getMirroredUrl(final File settingsFile, String url, String id) {
+    try {
+      Element mirrorParent = getElementWithRegardToNamespace(JDOMUtil.load(settingsFile), "mirrors");
+      if (mirrorParent == null) {
+        return url;
+      }
+      List<Element> mirrors = getElementsWithRegardToNamespace(mirrorParent, "mirror");
+      for (Element el : mirrors) {
+        Element mirrorOfElement = getElementWithRegardToNamespace(el, "mirrorOf");
+        Element mirrorUrlElement = getElementWithRegardToNamespace(el, "url");
+        if (mirrorOfElement == null) continue;
+        if (mirrorUrlElement == null) continue;
 
-    Element repository = fileElement.getChild("localRepository");
-    if (repository == null) {
-      repository = fileElement.getChild("localRepository", Namespace.getNamespace("http://maven.apache.org/SETTINGS/1.0.0"));
+        String mirrorOf = mirrorOfElement.getTextTrim();
+        String mirrorUrl = mirrorUrlElement.getTextTrim();
+
+        if (StringUtil.isEmptyOrSpaces(mirrorOf) || StringUtil.isEmptyOrSpaces(mirrorUrl)) {
+          continue;
+        }
+
+        if (isMirrorApplicable(mirrorOf, url, id)) {
+          return mirrorUrl;
+        }
+      }
     }
-    if (repository == null) {
-      repository = fileElement.getChild("localRepository", Namespace.getNamespace("http://maven.apache.org/SETTINGS/1.1.0"));
+    catch (Exception ignore) {
+
     }
-    return repository;
+
+    return url;
+  }
+
+  private static boolean isMirrorApplicable(String mirrorOf, String url, String id) {
+    HashSet<String> patterns = new HashSet<>(split(mirrorOf, ","));
+
+    if (patterns.contains("!" + id)) {
+      return false;
+    }
+
+    if (patterns.contains("*")) {
+      return true;
+    }
+    if (patterns.contains(id)) {
+      return true;
+    }
+    if (patterns.contains("external:*")) {
+      try {
+        URI uri = URI.create(url);
+        if ("file".equals(uri.getScheme())) return false;
+        if ("localhost".equals(uri.getHost())) return false;
+        if ("127.0.0.1".equals(uri.getHost())) return false;
+        return true;
+      }
+      catch (IllegalArgumentException e) {
+        MavenLog.LOG.warn("cannot parse uri " + url, e);
+        return false;
+      }
+    }
+    return false;
+  }
+
+  @Nullable
+  private static Element getRepositoryElement(File file) throws JDOMException, IOException {
+    return getElementWithRegardToNamespace(JDOMUtil.load(file), "localRepository");
+  }
+
+  @Nullable
+  private static Element getElementWithRegardToNamespace(@NotNull Element parent, String childName) {
+
+    Element element = parent.getChild(childName);
+    if (element == null) {
+      element = parent.getChild(childName, Namespace.getNamespace("http://maven.apache.org/SETTINGS/1.0.0"));
+    }
+    if (element == null) {
+      element = parent.getChild(childName, Namespace.getNamespace("http://maven.apache.org/SETTINGS/1.1.0"));
+    }
+    return element;
+  }
+
+  private static List<Element> getElementsWithRegardToNamespace(@NotNull Element parent, String childrenName) {
+    List<Element> elements = parent.getChildren(childrenName);
+    if (elements.isEmpty()) {
+      elements = parent.getChildren(childrenName, Namespace.getNamespace("http://maven.apache.org/SETTINGS/1.0.0"));
+    }
+    if (elements.isEmpty()) {
+      elements = parent.getChildren(childrenName, Namespace.getNamespace("http://maven.apache.org/SETTINGS/1.1.0"));
+    }
+    return elements;
   }
 
   public static String expandProperties(String text, Properties props) {
@@ -811,7 +951,7 @@ public class MavenUtil {
     if (mavenHome != null) {
       result = doResolveSuperPomFile(new File(mavenHome, LIB_DIR));
     }
-    return result == null ? doResolveSuperPomFile(MavenServerManager.getMavenLibDirectory()) : result;
+    return result == null ? doResolveSuperPomFile(new File(MavenServerManager.getMavenHomeFile(MavenServerManager.BUNDLED_MAVEN_3), LIB_DIR)) : result;
   }
 
   @Nullable
@@ -882,6 +1022,12 @@ public class MavenUtil {
     for (MavenId id : unresolvedIds) {
       syncConsole.getListener(MavenServerProgressIndicator.ResolveType.DEPENDENCY).showError(id.getKey());
     }
+  }
+
+  public static boolean newModelEnabled(Project project) {
+    return LegacyBridgeProjectLifecycleListener.Companion.enabled(project) &&
+           (Boolean.valueOf(System.getProperty(MAVEN_NEW_PROJECT_MODEL_KEY))
+            || Registry.is(MAVEN_NEW_PROJECT_MODEL_KEY));
   }
 
   public interface MavenTaskHandler {
@@ -1152,5 +1298,49 @@ public class MavenUtil {
       return baseDir.findFileByRelativePath(fileRelativePath);
     }
     return null;
+  }
+
+  public static Path toPath(@Nullable MavenProject mavenProject, String path) {
+    if (!FileUtil.isAbsolute(path)) {
+      if (mavenProject == null) {
+        throw new IllegalArgumentException("Project should be not-nul for non-absolute paths");
+      }
+      path = new File(mavenProject.getDirectory(), path).getPath();
+    }
+    return new Path(path);
+  }
+
+  public static @NotNull Sdk getJdk(@NotNull Project project, @NotNull String name) throws ExternalSystemJdkException {
+    if (name.equals(MavenRunnerSettings.USE_INTERNAL_JAVA) || project.isDefault()) {
+      return JavaAwareProjectJdkTableImpl.getInstanceEx().getInternalJdk();
+    }
+
+    if (name.equals(MavenRunnerSettings.USE_PROJECT_JDK)) {
+        Sdk res = ProjectRootManager.getInstance(project).getProjectSdk();
+        if (res != null && res.getSdkType() instanceof JavaSdkType) {
+          return res;
+        }
+      throw new ProjectJdkNotFoundException();
+    }
+
+    if (name.equals(MavenRunnerSettings.USE_JAVA_HOME)) {
+      final String javaHome = ExternalSystemJdkUtil.getJavaHome();
+      if (StringUtil.isEmptyOrSpaces(javaHome)) {
+        throw new InvalidJavaHomeException(javaHome);
+      }
+      return JavaSdk.getInstance().createJdk("", javaHome);
+    }
+
+    for (Sdk projectJdk : ProjectJdkTable.getInstance().getAllJdks()) {
+      if (projectJdk.getName().equals(name)) {
+        if(projectJdk.getSdkType() instanceof JavaSdkType) {
+          return projectJdk;
+        } else {
+          throw new InvalidSdkException(projectJdk.getName());
+        }
+
+      }
+    }
+    throw new InvalidSdkException(name);
   }
 }

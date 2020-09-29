@@ -1,6 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes;
 
+import com.intellij.CommonBundle;
 import com.intellij.ide.CommonActionsManager;
 import com.intellij.ide.TreeExpander;
 import com.intellij.ide.util.treeView.TreeState;
@@ -11,6 +12,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.changes.ui.ChangesBrowserNode;
 import com.intellij.openapi.vcs.changes.ui.ChangesListView;
@@ -39,11 +41,10 @@ import static com.intellij.util.containers.ContainerUtil.set;
 abstract class SpecificFilesViewDialog extends DialogWrapper {
   protected JPanel myPanel;
   protected final ChangesListView myView;
-  protected final ChangeListManager myChangeListManager;
   protected final Project myProject;
 
   protected SpecificFilesViewDialog(@NotNull Project project,
-                                    @NotNull String title,
+                                    @NotNull @NlsContexts.DialogTitle String title,
                                     @NotNull DataKey<Stream<FilePath>> shownDataKey,
                                     @NotNull List<? extends FilePath> initDataFiles) {
     super(project, true);
@@ -59,20 +60,11 @@ abstract class SpecificFilesViewDialog extends DialogWrapper {
         }
         return super.getData(dataId);
       }
-
-      @Override
-      protected void installEnterKeyHandler() {
-        EditSourceOnEnterKeyHandler.install(this, closer);
-      }
-
-      @Override
-      protected void installDoubleClickHandler() {
-        EditSourceOnDoubleClickHandler.install(this, closer);
-      }
     };
-    myChangeListManager = ChangeListManager.getInstance(project);
+    EditSourceOnEnterKeyHandler.install(myView, closer);
+    EditSourceOnDoubleClickHandler.install(myView, closer);
     createPanel();
-    setOKButtonText("Close");
+    setOKButtonText(CommonBundle.getCancelButtonText());
 
     init();
     initData(initDataFiles);
@@ -89,9 +81,8 @@ abstract class SpecificFilesViewDialog extends DialogWrapper {
   }
 
 
-  @NotNull
   @Override
-  protected Action[] createActions() {
+  protected Action @NotNull [] createActions() {
     return new Action[]{getOKAction()};
   }
 

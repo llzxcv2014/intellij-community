@@ -4,6 +4,8 @@ package org.jetbrains.jps.incremental.instrumentation;
 import com.intellij.compiler.instrumentation.InstrumentationClassFinder;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.text.StringUtil;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.ModuleChunk;
 import org.jetbrains.jps.ProjectPaths;
@@ -38,7 +40,7 @@ public abstract class ClassProcessingBuilder extends ModuleLevelBuilder {
 
   protected abstract boolean isEnabled(CompileContext context, ModuleChunk chunk);
 
-  protected abstract String getProgressMessage();
+  protected abstract @Nls(capitalization = Nls.Capitalization.Sentence) String getProgressMessage();
 
   @Override
   public void chunkBuildFinished(CompileContext context, ModuleChunk chunk) {
@@ -84,6 +86,7 @@ public abstract class ClassProcessingBuilder extends ModuleLevelBuilder {
     }
   }
 
+  @NotNull
   @Override
   public List<String> getCompilableFileExtensions() {
     return Collections.emptyList();

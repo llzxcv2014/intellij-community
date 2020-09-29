@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi;
 
 import com.intellij.lang.jvm.JvmClassKind;
@@ -19,7 +19,7 @@ import java.util.Map;
 import static com.intellij.psi.PsiType.getJavaLangObject;
 import static com.intellij.psi.PsiType.getTypeByName;
 
-class PsiJvmConversionHelper {
+final class PsiJvmConversionHelper {
 
   private static final Logger LOG = Logger.getInstance(PsiJvmConversionHelper.class);
   private static final Map<JvmModifier, String> MODIFIERS;
@@ -42,8 +42,7 @@ class PsiJvmConversionHelper {
     MODIFIERS = Collections.unmodifiableMap(modifiers);
   }
 
-  @NotNull
-  static PsiAnnotation[] getListAnnotations(@NotNull PsiModifierListOwner modifierListOwner) {
+  static PsiAnnotation @NotNull [] getListAnnotations(@NotNull PsiModifierListOwner modifierListOwner) {
     PsiModifierList list = modifierListOwner.getModifierList();
     return list == null ? PsiAnnotation.EMPTY_ARRAY : list.getAnnotations();
   }
@@ -92,8 +91,7 @@ class PsiJvmConversionHelper {
     return extendsTypes[0];
   }
 
-  @NotNull
-  static JvmReferenceType[] getClassInterfaces(@NotNull PsiClass psiClass) {
+  static JvmReferenceType @NotNull [] getClassInterfaces(@NotNull PsiClass psiClass) {
     if (psiClass instanceof PsiAnonymousClass) {
       PsiClassType baseClassType = ((PsiAnonymousClass)psiClass).getBaseClassType();
       PsiClass baseClass = baseClassType.resolve();

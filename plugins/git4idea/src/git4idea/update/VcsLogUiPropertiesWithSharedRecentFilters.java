@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.update;
 
 import com.intellij.openapi.components.ServiceManager;
@@ -11,11 +11,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Collection;
 import java.util.List;
 
-public class VcsLogUiPropertiesWithSharedRecentFilters extends VcsLogUiPropertiesImpl<VcsLogUiPropertiesImpl.State> {
-
+public abstract class VcsLogUiPropertiesWithSharedRecentFilters<S extends VcsLogUiPropertiesImpl.State> extends VcsLogUiPropertiesImpl<S> {
   @NotNull private final Project myProject;
-  public VcsLogUiPropertiesImpl.State commonState = new VcsLogUiPropertiesImpl.State();
-
   public VcsLogUiPropertiesWithSharedRecentFilters(@NotNull Project project, @NotNull VcsLogApplicationSettings appSettings) {
     super(appSettings);
     myProject = project;
@@ -23,19 +20,8 @@ public class VcsLogUiPropertiesWithSharedRecentFilters extends VcsLogUiPropertie
 
   @NotNull
   @Override
-  public VcsLogUiPropertiesImpl.State getState() {
-    return commonState;
-  }
-
-  @NotNull
-  @Override
   public List<List<String>> getRecentlyFilteredGroups(@NotNull String filterName) {
     return VcsLogProjectTabsProperties.getRecentGroup(getCommonState().RECENT_FILTERS, filterName);
-  }
-
-  @Override
-  public void loadState(@NotNull VcsLogUiPropertiesImpl.State state) {
-    commonState = state;
   }
 
   @Override

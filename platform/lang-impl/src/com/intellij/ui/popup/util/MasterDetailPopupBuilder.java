@@ -1,15 +1,21 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.popup.util;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.IdeBundle;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.*;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.util.SystemInfoRt;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.ui.*;
 import com.intellij.ui.components.JBList;
 import com.intellij.ui.speedSearch.FilteringListModel;
+import com.intellij.ui.speedSearch.ListWithFilter;
+import com.intellij.ui.speedSearch.SpeedSearch;
 import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.Consumer;
 import com.intellij.util.ui.JBUI;
@@ -24,8 +30,7 @@ import javax.swing.event.ListSelectionListener;
 import java.awt.*;
 import java.awt.event.*;
 
-public class MasterDetailPopupBuilder implements MasterController {
-
+public final class MasterDetailPopupBuilder implements MasterController {
   private static final Color BORDER_COLOR = Gray._135;
 
   private final Project myProject;
@@ -36,6 +41,7 @@ public class MasterDetailPopupBuilder implements MasterController {
   private DetailView myDetailView;
   private JLabel myPathLabel;
   private JBPopup myPopup;
+  private SpeedSearch mySpeedSearch;
 
   private String myDimensionServiceKey = null;
   private boolean myAddDetailViewToEast = true;
@@ -58,7 +64,7 @@ public class MasterDetailPopupBuilder implements MasterController {
         if (e.getKeyCode() == KeyEvent.VK_DELETE) {
           removeSelectedItems();
         }
-        else if (e.getModifiersEx() == 0) {
+        else if (e.getModifiersEx() == 0 && !mySpeedSearch.isHoldingFilter()) {
           myDelegate.handleMnemonic(e, myProject, myPopup);
         }
       }
@@ -225,8 +231,8 @@ public class MasterDetailPopupBuilder implements MasterController {
       setUseDimensionServiceForXYLocation(myDimensionServiceKey != null).
       setSettingButton(toolBar).
       setSouthComponent(footerPanel).
-      setItemChoosenCallback(itemCallback);
-      //setFilteringEnabled(o -> ((ItemWrapper)o).speedSearchText());
+      setItemChoosenCallback(itemCallback).
+      setFilteringEnabled(o -> ((ItemWrapper)o).speedSearchText());
 
     if (myPopupTuner != null) {
       myPopupTuner.consume(builder);
@@ -240,8 +246,8 @@ public class MasterDetailPopupBuilder implements MasterController {
         }
       };
 
-      if ((SystemInfo.isMacOSLion || SystemInfo.isMacOSMountainLion) && !StartupUiUtil.isUnderDarcula()) {
-        final JButton done = new JButton("Done");
+      if (SystemInfoRt.isMac && !StartupUiUtil.isUnderDarcula()) {
+        JButton done = new JButton(LangBundle.message("button.done"));
         done.setOpaque(false);
         done.setMnemonic('o');
         done.addActionListener(actionListener);
@@ -254,7 +260,8 @@ public class MasterDetailPopupBuilder implements MasterController {
         });
       }
       else {
-        IconButton close = new IconButton("Close", AllIcons.Actions.Close, AllIcons.Actions.CloseHovered);
+        IconButton close = new IconButton(LangBundle.message("button.close"),
+                                          AllIcons.Actions.Close, AllIcons.Actions.CloseHovered);
         builder.setCommandButton(new InplaceButton(close, actionListener));
       }
     }
@@ -267,6 +274,7 @@ public class MasterDetailPopupBuilder implements MasterController {
     myPopup = builder.createPopup();
 
     builder.getScrollPane().setBorder(IdeBorderFactory.createBorder(SideBorder.RIGHT));
+    mySpeedSearch = ((ListWithFilter)builder.getPreferableFocusComponent()).getSpeedSearch();
 
     myPopup.addListener(new JBPopupListener() {
       @Override
@@ -276,7 +284,7 @@ public class MasterDetailPopupBuilder implements MasterController {
     });
 
     if (myDoneRunnable != null) {
-      new AnAction("Done") {
+      new AnAction(IdeBundle.messagePointer("action.Anonymous.text.done")) {
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
           myDoneRunnable.run();
@@ -321,7 +329,7 @@ public class MasterDetailPopupBuilder implements MasterController {
 
 
   public interface Delegate {
-    @Nullable
+    @Nullable @NlsContexts.PopupTitle
     String getTitle();
 
     void handleMnemonic(KeyEvent e, Project project, JBPopup popup);
@@ -336,7 +344,7 @@ public class MasterDetailPopupBuilder implements MasterController {
     void removeSelectedItemsInTree();
   }
 
-  private static class ListItemRenderer extends JPanel implements ListCellRenderer {
+  private static final class ListItemRenderer extends JPanel implements ListCellRenderer {
     private final Project myProject;
     private final ColoredListCellRenderer myRenderer;
     private final Delegate myDelegate;

@@ -16,19 +16,24 @@
 
 package com.intellij.codeInspection.htmlInspections;
 
-import com.intellij.codeInsight.daemon.XmlErrorMessages;
 import com.intellij.codeInsight.intention.IntentionAction;
+import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.psi.*;
+import com.intellij.psi.PsiDocumentManager;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiErrorElement;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.xml.XmlTag;
 import com.intellij.psi.xml.XmlToken;
 import com.intellij.psi.xml.XmlTokenType;
 import com.intellij.util.IncorrectOperationException;
+import com.intellij.xml.analysis.XmlAnalysisBundle;
 import com.intellij.xml.util.XmlTagUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -81,7 +86,7 @@ public class RenameTagBeginOrEndIntentionAction implements IntentionAction {
         }
       }
 
-      PsiElement target = null;
+      PsiElement target;
       final String text = psiElement.getText();
       if (!myTargetName.equals(text)) {
         target = psiElement;
@@ -131,9 +136,9 @@ public class RenameTagBeginOrEndIntentionAction implements IntentionAction {
   }
 
   @NotNull
-  public String getName() {
+  public @IntentionName String getName() {
     return myStart
-           ? XmlErrorMessages.message("rename.start.tag.name.intention", mySourceName, myTargetName)
-           : XmlErrorMessages.message("rename.end.tag.name.intention", mySourceName, myTargetName);
+           ? XmlAnalysisBundle.message("xml.intention.rename.start.tag", mySourceName, myTargetName)
+           : XmlAnalysisBundle.message("xml.intention.rename.end.tag", mySourceName, myTargetName);
   }
 }

@@ -1,10 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.meta;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.extensions.ExtensionPointListener;
-import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.progress.ProgressIndicatorProvider;
 import com.intellij.openapi.util.NullUtils;
 import com.intellij.psi.PsiElement;
@@ -32,17 +30,7 @@ public final class MetaRegistry extends MetaDataRegistrar {
   }
 
   static {
-    MetaDataContributor.EP_NAME.addExtensionPointListener(new ExtensionPointListener<MetaDataContributor>() {
-      @Override
-      public void extensionAdded(@NotNull MetaDataContributor extension, @NotNull PluginDescriptor pluginDescriptor) {
-        clearBindings();
-      }
-
-      @Override
-      public void extensionRemoved(@NotNull MetaDataContributor extension, @NotNull PluginDescriptor pluginDescriptor) {
-        clearBindings();
-      }
-    }, ApplicationManager.getApplication());
+    MetaDataContributor.EP_NAME.addChangeListener(MetaRegistry::clearBindings, ApplicationManager.getApplication());
   }
 
   private static void clearBindings() {

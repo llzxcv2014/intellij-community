@@ -27,6 +27,7 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiNameIdentifierOwner;
 import com.intellij.psi.PsiReference;
 import com.intellij.refactoring.RefactoringActionHandler;
+import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.changeSignature.ChangeSignatureHandler;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
 import org.jetbrains.annotations.NotNull;
@@ -44,7 +45,7 @@ public class ChangeSignatureAction extends BasePlatformRefactoringAction {
   }
 
   @Override
-  public boolean isEnabledOnElements(@NotNull PsiElement[] elements) {
+  public boolean isEnabledOnElements(PsiElement @NotNull [] elements) {
     if (elements.length == 1) {
       PsiElement member = findTargetMember(elements[0]);
       return member != null && getChangeSignatureHandler(member) != null;
@@ -111,7 +112,8 @@ public class ChangeSignatureAction extends BasePlatformRefactoringAction {
           if (handler != null) {
             final String notFoundMessage = handler.getTargetNotFoundMessage();
             if (notFoundMessage != null) {
-              CommonRefactoringUtil.showErrorHint(project, editor, notFoundMessage, ChangeSignatureHandler.REFACTORING_NAME, null);
+              CommonRefactoringUtil.showErrorHint(project, editor, notFoundMessage, RefactoringBundle
+                .message("changeSignature.refactoring.name"), null);
             }
           }
           return;
@@ -122,7 +124,7 @@ public class ChangeSignatureAction extends BasePlatformRefactoringAction {
       }
 
       @Override
-      public void invoke(@NotNull Project project, @NotNull PsiElement[] elements, DataContext dataContext) {
+      public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext dataContext) {
         if (elements.length != 1) return;
         final PsiElement targetMember = findTargetMember(elements[0]);
         if (targetMember == null) return;

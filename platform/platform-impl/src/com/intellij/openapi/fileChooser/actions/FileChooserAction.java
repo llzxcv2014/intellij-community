@@ -5,18 +5,23 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.fileChooser.FileSystemTree;
 import com.intellij.openapi.project.DumbAware;
-import org.jetbrains.annotations.Nls;
+import com.intellij.openapi.util.NlsActions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
+import java.util.function.Supplier;
 
 public abstract class FileChooserAction extends AnAction implements DumbAware {
   protected FileChooserAction() {
     setEnabledInModalContext(true);
   }
 
-  protected FileChooserAction(final @Nls(capitalization = Nls.Capitalization.Title) String text,
-                              final @Nls(capitalization = Nls.Capitalization.Sentence) String description, final Icon icon) {
+  protected FileChooserAction(final @NlsActions.ActionText String text,
+                              final @NlsActions.ActionDescription String description, final Icon icon) {
+    this(() -> text, () -> description, icon);
+  }
+
+  protected FileChooserAction(@NotNull Supplier<String> text, @NotNull Supplier<String> description, final Icon icon) {
     super(text, description, icon);
     setEnabledInModalContext(true);
   }
@@ -24,7 +29,9 @@ public abstract class FileChooserAction extends AnAction implements DumbAware {
   @Override
   public final void actionPerformed(@NotNull AnActionEvent e) {
     FileSystemTree tree = e.getData(FileSystemTree.DATA_KEY);
-    actionPerformed(tree, e);
+    if (tree != null) {
+      actionPerformed(tree, e);
+    }
   }
 
   @Override
@@ -39,7 +46,7 @@ public abstract class FileChooserAction extends AnAction implements DumbAware {
     }
   }
 
-  protected abstract void update(FileSystemTree fileChooser, AnActionEvent e);
+  protected abstract void update(@NotNull FileSystemTree fileChooser, @NotNull AnActionEvent e);
 
-  protected abstract void actionPerformed(FileSystemTree fileChooser, AnActionEvent e);
+  protected abstract void actionPerformed(@NotNull FileSystemTree fileChooser, @NotNull AnActionEvent e);
 }

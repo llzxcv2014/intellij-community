@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.util;
 
 import com.intellij.openapi.actionSystem.ex.ActionUtil;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.*;
 import com.intellij.ui.table.TableView;
 import com.intellij.util.ui.ColumnInfo;
@@ -15,11 +16,11 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellRenderer;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Observable;
 
-/**
- * @author traff
- */
 public abstract class ListTableWithButtons<T> extends Observable {
   private final List<T> myElements = new ArrayList<>();
   private JPanel myPanel;
@@ -68,7 +69,6 @@ public abstract class ListTableWithButtons<T> extends Observable {
       }
     };
     myTableView.setIntercellSpacing(JBUI.emptySize());
-    myTableView.setStriped(true);
     myTableView.getTableViewModel().setSortable(false);
     myTableView.getComponent().setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 
@@ -221,8 +221,7 @@ public abstract class ListTableWithButtons<T> extends Observable {
 
   protected abstract boolean isEmpty(T element);
 
-  @NotNull
-  protected AnActionButton[] createExtraActions() {
+  protected AnActionButton @NotNull [] createExtraActions() {
     return new AnActionButton[0];
   }
 
@@ -262,10 +261,10 @@ public abstract class ListTableWithButtons<T> extends Observable {
 
   protected abstract boolean canDeleteElement(T selection);
 
-  protected static abstract class ElementsColumnInfoBase<T> extends ColumnInfo<T, String> {
+  protected static abstract class ElementsColumnInfoBase<T> extends ColumnInfo<T, @NlsContexts.ListItem String> {
     private DefaultTableCellRenderer myRenderer;
 
-    protected ElementsColumnInfoBase(String name) {
+    protected ElementsColumnInfoBase(@NlsContexts.ColumnName String name) {
       super(name);
     }
 
@@ -282,6 +281,6 @@ public abstract class ListTableWithButtons<T> extends Observable {
     }
 
     @Nullable
-    protected abstract String getDescription(T element);
+    protected abstract @NlsContexts.Tooltip String getDescription(T element);
   }
 }

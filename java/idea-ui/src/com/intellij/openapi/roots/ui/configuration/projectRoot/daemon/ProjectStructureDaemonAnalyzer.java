@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.ui.configuration.projectRoot.daemon;
 
 import com.intellij.openapi.Disposable;
@@ -31,9 +17,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * @author nik
- */
 public class ProjectStructureDaemonAnalyzer implements Disposable {
   private static final Logger LOG = Logger.getInstance(ProjectStructureDaemonAnalyzer.class);
   private final Map<ProjectStructureElement, ProjectStructureProblemsHolderImpl> myProblemHolders = new HashMap<>();
@@ -289,9 +272,8 @@ public class ProjectStructureDaemonAnalyzer implements Disposable {
       return myElement.equals(other.myElement) && (!other.myCheck || myCheck) && (!other.myCollectUsages || myCollectUsages);
     }
 
-    @NotNull
     @Override
-    public Object[] getEqualityObjects() {
+    public Object @NotNull [] getEqualityObjects() {
       return myEqualityObjects;
     }
 
@@ -318,9 +300,8 @@ public class ProjectStructureDaemonAnalyzer implements Disposable {
       myEqualityObjects = new Object[]{element, "usages collected"};
     }
 
-    @NotNull
     @Override
-    public Object[] getEqualityObjects() {
+    public Object @NotNull [] getEqualityObjects() {
       return myEqualityObjects;
     }
 
@@ -347,9 +328,8 @@ public class ProjectStructureDaemonAnalyzer implements Disposable {
       myEqualityObjects = new Object[]{element, "problems computed"};
     }
 
-    @NotNull
     @Override
-    public Object[] getEqualityObjects() {
+    public Object @NotNull [] getEqualityObjects() {
       return myEqualityObjects;
     }
 
@@ -369,7 +349,7 @@ public class ProjectStructureDaemonAnalyzer implements Disposable {
     }
   }
 
-  private class ReportUnusedElementsUpdate extends Update {
+  private final class ReportUnusedElementsUpdate extends Update {
     private ReportUnusedElementsUpdate() {
       super("unused elements");
     }

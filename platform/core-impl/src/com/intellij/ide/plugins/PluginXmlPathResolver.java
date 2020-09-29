@@ -6,6 +6,7 @@ import com.intellij.openapi.util.JDOMUtil;
 import com.intellij.openapi.util.SafeJdomFactory;
 import org.jdom.Element;
 import org.jdom.JDOMException;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,9 +18,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.List;
 
-/**
- * @author nik
- */
 final class PluginXmlPathResolver extends BasePathResolver {
   private static final Logger LOG = Logger.getInstance(PluginXmlPathResolver.class);
 
@@ -75,7 +73,7 @@ final class PluginXmlPathResolver extends BasePathResolver {
   }
 
   @Nullable
-  private Element findInJarFiles(@NotNull String relativePath, @NotNull SafeJdomFactory jdomFactory) throws JDOMException, IOException {
+  private Element findInJarFiles(@NotNull @NonNls String relativePath, @NotNull SafeJdomFactory jdomFactory) throws JDOMException, IOException {
     for (Path jarFile : pluginJarFiles) {
       FileSystem fileSystem;
       try {

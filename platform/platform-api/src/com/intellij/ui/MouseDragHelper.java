@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
 import com.intellij.ide.ui.UISettings;
@@ -64,12 +50,16 @@ public abstract class MouseDragHelper extends MouseAdapter implements MouseMotio
    * @return false if Settings -> Appearance -> Drag-n-Drop with ALT pressed only is selected but event doesn't have ALT modifier
    */
   public static boolean checkModifiers(@Nullable InputEvent event) {
-    if (event == null || !UISettings.getInstance().getDndWithPressedAltOnly()) return true;
+    if (event == null || !UISettings.getInstance().getDndWithPressedAltOnly()) {
+      return true;
+    }
     return (event.getModifiers() & InputEvent.ALT_MASK) != 0;
   }
 
   public void start() {
-    if (myGlassPane != null) return;
+    if (myGlassPane != null) {
+      return;
+    }
 
     new UiNotifyConnector(myDragComponent, new Activatable() {
       @Override
@@ -93,9 +83,11 @@ public abstract class MouseDragHelper extends MouseAdapter implements MouseMotio
       myDetachPostponed = false;
       return;
     }
+
     if (myStopped) {
       return;
     }
+
     myGlassPane = IdeGlassPaneUtil.find(myDragComponent);
     myGlassPaneListenersDisposable = Disposer.newDisposable("myGlassPaneListeners");
     Disposer.register(myParentDisposable, myGlassPaneListenersDisposable);
@@ -116,9 +108,9 @@ public abstract class MouseDragHelper extends MouseAdapter implements MouseMotio
     if (myGlassPane != null) {
       Disposer.dispose(myGlassPaneListenersDisposable);
       myGlassPaneListenersDisposable = Disposer.newDisposable();
-      KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(this);
       myGlassPane = null;
     }
+    KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(this);
   }
 
   @Override
@@ -145,6 +137,13 @@ public abstract class MouseDragHelper extends MouseAdapter implements MouseMotio
   @Override
   public void mouseReleased(final MouseEvent e) {
     if (myCancelled) {
+      myCancelled = false;
+      return;
+    }
+    if (myDraggingNow && !canFinishDragging(e)) {
+      cancelDragging();
+      e.consume();
+      myPressedOnScreenPoint = null;
       myCancelled = false;
       return;
     }
@@ -229,6 +228,18 @@ public abstract class MouseDragHelper extends MouseAdapter implements MouseMotio
     return true;
   }
 
+  private boolean canFinishDragging(@NotNull MouseEvent me) {
+    if (!myDragComponent.isShowing()) return false;
+    Component component = me.getComponent();
+    if (NullableComponent.Check.isNullOrHidden(component)) return false;
+    final Point dragComponentPoint = SwingUtilities.convertPoint(me.getComponent(), me.getPoint(), myDragComponent);
+    return canFinishDragging(myDragComponent, dragComponentPoint);
+  }
+
+  protected boolean canFinishDragging(@NotNull JComponent component, @NotNull Point point) {
+    return true;
+  }
+
   protected void processMousePressed(@NotNull MouseEvent event) {
   }
 
@@ -270,17 +281,22 @@ public abstract class MouseDragHelper extends MouseAdapter implements MouseMotio
 
   @Override
   public boolean dispatchKeyEvent(@NotNull KeyEvent e) {
-    if (e.getKeyCode() == KeyEvent.VK_ESCAPE && e.getID() == KeyEvent.KEY_PRESSED && myDraggingNow) {
-      myCancelled = true;
-      if (myDetachingMode) {
-        processDragOutCancel();
-      }
-      else {
-        processDragCancel();
-      }
-      resetDragState();
-      return true;
+    if (e.getKeyCode() == KeyEvent.VK_ESCAPE && e.getID() == KeyEvent.KEY_PRESSED) {
+      return cancelDragging();
     }
     return false;
+  }
+
+  public boolean cancelDragging() {
+    if (!myDraggingNow) return false;
+    myCancelled = true;
+    if (myDetachingMode) {
+      processDragOutCancel();
+    }
+    else {
+      processDragCancel();
+    }
+    resetDragState();
+    return true;
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.completion;
 
 import com.intellij.codeInsight.completion.scope.CompletionElement;
@@ -10,17 +10,17 @@ import com.intellij.openapi.util.Condition;
 import com.intellij.psi.*;
 import com.intellij.psi.filters.ElementFilter;
 import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * @author peter
  */
-class SuperCalls {
+final class SuperCalls {
   static Set<LookupElement> suggestQualifyingSuperCalls(PsiElement element,
                                                         PsiJavaReference javaReference,
                                                         ElementFilter elementFilter,
@@ -29,7 +29,7 @@ class SuperCalls {
     Set<LookupElement> set = new LinkedHashSet<>();
     for (final String className : getContainingClassNames(element)) {
       PsiReferenceExpression fakeSuper = JavaCompletionUtil.createReference(className + ".super.rulez", element);
-      PsiElement leaf = ObjectUtils.assertNotNull(fakeSuper.getReferenceNameElement());
+      PsiElement leaf = Objects.requireNonNull(fakeSuper.getReferenceNameElement());
 
       JavaCompletionProcessor superProcessor = new JavaCompletionProcessor(leaf, elementFilter, options, nameCondition);
       fakeSuper.processVariants(superProcessor);
@@ -45,7 +45,7 @@ class SuperCalls {
 
   @NotNull
   private static LookupElement withQualifiedSuper(final String className, LookupElement item) {
-    return PrioritizedLookupElement.withExplicitProximity(new LookupElementDecorator<LookupElement>(item) {
+    return PrioritizedLookupElement.withExplicitProximity(new LookupElementDecorator<>(item) {
 
       @Override
       public void renderElement(LookupElementPresentation presentation) {
@@ -59,7 +59,7 @@ class SuperCalls {
         PsiJavaCodeReferenceElement ref = PsiTreeUtil
           .findElementOfClassAtOffset(context.getFile(), context.getStartOffset(), PsiJavaCodeReferenceElement.class, false);
         if (ref != null) {
-          context.getDocument().insertString(ref.getTextRange().getStartOffset(),  className + ".");
+          context.getDocument().insertString(ref.getTextRange().getStartOffset(), className + ".");
         }
 
         super.handleInsert(context);

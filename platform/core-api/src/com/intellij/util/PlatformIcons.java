@@ -1,8 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util;
 
 import com.intellij.icons.AllIcons;
-import com.intellij.ui.IconManager;
 import org.jetbrains.annotations.ApiStatus;
 
 import javax.swing.*;
@@ -25,6 +24,7 @@ public interface PlatformIcons {
   Icon ABSTRACT_CLASS_ICON = AllIcons.Nodes.AbstractClass;
   Icon ANNOTATION_TYPE_ICON = AllIcons.Nodes.Annotationtype;
   Icon ENUM_ICON = AllIcons.Nodes.Enum;
+  Icon RECORD_ICON = AllIcons.Nodes.Record;
   Icon INTERFACE_ICON = AllIcons.Nodes.Interface;
   Icon METHOD_ICON = AllIcons.Nodes.Method;
   Icon FUNCTION_ICON = AllIcons.Nodes.Function;
@@ -38,9 +38,9 @@ public interface PlatformIcons {
   Icon JAR_ICON = AllIcons.Nodes.PpJar;
   Icon FILE_ICON = AllIcons.Nodes.Folder;
 
-  Icon VARIABLE_READ_ACCESS = AllIcons.Nodes.Read_access;
-  Icon VARIABLE_WRITE_ACCESS = AllIcons.Nodes.Write_access;
-  Icon VARIABLE_RW_ACCESS = AllIcons.Nodes.Rw_access;
+  Icon VARIABLE_READ_ACCESS = AllIcons.Nodes.ReadAccess;
+  Icon VARIABLE_WRITE_ACCESS = AllIcons.Nodes.WriteAccess;
+  Icon VARIABLE_RW_ACCESS = AllIcons.Nodes.RwAccess;
   Icon CUSTOM_FILE_ICON = AllIcons.FileTypes.Custom;
   Icon PROPERTY_ICON = AllIcons.Nodes.Property;
   Icon NEW_PARAMETER = AllIcons.Hierarchy.Supertypes;
@@ -64,7 +64,6 @@ public interface PlatformIcons {
   Icon DELETE_ICON = AllIcons.General.Remove;
   Icon COPY_ICON = AllIcons.Actions.Copy;
   Icon EDIT = AllIcons.Actions.Edit;
-  Icon ANALYZE = IconManager.getInstance().getAnalyzeIcon();
   Icon SELECT_ALL_ICON = AllIcons.Actions.Selectall;
   Icon UNSELECT_ALL_ICON = AllIcons.Actions.Unselectall;
   Icon PROPERTIES_ICON = AllIcons.Actions.Properties;

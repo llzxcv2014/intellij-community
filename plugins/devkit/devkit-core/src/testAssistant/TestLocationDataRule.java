@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.testAssistant;
 
 import com.intellij.codeInsight.AnnotationUtil;
@@ -24,13 +24,12 @@ import com.intellij.testFramework.Parameterized;
 import com.intellij.testFramework.TestDataPath;
 import com.intellij.util.CommonProcessors;
 import com.intellij.util.containers.ContainerUtil;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class TestLocationDataRule implements GetDataRule {
+public final class TestLocationDataRule implements GetDataRule {
   @Nullable
   @Override
   public Object getData(@NotNull DataProvider dataProvider) {
@@ -58,7 +57,7 @@ public class TestLocationDataRule implements GetDataRule {
           final PsiSearchHelper searchHelper = PsiSearchHelper.getInstance(project);
           final List<String> words = StringUtil.getWordsIn(relativePath);
           // put longer strings first
-          Collections.sort(words, (o1, o2) -> o2.length() - o1.length());
+          words.sort((o1, o2) -> o2.length() - o1.length());
 
           final GlobalSearchScope testScope = GlobalSearchScopesCore.projectTestScope(project);
           Set<PsiFile> resultFiles = null;
@@ -66,7 +65,7 @@ public class TestLocationDataRule implements GetDataRule {
             if (word.length() < 5) {
               continue;
             }
-            final Set<PsiFile> files = new THashSet<>();
+            final Set<PsiFile> files = new HashSet<>();
             searchHelper.processAllFilesWithWordInLiterals(word, testScope, new CommonProcessors.CollectProcessor<>(files));
             if (resultFiles == null) {
               resultFiles = files;
@@ -86,7 +85,7 @@ public class TestLocationDataRule implements GetDataRule {
             final String fileName = file.getName();
             final String nameWithoutExtension = file.getNameWithoutExtension();
 
-            
+
             for (PsiFile resultFile : resultFiles) {
               if (resultFile instanceof PsiClassOwner) {
                 final PsiClass[] classes = ((PsiClassOwner)resultFile).getClasses();

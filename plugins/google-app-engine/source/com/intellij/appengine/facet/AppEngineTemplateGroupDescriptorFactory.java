@@ -15,16 +15,14 @@
  */
 package com.intellij.appengine.facet;
 
+import com.intellij.appengine.JavaGoogleAppEngineBundle;
 import com.intellij.ide.fileTemplates.FileTemplateDescriptor;
 import com.intellij.ide.fileTemplates.FileTemplateGroupDescriptor;
 import com.intellij.ide.fileTemplates.FileTemplateGroupDescriptorFactory;
-import com.intellij.openapi.fileTypes.StdFileTypes;
+import com.intellij.ide.highlighter.XmlFileType;
 import icons.GoogleAppEngineIcons;
 import org.jetbrains.annotations.NonNls;
 
-/**
- * @author nik
- */
 public class AppEngineTemplateGroupDescriptorFactory implements FileTemplateGroupDescriptorFactory {
   @NonNls public static final String APP_ENGINE_WEB_XML_TEMPLATE = "AppEngineWeb.xml";
   @NonNls public static final String APP_ENGINE_APPLICATION_XML_TEMPLATE = "AppEngineApplication.xml";
@@ -33,11 +31,11 @@ public class AppEngineTemplateGroupDescriptorFactory implements FileTemplateGrou
 
   @Override
   public FileTemplateGroupDescriptor getFileTemplatesDescriptor() {
-    final FileTemplateDescriptor appEngineXml = new FileTemplateDescriptor(APP_ENGINE_WEB_XML_TEMPLATE, StdFileTypes.XML.getIcon());
-    final FileTemplateDescriptor appEngineApplicationXml = new FileTemplateDescriptor(APP_ENGINE_APPLICATION_XML_TEMPLATE, StdFileTypes.XML.getIcon());
-    final FileTemplateDescriptor jdoConfigXml = new FileTemplateDescriptor(APP_ENGINE_JDO_CONFIG_TEMPLATE, StdFileTypes.XML.getIcon());
-    final FileTemplateDescriptor jpaConfigXml = new FileTemplateDescriptor(APP_ENGINE_JPA_CONFIG_TEMPLATE, StdFileTypes.XML.getIcon());
-    return new FileTemplateGroupDescriptor("Google App Engine", GoogleAppEngineIcons.AppEngine, appEngineXml,
+    final FileTemplateDescriptor appEngineXml = new FileTemplateDescriptor(APP_ENGINE_WEB_XML_TEMPLATE, XmlFileType.INSTANCE.getIcon());
+    final FileTemplateDescriptor appEngineApplicationXml = new FileTemplateDescriptor(APP_ENGINE_APPLICATION_XML_TEMPLATE, XmlFileType.INSTANCE.getIcon());
+    final FileTemplateDescriptor jdoConfigXml = new FileTemplateDescriptor(APP_ENGINE_JDO_CONFIG_TEMPLATE, XmlFileType.INSTANCE.getIcon());
+    final FileTemplateDescriptor jpaConfigXml = new FileTemplateDescriptor(APP_ENGINE_JPA_CONFIG_TEMPLATE, XmlFileType.INSTANCE.getIcon());
+    return new FileTemplateGroupDescriptor(JavaGoogleAppEngineBundle.message("plugin.name"), GoogleAppEngineIcons.AppEngine, appEngineXml,
                                            appEngineApplicationXml, jdoConfigXml, jpaConfigXml);
   }
 }

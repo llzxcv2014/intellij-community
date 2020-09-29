@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.lang.ant.config.impl;
 
 import com.intellij.ide.macro.MacroManager;
@@ -6,11 +6,12 @@ import com.intellij.lang.ant.AntBundle;
 import com.intellij.lang.ant.config.AntBuildFile;
 import com.intellij.lang.ant.config.AntBuildTarget;
 import com.intellij.lang.ant.config.AntConfiguration;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.components.PersistentStateComponent;
-import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
+import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.ProjectJdkTable;
@@ -21,6 +22,7 @@ import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.util.config.*;
 import com.intellij.util.containers.ContainerUtil;
 import org.jdom.Element;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,16 +31,15 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Map;
 
-@State(name = "GlobalAntConfiguration", storages = @Storage("other.xml"))
-public class GlobalAntConfiguration implements PersistentStateComponent<Element> {
+@State(name = "GlobalAntConfiguration", storages = @Storage(StoragePathMacros.NON_ROAMABLE_FILE))
+public final class GlobalAntConfiguration implements PersistentStateComponent<Element> {
   private static final Logger LOG = Logger.getInstance(GlobalAntConfiguration.class);
 
   public static final StorageProperty FILTERS_TABLE_LAYOUT = new StorageProperty("filtersTableLayout");
   public static final StorageProperty PROPERTIES_TABLE_LAYOUT = new StorageProperty("propertiesTableLayout");
-  static final ListProperty<AntInstallation> ANTS = ListProperty.create("registeredAnts");
+  private static final ListProperty<AntInstallation> ANTS = ListProperty.create("registeredAnts");
   private final ExternalizablePropertyContainer myProperties = new ExternalizablePropertyContainer();
   private final AntInstallation myBundledAnt;
-  public static final String BUNDLED_ANT_NAME = AntBundle.message("ant.reference.bundled.ant.name");
   public final Condition<AntInstallation> IS_USER_ANT = new Condition<AntInstallation>() {
     @Override
     public boolean value(AntInstallation antInstallation) {
@@ -50,11 +51,11 @@ public class GlobalAntConfiguration implements PersistentStateComponent<Element>
     "$GlobalAntConfiguration.INSTANCE", null);
   @NonNls public static final String ANT_FILE = "ant";
   @NonNls public static final String LIB_DIR = "lib";
-  @NonNls public static final String ANT_JAR_FILE_NAME = "ant.jar";
+  @NonNls private static final String ANT_JAR_FILE_NAME = "ant.jar";
 
   public GlobalAntConfiguration() {
-    myProperties.registerProperty(FILTERS_TABLE_LAYOUT);
-    myProperties.registerProperty(PROPERTIES_TABLE_LAYOUT);
+    myProperties.registerProperty(FILTERS_TABLE_LAYOUT, Externalizer.STORAGE);
+    myProperties.registerProperty(PROPERTIES_TABLE_LAYOUT, Externalizer.STORAGE);
     myProperties.registerProperty(ANTS, ANT_FILE, AntInstallation.EXTERNALIZER);
     INSTANCE.set(myProperties, this);
     myProperties.rememberKey(INSTANCE);
@@ -69,7 +70,7 @@ public class GlobalAntConfiguration implements PersistentStateComponent<Element>
         return AntReference.BUNDLED_ANT;
       }
     };
-    AntInstallation.NAME.set(bundledAnt.getProperties(), BUNDLED_ANT_NAME);
+    AntInstallation.NAME.set(bundledAnt.getProperties(), getBundledAntName());
     final File antHome = PathManager.findFileInLibDirectory(ANT_FILE);
     AntInstallation.HOME_DIR.set(bundledAnt.getProperties(), antHome.getAbsolutePath());
     ArrayList<AntClasspathEntry> classpath = AntInstallation.CLASS_PATH.getModifiableList(bundledAnt.getProperties());
@@ -79,9 +80,8 @@ public class GlobalAntConfiguration implements PersistentStateComponent<Element>
     return bundledAnt;
   }
 
-  @Nullable
   @Override
-  public Element getState() {
+  public @NotNull Element getState() {
     Element element = new Element("state");
     myProperties.writeExternal(element);
     return element;
@@ -93,7 +93,7 @@ public class GlobalAntConfiguration implements PersistentStateComponent<Element>
   }
 
   public static GlobalAntConfiguration getInstance() {
-    return ServiceManager.getService(GlobalAntConfiguration.class);
+    return ApplicationManager.getApplication().getService(GlobalAntConfiguration.class);
   }
 
   public Map<AntReference, AntInstallation> getConfiguredAnts() {
@@ -107,7 +107,7 @@ public class GlobalAntConfiguration implements PersistentStateComponent<Element>
     return myBundledAnt;
   }
 
-  public AbstractProperty.AbstractPropertyContainer getProperties() {
+  public AbstractProperty.AbstractPropertyContainer<?> getProperties() {
     return myProperties;
   }
 
@@ -130,7 +130,7 @@ public class GlobalAntConfiguration implements PersistentStateComponent<Element>
     return MacroManager.getInstance();
   }
 
-  public AntBuildTarget findTarget(Project project, String fileUrl, String targetName) {
+  public AntBuildTarget findTarget(@Nullable Project project, String fileUrl, String targetName) {
     if (fileUrl == null || targetName == null || project == null) {
       return null;
     }
@@ -154,5 +154,9 @@ public class GlobalAntConfiguration implements PersistentStateComponent<Element>
       }
     }
     return null;
+  }
+
+  public static @Nls String getBundledAntName() {
+    return AntBundle.message("ant.reference.bundled.ant.name");
   }
 }

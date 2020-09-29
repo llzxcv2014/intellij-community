@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.platform.templates;
 
 import com.intellij.ide.util.projectWizard.ProjectTemplateParameterFactory;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.module.Module;
@@ -33,12 +34,11 @@ import java.util.List;
  */
 public class SaveProjectAsTemplateDialog extends DialogWrapper {
 
-  private static final String WHOLE_PROJECT = "<whole project>";
   @NotNull private final Project myProject;
   private JPanel myPanel;
   private JTextField myName;
   private EditorTextField myDescription;
-  private JComboBox myModuleCombo;
+  private JComboBox<String> myModuleCombo;
   private JLabel myModuleLabel;
   private JBCheckBox myReplaceParameters;
 
@@ -46,7 +46,7 @@ public class SaveProjectAsTemplateDialog extends DialogWrapper {
     super(project);
     myProject = project;
 
-    setTitle("Save Project As Template");
+    setTitle(LangBundle.message("dialog.title.save.project.as.template"));
     myName.setText(project.getName());
 
     Module[] modules = ModuleManager.getInstance(project).getModules();
@@ -56,8 +56,9 @@ public class SaveProjectAsTemplateDialog extends DialogWrapper {
     }
     else {
       List<String> items = new ArrayList<>(ContainerUtil.map(modules, module -> module.getName()));
-      items.add(WHOLE_PROJECT);
-      myModuleCombo.setModel(new CollectionComboBoxModel(items, WHOLE_PROJECT));
+      String wholeProject = LangBundle.message("save.project.combobox.whole.project");
+      items.add(wholeProject);
+      myModuleCombo.setModel(new CollectionComboBoxModel<>(items, wholeProject));
     }
     myDescription.setFileType(FileTypeManager.getInstance().getFileTypeByExtension("html"));
     if (descriptionFile != null) {
@@ -99,7 +100,7 @@ public class SaveProjectAsTemplateDialog extends DialogWrapper {
   @Override
   protected ValidationInfo doValidate() {
     if (StringUtil.isEmpty(myName.getText())) {
-      return new ValidationInfo("Template name should not be empty");
+      return new ValidationInfo(LangBundle.message("dialog.message.template.name.should.be.empty"));
     }
     return null;
   }
@@ -109,8 +110,9 @@ public class SaveProjectAsTemplateDialog extends DialogWrapper {
     Path file = getTemplateFile();
     if (PathKt.exists(file)) {
       if (Messages.showYesNoDialog(myPanel,
-                                   FileUtilRt.getNameWithoutExtension(file.getFileName().toString()) + " exists already.\n" +
-                                   "Do you want to replace it with the new one?", "Template Already Exists",
+                                   LangBundle.message("dialog.message.exists.already.do.you.want.to.replace.it.with.new.one",
+                                                      FileUtilRt.getNameWithoutExtension(file.getFileName().toString())),
+                                   LangBundle.message("dialog.title.template.already.exists"),
                                    Messages.getWarningIcon()) == Messages.NO) {
         return;
       }
@@ -135,7 +137,7 @@ public class SaveProjectAsTemplateDialog extends DialogWrapper {
   @Nullable
   Module getModuleToSave() {
     String item = (String)myModuleCombo.getSelectedItem();
-    if (item == null || item.equals(WHOLE_PROJECT)) return null;
+    if (item == null || item.equals(LangBundle.message("save.project.combobox.whole.project"))) return null;
     return ModuleManager.getInstance(myProject).findModuleByName(item);
   }
 

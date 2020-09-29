@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes.actions.diff.lst;
 
 import com.intellij.diff.DiffContext;
@@ -15,6 +15,7 @@ import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.diff.DiffBundle;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -98,7 +99,7 @@ public class UnifiedLocalChangeListDiffViewer extends UnifiedDiffViewer {
       new MyLocalTrackerDiffHandler(document1, document2, indicator));
   }
 
-  private class MyLocalTrackerDiffHandler implements LocalTrackerDiffUtil.LocalTrackerDiffHandler {
+  private final class MyLocalTrackerDiffHandler implements LocalTrackerDiffUtil.LocalTrackerDiffHandler {
     @NotNull private final Document myDocument1;
     @NotNull private final Document myDocument2;
     @NotNull private final ProgressIndicator myIndicator;
@@ -114,7 +115,7 @@ public class UnifiedLocalChangeListDiffViewer extends UnifiedDiffViewer {
     @NotNull
     @Override
     public Runnable done(boolean isContentsEqual,
-                         @NotNull CharSequence[] texts,
+                         CharSequence @NotNull [] texts,
                          @NotNull List<? extends LineFragment> fragments,
                          @NotNull List<LocalTrackerDiffUtil.LineFragmentData> fragmentsData) {
       UnifiedFragmentBuilder builder = ReadAction.compute(() -> {
@@ -187,7 +188,7 @@ public class UnifiedLocalChangeListDiffViewer extends UnifiedDiffViewer {
     myExcludeAllCheckboxPanel.refresh();
   }
 
-  private static class MyUnifiedDiffChange extends UnifiedDiffChange {
+  private static final class MyUnifiedDiffChange extends UnifiedDiffChange {
     @NotNull private final String myChangelistId;
     private final boolean myIsFromActiveChangelist;
     private final boolean myIsExcludedFromCommit;
@@ -221,7 +222,7 @@ public class UnifiedLocalChangeListDiffViewer extends UnifiedDiffViewer {
     }
   }
 
-  private static class MyUnifiedDiffChangeUi extends UnifiedDiffChangeUi {
+  private static final class MyUnifiedDiffChangeUi extends UnifiedDiffChangeUi {
     private MyUnifiedDiffChangeUi(@NotNull UnifiedLocalChangeListDiffViewer viewer,
                                   @NotNull MyUnifiedDiffChange change) {
       super(viewer, change);
@@ -252,7 +253,7 @@ public class UnifiedLocalChangeListDiffViewer extends UnifiedDiffViewer {
       return createOperation(() -> {
         final boolean isExcludedFromCommit = getChange().isExcludedFromCommit();
         Icon icon = isExcludedFromCommit ? AllIcons.Diff.GutterCheckBox : AllIcons.Diff.GutterCheckBoxSelected;
-        return new DiffGutterRenderer(icon, "Include into commit") {
+        return new DiffGutterRenderer(icon, DiffBundle.message("action.presentation.diff.include.into.commit.text")) {
           @Override
           protected void handleMouseClick() {
             if (!getViewer().isContentGood()) return;
@@ -265,7 +266,7 @@ public class UnifiedLocalChangeListDiffViewer extends UnifiedDiffViewer {
     }
   }
 
-  private static class MyLocalTrackerActionProvider extends LocalTrackerDiffUtil.LocalTrackerActionProvider {
+  private static final class MyLocalTrackerActionProvider extends LocalTrackerDiffUtil.LocalTrackerActionProvider {
     @NotNull private final UnifiedLocalChangeListDiffViewer myViewer;
 
     private MyLocalTrackerActionProvider(@NotNull UnifiedLocalChangeListDiffViewer viewer,

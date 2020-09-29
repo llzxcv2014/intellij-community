@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.indexing;
 
 import com.intellij.openapi.fileTypes.FileType;
@@ -30,6 +30,6 @@ public class FileBasedIndexTest extends LightJavaCodeInsightFixtureTestCase {
       text[i] = i < clazz.length() ? clazz.charAt(i) : ' ';
     }
     final LightVirtualFile file = new LightVirtualFile("Foo.java", new CharArrayCharSequence(text));
-    assertFalse(((FileBasedIndexImpl)FileBasedIndex.getInstance()).isIndexingCandidate(file, StubUpdatingIndex.INDEX_ID));
+    assertFalse(FileBasedIndex.getInstance().isIndexingCandidate(file, StubUpdatingIndex.INDEX_ID));
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInsight.daemon.impl;
 
@@ -6,15 +6,28 @@ import com.intellij.codeInsight.CodeInsightActionHandler;
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzerSettings;
 import com.intellij.codeInsight.hint.HintManager;
+import com.intellij.codeInsight.hint.HintManagerImpl;
+import com.intellij.codeInsight.hint.HintUtil;
 import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.lang.annotation.HighlightSeverity;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.editor.*;
+import com.intellij.openapi.editor.ex.RangeHighlighterEx;
 import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.psi.PsiFile;
+import com.intellij.ui.LightweightHint;
+import com.intellij.util.messages.MessageBusConnection;
+import com.intellij.util.ui.accessibility.AccessibleContextUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import javax.swing.*;
+import java.awt.*;
+
+import static com.intellij.analysis.problemsView.toolWindow.ProblemsView.selectHighlighterIfVisible;
 
 public class GotoNextErrorHandler implements CodeInsightActionHandler {
   private final boolean myGoForward;
@@ -46,14 +59,18 @@ public class GotoNextErrorHandler implements CodeInsightActionHandler {
       if (infoToGo != null) {
         navigateToError(project, editor, infoToGo, () -> {
           if (Registry.is("error.navigation.show.tooltip")) {
-            DaemonTooltipUtil.showInfoTooltip(infoToGo, editor, editor.getCaretModel().getOffset(), 0, false, true);
+            // When there are multiple warnings at the same offset, this will return the HighlightInfo
+            // containing all of them, not just the first one as found by findInfo()
+            HighlightInfo fullInfo = ((DaemonCodeAnalyzerImpl)DaemonCodeAnalyzer.getInstance(project))
+              .findHighlightByOffset(editor.getDocument(), editor.getCaretModel().getOffset(), false);
+            DaemonTooltipUtil.showInfoTooltip(fullInfo != null ? fullInfo : infoToGo,
+                                              editor, editor.getCaretModel().getOffset(), false, true);
           }
         });
-
         return;
       }
     }
-    showMessageWhenNoHighlights(project, file, editor);
+    showMessageWhenNoHighlights(project, file, editor, caretOffset);
   }
 
   private HighlightInfo findInfo(Project project, Editor editor, final int caretOffset, HighlightSeverity minSeverity) {
@@ -95,15 +112,40 @@ public class GotoNextErrorHandler implements CodeInsightActionHandler {
     }
   }
 
-  private static void showMessageWhenNoHighlights(Project project, PsiFile file, Editor editor) {
+  private void showMessageWhenNoHighlights(Project project, PsiFile file, Editor editor, int caretOffset) {
     DaemonCodeAnalyzerImpl codeHighlighter = (DaemonCodeAnalyzerImpl)DaemonCodeAnalyzer.getInstance(project);
-    String message = codeHighlighter.isErrorAnalyzingFinished(file)
-                     ? InspectionsBundle.message("no.errors.found.in.this.file")
-                     : InspectionsBundle.message("error.analysis.is.in.progress");
-    HintManager.getInstance().showInformationHint(editor, message);
+    HintManagerImpl hintManager = HintManagerImpl.getInstanceImpl();
+    if (codeHighlighter.isErrorAnalyzingFinished(file)) {
+      hintManager.showInformationHint(editor, InspectionsBundle.message("no.errors.found.in.this.file"));
+      return;
+    }
+
+    JComponent component = HintUtil.createInformationLabel(InspectionsBundle.message("error.analysis.is.in.progress"), null, null, null);
+    AccessibleContextUtil.setName(component, "Hint");
+    LightweightHint hint = new LightweightHint(component);
+    Point p = hintManager.getHintPosition(hint, editor, HintManager.ABOVE);
+
+    Disposable hintDisposable = Disposer.newDisposable("GotoNextErrorHandler.showMessageWhenNoHighlights");
+    Disposer.register(project, hintDisposable);
+    hint.addHintListener((eventObject) -> {
+      Disposer.dispose(hintDisposable);
+    });
+
+    MessageBusConnection busConnection = project.getMessageBus().connect(hintDisposable);
+    busConnection.subscribe(DaemonCodeAnalyzer.DAEMON_EVENT_TOPIC, new DaemonCodeAnalyzer.DaemonListener() {
+      @Override
+      public void daemonFinished() {
+        hint.hide();
+        gotoNextError(project, editor, file, caretOffset);
+      }
+    });
+
+    hintManager.showEditorHint(hint, editor, p,
+                               HintManager.HIDE_BY_ANY_KEY | HintManager.HIDE_BY_TEXT_CHANGE | HintManager.HIDE_BY_SCROLLING,
+                               0, false, HintManager.ABOVE);
   }
 
-  static void navigateToError(Project project, final Editor editor, HighlightInfo info, @Nullable Runnable postNavigateRunnable) {
+  static void navigateToError(@NotNull Project project, @NotNull Editor editor, @NotNull HighlightInfo info, @Nullable Runnable postNavigateRunnable) {
     int oldOffset = editor.getCaretModel().getOffset();
 
     final int offset = getNavigationPositionFor(info, editor.getDocument());
@@ -134,6 +176,8 @@ public class GotoNextErrorHandler implements CodeInsightActionHandler {
     );
 
     IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation();
+    RangeHighlighterEx highlighter = info.getHighlighter();
+    if (highlighter != null) selectHighlighterIfVisible(project, highlighter);
   }
 
   private static int getNavigationPositionFor(HighlightInfo info, Document document) {

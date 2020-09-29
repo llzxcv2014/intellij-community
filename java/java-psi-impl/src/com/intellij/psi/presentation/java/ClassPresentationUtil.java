@@ -1,40 +1,28 @@
-/*
- * Copyright 2000-2009 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.presentation.java;
 
+import com.intellij.core.JavaPsiBundle;
 import com.intellij.extapi.psi.StubBasedPsiElementBase;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.java.stubs.FunctionalExpressionStub;
 import com.intellij.psi.stubs.StubElement;
 import com.intellij.psi.util.PsiExpressionTrimRenderer;
 import com.intellij.psi.util.PsiTreeUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
-public class ClassPresentationUtil {
+public final class ClassPresentationUtil {
   private ClassPresentationUtil() {
   }
 
-  public static String getNameForClass(@NotNull PsiClass aClass, boolean qualified) {
+  public static @Nls String getNameForClass(@NotNull PsiClass aClass, boolean qualified) {
     if (aClass instanceof PsiAnonymousClass) {
       if (aClass instanceof PsiEnumConstantInitializer) {
         PsiEnumConstant enumConstant = ((PsiEnumConstantInitializer)aClass).getEnumConstant();
         String name = enumConstant.getName();
-        return PsiBundle.message("enum.constant.context", name, getContextName(enumConstant, qualified, false));
+        return JavaPsiBundle.message("enum.constant.context", name, getContextName(enumConstant, qualified, false));
       }
-      return PsiBundle.message("anonymous.class.context.display", getContextName(aClass, qualified, false));
+      return JavaPsiBundle.message("anonymous.class.context.display", getContextName(aClass, qualified, false));
     }
     if (qualified){
       String qName = aClass.getQualifiedName();
@@ -43,7 +31,7 @@ public class ClassPresentationUtil {
 
     String className = aClass.getName();
     String contextName = getContextName(aClass, qualified);
-    return contextName != null ? PsiBundle.message("class.context.display", className, contextName) : className;
+    return contextName != null ? JavaPsiBundle.message("class.context.display", className, contextName) : className;
   }
 
   private static String getNameForElement(@NotNull PsiElement element, boolean qualified, boolean ignorePsiClassOwner) {
@@ -53,7 +41,7 @@ public class ClassPresentationUtil {
     else if (element instanceof PsiMethod){
       PsiMethod method = (PsiMethod)element;
       String methodName = method.getName();
-      return PsiBundle.message("method.context.display", methodName, getContextName(method, qualified, false));
+      return JavaPsiBundle.message("method.context.display", methodName, getContextName(method, qualified, false));
     }
     else if (element instanceof PsiClassOwner && ignorePsiClassOwner) {
       return null;
@@ -87,11 +75,11 @@ public class ClassPresentationUtil {
     }
   }
 
-  public static String getFunctionalExpressionPresentation(PsiFunctionalExpression functionalExpression, boolean qualified) {
-    final StubElement stub = ((StubBasedPsiElementBase<?>)functionalExpression).getGreenStub();
+  public static @Nls String getFunctionalExpressionPresentation(PsiFunctionalExpression functionalExpression, boolean qualified) {
+    final StubElement<?> stub = ((StubBasedPsiElementBase<?>)functionalExpression).getGreenStub();
     final String lambdaText = stub instanceof FunctionalExpressionStub
-                              ? ((FunctionalExpressionStub)stub).getPresentableText()
+                              ? ((FunctionalExpressionStub<?>)stub).getPresentableText()
                               : PsiExpressionTrimRenderer.render(functionalExpression);
-    return PsiBundle.message("class.context.display", lambdaText, getContextName(functionalExpression, qualified, false)) ;
+    return JavaPsiBundle.message("class.context.display", lambdaText, getContextName(functionalExpression, qualified, false)) ;
   }
 }

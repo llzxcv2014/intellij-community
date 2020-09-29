@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.messages;
 
 import com.apple.eawt.FullScreenUtilities;
@@ -12,6 +12,7 @@ import com.intellij.ui.mac.MacMainFrameDecorator;
 import com.intellij.ui.mac.touchbar.TouchBarsManager;
 import com.intellij.util.IJSwingUtilities;
 import com.intellij.util.ui.Animator;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,34 +36,32 @@ final class SheetMessage implements Disposable {
   private Image staticImage;
   private int imageHeight;
 
-  SheetMessage(@Nullable Window owner,
-               final String title,
-               final String message,
-               final Icon icon,
-               final String[] buttons,
-               final DialogWrapper.DoNotAskOption doNotAskOption,
-               final String defaultButton,
-               final String focusedButton) {
-    final Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
-    final Component recentFocusOwner = activeWindow == null ? null : activeWindow.getMostRecentFocusOwner();
+  SheetMessage(@NotNull Window owner,
+               @Nls String title,
+               @Nls String message,
+               Icon icon,
+               String[] buttons,
+               DialogWrapper.DoNotAskOption doNotAskOption,
+               String defaultButton,
+               String focusedButton) {
+    myParent = owner;
+
+    Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
+    Component recentFocusOwner = activeWindow == null ? null : activeWindow.getMostRecentFocusOwner();
     WeakReference<Component> beforeShowFocusOwner = new WeakReference<>(recentFocusOwner);
 
     maximizeIfNeeded(owner);
 
-    myWindow = new JDialog(owner, "This should not be shown", Dialog.ModalityType.APPLICATION_MODAL);
+    // the actual title will be taken from a sheet panel, not from this dialog
+    myWindow = new JDialog(owner, title, Dialog.ModalityType.APPLICATION_MODAL);
     myWindow.getRootPane().putClientProperty("apple.awt.draggableWindowBackground", Boolean.FALSE);
-
-    //Sometimes we cannot find the owner from the project. For instance, WelcomeScreen could be showing without a
-    // project being loaded. Let's employ the focus manager then.
-    myParent = owner == null ? KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow() : owner;
-
     myWindow.setUndecorated(true);
     myWindow.setBackground(Gray.TRANSPARENT);
     myController = new SheetController(this, title, message, icon, buttons, defaultButton, doNotAskOption, focusedButton);
     Disposer.register(this, myController);
 
     imageHeight = 0;
-    ComponentAdapter componentAdapter = new ComponentAdapter() {
+    ComponentListener componentAdapter = new ComponentAdapter() {
       @Override
       public void componentResized(ComponentEvent event) {
         setPositionRelativeToParent();
@@ -140,7 +139,7 @@ final class SheetMessage implements Disposable {
     Component focusCandidate = beforeShowFocusOwner.get();
 
     if (focusCandidate == null) {
-      focusCandidate = getGlobalInstance().getLastFocusedFor(getGlobalInstance().getLastFocusedFrame());
+      focusCandidate = getGlobalInstance().getLastFocusedFor(getGlobalInstance().getLastFocusedIdeWindow());
     }
 
     final Component finalFocusCandidate = focusCandidate;

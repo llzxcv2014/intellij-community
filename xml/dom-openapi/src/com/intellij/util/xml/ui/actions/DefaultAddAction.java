@@ -3,15 +3,14 @@ package com.intellij.util.xml.ui.actions;
 
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.application.ApplicationBundle;
 import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.SmartPsiElementPointer;
 import com.intellij.psi.xml.XmlTag;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.xml.*;
 import com.intellij.util.xml.reflect.DomCollectionChildDescription;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,15 +20,15 @@ import java.lang.reflect.Type;
 public abstract class DefaultAddAction<T extends DomElement> extends AnAction {
 
   public DefaultAddAction() {
-    super(ApplicationBundle.message("action.add"));
+    super(XmlDomBundle.messagePointer("dom.action.add"));
   }
 
-  public DefaultAddAction(@Nls(capitalization = Nls.Capitalization.Title) String text) {
+  public DefaultAddAction(@NlsActions.ActionText String text) {
     super(text);
   }
 
-  public DefaultAddAction(@Nls(capitalization = Nls.Capitalization.Title) String text,
-                          @Nls(capitalization = Nls.Capitalization.Sentence) String description, Icon icon) {
+  public DefaultAddAction(@NlsActions.ActionText String text,
+                          @NlsActions.ActionDescription String description, Icon icon) {
     super(text, description, icon);
   }
 

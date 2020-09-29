@@ -16,6 +16,9 @@ import javax.swing.*;
 public class EclipseFileType implements FileType {
   public static final FileType INSTANCE = new EclipseFileType();
 
+  private EclipseFileType() {
+  }
+
   @Override
   @NotNull
   @NonNls
@@ -53,7 +56,7 @@ public class EclipseFileType implements FileType {
   }
 
   @Override
-  public String getCharset(@NotNull final VirtualFile file, @NotNull final byte[] content) {
+  public String getCharset(@NotNull final VirtualFile file, final byte @NotNull [] content) {
     return CharsetToolkit.UTF8;
   }
 }

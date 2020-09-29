@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.memberPullUp;
 
 import com.intellij.codeInsight.AnnotationUtil;
@@ -39,6 +25,7 @@ import com.intellij.refactoring.util.classMembers.ClassMemberReferencesVisitor;
 import com.intellij.refactoring.util.classMembers.MemberInfo;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.VisibilityUtil;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -341,7 +328,7 @@ public class JavaPullUpHelper implements PullUpHelper<MemberInfo> {
     }
   }
 
-  private static class Initializer {
+  private static final class Initializer {
     public final PsiStatement initializer;
     public final Set<PsiField> movedFieldsUsed;
     public final Set<PsiParameter> usedParameters;
@@ -382,17 +369,17 @@ public class JavaPullUpHelper implements PullUpHelper<MemberInfo> {
     {
       final Set<PsiField> initializedFields = fieldsToInitializers.keySet();
       Set<PsiField> unmovable = RefactoringUtil.transitiveClosure(
-              new RefactoringUtil.Graph<PsiField>() {
-                @Override
-                public Set<PsiField> getVertices() {
-                  return initializedFields;
-                }
+        new RefactoringUtil.Graph<>() {
+          @Override
+          public Set<PsiField> getVertices() {
+            return initializedFields;
+          }
 
-                @Override
-                public Set<PsiField> getTargets(PsiField source) {
-                  return fieldsToInitializers.get(source).movedFieldsUsed;
-                }
-              },
+          @Override
+          public Set<PsiField> getTargets(PsiField source) {
+            return fieldsToInitializers.get(source).movedFieldsUsed;
+          }
+        },
               object -> !initializedFields.contains(object)
       );
 
@@ -412,11 +399,11 @@ public class JavaPullUpHelper implements PullUpHelper<MemberInfo> {
 
     ArrayList<PsiField> initializedFields = new ArrayList<>(fieldsToInitializers.keySet());
 
-    Collections.sort(initializedFields, (field1, field2) -> {
+    initializedFields.sort((field1, field2) -> {
       Initializer i1 = fieldsToInitializers.get(field1);
       Initializer i2 = fieldsToInitializers.get(field2);
-      if(i1.movedFieldsUsed.contains(field2)) return 1;
-      if(i2.movedFieldsUsed.contains(field1)) return -1;
+      if (i1.movedFieldsUsed.contains(field2)) return 1;
+      if (i2.movedFieldsUsed.contains(field1)) return -1;
       if (i1.usedParameters.stream().anyMatch(p -> p.isVarArgs())) return 1;
       if (i2.usedParameters.stream().anyMatch(p -> p.isVarArgs())) return -1;
       return 0;
@@ -566,7 +553,7 @@ public class JavaPullUpHelper implements PullUpHelper<MemberInfo> {
     SyntaxTraverser.psiTraverser(root).filter(PsiStatement.class).addAllTo(collected);
   }
 
-  private static class ParametersAndMovedFieldsUsedCollector extends JavaRecursiveElementWalkingVisitor {
+  private static final class ParametersAndMovedFieldsUsedCollector extends JavaRecursiveElementWalkingVisitor {
     private final Set<PsiField> myMovedFields;
     private final Set<PsiField> myUsedFields;
 
@@ -636,7 +623,7 @@ public class JavaPullUpHelper implements PullUpHelper<MemberInfo> {
       }
     }
 
-    @Override public void visitElement(PsiElement element) {
+    @Override public void visitElement(@NotNull PsiElement element) {
       if (myIsMovable) {
         super.visitElement(element);
       }
@@ -707,7 +694,7 @@ public class JavaPullUpHelper implements PullUpHelper<MemberInfo> {
     }
   }
 
-  private class StaticReferencesCollector extends ClassMemberReferencesVisitor {
+  private final class StaticReferencesCollector extends ClassMemberReferencesVisitor {
     private final ArrayList<PsiJavaCodeReferenceElement> myReferences;
     private final ArrayList<PsiElement> myReferees;
     private final ArrayList<PsiClass> myRefereeClasses;

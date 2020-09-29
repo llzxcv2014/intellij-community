@@ -1,27 +1,23 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.vcs.log.ui.table;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProcessCanceledException;
-import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.EmptyRunnable;
 import com.intellij.openapi.util.Ref;
-import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.Consumer;
 import com.intellij.util.NotNullFunction;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.exception.FrequentErrorLogger;
-import com.intellij.util.text.JBDateFormat;
 import com.intellij.vcs.log.*;
 import com.intellij.vcs.log.data.CommitIdByStringCondition;
 import com.intellij.vcs.log.data.RefsModel;
 import com.intellij.vcs.log.data.VcsLogData;
-import com.intellij.vcs.log.impl.CommonUiProperties;
 import com.intellij.vcs.log.impl.VcsLogUiProperties;
-import com.intellij.vcs.log.ui.frame.CommitPresentationUtil;
-import com.intellij.vcs.log.ui.render.GraphCommitCell;
+import com.intellij.vcs.log.ui.table.column.VcsLogColumn;
+import com.intellij.vcs.log.ui.table.column.VcsLogColumnManager;
 import com.intellij.vcs.log.visible.VisiblePack;
-import com.intellij.vcsUtil.VcsUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,13 +27,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
-import static com.intellij.util.containers.ContainerUtil.getFirstItem;
-
-/**
- * Columns correspond exactly to {@link VcsLogColumn} enum
- */
-public class GraphTableModel extends AbstractTableModel {
+public final class GraphTableModel extends AbstractTableModel {
   private static final int UP_PRELOAD_COUNT = 20;
   private static final int DOWN_PRELOAD_COUNT = 40;
 
@@ -61,6 +53,9 @@ public class GraphTableModel extends AbstractTableModel {
     myLogData = logData;
     myRequestMore = requestMore;
     myProperties = properties;
+    VcsLogColumnManager.getInstance().addColumnModelListener(logData, (column, index) -> {
+      fireTableStructureChanged();
+    });
   }
 
   @Override
@@ -70,17 +65,12 @@ public class GraphTableModel extends AbstractTableModel {
 
   @Override
   public final int getColumnCount() {
-    return VcsLogColumn.count();
-  }
-
-  @Override
-  public Class<?> getColumnClass(int column) {
-    return VcsLogColumn.fromOrdinal(column).getContentClass();
+    return VcsLogColumnManager.getInstance().getModelColumnsCount();
   }
 
   @Override
   public String getColumnName(int column) {
-    return VcsLogColumn.fromOrdinal(column).getName();
+    return getColumn(column).getLocalizedName();
   }
 
   public int getRowOfCommit(@NotNull Hash hash, @NotNull VirtualFile root) {
@@ -89,16 +79,15 @@ public class GraphTableModel extends AbstractTableModel {
   }
 
   public int getRowOfCommitByPartOfHash(@NotNull String partialHash) {
-    CommitIdByStringCondition hashByString = new CommitIdByStringCondition(partialHash);
+    Predicate<CommitId> hashByString = new CommitIdByStringCondition(partialHash);
     Ref<Boolean> commitExists = new Ref<>(false);
-    CommitId commitId = myLogData.getStorage().findCommitId(
-      commitId1 -> {
-        if (hashByString.value(commitId1)) {
-          commitExists.set(true);
-          return getRowOfCommitWithoutCheck(commitId1.getHash(), commitId1.getRoot()) >= 0;
-        }
-        return false;
-      });
+    CommitId commitId = myLogData.getStorage().findCommitId(commitId1 -> {
+      if (hashByString.test(commitId1)) {
+        commitExists.set(true);
+        return getRowOfCommitWithoutCheck(commitId1.getHash(), commitId1.getRoot()) >= 0;
+      }
+      return false;
+    });
     return commitId != null
            ? getRowOfCommitWithoutCheck(commitId.getHash(), commitId.getRoot())
            : (commitExists.get() ? COMMIT_DOES_NOT_MATCH : COMMIT_NOT_FOUND);
@@ -113,77 +102,30 @@ public class GraphTableModel extends AbstractTableModel {
   @NotNull
   @Override
   public final Object getValueAt(int rowIndex, int columnIndex) {
-    return getValueAt(rowIndex, VcsLogColumn.fromOrdinal(columnIndex));
+    return getValueAt(rowIndex, getColumn(columnIndex));
   }
 
   @NotNull
-  public final Object getValueAt(int rowIndex, @NotNull VcsLogColumn column) {
+  public final <T> T getValueAt(int rowIndex, @NotNull VcsLogColumn<T> column) {
     if (rowIndex >= getRowCount() - 1 && canRequestMore()) {
       requestToLoadMore(EmptyRunnable.INSTANCE);
     }
 
-    VcsShortCommitDetails data = getCommitMetadata(rowIndex);
-    switch (column) {
-      case ROOT:
-        return getRootSafely(rowIndex);
-      case COMMIT:
-        return getCommitCellSafely(rowIndex, data);
-      case AUTHOR:
-        return getAuthorSafely(data);
-      case DATE:
-        return getDateSafely(data);
-      case HASH:
-        return getHashSafely(data);
-      default:
-        throw new IllegalStateException("Unexpected value: " + column);
-    }
-  }
-
-  @NotNull
-  private FilePath getRootSafely(int rowIndex) {
-    return getOrLogAndReturnStub(() -> myDataPack.getFilePath(rowIndex), VcsUtil.getFilePath(getFirstItem(myLogData.getRoots())));
-  }
-
-  @NotNull
-  private GraphCommitCell getCommitCellSafely(int rowIndex, @NotNull VcsShortCommitDetails data) {
-    return getOrLogAndReturnStub(() -> {
-      return new GraphCommitCell(data.getSubject(), getRefsAtRow(rowIndex),
-                                 myDataPack.getVisibleGraph().getRowInfo(rowIndex).getPrintElements());
-    }, new GraphCommitCell("", Collections.emptyList(), Collections.emptyList()));
-  }
-
-  @NotNull
-  private static String getAuthorSafely(@NotNull VcsShortCommitDetails data) {
-    return getOrLogAndReturnStub(() -> CommitPresentationUtil.getAuthorPresentation(data), "");
-  }
-
-  @NotNull
-  private String getDateSafely(@NotNull VcsShortCommitDetails data) {
-    return getOrLogAndReturnStub(() -> {
-      long timeStamp = myProperties.exists(CommonUiProperties.PREFER_COMMIT_DATE) &&
-                       Boolean.TRUE.equals(myProperties.get(CommonUiProperties.PREFER_COMMIT_DATE)) ?
-                       data.getCommitTime() : data.getAuthorTime();
-      return timeStamp < 0 ? "" : JBDateFormat.getFormatter().formatPrettyDateTime(timeStamp);
-    }, "");
-  }
-
-  @NotNull
-  private static String getHashSafely(@NotNull VcsShortCommitDetails data) {
-    return getOrLogAndReturnStub(() -> data.getId().toShortString(), "");
-  }
-
-  @NotNull
-  private static <T> T getOrLogAndReturnStub(@NotNull Computable<T> computable, @NotNull T stub) {
     try {
-      return computable.compute();
+      return column.getValue(this, rowIndex);
     }
     catch (ProcessCanceledException ignore) {
-      return stub;
+      return column.getStubValue(this);
     }
     catch (Throwable t) {
       ERROR_LOG.error("Failed to get information for the log table", t);
-      return stub;
+      return column.getStubValue(this);
     }
+  }
+
+  @NotNull
+  private static VcsLogColumn<?> getColumn(int modelIndex) {
+    return VcsLogColumnManager.getInstance().getColumn(modelIndex);
   }
 
   /**
@@ -203,7 +145,7 @@ public class GraphTableModel extends AbstractTableModel {
     return !myMoreRequested && myDataPack.canRequestMore();
   }
 
-  public void setVisiblePack(@NotNull VisiblePack visiblePack) {
+  void setVisiblePack(@NotNull VisiblePack visiblePack) {
     myDataPack = visiblePack;
     myMoreRequested = false;
     fireTableDataChanged();
@@ -212,6 +154,16 @@ public class GraphTableModel extends AbstractTableModel {
   @NotNull
   public VisiblePack getVisiblePack() {
     return myDataPack;
+  }
+
+  @NotNull
+  public VcsLogData getLogData() {
+    return myLogData;
+  }
+
+  @NotNull
+  public VcsLogUiProperties getProperties() {
+    return myProperties;
   }
 
   @NotNull

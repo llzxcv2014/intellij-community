@@ -24,17 +24,13 @@ public class JpsValidationSerializer extends JpsProjectExtensionSerializer {
 
   @Override
   public void loadExtension(@NotNull JpsProject project, @NotNull Element componentTag) {
-    JpsJavaCompilerConfiguration configuration = JpsJavaExtensionService.getInstance().getOrCreateCompilerConfiguration(project);
+    JpsJavaCompilerConfiguration configuration = JpsJavaExtensionService.getInstance().getCompilerConfiguration(project);
     ValidationConfigurationState state = XmlSerializer.deserialize(componentTag, ValidationConfigurationState.class);
     Set<String> disabledValidators = state.VALIDATORS.entrySet().stream()
       .filter(e -> e.getValue() == Boolean.FALSE)
       .map(e -> e.getKey())
       .collect(Collectors.toSet());
     configuration.setValidationConfiguration(state.VALIDATE_ON_BUILD, disabledValidators);
-  }
-
-  @Override
-  public void saveExtension(@NotNull JpsProject project, @NotNull Element componentTag) {
   }
 
   public static class ValidationConfigurationState {

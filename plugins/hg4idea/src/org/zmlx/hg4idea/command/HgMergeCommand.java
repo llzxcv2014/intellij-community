@@ -22,8 +22,10 @@ import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vcs.VcsNotifier;
 import com.intellij.openapi.vcs.update.UpdatedFiles;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.zmlx.hg4idea.HgBundle;
 import org.zmlx.hg4idea.execution.HgCommandResult;
 import org.zmlx.hg4idea.execution.HgPromptCommandExecutor;
 import org.zmlx.hg4idea.provider.update.HgConflictResolver;
@@ -47,7 +49,7 @@ public class HgMergeCommand {
     this.repo = repo;
   }
 
-  private void setRevision(@NotNull String revision) {
+  private void setRevision(@NotNull @NonNls String revision) {
     this.revision = revision;
   }
 
@@ -60,7 +62,7 @@ public class HgMergeCommand {
       arguments.add("--rev");
       arguments.add(revision);
     }
-    try (AccessToken ignore = DvcsUtil.workingTreeChangeStarted(project, "Merge")) {
+    try (AccessToken ignore = DvcsUtil.workingTreeChangeStarted(project, HgBundle.message("activity.name.merge"))) {
       HgCommandResult result = commandExecutor.executeInCurrentThread(repo.getRoot(), "merge", arguments);
       repo.update();
       return result;
@@ -75,28 +77,30 @@ public class HgMergeCommand {
   }
 
   public static void mergeWith(@NotNull final HgRepository repository,
-                               @NotNull final String branchName,
+                               @NotNull final @NonNls String branchName,
                                @NotNull final UpdatedFiles updatedFiles) {
     mergeWith(repository, branchName, updatedFiles, null);
   }
 
   public static void mergeWith(@NotNull final HgRepository repository,
-                               @NotNull final String branchName,
+                               @NotNull final @NonNls String branchName,
                                @NotNull final UpdatedFiles updatedFiles, @Nullable final Runnable onSuccessHandler) {
     final Project project = repository.getProject();
     final VirtualFile repositoryRoot = repository.getRoot();
     final HgMergeCommand hgMergeCommand = new HgMergeCommand(project, repository);
     hgMergeCommand.setRevision(branchName);//there is no difference between branch or revision or bookmark as parameter to merge,
     // we need just a string
-    new Task.Backgroundable(project, "Merging Changes...") {
+    new Task.Backgroundable(project, HgBundle.message("action.hg4idea.merge.progress")) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         try {
           HgCommandResult result = hgMergeCommand.mergeSynchronously();
           if (HgErrorUtil.isAncestorMergeError(result)) {
             //skip and notify
-            VcsNotifier.getInstance(project).notifyMinorWarning("Merging is skipped for " + repositoryRoot.getPresentableName(),
-                                                                "Merging with a working directory ancestor has no effect");
+            VcsNotifier.getInstance(project)
+              .notifyMinorWarning("hg.merging.with.ancestor.skipped",
+                                  HgBundle.message("action.hg4idea.merge.skipped.title", repositoryRoot.getPresentableName()),
+                                  HgBundle.message("action.hg4idea.merge.skipped"));
             return;
           }
           new HgConflictResolver(project, updatedFiles).resolve(repositoryRoot);
@@ -106,10 +110,14 @@ public class HgMergeCommand {
         }
         catch (VcsException exception) {
           if (exception.isWarning()) {
-            VcsNotifier.getInstance(project).notifyWarning("Warning during merge", exception.getMessage());
+            VcsNotifier.getInstance(project).notifyWarning("hg.merge.warning",
+                                                           HgBundle.message("action.hg4idea.merge.warning"),
+                                                           exception.getMessage());
           }
           else {
-            VcsNotifier.getInstance(project).notifyError("Exception during merge", exception.getMessage());
+            VcsNotifier.getInstance(project).notifyError("hg.merge.exception",
+                                                         HgBundle.message("action.hg4idea.merge.exception"),
+                                                         exception.getMessage());
           }
         }
       }

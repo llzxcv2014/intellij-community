@@ -130,7 +130,7 @@ class PropertiesManager extends MembersManager<PyElement> {
   @Override
   protected Collection<PyElement> moveMembers(@NotNull final PyClass from,
                                               @NotNull final Collection<PyMemberInfo<PyElement>> members,
-                                              @NotNull final PyClass... to) {
+                                              final PyClass @NotNull ... to) {
     final Collection<PyElement> result = new ArrayList<>();
 
     final Collection<PyElement> elements = fetchElements(members);
@@ -184,7 +184,7 @@ class PropertiesManager extends MembersManager<PyElement> {
 
 
     @Override
-    public void visitPyExpression(final PyExpression node) {
+    public void visitPyExpression(final @NotNull PyExpression node) {
       final PsiReference reference = node.getReference();
       if (reference == null) {
         return;

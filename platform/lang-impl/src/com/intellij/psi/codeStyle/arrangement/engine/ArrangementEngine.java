@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.codeStyle.arrangement.engine;
 
 import com.intellij.application.options.CodeStyle;
-import com.intellij.codeInsight.actions.FormatChangedTextUtil;
+import com.intellij.codeInsight.CodeInsightBundle;
+import com.intellij.codeInsight.actions.VcsFacade;
 import com.intellij.lang.Language;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
@@ -11,6 +12,7 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.ex.DocumentEx;
 import com.intellij.openapi.project.DumbService;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
@@ -53,9 +55,9 @@ public final class ArrangementEngine {
   }
 
   @Nullable
-  public String getUserNotificationInfo() {
+  public @NlsContexts.HintText String getUserNotificationInfo() {
     if (myCodeChanged) {
-      return "rearranged code";
+      return CodeInsightBundle.message("hint.text.rearranged.code");
     }
     return null;
   }
@@ -113,16 +115,10 @@ public final class ArrangementEngine {
       return;
     }
 
-    final Context<? extends ArrangementEntry> context;
-    DumbService.getInstance(file.getProject()).setAlternativeResolveEnabled(true);
-    try {
-      context = Context.from(rearranger, document, file, ranges, arrangementSettings, settings);
-    }
-    finally {
-      DumbService.getInstance(file.getProject()).setAlternativeResolveEnabled(false);
-    }
+    Context<? extends ArrangementEntry> context =
+    DumbService.getInstance(file.getProject()).computeWithAlternativeResolveEnabled(() -> Context.from(rearranger, document, file, ranges, arrangementSettings, settings));
 
-    ApplicationManager.getApplication().runWriteAction(() -> FormatChangedTextUtil.getInstance().runHeavyModificationTask(file.getProject(), document, () -> {
+    ApplicationManager.getApplication().runWriteAction(() -> VcsFacade.getInstance().runHeavyModificationTask(file.getProject(), document, () -> {
       doArrange(context);
       if (callback != null) {
         callback.afterArrangement(context.moveInfos);
@@ -488,7 +484,7 @@ public final class ArrangementEngine {
     }
   }
 
-  private static class Context<E extends ArrangementEntry> {
+  private static final class Context<E extends ArrangementEntry> {
 
     @NotNull public final List<ArrangementMoveInfo> moveInfos = new ArrayList<>();
 

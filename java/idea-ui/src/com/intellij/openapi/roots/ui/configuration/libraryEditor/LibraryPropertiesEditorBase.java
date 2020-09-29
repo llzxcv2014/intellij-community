@@ -19,6 +19,7 @@ import com.intellij.openapi.roots.libraries.LibraryProperties;
 import com.intellij.openapi.roots.libraries.LibraryType;
 import com.intellij.openapi.roots.libraries.ui.LibraryEditorComponent;
 import com.intellij.openapi.roots.libraries.ui.LibraryPropertiesEditor;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
@@ -28,9 +29,6 @@ import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
-/**
- * @author nik
- */
 public abstract class LibraryPropertiesEditorBase<P extends LibraryProperties, T extends LibraryType<P>> extends LibraryPropertiesEditor {
   private JPanel myMainPanel;
   private JLabel myDescriptionLabel;
@@ -40,7 +38,7 @@ public abstract class LibraryPropertiesEditorBase<P extends LibraryProperties, T
   protected final T myLibraryType;
 
   protected LibraryPropertiesEditorBase(final LibraryEditorComponent<P> editorComponent,
-                                        T libraryType, @Nullable String editButtonText) {
+                                        T libraryType, @Nullable @NlsContexts.Button String editButtonText) {
     myEditorComponent = editorComponent;
     myLibraryType = libraryType;
     updateDescription();

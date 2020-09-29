@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.engine;
 
 import com.intellij.codeInsight.CodeInsightUtil;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.engine.evaluation.*;
 import com.intellij.debugger.engine.evaluation.expression.ExpressionEvaluator;
 import com.intellij.debugger.engine.evaluation.expression.UnsupportedExpressionException;
@@ -36,9 +37,6 @@ import com.sun.jdi.Value;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * @author egor
- */
 public class JavaDebuggerEvaluator extends XDebuggerEvaluator implements XDebuggerPsiEvaluator {
   private final DebugProcessImpl myDebugProcess;
   private final JavaStackFrame myStackFrame;
@@ -75,7 +73,7 @@ public class JavaDebuggerEvaluator extends XDebuggerEvaluator implements XDebugg
 
           JavaDebugProcess process = myDebugProcess.getXdebugProcess();
           if (process == null) {
-            callback.errorOccurred("No debug process");
+            callback.errorOccurred(JavaDebuggerBundle.message("error.no.debug.process"));
             return;
           }
           TextWithImports text = TextWithImportsImpl.fromXExpression(expression);
@@ -83,7 +81,7 @@ public class JavaDebuggerEvaluator extends XDebuggerEvaluator implements XDebugg
           WatchItemDescriptor descriptor = nodeManager.getWatchItemDescriptor(null, text, null);
           EvaluationContextImpl evalContext = myStackFrame.getFrameDebuggerContext(getDebuggerContext()).createEvaluationContext();
           if (evalContext == null) {
-            callback.errorOccurred("Context is not available");
+            callback.errorOccurred(JavaDebuggerBundle.message("error.context.not.available"));
             return;
           }
           descriptor.setContext(evalContext);
@@ -95,7 +93,7 @@ public class JavaDebuggerEvaluator extends XDebuggerEvaluator implements XDebugg
           callback.evaluated(JavaValue.create(null, descriptor, evalContext, nodeManager, true));
         }
         catch (Throwable e) {
-          callback.errorOccurred("Internal error");
+          callback.errorOccurred(JavaDebuggerBundle.message("error.internal"));
           throw e;
         }
       }
@@ -119,14 +117,14 @@ public class JavaDebuggerEvaluator extends XDebuggerEvaluator implements XDebugg
 
         JavaDebugProcess process = myDebugProcess.getXdebugProcess();
         if (process == null) {
-          callback.errorOccurred("No debug process");
+          callback.errorOccurred(JavaDebuggerBundle.message("error.no.debug.process"));
           return;
         }
 
         DebuggerContextImpl debuggerContext = myStackFrame.getFrameDebuggerContext(getDebuggerContext());
         EvaluationContextImpl evalContext = debuggerContext.createEvaluationContext();
         if (evalContext == null) {
-          callback.errorOccurred("Context is not available");
+          callback.errorOccurred(JavaDebuggerBundle.message("error.context.not.available"));
           return;
         }
 

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.editorconfig.configmanagement.export;
 
 import com.intellij.application.options.codeStyle.properties.*;
@@ -10,11 +10,12 @@ import com.intellij.openapi.util.Comparing;
 import com.intellij.psi.codeStyle.CodeStyleSettings;
 import com.intellij.util.containers.MultiMap;
 import org.editorconfig.Utils;
-import org.editorconfig.configmanagement.EncodingManager;
+import org.editorconfig.configmanagement.ConfigEncodingManager;
 import org.editorconfig.configmanagement.LineEndingsManager;
 import org.editorconfig.configmanagement.StandardEditorConfigProperties;
 import org.editorconfig.configmanagement.extended.EditorConfigIntellijNameUtil;
 import org.editorconfig.configmanagement.extended.EditorConfigPropertyKind;
+import org.editorconfig.configmanagement.extended.EditorConfigValueUtil;
 import org.editorconfig.configmanagement.extended.IntellijPropertyKindMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -68,7 +69,7 @@ public class EditorConfigSettingsWriter extends OutputStreamWriter {
     if (myProject != null) {
       String encoding = Utils.getEncoding(myProject);
       if (encoding != null) {
-        myGeneralOptions.put(EncodingManager.charsetKey, encoding);
+        myGeneralOptions.put(ConfigEncodingManager.charsetKey, encoding);
       }
     }
     String lineSeparator = Utils.getLineSeparatorString(mySettings.getLineSeparator());
@@ -147,7 +148,7 @@ public class EditorConfigSettingsWriter extends OutputStreamWriter {
         if (pattern != null) {
           write("\n[" + pattern + "]\n");
         }
-        Collections.sort(optionValueList, PAIR_COMPARATOR);
+        optionValueList.sort(PAIR_COMPARATOR);
         writeProperties(optionValueList, myCommentOutProperties);
         return true;
       }
@@ -161,13 +162,21 @@ public class EditorConfigSettingsWriter extends OutputStreamWriter {
       CodeStylePropertyAccessor accessor = mapper.getAccessor(property);
       String name = getEditorConfigName(mapper, property);
       if (isNameAllowed(name)) {
-        String value = accessor.getAsString();
+        String value = getEditorConfigValue(accessor);
         if (isValueAllowed(value) && (!(mapper instanceof LanguageCodeStylePropertyMapper && matchesGeneral(name, value)))) {
           optionValueList.add(new OutPair(name, value));
         }
       }
     }
     return optionValueList;
+  }
+
+  private static String getEditorConfigValue(@NotNull CodeStylePropertyAccessor<?> accessor) {
+    String value = accessor.getAsString();
+    if ((value == null || value.isEmpty()) && CodeStylePropertiesUtil.isAccessorAllowingEmptyList(accessor)) {
+      return EditorConfigValueUtil.EMPTY_LIST_VALUE;
+    }
+    return value;
   }
 
   private boolean matchesGeneral(@NotNull String name, @NotNull String value) {

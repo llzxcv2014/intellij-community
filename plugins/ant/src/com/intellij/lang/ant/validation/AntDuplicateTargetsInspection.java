@@ -23,20 +23,12 @@ import com.intellij.openapi.util.Comparing;
 import com.intellij.util.xml.DomElement;
 import com.intellij.util.xml.highlighting.DomElementAnnotationHolder;
 import com.intellij.util.xml.highlighting.DomHighlightingHelper;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 public class AntDuplicateTargetsInspection extends AntInspection {
 
-  @NonNls private static final String SHORT_NAME = "AntDuplicateTargetsInspection";
-
-  @Override
-  @Nls
-  @NotNull
-  public String getDisplayName() {
-    return AntBundle.message("ant.duplicate.targets.inspection");
-  }
+  private static final @NonNls String SHORT_NAME = "AntDuplicateTargetsInspection";
 
   @Override
   @NonNls

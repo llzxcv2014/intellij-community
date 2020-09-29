@@ -20,11 +20,11 @@ import com.intellij.dvcs.push.Pusher;
 import com.intellij.dvcs.push.VcsPushOptionValue;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.VcsNotifier;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.zmlx.hg4idea.HgBundle;
 import org.zmlx.hg4idea.action.HgCommandResultNotifier;
 import org.zmlx.hg4idea.command.HgPushCommand;
 import org.zmlx.hg4idea.execution.HgCommandResult;
@@ -82,17 +82,20 @@ public class HgPusher extends Pusher<HgRepository, HgPushSource, HgTarget> {
 
     if (result.getExitValue() == PUSH_SUCCEEDED_EXIT_VALUE) {
       int commitsNum = getNumberOfPushedCommits(result);
-      String successTitle = "Pushed successfully";
-      String successDescription = String.format("Pushed %d %s [%s]", commitsNum, StringUtil.pluralize("commit", commitsNum),
-                                                repo.getPresentableName());
-      VcsNotifier.getInstance(project).notifySuccess(successTitle, successDescription);
+      String successTitle = HgBundle.message("action.hg4idea.push.success");
+      String successDescription = HgBundle.message("action.hg4idea.push.success.msg",
+                                                   commitsNum,
+                                                   repo.getPresentableName());
+      VcsNotifier.getInstance(project).notifySuccess("hg.pushed.successfully", successTitle, successDescription);
     }
     else if (result.getExitValue() == NOTHING_TO_PUSH_EXIT_VALUE) {
-      VcsNotifier.getInstance(project).notifySuccess("Nothing to push");
+      VcsNotifier.getInstance(project).notifySuccess("hg.nothing.to.push", "", HgBundle.message("action.hg4idea.push.nothing"));
     }
     else {
-      new HgCommandResultNotifier(project).notifyError(result, "Push failed",
-                                                       "Failed to push to [" + repo.getPresentableName() + "]");
+      new HgCommandResultNotifier(project).notifyError("hg.push.error",
+                                                       result,
+                                                       HgBundle.message("action.hg4idea.push.error"),
+                                                       HgBundle.message("action.hg4idea.push.error.msg", repo.getPresentableName()));
     }
   }
 

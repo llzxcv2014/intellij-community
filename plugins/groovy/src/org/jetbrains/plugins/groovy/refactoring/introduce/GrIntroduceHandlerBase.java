@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.refactoring.introduce;
 
 import com.intellij.codeInsight.highlighting.HighlightManager;
@@ -12,12 +12,9 @@ import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.editor.colors.EditorColors;
-import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.editor.markup.RangeHighlighter;
-import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pass;
 import com.intellij.openapi.util.Ref;
@@ -38,8 +35,10 @@ import com.intellij.refactoring.rename.inplace.InplaceRefactoring;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
 import com.intellij.util.Function;
 import com.intellij.util.IncorrectOperationException;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.groovy.GroovyBundle;
 import org.jetbrains.plugins.groovy.codeInspection.utils.ControlFlowUtils;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyFileBase;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElement;
@@ -63,6 +62,8 @@ import org.jetbrains.plugins.groovy.refactoring.GroovyRefactoringUtil;
 import org.jetbrains.plugins.groovy.refactoring.NameValidator;
 
 import java.util.*;
+
+import static org.jetbrains.annotations.Nls.Capitalization.Title;
 
 public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSettings, Scope extends PsiElement> implements RefactoringActionHandler {
   private static final Logger LOG = Logger.getInstance(GrIntroduceHandlerBase.class);
@@ -102,7 +103,7 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
   }
 
   @NotNull
-  public static GrStatement getAnchor(@NotNull PsiElement[] occurrences, @NotNull PsiElement scope) {
+  public static GrStatement getAnchor(PsiElement @NotNull [] occurrences, @NotNull PsiElement scope) {
     PsiElement parent = PsiTreeUtil.findCommonParent(occurrences);
     PsiElement container = getEnclosingContainer(parent);
     assert container != null;
@@ -130,14 +131,12 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
     }
   }
 
-  @NotNull
-  protected abstract String getRefactoringName();
+  protected abstract @Nls(capitalization = Title) @NotNull String getRefactoringName();
 
   @NotNull
   protected abstract String getHelpID();
 
-  @NotNull
-  protected abstract Scope[] findPossibleScopes(GrExpression expression, GrVariable variable, StringPartInfo stringPart, Editor editor);
+  protected abstract Scope @NotNull [] findPossibleScopes(GrExpression expression, GrVariable variable, StringPartInfo stringPart, Editor editor);
 
   protected abstract void checkExpression(@NotNull GrExpression selectedExpr) throws GrRefactoringError;
 
@@ -145,7 +144,7 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
 
   protected abstract void checkStringLiteral(@NotNull StringPartInfo info) throws GrRefactoringError;
 
-  protected abstract void checkOccurrences(@NotNull PsiElement[] occurrences);
+  protected abstract void checkOccurrences(PsiElement @NotNull [] occurrences);
 
   @NotNull
   protected abstract GrIntroduceDialog<Settings> getDialog(@NotNull GrIntroduceContext context);
@@ -295,7 +294,7 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
   }
 
   @Override
-  public void invoke(@NotNull Project project, @NotNull PsiElement[] elements, DataContext dataContext) {
+  public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext dataContext) {
     // Does nothing
   }
 
@@ -315,9 +314,12 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
     };
 
     if (scopes.length == 0) {
-      CommonRefactoringUtil.showErrorHint(project, editor, RefactoringBundle
-        .getCannotRefactorMessage(getRefactoringName() + "is not available in current scope"),
-                                          getRefactoringName(), getHelpID());
+      CommonRefactoringUtil.showErrorHint(
+        project, editor,
+        RefactoringBundle.getCannotRefactorMessage(getRefactoringName()),
+        GroovyBundle.message("dialog.title.refactoring.unavailable.in.current.scope"),
+        getHelpID()
+      );
     }
     else if (scopes.length == 1) {
       callback.pass(scopes[0]);
@@ -428,9 +430,7 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
     }
     ReferencesSearch.search(variable, new LocalSearchScope(scope)).forEach(psiReference -> {
       final PsiElement element = psiReference.getElement();
-      if (element != null) {
-        list.add(element);
-      }
+      list.add(element);
       return true;
     });
     return list.toArray(PsiElement.EMPTY_ARRAY);
@@ -475,8 +475,7 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
     return fillChoice(context);
   }
 
-  @NotNull
-  protected PsiElement[] findOccurrences(@NotNull GrExpression expression, @NotNull PsiElement scope) {
+  protected PsiElement @NotNull [] findOccurrences(@NotNull GrExpression expression, @NotNull PsiElement scope) {
     final PsiElement[] occurrences = GroovyRefactoringUtil.getExpressionOccurrences(PsiUtil.skipParentheses(expression, false), scope);
     if (occurrences == null || occurrences.length == 0) {
       throw new GrRefactoringError(GroovyRefactoringBundle.message("no.occurrences.found"));
@@ -520,25 +519,6 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
       CommonRefactoringUtil.showErrorHint(project, editor, RefactoringBundle.getCannotRefactorMessage(e.getMessage()), getRefactoringName(), getHelpID());
     }
   }
-
-  public static RangeMarker createRange(Document document, StringPartInfo part) {
-    if (part == null) {
-      return null;
-    }
-    TextRange range = part.getRange().shiftRight(part.getLiteral().getTextRange().getStartOffset());
-    return document.createRangeMarker(range.getStartOffset(), range.getEndOffset(), true);
-
-  }
-
-  @Nullable
-  public static RangeMarker createRange(@NotNull Document document, @Nullable PsiElement expression) {
-    if (expression == null) {
-      return null;
-    }
-    TextRange range = expression.getTextRange();
-    return document.createRangeMarker(range.getStartOffset(), range.getEndOffset(), false);
-  }
-
 
   public static boolean isInplace(@NotNull Editor editor, @NotNull PsiElement place) {
     final RefactoringSupportProvider supportProvider = LanguageRefactoringSupport.INSTANCE.forContext(place);
@@ -609,10 +589,9 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
     HighlightManager highlightManager = null;
     if (context.getEditor() != null) {
       highlightManager = HighlightManager.getInstance(context.getProject());
-      EditorColorsManager colorsManager = EditorColorsManager.getInstance();
-      TextAttributes attributes = colorsManager.getGlobalScheme().getAttributes(EditorColors.SEARCH_RESULT_ATTRIBUTES);
       if (context.getOccurrences().length > 1) {
-        highlightManager.addOccurrenceHighlights(context.getEditor(), context.getOccurrences(), attributes, true, highlighters);
+        highlightManager.addOccurrenceHighlights(context.getEditor(), context.getOccurrences(),
+                                                 EditorColors.SEARCH_RESULT_ATTRIBUTES, true, highlighters);
       }
     }
 
@@ -637,7 +616,7 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
   }
 
   @Nullable
-  public static PsiElement findAnchor(@NotNull PsiElement[] occurrences,
+  public static PsiElement findAnchor(PsiElement @NotNull [] occurrences,
                                       @NotNull PsiElement container) {
     if (occurrences.length == 0) return null;
 
@@ -732,7 +711,7 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
     return null;
   }
 
-  public static boolean hasLhs(@NotNull final PsiElement[] occurrences) {
+  public static boolean hasLhs(final PsiElement @NotNull [] occurrences) {
     for (PsiElement element : occurrences) {
       if (element instanceof GrReferenceExpression) {
         if (PsiUtil.isLValue((GroovyPsiElement)element)) return true;

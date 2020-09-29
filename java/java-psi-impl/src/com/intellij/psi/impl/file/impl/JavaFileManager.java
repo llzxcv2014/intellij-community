@@ -1,7 +1,6 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.file.impl;
 
-import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiJavaModule;
@@ -12,12 +11,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 
-/**
- * @author max
- */
 public interface JavaFileManager {
   static JavaFileManager getInstance(@NotNull Project project) {
-    return ServiceManager.getService(project, JavaFileManager.class);
+    return project.getService(JavaFileManager.class);
   }
 
   @Nullable
@@ -26,8 +22,7 @@ public interface JavaFileManager {
   @Nullable
   PsiClass findClass(@NotNull String qName, @NotNull GlobalSearchScope scope);
 
-  @NotNull
-  PsiClass[] findClasses(@NotNull String qName, @NotNull GlobalSearchScope scope);
+  PsiClass @NotNull [] findClasses(@NotNull String qName, @NotNull GlobalSearchScope scope);
 
   @NotNull
   Collection<String> getNonTrivialPackagePrefixes();

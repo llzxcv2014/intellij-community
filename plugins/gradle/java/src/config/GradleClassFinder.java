@@ -26,8 +26,10 @@ import java.util.Map;
  */
 public final class GradleClassFinder extends NonClasspathClassFinder {
 
+  private static final String KOTLIN_DEFAULT_EXTENSION = "kt";
+
   public GradleClassFinder(@NotNull Project project) {
-    super(project, JavaFileType.DEFAULT_EXTENSION, GroovyFileType.DEFAULT_EXTENSION);
+    super(project, JavaFileType.DEFAULT_EXTENSION, GroovyFileType.DEFAULT_EXTENSION, KOTLIN_DEFAULT_EXTENSION);
   }
 
   @Override
@@ -68,9 +70,8 @@ public final class GradleClassFinder extends NonClasspathClassFinder {
            !ProjectFileIndex.SERVICE.getInstance(myProject).isInLibrary(file) ? aClass : null;
   }
 
-  @NotNull
   @Override
-  public PsiPackage[] getSubPackages(@NotNull PsiPackage psiPackage, @NotNull GlobalSearchScope scope) {
+  public PsiPackage @NotNull [] getSubPackages(@NotNull PsiPackage psiPackage, @NotNull GlobalSearchScope scope) {
     return scope instanceof ExternalModuleBuildGlobalSearchScope ? super.getSubPackages(psiPackage, scope) : PsiPackage.EMPTY_ARRAY;
   }
 }

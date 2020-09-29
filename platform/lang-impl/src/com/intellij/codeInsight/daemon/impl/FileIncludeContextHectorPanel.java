@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2009 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInsight.daemon.impl;
 
@@ -20,19 +6,18 @@ import com.intellij.openapi.editor.HectorComponentPanel;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.impl.include.FileIncludeManager;
 import com.intellij.ui.ComboboxWithBrowseButton;
+import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
 
-/**
- * @author mike
- */
 public class FileIncludeContextHectorPanel extends HectorComponentPanel {
   private ComboboxWithBrowseButton myContextFile;
   private JPanel myPanel;
@@ -43,6 +28,8 @@ public class FileIncludeContextHectorPanel extends HectorComponentPanel {
     myFile = file;
     myIncludeManager = includeManager;
 
+    myPanel.setBackground(UIUtil.getToolTipActionBackground());
+    myContextFile.setBackground(UIUtil.getToolTipActionBackground());
     reset();
   }
 
@@ -99,7 +86,7 @@ public class FileIncludeContextHectorPanel extends HectorComponentPanel {
     }
 
     @Nullable
-    protected String getPath(final Object value) {
+    protected @NlsSafe String getPath(final Object value) {
       final VirtualFile file = (VirtualFile)value;
       final ProjectFileIndex fileIndex = ProjectRootManager.getInstance(myFile.getProject()).getFileIndex();
       if (file != null) {
@@ -114,7 +101,7 @@ public class FileIncludeContextHectorPanel extends HectorComponentPanel {
       return null;
     }
 
-    private String trimPath(String path, Component component, String separator, int length) {
+    private @NlsSafe String trimPath(String path, Component component, String separator, int length) {
 
       final FontMetrics fontMetrics = component.getFontMetrics(component.getFont());
       final int maxWidth = fontMetrics.stringWidth(path);

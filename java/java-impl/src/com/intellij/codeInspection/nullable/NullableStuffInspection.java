@@ -1,25 +1,11 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.nullable;
 
 import com.intellij.codeInsight.NullableNotNullDialog;
-import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.LocalQuickFixOnPsiElement;
 import com.intellij.find.findUsages.PsiElement2UsageTargetAdapter;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
@@ -52,7 +38,7 @@ public class NullableStuffInspection extends NullableStuffInspectionBase {
     return new OptionsPanel();
   }
 
-  private class OptionsPanel extends JPanel {
+  private final class OptionsPanel extends JPanel {
     private JCheckBox myBreakingOverriding;
     private JCheckBox myNAMethodOverridesNN;
     private JPanel myPanel;
@@ -121,7 +107,7 @@ public class NullableStuffInspection extends NullableStuffInspectionBase {
     @NotNull
     @Override
     public String getFamilyName() {
-      return InspectionsBundle.message("nullable.stuff.inspection.navigate.null.argument.usages.fix.family.name");
+      return JavaBundle.message("nullable.stuff.inspection.navigate.null.argument.usages.fix.family.name");
     }
 
     @Override
@@ -133,7 +119,7 @@ public class NullableStuffInspection extends NullableStuffInspectionBase {
       if (parameterIdx < 0) return;
 
       UsageViewPresentation presentation = new UsageViewPresentation();
-      String title = InspectionsBundle.message("nullable.stuff.inspection.navigate.null.argument.usages.view.name", p.getName());
+      String title = JavaBundle.message("nullable.stuff.inspection.navigate.null.argument.usages.view.name", p.getName());
       presentation.setUsagesString(title);
       presentation.setTabName(title);
       presentation.setTabText(title);
@@ -141,7 +127,7 @@ public class NullableStuffInspection extends NullableStuffInspectionBase {
         new UsageTarget[]{new PsiElement2UsageTargetAdapter(method.getParameterList().getParameters()[parameterIdx])},
         () -> new UsageSearcher() {
           @Override
-          public void generate(@NotNull final Processor<Usage> processor) {
+          public void generate(@NotNull final Processor<? super Usage> processor) {
             ReadAction.run(() -> JavaNullMethodArgumentUtil.searchNullArgument(method, parameterIdx, (arg) -> processor.process(new UsageInfo2UsageAdapter(new UsageInfo(arg)))));
           }
         }, false, false, presentation, null);

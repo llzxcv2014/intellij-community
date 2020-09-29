@@ -28,7 +28,7 @@ public class ClsAnnotationParameterListImpl extends ClsElementImpl implements Ps
   private final PsiAnnotation myParent;
   private final ClsNameValuePairImpl[] myAttributes;
 
-  public ClsAnnotationParameterListImpl(@NotNull PsiAnnotation parent, @NotNull PsiNameValuePair[] psiAttributes) {
+  public ClsAnnotationParameterListImpl(@NotNull PsiAnnotation parent, PsiNameValuePair @NotNull [] psiAttributes) {
     myParent = parent;
     myAttributes = new ClsNameValuePairImpl[psiAttributes.length];
     for (int i = 0; i < psiAttributes.length; i++) {
@@ -62,14 +62,20 @@ public class ClsAnnotationParameterListImpl extends ClsElementImpl implements Ps
   }
 
   @Override
+  public String getText() {
+    final StringBuilder buffer = new StringBuilder();
+    appendMirrorText(0, buffer);
+    return buffer.toString();
+  }
+
+  @Override
   public void setMirror(@NotNull TreeElement element) throws InvalidMirrorException {
     setMirrorCheckingType(element, null);
     setMirrors(myAttributes, SourceTreeToPsiMap.<PsiAnnotationParameterList>treeToPsiNotNull(element).getAttributes());
   }
 
   @Override
-  @NotNull
-  public PsiElement[] getChildren() {
+  public PsiElement @NotNull [] getChildren() {
     return myAttributes;
   }
 
@@ -89,8 +95,7 @@ public class ClsAnnotationParameterListImpl extends ClsElementImpl implements Ps
   }
 
   @Override
-  @NotNull
-  public PsiNameValuePair[] getAttributes() {
+  public PsiNameValuePair @NotNull [] getAttributes() {
     return myAttributes;
   }
 }

@@ -1,16 +1,17 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.plaf.beg;
 
 import com.intellij.ide.ui.UISettings;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.impl.IdeFrameDecorator;
+import com.intellij.ui.paint.LinePainter2D;
 import com.intellij.ui.scale.JBUIScale;
 import com.intellij.util.ui.JBInsets;
 import com.intellij.util.ui.StartupUiUtil;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 
 import javax.swing.*;
-import javax.swing.border.Border;
 import javax.swing.plaf.ComponentUI;
 import javax.swing.plaf.basic.BasicGraphicsUtils;
 import javax.swing.plaf.basic.BasicMenuUI;
@@ -33,10 +34,6 @@ public class IdeaMenuUI extends BasicMenuUI{
   private static final Rectangle ourIconRect = new Rectangle();
   private static final Rectangle ourViewRect = new Rectangle(32767, 32767);
 
-  private Border mySelectedBackgroundPainter;
-  private Icon myInvertedArrowIcon;
-  private Icon myDisabledArrowIcon;
-
   /** invoked by reflection */
   public static ComponentUI createUI(JComponent component) {
     return new IdeaMenuUI();
@@ -44,12 +41,6 @@ public class IdeaMenuUI extends BasicMenuUI{
 
   public IdeaMenuUI() {
     myMaxGutterIconWidth = JBUIScale.scale(18);
-
-    if (UIUtil.isUnderIntelliJLaF()) {
-      mySelectedBackgroundPainter = (Border) UIManager.get("MenuItem.selectedBackgroundPainter");
-      myInvertedArrowIcon = (Icon) UIManager.get("Menu.invertedArrowIcon");
-      myDisabledArrowIcon = (Icon) UIManager.get("Menu.disabledArrowIcon");
-    }
   }
 
   @Override
@@ -168,18 +159,9 @@ public class IdeaMenuUI extends BasicMenuUI{
       if (buttonmodel.isArmed() || buttonmodel.isSelected()){
         g.setColor(selectionForeground);
       }
-      if (useCheckAndArrow()){
-        try {
-          if (SystemInfo.isMac && myInvertedArrowIcon != null && (buttonmodel.isArmed() || buttonmodel.isSelected()) && UIUtil.isUnderIntelliJLaF()) {
-            myInvertedArrowIcon.paintIcon(comp, g, ourArrowIconRect.x, ourArrowIconRect.y);
-          } else if (SystemInfo.isMac && myDisabledArrowIcon != null && !buttonmodel.isEnabled() && UIUtil.isUnderIntelliJLaF()) {
-            myDisabledArrowIcon.paintIcon(comp, g, ourArrowIconRect.x, ourArrowIconRect.y);
-          } else arrowIcon.paintIcon(comp, g, ourArrowIconRect.x, ourArrowIconRect.y);
-        }
-        catch (NullPointerException npe) {
-          // GTKIconFactory$MenuArrowIcon.paintIcon since it doesn't expect to be given a null instead of SynthContext
-          // http://www.jetbrains.net/jira/browse/IDEADEV-22360
-        }
+
+      if (useCheckAndArrow()) {
+        arrowIcon.paintIcon(comp, g, ourArrowIconRect.x, ourArrowIconRect.y);
       }
     }
     g.setColor(mainColor);
@@ -249,7 +231,7 @@ public class IdeaMenuUI extends BasicMenuUI{
 
   private String layoutMenuItem(
     FontMetrics fontmetrics,
-    String text,
+    @Nls String text,
     Icon icon,
     Icon checkIcon,
     Icon arrowIcon,
@@ -388,11 +370,11 @@ public class IdeaMenuUI extends BasicMenuUI{
     int k1 = i1 + myMaxGutterIconWidth + 1;
     int l1 = j1 + myMaxGutterIconWidth + 4;
     g.setColor(BegResources.m);
-    UIUtil.drawLine(g, i1, j1, i1, l1);
-    UIUtil.drawLine(g, i1, j1, k1, j1);
+    LinePainter2D.paint((Graphics2D)g, i1, j1, i1, l1);
+    LinePainter2D.paint((Graphics2D)g, i1, j1, k1, j1);
     g.setColor(BegResources.j);
-    UIUtil.drawLine(g, k1, j1, k1, l1);
-    UIUtil.drawLine(g, i1, l1, k1, l1);
+    LinePainter2D.paint((Graphics2D)g, k1, j1, k1, l1);
+    LinePainter2D.paint((Graphics2D)g, i1, l1, k1, l1);
   }
 
   private void resetRects() {

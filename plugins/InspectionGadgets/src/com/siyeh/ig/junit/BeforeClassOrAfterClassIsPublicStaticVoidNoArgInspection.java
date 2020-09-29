@@ -22,6 +22,7 @@ import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
 import com.siyeh.ig.psiutils.TestUtils;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -53,13 +54,6 @@ public class BeforeClassOrAfterClassIsPublicStaticVoidNoArgInspection extends
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "before.class.or.after.class.is.public.static.void.no.arg.display.name");
-  }
-
-  @Override
-  @NotNull
   protected String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message(
       "before.class.or.after.class.is.public.static.void.no.arg.problem.descriptor", infos[1]);
@@ -70,7 +64,7 @@ public class BeforeClassOrAfterClassIsPublicStaticVoidNoArgInspection extends
     return new BeforeClassOrAfterClassIsPublicStaticVoidNoArgVisitor();
   }
 
-  protected static boolean isJunit4Annotation(String annotation) {
+  protected static boolean isJunit4Annotation(@NonNls String annotation) {
     return annotation.endsWith("Class");
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.platform.templates;
 
 import com.intellij.CommonBundle;
@@ -10,6 +10,7 @@ import com.intellij.ide.fileTemplates.impl.FileTemplateBase;
 import com.intellij.ide.util.projectWizard.ProjectTemplateFileProcessor;
 import com.intellij.ide.util.projectWizard.ProjectTemplateParameterFactory;
 import com.intellij.idea.ActionsBundle;
+import com.intellij.lang.LangBundle;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.ActionManager;
@@ -42,8 +43,9 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.io.Compressor;
 import com.intellij.util.io.PathKt;
 import com.intellij.util.ui.UIUtil;
-import gnu.trove.TIntObjectHashMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.jdom.Element;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.model.serialization.PathMacroUtil;
@@ -61,17 +63,16 @@ import java.util.regex.Pattern;
  */
 public class SaveProjectAsTemplateAction extends AnAction implements DumbAware {
   private static final Logger LOG = Logger.getInstance(SaveProjectAsTemplateAction.class);
-  private static final String PROJECT_TEMPLATE_XML = "project-template.xml";
+  private static final @NonNls String PROJECT_TEMPLATE_XML = "project-template.xml";
 
-  static final String FILE_HEADER_TEMPLATE_PLACEHOLDER = "<IntelliJ_File_Header>";
+  static final @NonNls String FILE_HEADER_TEMPLATE_PLACEHOLDER = "<IntelliJ_File_Header>";
 
   @Override
   public void actionPerformed(@NotNull AnActionEvent e) {
     final Project project = getEventProject(e);
     assert project != null;
     if (!ProjectKt.isDirectoryBased(project)) {
-      Messages.showErrorDialog(project, "Project templates do not support old .ipr (file-based) format.\n" +
-                                        "Please convert your project via File->Save as Directory-Based format.", CommonBundle.getErrorTitle());
+      Messages.showErrorDialog(project, LangBundle.message("dialog.message.project.templates.do.support.old.ipr.file"), CommonBundle.getErrorTitle());
       return;
     }
 
@@ -85,7 +86,7 @@ public class SaveProjectAsTemplateAction extends AnAction implements DumbAware {
 
       FileDocumentManager.getInstance().saveAllDocuments();
 
-      ProgressManager.getInstance().run(new Task.Backgroundable(project, "Saving Project as Template", true, PerformInBackgroundOption.DEAF) {
+      ProgressManager.getInstance().run(new Task.Backgroundable(project, LangBundle.message("progress.title.saving.project.as.template"), true, PerformInBackgroundOption.DEAF) {
         @Override
         public void run(@NotNull final ProgressIndicator indicator) {
           saveProject(project, file, moduleToSave, description, dialog.isReplaceParameters(), indicator, shouldEscape());
@@ -97,9 +98,9 @@ public class SaveProjectAsTemplateAction extends AnAction implements DumbAware {
           newProjectAction.getTemplatePresentation().setText(ActionsBundle.actionText("NewDirectoryProject"));
           AnAction manageAction = ActionManager.getInstance().getAction("ManageProjectTemplates");
           Notification notification = new Notification("Project Template",
-                                                       "Template Created",
-                                                       FileUtilRt.getNameWithoutExtension(file.getFileName().toString()) +
-                                                       " was successfully created",
+                                                       LangBundle.message("notification.title.template.created"),
+                                                       LangBundle.message("notification.content.was.successfully.created",
+                                                                          FileUtilRt.getNameWithoutExtension(file.getFileName().toString())),
                                                        NotificationType.INFORMATION);
           notification.addAction(newProjectAction);
           if (manageAction != null) {
@@ -134,10 +135,10 @@ public class SaveProjectAsTemplateAction extends AnAction implements DumbAware {
                                  ProgressIndicator indicator,
                                  boolean shouldEscape) {
     Map<String, String> parameters = computeParameters(project, replaceParameters);
-    indicator.setText("Saving project...");
+    indicator.setText(LangBundle.message("progress.text.saving.project"));
     StoreUtil.saveSettings(project, true);
 
-    indicator.setText("Processing project files...");
+    indicator.setText(LangBundle.message("progress.text.processing.project.files"));
     VirtualFile dir = getDirectoryToSave(project, moduleToSave);
     List<LocalArchivedTemplate.RootDescription> roots = collectStructure(project, moduleToSave);
     LocalArchivedTemplate.RootDescription basePathRoot = findOrAddBaseRoot(roots, dir);
@@ -167,7 +168,9 @@ public class SaveProjectAsTemplateAction extends AnAction implements DumbAware {
     catch (ProcessCanceledException ignored) { }
     catch (Exception ex) {
       LOG.error(ex);
-      UIUtil.invokeLaterIfNeeded(() -> Messages.showErrorDialog(project, "Can't save project as template", "Internal Error"));
+      UIUtil.invokeLaterIfNeeded(() -> Messages.showErrorDialog(project,
+                                                                LangBundle.message("dialog.message.can.t.save.project.as.template"),
+                                                                LangBundle.message("dialog.message.internal.error")));
     }
   }
 
@@ -186,19 +189,28 @@ public class SaveProjectAsTemplateAction extends AnAction implements DumbAware {
     if (PlatformUtils.isIntelliJ()) {
       return FileTemplateBase.getQualifiedName(FileTemplateManager.FILE_HEADER_TEMPLATE_NAME, "java");
     }
-    else if (PlatformUtils.isPhpStorm()) {
+    if (PlatformUtils.isPhpStorm()) {
       return FileTemplateBase.getQualifiedName("PHP File Header", "php");
-    } else if (PlatformUtils.isWebStorm()) {
-      return FileTemplateBase.getQualifiedName("JavaScript File", "js");
-    } else {
-      throw new IllegalStateException("Provide file header template for your IDE");
     }
+    if (PlatformUtils.isWebStorm()) {
+      return FileTemplateBase.getQualifiedName("JavaScript File", "js");
+    }
+    if (PlatformUtils.isGoIde()) {
+      return FileTemplateBase.getQualifiedName("Go File", "go");
+    }
+    throw new IllegalStateException("Provide file header template for your IDE");
   }
 
   static String getNewProjectActionId() {
-    if (PlatformUtils.isIntelliJ()) return "NewProject";
-    if (PlatformUtils.isPhpStorm()) return "NewDirectoryProject";
-    if (PlatformUtils.isWebStorm()) return "NewWebStormDirectoryProject";
+    if (PlatformUtils.isIntelliJ() || PlatformUtils.isWebStorm()) {
+      return "NewProject";
+    }
+    if (PlatformUtils.isPhpStorm()) {
+      return "NewDirectoryProject";
+    }
+    if (PlatformUtils.isGoIde()) {
+      return "GoIdeNewProjectAction";
+    }
     throw new IllegalStateException("Provide new project action id for your IDE");
   }
 
@@ -252,7 +264,7 @@ public class SaveProjectAsTemplateAction extends AnAction implements DumbAware {
     String text = VfsUtilCore.loadText(virtualFile);
     final FileTemplate template = FileTemplateManager.getInstance(project).getDefaultTemplate(fileHeaderTemplateName);
     final String templateText = template.getText();
-    final Pattern pattern = FileTemplateUtil.getTemplatePattern(template, project, new TIntObjectHashMap<>());
+    final Pattern pattern = FileTemplateUtil.getTemplatePattern(template, project, new Int2ObjectOpenHashMap<>());
     String result = convertTemplates(text, pattern, templateText, shouldEscape);
     result = ProjectTemplateFileProcessor.encodeFile(result, virtualFile, project);
     for (Map.Entry<String, String> entry : parameters.entrySet()) {

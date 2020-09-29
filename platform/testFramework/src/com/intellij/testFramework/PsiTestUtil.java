@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.testFramework;
 
 import com.intellij.openapi.Disposable;
@@ -41,21 +41,21 @@ import org.jetbrains.jps.model.module.JpsModuleSourceRootType;
 import org.junit.Assert;
 
 import java.io.File;
-import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
 
-public class PsiTestUtil {
+public final class PsiTestUtil {
   @NotNull
   public static VirtualFile createTestProjectStructure(@NotNull Project project,
                                                        @NotNull Module module,
                                                        String rootPath,
-                                                       @NotNull Collection<? super File> filesToDelete) throws Exception {
+                                                       @NotNull Collection<Path> filesToDelete) {
     return createTestProjectStructure(project, module, rootPath, filesToDelete, true);
   }
 
   @NotNull
-  public static VirtualFile createTestProjectStructure(@NotNull Project project, @NotNull Module module, @NotNull Collection<? super File> filesToDelete) throws IOException {
+  public static VirtualFile createTestProjectStructure(@NotNull Project project, @NotNull Module module, @NotNull Collection<Path> filesToDelete) {
     return createTestProjectStructure(project, module, null, filesToDelete, true);
   }
 
@@ -63,41 +63,21 @@ public class PsiTestUtil {
   public static VirtualFile createTestProjectStructure(@NotNull Project project,
                                                        @Nullable Module module,
                                                        String rootPath,
-                                                       @NotNull Collection<? super File> filesToDelete,
-                                                       boolean addProjectRoots) throws IOException {
+                                                       @NotNull Collection<Path> filesToDelete,
+                                                       boolean addProjectRoots) {
     VirtualFile vDir = createTestProjectStructure("unitTest", module, rootPath, filesToDelete, addProjectRoots);
     PsiDocumentManager.getInstance(project).commitAllDocuments();
     return vDir;
   }
 
-  @NotNull
-  public static VirtualFile createTestProjectStructure(@NotNull String tempName,
-                                                       @Nullable Module module,
-                                                       String rootPath,
-                                                       @NotNull Collection<? super File> filesToDelete,
-                                                       boolean addProjectRoots) throws IOException {
-    File dir = FileUtil.createTempDirectory(tempName, null, false);
+  public static @NotNull VirtualFile createTestProjectStructure(@NotNull String tempName,
+                                                                @Nullable Module module,
+                                                                String rootPath,
+                                                                @NotNull Collection<Path> filesToDelete,
+                                                                boolean addProjectRoots) {
+    Path dir = HeavyTestHelper.createTempDirectoryForTempDirTestFixture(null, tempName);
     filesToDelete.add(dir);
-
-    VirtualFile vDir = LocalFileSystem.getInstance().refreshAndFindFileByPath(dir.getCanonicalPath().replace(File.separatorChar, '/'));
-    assert vDir != null && vDir.isDirectory() : dir;
-    HeavyPlatformTestCase.synchronizeTempDirVfs(vDir);
-
-    EdtTestUtil.runInEdtAndWait(() -> WriteAction.run(() -> {
-      if (rootPath != null) {
-        VirtualFile vDir1 =
-          LocalFileSystem.getInstance().findFileByPath(rootPath.replace(File.separatorChar, '/'));
-        if (vDir1 == null) {
-          throw new Exception(rootPath + " not found");
-        }
-        VfsUtil.copyDirectory(null, vDir1, vDir, null);
-      }
-
-      if (addProjectRoots) {
-        addSourceContentToRoots(module, vDir);
-      }
-    }));
-    return vDir;
+    return HeavyTestHelper.createTestProjectStructure(module, rootPath, dir, addProjectRoots);
   }
 
   public static void removeAllRoots(@NotNull Module module, Sdk jdk) {
@@ -139,10 +119,12 @@ public class PsiTestUtil {
                                                                   @NotNull VirtualFile vDir,
                                                                   @NotNull JpsModuleSourceRootType<P> rootType,
                                                                   @NotNull P properties) {
-    Ref<SourceFolder> result = Ref.create();
+    Ref<SourceFolder> result = new Ref<>();
     ModuleRootModificationUtil.updateModel(module, model -> {
       ContentEntry entry = findContentEntry(model, vDir);
-      if (entry == null) entry = model.addContentEntry(vDir);
+      if (entry == null) {
+        entry = model.addContentEntry(vDir);
+      }
       result.set(entry.addSourceFolder(vDir, rootType, properties));
     });
     return result.get();
@@ -164,7 +146,6 @@ public class PsiTestUtil {
         if (entry instanceof ContentEntryImpl) {
           Assert.assertFalse(((ContentEntryImpl)entry).isDisposed());
         }
-
         return entry;
       }
     }
@@ -319,14 +300,14 @@ public class PsiTestUtil {
    * @param libPath the path of a directory
    * @param jarArr the names of jars or subdirectories inside {@code libPath} that will become class roots
    */
-  public static void addLibrary(@NotNull Module module, String libName, @NotNull String libPath, @NotNull String... jarArr) {
+  public static void addLibrary(@NotNull Module module, String libName, @NotNull String libPath, String @NotNull ... jarArr) {
     ModuleRootModificationUtil.updateModel(module, model -> addLibrary(model, libName, libPath, jarArr));
   }
 
   /**
    * Add a module-level library. Same as {@link #addLibrary(Module, String, String, String...)}, but the library will be removed when the {@code parent} disposable is disposed.
    */
-  public static void addLibrary(@NotNull Disposable parent, @NotNull Module module, String libName, @NotNull String libPath, @NotNull String... jarArr) {
+  public static void addLibrary(@NotNull Disposable parent, @NotNull Module module, String libName, @NotNull String libPath, String @NotNull ... jarArr) {
     Ref<Library> ref = new Ref<>();
     ModuleRootModificationUtil.updateModel(module, model -> ref.set(addLibrary(model, libName, libPath, jarArr)));
     Disposer.register(parent, () -> {
@@ -374,7 +355,7 @@ public class PsiTestUtil {
    * If you already have a {@link ModifiableRootModel} (e.g. inside {@link LightProjectDescriptor#configureModule}),
    * use {@link #addProjectLibrary(ModifiableRootModel, String, List)}.
    */
-  public static void addProjectLibrary(@NotNull Module module, String libName, @NotNull VirtualFile... classesRoots) {
+  public static void addProjectLibrary(@NotNull Module module, String libName, VirtualFile @NotNull ... classesRoots) {
     addProjectLibrary(module, libName, Arrays.asList(classesRoots), Collections.emptyList());
   }
 
@@ -443,7 +424,7 @@ public class PsiTestUtil {
   public static Library addLibrary(@NotNull ModifiableRootModel model,
                                    String libName,
                                    @NotNull String libPath,
-                                   @NotNull String... jarArr) {
+                                   String @NotNull ... jarArr) {
     List<VirtualFile> classesRoots = new ArrayList<>();
     for (String jar : jarArr) {
       if (!libPath.endsWith("/") && !jar.startsWith("/")) {
@@ -487,8 +468,8 @@ public class PsiTestUtil {
   public static void addLibrary(@NotNull Module module,
                                 String libName,
                                 @NotNull String libDir,
-                                @NotNull String[] classRoots,
-                                @NotNull String[] sourceRoots) {
+                                String @NotNull [] classRoots,
+                                String @NotNull [] sourceRoots) {
     String proto = (classRoots.length > 0 ? classRoots[0] : sourceRoots[0]).endsWith(".jar!/") ? JarFileSystem.PROTOCOL : LocalFileSystem.PROTOCOL;
     String parentUrl = VirtualFileManager.constructUrl(proto, libDir);
     List<String> classesUrls = new ArrayList<>();
@@ -508,7 +489,7 @@ public class PsiTestUtil {
       String moduleName;
       ModifiableModuleModel moduleModel = ModuleManager.getInstance(project).getModifiableModel();
       try {
-        moduleName = moduleModel.newModule(root.getPath() + "/" + name + ".iml", type.getId()).getName();
+        moduleName = moduleModel.newModule(root.toNioPath().resolve(name + ".iml"), type.getId()).getName();
         moduleModel.commit();
       }
       catch (Throwable t) {
@@ -549,7 +530,7 @@ public class PsiTestUtil {
     ModuleRootModificationUtil.updateModel(module, model -> model.getModuleExtension(CompilerModuleExtension.class).setExcludeOutput(exclude));
   }
 
-  public static void setJavadocUrls(@NotNull Module module, @NotNull String... urls) {
+  public static void setJavadocUrls(@NotNull Module module, String @NotNull ... urls) {
     ModuleRootModificationUtil.updateModel(module, model -> model.getModuleExtension(JavaModuleExternalPaths.class).setJavadocUrls(urls));
   }
 
@@ -565,7 +546,7 @@ public class PsiTestUtil {
   @Contract(pure=true)
   public static Sdk addRootsToJdk(@NotNull Sdk sdk,
                                   @NotNull OrderRootType rootType,
-                                  @NotNull VirtualFile... roots) {
+                                  VirtualFile @NotNull ... roots) {
     return modifyJdkRoots(sdk, sdkModificator -> {
       for (VirtualFile root : roots) {
         sdkModificator.setName(sdkModificator.getName() + "+" + root.getPath());
@@ -613,8 +594,8 @@ public class PsiTestUtil {
       checker.accept(manager.getPsiFile(document));
     }
   }
-  
-  public static class LibraryBuilder {
+
+  public static final class LibraryBuilder {
     private final String myName;
     private final List<VirtualFile> myClassesRoots = new ArrayList<>();
     private final List<VirtualFile> mySourceRoots = new ArrayList<>();
@@ -626,7 +607,7 @@ public class PsiTestUtil {
     }
 
     /**
-     * Add a classes root for the future library. 
+     * Add a classes root for the future library.
      * @param root root to add
      * @return this builder
      */
@@ -637,7 +618,7 @@ public class PsiTestUtil {
     }
 
     /**
-     * Add a classes root for the future library. 
+     * Add a classes root for the future library.
      * @param rootPath root to add
      * @return this builder
      */
@@ -648,7 +629,7 @@ public class PsiTestUtil {
     }
 
     /**
-     * Add a source root for the future library. 
+     * Add a source root for the future library.
      * @param root root to add
      * @return this builder
      */
@@ -659,7 +640,7 @@ public class PsiTestUtil {
     }
 
     /**
-     * Add a source root for the future library. 
+     * Add a source root for the future library.
      * @param rootPath root to add
      * @return this builder
      */
@@ -670,7 +651,7 @@ public class PsiTestUtil {
     }
 
     /**
-     * Add a javadoc root for the future library. 
+     * Add a javadoc root for the future library.
      * @param root root to add
      * @return this builder
      */
@@ -681,7 +662,7 @@ public class PsiTestUtil {
     }
 
     /**
-     * Add a javadoc root for the future library. 
+     * Add a javadoc root for the future library.
      * @param rootPath root to add
      * @return this builder
      */
@@ -705,7 +686,7 @@ public class PsiTestUtil {
     /**
      * Creates the actual library and registers it within given {@link ModifiableRootModel}. Presumably this method
      * is called inside {@link ModuleRootModificationUtil#updateModel(Module, com.intellij.util.Consumer)}.
-     * 
+     *
      * @param model a model to register the library in.
      * @return a library
      */
@@ -715,10 +696,10 @@ public class PsiTestUtil {
     }
 
     /**
-     * Creates the actual library and registers it within given {@link Module}. Do not call this inside 
-     * {@link LightProjectDescriptor#configureModule(Module, ModifiableRootModel, ContentEntry)}; 
+     * Creates the actual library and registers it within given {@link Module}. Do not call this inside
+     * {@link LightProjectDescriptor#configureModule(Module, ModifiableRootModel, ContentEntry)};
      * use {@link #addTo(ModifiableRootModel)} instead.
-     * 
+     *
      * @param module a module to register the library in.
      * @return a library
      */
@@ -728,6 +709,6 @@ public class PsiTestUtil {
       ModuleRootModificationUtil.updateModel(module, model -> result.set(addTo(model)));
       return result.get();
     }
-    
+
   }
 }

@@ -1,4 +1,6 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+@file:JvmName("DisposableEx")
+
 package com.intellij.openapi.rd
 
 import com.intellij.openapi.Disposable
@@ -7,30 +9,32 @@ import com.jetbrains.rd.util.lifetime.Lifetime
 import com.jetbrains.rd.util.lifetime.LifetimeDefinition
 import com.jetbrains.rd.util.lifetime.isAlive
 import com.jetbrains.rd.util.lifetime.onTermination
+import org.jetbrains.annotations.ApiStatus
 
-inline fun using(disposable: Disposable, block: () -> Unit) {
-  try {
-    block()
-  } finally {
-    Disposer.dispose(disposable)
-  }
-}
-
-fun Disposable.defineNestedLifetime(): LifetimeDefinition {
+@ApiStatus.ScheduledForRemoval(inVersion = "2020.2")
+@Deprecated("Use version from `LifetimeDisposableEx`")
+fun defineNestedLifetime(disposable: Disposable): LifetimeDefinition {
   val lifetimeDefinition = Lifetime.Eternal.createNested()
-  this.attach { if (lifetimeDefinition.lifetime.isAlive) lifetimeDefinition.terminate() }
+  if (Disposer.isDisposed(disposable)) {
+    lifetimeDefinition.terminate()
+    return lifetimeDefinition
+  }
+
+  disposable.attach { if (lifetimeDefinition.lifetime.isAlive) lifetimeDefinition.terminate() }
   return lifetimeDefinition
 }
 
-fun Disposable.createLifetime(): Lifetime = this.defineNestedLifetime().lifetime
-
-fun Disposable.doIfAlive(action: (Lifetime) -> Unit) {
+@ApiStatus.ScheduledForRemoval(inVersion = "2020.2")
+@Deprecated("Use version from `LifetimeDisposableEx`")
+internal fun doIfAlive(disposable: Disposable, action: (Lifetime) -> Unit) {
   val disposableLifetime: Lifetime?
-  if(Disposer.isDisposed(this)) return
-
+  if (Disposer.isDisposed(disposable)) {
+    return
+  }
   try {
-    disposableLifetime = this.createLifetime()
-  } catch(t : Throwable){
+    disposableLifetime = defineNestedLifetime(disposable).lifetime
+  }
+  catch (t: Throwable) {
     //do nothing, there is no other way to handle disposables
     return
   }
@@ -38,21 +42,23 @@ fun Disposable.doIfAlive(action: (Lifetime) -> Unit) {
   action(disposableLifetime)
 }
 
-fun Lifetime.createNestedDisposable(debugName: String = "lifetimeToDisposable"): Disposable {
+@ApiStatus.ScheduledForRemoval(inVersion = "2020.2")
+@Deprecated("Use version from `LifetimeDisposableEx`")
+internal fun Lifetime.createNestedDisposable(debugName: String = "lifetimeToDisposable"): Disposable {
   val d = Disposer.newDisposable(debugName)
-
   this.onTermination {
     Disposer.dispose(d)
   }
   return d
 }
 
-fun Disposable.attachChild(disposable: Disposable) {
-  Disposer.register(this, disposable)
-}
-
-@Suppress("ObjectLiteralToLambda") // non-object lambdas fuck up the disposer
-fun Disposable.attach(disposable: () -> Unit) {
+@Suppress("ObjectLiteralToLambda")
+/**
+ * Executes the given action when this disposable will be disposed
+ * @throws com.intellij.util.IncorrectOperationException if this disposable is being disposed or is already disposed
+ * @see Disposer.register
+ */
+inline fun Disposable.attach(crossinline disposable: () -> Unit) {
   Disposer.register(this, object : Disposable {
     override fun dispose() {
       disposable()

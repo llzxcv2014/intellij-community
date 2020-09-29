@@ -6,7 +6,7 @@
  */
 package com.intellij.debugger.ui.breakpoints;
 
-import com.intellij.debugger.DebuggerBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.DebuggerManagerEx;
 import com.intellij.debugger.SourcePosition;
 import com.intellij.debugger.engine.ContextUtil;
@@ -22,6 +22,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.psi.jsp.JspFile;
@@ -119,14 +120,14 @@ public class LineBreakpoint<P extends JavaBreakpointProperties> extends Breakpoi
       else if (DebuggerUtilsEx.allLineLocations(classType) == null) {
         // there's no line info in this class
         debugProcess.getRequestsManager()
-          .setInvalid(this, DebuggerBundle.message("error.invalid.breakpoint.no.line.info", classType.name()));
+          .setInvalid(this, JavaDebuggerBundle.message("error.invalid.breakpoint.no.line.info", classType.name()));
         if (LOG.isDebugEnabled()) {
           LOG.debug("No line number info in " + classType.name());
         }
       }
       else {
         // there's no executable code in this class
-        debugProcess.getRequestsManager().setInvalid(this, DebuggerBundle.message(
+        debugProcess.getRequestsManager().setInvalid(this, JavaDebuggerBundle.message(
           "error.invalid.breakpoint.no.executable.code", (getLineIndex() + 1), classType.name())
         );
         if (LOG.isDebugEnabled()) {
@@ -222,7 +223,7 @@ public class LineBreakpoint<P extends JavaBreakpointProperties> extends Breakpoi
             JavaPsiFacade.getInstance(myProject).findClasses(className, scope),
             aClass -> aClass.getContainingFile().getVirtualFile());
           List<VirtualFile> allFiles = ContainerUtil.map(
-            JavaPsiFacade.getInstance(myProject).findClasses(className, new EverythingGlobalScope(myProject)),
+            JavaPsiFacade.getInstance(myProject).findClasses(className, GlobalSearchScope.everythingScope(myProject)),
             aClass -> aClass.getContainingFile().getVirtualFile());
           final VirtualFile contentRoot = fileIndex.getContentRootForFile(breakpointFile);
           final Module module = fileIndex.getModuleForFile(breakpointFile);
@@ -296,7 +297,7 @@ public class LineBreakpoint<P extends JavaBreakpointProperties> extends Breakpoi
     return getDisplayInfoInternal(true, -1);
   }
 
-  private String getDisplayInfoInternal(boolean showPackageInfo, int totalTextLength) {
+  private @NlsContexts.Label String getDisplayInfoInternal(boolean showPackageInfo, int totalTextLength) {
     if(isValid()) {
       final int lineNumber = getLineIndex() + 1;
       String className = getClassName();
@@ -339,11 +340,11 @@ public class LineBreakpoint<P extends JavaBreakpointProperties> extends Breakpoi
         if (showPackageInfo && packageName != null) {
           info.append(" (").append(packageName).append(")");
         }
-        return DebuggerBundle.message("line.breakpoint.display.name.with.class.or.method", lineNumber, info.toString());
+        return JavaDebuggerBundle.message("line.breakpoint.display.name.with.class.or.method", lineNumber, info.toString());
       }
-      return DebuggerBundle.message("line.breakpoint.display.name", lineNumber);
+      return JavaDebuggerBundle.message("line.breakpoint.display.name", lineNumber);
     }
-    return DebuggerBundle.message("status.breakpoint.invalid");
+    return JavaDebuggerBundle.message("status.breakpoint.invalid");
   }
 
   @Nullable
@@ -365,7 +366,7 @@ public class LineBreakpoint<P extends JavaBreakpointProperties> extends Breakpoi
     final Location location = event.location();
     String sourceName = DebuggerUtilsEx.getSourceName(location, e -> getFileName());
 
-    return DebuggerBundle.message(
+    return JavaDebuggerBundle.message(
       "status.line.breakpoint.reached",
       DebuggerUtilsEx.getLocationMethodQName(location),
       sourceName,

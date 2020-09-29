@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.sdk.flavors;
 
 import com.intellij.openapi.application.ReadAction;
@@ -11,9 +11,11 @@ import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.SystemProperties;
+import com.jetbrains.python.sdk.BasePySdkExtKt;
 import com.jetbrains.python.sdk.PySdkExtKt;
 import com.jetbrains.python.sdk.PythonSdkUtil;
 import icons.PythonIcons;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,12 +28,26 @@ import java.util.List;
 /**
  * User : catherine
  */
-public class VirtualEnvSdkFlavor extends CPythonSdkFlavor {
+public final class VirtualEnvSdkFlavor extends CPythonSdkFlavor {
   private VirtualEnvSdkFlavor() {
   }
   private final static String[] NAMES = new String[]{"jython", "pypy", "python.exe", "jython.bat", "pypy.exe"};
 
-  public static VirtualEnvSdkFlavor INSTANCE = new VirtualEnvSdkFlavor();
+  /**
+   * @deprecated Use {@link #getInstance()}
+   */
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2020.3")
+  public final static VirtualEnvSdkFlavor INSTANCE = new VirtualEnvSdkFlavor();
+
+  public static VirtualEnvSdkFlavor getInstance() {
+    return PythonSdkFlavor.EP_NAME.findExtension(VirtualEnvSdkFlavor.class);
+  }
+
+  @Override
+  public boolean isPlatformIndependent() {
+    return true;
+  }
 
   @NotNull
   @Override
@@ -39,7 +55,7 @@ public class VirtualEnvSdkFlavor extends CPythonSdkFlavor {
     return ReadAction.compute(() -> {
       final List<String> candidates = new ArrayList<>();
       if (module != null) {
-        VirtualFile baseDir = PySdkExtKt.getBaseDir(module);
+        VirtualFile baseDir = BasePySdkExtKt.getBaseDir(module);
         if (baseDir == null && context != null && context.getUserData(PySdkExtKt.getBASE_DIR()) != null) {
           //noinspection ConstantConditions
           baseDir = VfsUtil.findFile(context.getUserData(PySdkExtKt.getBASE_DIR()), false);

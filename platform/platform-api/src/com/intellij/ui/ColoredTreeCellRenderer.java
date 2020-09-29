@@ -1,11 +1,12 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
 import com.intellij.ide.util.treeView.AbstractTreeUi;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.ui.render.RenderingUtil;
+import com.intellij.ui.scale.JBUIScale;
 import com.intellij.ui.speedSearch.SpeedSearchUtil;
 import com.intellij.util.ui.EmptyIcon;
-import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.tree.WideSelectionTreeUI;
 import org.jetbrains.annotations.Nls;
@@ -22,7 +23,7 @@ import java.awt.*;
 public abstract class ColoredTreeCellRenderer extends SimpleColoredComponent implements TreeCellRenderer {
   private static final Logger LOG = Logger.getInstance(ColoredTreeCellRenderer.class);
 
-  private static final Icon LOADING_NODE_ICON = JBUI.scale(EmptyIcon.create(8, 16));
+  private static final Icon LOADING_NODE_ICON = JBUIScale.scaleIcon(EmptyIcon.create(8, 16));
 
   /**
    * Defines whether the tree is selected or not
@@ -103,7 +104,7 @@ public abstract class ColoredTreeCellRenderer extends SimpleColoredComponent imp
       setIcon(LOADING_NODE_ICON);
     }
     else {
-      setForeground(tree.getForeground());
+      setForeground(RenderingUtil.getForeground(tree));
       setIcon(null);
     }
 

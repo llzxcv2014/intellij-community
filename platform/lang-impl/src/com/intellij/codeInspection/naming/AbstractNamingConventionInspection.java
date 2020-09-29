@@ -1,10 +1,17 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.naming;
 
+import com.intellij.codeInspection.LocalInspectionEP;
 import com.intellij.codeInspection.LocalInspectionTool;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemsHolder;
+import com.intellij.codeInspection.util.InspectionMessage;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.extensions.ExtensionPointListener;
+import com.intellij.openapi.extensions.ExtensionPointName;
+import com.intellij.openapi.extensions.ExtensionPointUtil;
+import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiNameIdentifierOwner;
@@ -46,15 +53,52 @@ public abstract class AbstractNamingConventionInspection<T extends PsiNameIdenti
 
   protected AbstractNamingConventionInspection(Iterable<NamingConvention<T>> extensions, @Nullable final String defaultConventionShortName) {
     for (NamingConvention<T> convention : extensions) {
-      String shortName = convention.getShortName();
-      NamingConvention<T> oldConvention = myNamingConventions.put(shortName, convention);
-      if (oldConvention != null) {
-        LOG.error("Duplicated short names: " + shortName + " first: " + oldConvention + "; second: " + convention);
-      }
-      myNamingConventionBeans.put(shortName, convention.createDefaultBean());
+      registerConvention(convention);
     }
-    initDisabledState();
     myDefaultConventionShortName = defaultConventionShortName;
+  }
+
+  protected void registerConvention(NamingConvention<T> convention) {
+    String shortName = convention.getShortName();
+    NamingConvention<T> oldConvention = myNamingConventions.put(shortName, convention);
+    if (oldConvention != null) {
+      LOG.error("Duplicated short names: " + shortName + " first: " + oldConvention + "; second: " + convention);
+    }
+    myNamingConventionBeans.put(shortName, convention.createDefaultBean());
+    if (!convention.isEnabledByDefault()) {
+      myDisabledShortNames.add(shortName);
+    }
+  }
+
+  protected void unregisterConvention(@NotNull NamingConvention<T> extension) {
+    String shortName = extension.getShortName();
+    Element element = writeConvention(shortName, extension);
+    if (element != null) {
+      myUnloadedElements.put(shortName, element);
+    }
+    myNamingConventionBeans.remove(shortName);
+    myNamingConventions.remove(shortName);
+    myDisabledShortNames.remove(shortName);
+  }
+
+  protected void registerConventionsListener(@NotNull ExtensionPointName<NamingConvention<T>> epName) {
+    Disposable disposable = ExtensionPointUtil.createExtensionDisposable(
+      this,
+      LocalInspectionEP.LOCAL_INSPECTION.getPoint(),
+      inspectionEP -> this.getClass().getName().equals(inspectionEP.implementationClass)
+    );
+
+    epName.addExtensionPointListener(new ExtensionPointListener<>() {
+      @Override
+      public void extensionAdded(@NotNull NamingConvention<T> extension, @NotNull PluginDescriptor pluginDescriptor) {
+        registerConvention(extension);
+      }
+
+      @Override
+      public void extensionRemoved(@NotNull NamingConvention<T> extension, @NotNull PluginDescriptor pluginDescriptor) {
+        unregisterConvention(extension);
+      }
+    }, disposable);
   }
 
   @Nullable
@@ -78,7 +122,7 @@ public abstract class AbstractNamingConventionInspection<T extends PsiNameIdenti
   }
 
   @NotNull
-  protected String createErrorMessage(String name, String shortName) {
+  protected @InspectionMessage String createErrorMessage(String name, String shortName) {
     return myNamingConventions.get(shortName).createErrorMessage(name, myNamingConventionBeans.get(shortName));
   }
 
@@ -118,19 +162,25 @@ public abstract class AbstractNamingConventionInspection<T extends PsiNameIdenti
         if (element != null) node.addContent(element.clone());
         continue;
       }
-      boolean disabled = myDisabledShortNames.contains(shortName);
-      Element element = new Element("extension")
-        .setAttribute("name", shortName)
-        .setAttribute("enabled", disabled ? "false" : "true");
-      NamingConventionBean conventionBean = myNamingConventionBeans.get(shortName);
-      if (!convention.createDefaultBean().equals(conventionBean)) {
-        XmlSerializer.serializeInto(conventionBean, element);
-      }
-      else {
-        if (disabled) continue;
-      }
+      Element element = writeConvention(shortName, convention);
+      if (element == null) continue;
       node.addContent(element);
     }
+  }
+
+  private Element writeConvention(String shortName, NamingConvention<T> convention) {
+    boolean disabled = myDisabledShortNames.contains(shortName);
+    Element element = new Element("extension")
+      .setAttribute("name", shortName)
+      .setAttribute("enabled", disabled ? "false" : "true");
+    NamingConventionBean conventionBean = myNamingConventionBeans.get(shortName);
+    if (!convention.createDefaultBean().equals(conventionBean)) {
+      XmlSerializer.serializeInto(conventionBean, element);
+    }
+    else {
+      if (disabled) return null;
+    }
+    return element;
   }
 
   public boolean isConventionEnabled(String shortName) {

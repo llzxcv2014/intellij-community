@@ -1,18 +1,18 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vcs.AbstractVcs;
 import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.FileStatus;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.Consumer;
 import com.intellij.util.ThreeState;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.*;
 
 import java.io.File;
 import java.util.Collection;
@@ -21,7 +21,7 @@ import java.util.List;
 public abstract class ChangeListManager implements ChangeListModification {
   @NotNull
   public static ChangeListManager getInstance(@NotNull Project project) {
-    return project.getComponent(ChangeListManager.class);
+    return project.getService(ChangeListManager.class);
   }
 
   public abstract void scheduleUpdate();
@@ -30,12 +30,14 @@ public abstract class ChangeListManager implements ChangeListModification {
    * @deprecated use {@link #scheduleUpdate()}
    */
   @Deprecated
-  public abstract void scheduleUpdate(boolean updateUnversionedFiles);
+  public void scheduleUpdate(boolean updateUnversionedFiles) {
+    scheduleUpdate();
+  }
 
 
   public abstract void invokeAfterUpdate(@NotNull Runnable afterUpdate,
                                          @NotNull InvokeAfterUpdateMode mode,
-                                         @Nullable String title,
+                                         @Nullable @NlsContexts.ProgressTitle String title,
                                          @Nullable ModalityState state);
 
   /**
@@ -44,10 +46,12 @@ public abstract class ChangeListManager implements ChangeListModification {
   @Deprecated
   public abstract void invokeAfterUpdate(@NotNull Runnable afterUpdate,
                                          @NotNull InvokeAfterUpdateMode mode,
-                                         @Nullable String title,
+                                         @Nullable @NlsContexts.ProgressTitle String title,
                                          @Nullable Consumer<? super VcsDirtyScopeManager> dirtyScopeManager,
                                          @Nullable ModalityState state);
 
+
+  public abstract boolean areChangeListsEnabled();
 
   public abstract int getChangeListsNumber();
 
@@ -71,7 +75,7 @@ public abstract class ChangeListManager implements ChangeListModification {
   public abstract LocalChangeList getDefaultChangeList();
 
   @NotNull
-  public abstract String getDefaultListName();
+  public abstract @NlsSafe String getDefaultListName();
 
 
   @NotNull
@@ -87,10 +91,10 @@ public abstract class ChangeListManager implements ChangeListModification {
 
 
   @Nullable
-  public abstract LocalChangeList findChangeList(String name);
+  public abstract LocalChangeList findChangeList(@NlsSafe String name);
 
   @Nullable
-  public abstract LocalChangeList getChangeList(@Nullable String id);
+  public abstract LocalChangeList getChangeList(@Nullable @NonNls String id);
 
 
   @NotNull
@@ -106,7 +110,7 @@ public abstract class ChangeListManager implements ChangeListModification {
   public abstract LocalChangeList getChangeList(@NotNull VirtualFile file);
 
   @Nullable
-  public abstract String getChangeListNameIfOnlyOne(Change[] changes);
+  public abstract @NlsSafe String getChangeListNameIfOnlyOne(Change[] changes);
 
 
   @Nullable
@@ -117,10 +121,15 @@ public abstract class ChangeListManager implements ChangeListModification {
 
 
   @NotNull
+  public abstract FileStatus getStatus(@NotNull FilePath file);
+
+  @NotNull
   public abstract FileStatus getStatus(@NotNull VirtualFile file);
 
   public abstract boolean isUnversioned(VirtualFile file);
 
+  @NotNull
+  public abstract List<FilePath> getUnversionedFilesPaths();
 
   @NotNull
   public abstract Collection<Change> getChangesIn(@NotNull VirtualFile dir);
@@ -131,17 +140,32 @@ public abstract class ChangeListManager implements ChangeListModification {
   @NotNull
   public abstract ThreeState haveChangesUnder(@NotNull VirtualFile vf);
 
+  /**
+   * @deprecated Use {@link com.intellij.openapi.vcs.ProjectLevelVcsManager#getVcsFor}
+   */
   @Nullable
+  @Deprecated
   public abstract AbstractVcs getVcsFor(@NotNull Change change);
 
 
+  /**
+   * Prefer using {@link ChangeListListener#TOPIC}
+   */
   public abstract void addChangeListListener(@NotNull ChangeListListener listener, @NotNull Disposable disposable);
 
+  /**
+   * Prefer using {@link ChangeListListener#TOPIC}
+   */
   public abstract void addChangeListListener(@NotNull ChangeListListener listener);
 
   public abstract void removeChangeListListener(@NotNull ChangeListListener listener);
 
 
+  /**
+   * @deprecated use {@link LocalCommitExecutor#LOCAL_COMMIT_EXECUTOR} extension point
+   */
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2020.3")
   public abstract void registerCommitExecutor(@NotNull CommitExecutor executor);
 
   @NotNull
@@ -158,50 +182,51 @@ public abstract class ChangeListManager implements ChangeListModification {
    * @deprecated All potential ignores should be contributed to VCS native ignores by corresponding {@link IgnoredFileProvider}.
    */
   @Deprecated
-  @NotNull
-  public abstract IgnoredFileBean[] getFilesToIgnore();
+  public abstract IgnoredFileBean @NotNull [] getFilesToIgnore();
 
   public abstract boolean isIgnoredFile(@NotNull VirtualFile file);
 
   public abstract boolean isIgnoredFile(@NotNull FilePath file);
 
-  /**
-   * @deprecated All potential ignores should be contributed to VCS native ignores by corresponding {@link IgnoredFileProvider}.
-   */
-  @Deprecated
-  public abstract void setFilesToIgnore(@NotNull IgnoredFileBean... ignoredFiles);
+  @NotNull
+  public abstract List<FilePath> getIgnoredFilePaths();
 
   /**
    * @deprecated All potential ignores should be contributed to VCS native ignores by corresponding {@link IgnoredFileProvider}.
    */
   @Deprecated
-  public abstract void addFilesToIgnore(@NotNull IgnoredFileBean... ignoredFiles);
+  public abstract void setFilesToIgnore(IgnoredFileBean @NotNull ... ignoredFiles);
 
   /**
    * @deprecated All potential ignores should be contributed to VCS native ignores by corresponding {@link IgnoredFileProvider}.
    */
   @Deprecated
-  public abstract void addDirectoryToIgnoreImplicitly(@NotNull String path);
+  public abstract void addFilesToIgnore(IgnoredFileBean @NotNull ... ignoredFiles);
 
   /**
    * @deprecated All potential ignores should be contributed to VCS native ignores by corresponding {@link IgnoredFileProvider}.
    */
   @Deprecated
-  public abstract void removeImplicitlyIgnoredDirectory(@NotNull String path);
+  public abstract void addDirectoryToIgnoreImplicitly(@NotNull @NlsSafe String path);
+
+  /**
+   * @deprecated All potential ignores should be contributed to VCS native ignores by corresponding {@link IgnoredFileProvider}.
+   */
+  @Deprecated
+  public abstract void removeImplicitlyIgnoredDirectory(@NotNull @NlsSafe String path);
 
 
   @NotNull
   public abstract List<VirtualFile> getModifiedWithoutEditing();
 
   @Nullable
-  public abstract String getSwitchedBranch(@NotNull VirtualFile file);
+  public abstract @NlsSafe String getSwitchedBranch(@NotNull VirtualFile file);
 
 
   @Nullable
-  public abstract String isFreezed();
+  public abstract @Nls(capitalization = Nls.Capitalization.Sentence) String isFreezed();
 
-  public abstract boolean isFreezedWithNotification(@Nullable String modalTitle);
-
+  public abstract boolean isFreezedWithNotification(@NlsContexts.DialogTitle @Nullable String modalTitle);
 
   @Deprecated // used in TeamCity
   public abstract void reopenFiles(@NotNull List<? extends FilePath> paths);

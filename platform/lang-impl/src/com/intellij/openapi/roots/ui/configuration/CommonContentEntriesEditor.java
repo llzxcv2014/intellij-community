@@ -20,6 +20,7 @@ import com.intellij.openapi.roots.SourceFolder;
 import com.intellij.openapi.roots.ui.componentsList.components.ScrollablePanel;
 import com.intellij.openapi.roots.ui.componentsList.layout.VerticalStackLayout;
 import com.intellij.openapi.roots.ui.configuration.actions.IconWithTextAction;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
@@ -53,7 +54,11 @@ import java.util.Map;
  */
 public class CommonContentEntriesEditor extends ModuleElementsEditor {
   private static final Logger LOG = Logger.getInstance(CommonContentEntriesEditor.class);
-  public static final String NAME = ProjectBundle.message("module.paths.title");
+  /**
+   * @deprecated Use {@link #getName()} instead
+   */
+  @Deprecated
+  public static final String NAME = "Sources";
 
   protected ContentEntryTreeEditor myRootTreeEditor;
   private MyContentEntryEditorListener myContentEntryEditorListener;
@@ -117,7 +122,7 @@ public class CommonContentEntriesEditor extends ModuleElementsEditor {
 
   @Override
   public String getDisplayName() {
-    return NAME;
+    return getName();
   }
 
   protected final List<ModuleSourceRootEditHandler<?>> getEditHandlers() {
@@ -169,7 +174,7 @@ public class CommonContentEntriesEditor extends ModuleElementsEditor {
     splitter.setSecondComponent(toolbarPanel);
     JPanel contentPanel = new JPanel(new GridBagLayout());
     final ActionToolbar actionToolbar = ActionManager.getInstance().createActionToolbar("ProjectStructureContentEntries", myRootTreeEditor.getEditingActionsGroup(), true);
-    contentPanel.add(new JLabel("Mark as:"),
+    contentPanel.add(new JLabel(ProjectBundle.message("label.text.mark.as")),
                      new GridBagConstraints(0, 0, 1, 1, 0, 0, GridBagConstraints.WEST, 0, JBInsets.create(0, 10), 0, 0));
     contentPanel.add(actionToolbar.getComponent(),
                      new GridBagConstraints(1, 0, 1, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL,
@@ -407,7 +412,7 @@ public class CommonContentEntriesEditor extends ModuleElementsEditor {
             ProjectBundle.message("module.paths.add.content.action.description"), AllIcons.General.Add);
       myDescriptor = new FileChooserDescriptor(false, true, true, false, true, true) {
         @Override
-        public void validateSelectedFiles(@NotNull VirtualFile[] files) throws Exception {
+        public void validateSelectedFiles(VirtualFile @NotNull [] files) throws Exception {
           validateContentEntriesCandidates(files);
         }
       };
@@ -482,4 +487,7 @@ public class CommonContentEntriesEditor extends ModuleElementsEditor {
 
   }
 
+  public static @NlsContexts.ConfigurableName String getName() {
+    return ProjectBundle.message("module.paths.title");
+  }
 }

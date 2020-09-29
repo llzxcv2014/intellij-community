@@ -17,20 +17,18 @@ package com.intellij.codeInspection.actions;
 
 import com.intellij.codeInsight.TargetElementUtil;
 import com.intellij.codeInsight.intention.IntentionAction;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.util.MethodSignatureUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
-import java.util.HashMap;
+import com.siyeh.ig.psiutils.SealedUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class UnimplementInterfaceAction implements IntentionAction {
   private String myName = "Interface";
@@ -38,13 +36,13 @@ public class UnimplementInterfaceAction implements IntentionAction {
   @Override
   @NotNull
   public String getText() {
-    return "Unimplement " + myName;
+    return JavaBundle.message("intention.text.unimplement.0", myName);
   }
 
   @Override
   @NotNull
   public String getFamilyName() {
-    return "Unimplement Interface/Class";
+    return JavaBundle.message("intention.family.unimplement.interface.class");
   }
 
   @Override
@@ -121,6 +119,14 @@ public class UnimplementInterfaceAction implements IntentionAction {
     element.delete();
 
     if (target == psiClass) return;
+
+    if (targetClass.hasModifierProperty(PsiModifier.SEALED)) {
+      SealedUtils.removeFromPermitsList(targetClass, psiClass);
+      final PsiModifierList modifiers = psiClass.getModifierList();
+      if (modifiers != null && modifiers.hasExplicitModifier(PsiModifier.NON_SEALED) && !SealedUtils.hasSealedParent(psiClass)) {
+        modifiers.setModifierProperty(PsiModifier.NON_SEALED, false);
+      }
+    }
 
     final Set<PsiMethod> superMethods = new HashSet<>();
     for (PsiClass aClass : psiClass.getSupers()) {

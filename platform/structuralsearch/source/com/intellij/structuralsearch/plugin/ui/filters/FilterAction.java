@@ -1,33 +1,39 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch.plugin.ui.filters;
 
-import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.extensions.ExtensionPointName;
+import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.psi.PsiElement;
 import com.intellij.ui.SimpleColoredComponent;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
  * @author Bas Leijdekkers
  */
-public abstract class FilterAction extends AnAction implements Filter {
+public abstract class FilterAction extends DumbAwareAction implements Filter {
+
+  public static final ExtensionPointName<FilterAction> EP_NAME = ExtensionPointName.create("com.intellij.structuralsearch.filter");
 
   private static final AtomicInteger myFilterCount = new AtomicInteger();
 
   protected final SimpleColoredComponent myLabel = new SimpleColoredComponent();
-  protected final FilterTable myTable;
+  protected FilterTable myTable;
   private final int myPosition;
 
   private boolean myApplicable = true;
 
-  protected FilterAction(@Nullable String text, FilterTable table) {
+  protected FilterAction(@NotNull Supplier<String> text) {
     super(text);
-    myTable = table;
     myPosition = myFilterCount.incrementAndGet();
+  }
+
+  public void setTable(@NotNull FilterTable table) {
+    myTable = table;
   }
 
   @Override
@@ -56,6 +62,10 @@ public abstract class FilterAction extends AnAction implements Filter {
   protected void initFilter() {}
 
   public abstract void clearFilter();
+
+  public void reset() {
+    myApplicable = true;
+  }
 
   protected abstract boolean isApplicable(List<? extends PsiElement> nodes, boolean completePattern, boolean target);
 

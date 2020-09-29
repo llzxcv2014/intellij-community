@@ -93,13 +93,15 @@ from _pydevd_bundle import pydevd_vars
 import pydevd_tracing
 from _pydevd_bundle import pydevd_xml
 from _pydevd_bundle import pydevd_vm_type
+from _pydevd_bundle import pydevd_bytecode_utils
 from pydevd_file_utils import get_abs_path_real_path_and_base_from_frame, norm_file_to_client, is_real_file
 import pydevd_file_utils
 import os
 import sys
+import inspect
 import traceback
 from _pydevd_bundle.pydevd_utils import quote_smart as quote, compare_object_attrs_key, to_string, \
-    get_non_pydevd_threads
+    get_non_pydevd_threads, is_pandas_container, is_numpy_container
 from _pydev_bundle.pydev_is_thread_alive import is_thread_alive
 from _pydev_bundle import pydev_log
 from _pydev_bundle import _pydev_completer
@@ -134,12 +136,12 @@ from _pydevd_bundle.pydevd_comm_constants import (
     CMD_GET_BREAKPOINT_EXCEPTION, CMD_STEP_CAUGHT_EXCEPTION, CMD_SEND_CURR_EXCEPTION_TRACE,
     CMD_SEND_CURR_EXCEPTION_TRACE_PROCEEDED, CMD_IGNORE_THROWN_EXCEPTION_AT, CMD_ENABLE_DONT_TRACE,
     CMD_SHOW_CONSOLE, CMD_GET_ARRAY, CMD_STEP_INTO_MY_CODE, CMD_GET_CONCURRENCY_EVENT,
-    CMD_SHOW_RETURN_VALUES, CMD_INPUT_REQUESTED, CMD_GET_DESCRIPTION, CMD_PROCESS_CREATED,
+    CMD_SHOW_RETURN_VALUES, CMD_SET_UNIT_TEST_DEBUGGING_MODE, CMD_INPUT_REQUESTED, CMD_GET_DESCRIPTION, CMD_PROCESS_CREATED,
     CMD_SHOW_CYTHON_WARNING, CMD_LOAD_FULL_VALUE, CMD_GET_THREAD_STACK, CMD_THREAD_DUMP_TO_STDERR,
     CMD_STOP_ON_START, CMD_GET_EXCEPTION_DETAILS, CMD_PROCESS_CREATED_MSG_RECEIVED, CMD_PYDEVD_JSON_CONFIG,
     CMD_THREAD_SUSPEND_SINGLE_NOTIFICATION, CMD_THREAD_RESUME_SINGLE_NOTIFICATION,
     CMD_REDIRECT_OUTPUT, CMD_GET_NEXT_STATEMENT_TARGETS, CMD_SET_PROJECT_ROOTS, CMD_VERSION,
-    CMD_RETURN, CMD_SET_PROTOCOL, CMD_ERROR,)
+    CMD_RETURN, CMD_SET_PROTOCOL, CMD_ERROR, CMD_GET_SMART_STEP_INTO_VARIANTS, CMD_DATAVIEWER_ACTION,)
 MAX_IO_MSG_SIZE = 1000  #if the io is too big, we'll not send all (could make the debugger too non-responsive)
 #this number can be changed if there's need to do so
 
@@ -210,6 +212,7 @@ class PyDBDaemonThread(threading.Thread):
                     PyCore.Py.setSystemState(ss)
 
                 self._stop_trace()
+                self._warn_pydevd_thread_is_traced()
                 self._on_run()
             except:
                 if sys is not None and traceback is not None:
@@ -230,6 +233,10 @@ class PyDBDaemonThread(threading.Thread):
     def _stop_trace(self):
         if self.pydev_do_not_trace:
             pydevd_tracing.SetTrace(None)  # no debugging on this thread
+
+    def _warn_pydevd_thread_is_traced(self):
+        if sys.gettrace():
+            pydevd_log(1, "The debugger thread '%s' is traced which may lead to debugging performance issues." % self.__class__.__name__)
 
 
 def mark_as_pydevd_daemon_thread(thread):
@@ -839,6 +846,12 @@ class NetCommandFactory:
         except Exception:
             return self.make_error_message(seq, get_exception_traceback_str())
 
+    def make_successful_dataviewer_action_message(self, seq, payload):
+        try:
+            return NetCommand(CMD_DATAVIEWER_ACTION, seq, payload)
+        except Exception:
+            return self.make_error_message(seq, get_exception_traceback_str())
+
     def make_get_description_message(self, seq, payload):
         try:
             return NetCommand(CMD_GET_DESCRIPTION, seq, payload)
@@ -1175,6 +1188,36 @@ class InternalSetNextStatementThread(InternalThreadCommand):
             t.additional_info.pydev_message = str(self.seq)
 
 
+class InternalSmartStepInto(InternalThreadCommand):
+    def __init__(self, thread_id, frame_id, cmd_id, func_name, line, call_order, start_line, end_line, seq=0):
+        self.thread_id = thread_id
+        self.cmd_id = cmd_id
+        self.line = line
+        self.start_line = start_line
+        self.end_line = end_line
+        self.seq = seq
+        self.call_order = call_order
+
+        if IS_PY2:
+            if isinstance(func_name, unicode):
+                # On cython with python 2.X it requires an str, not unicode (but on python 3.3 it should be a str, not bytes).
+                func_name = func_name.encode('utf-8')
+
+        self.func_name = func_name
+
+    def do_it(self, dbg):
+        t = pydevd_find_thread_by_id(self.thread_id)
+        if t:
+            t.additional_info.pydev_step_cmd = self.cmd_id
+            t.additional_info.pydev_next_line = int(self.line)
+            t.additional_info.pydev_func_name = self.func_name
+            t.additional_info.pydev_state = STATE_RUN
+            t.additional_info.pydev_message = str(self.seq)
+            t.additional_info.pydev_smart_step_context.call_order = int(self.call_order)
+            t.additional_info.pydev_smart_step_context.start_line = int(self.start_line)
+            t.additional_info.pydev_smart_step_context.end_line = int(self.end_line)
+
+
 #=======================================================================================================================
 # InternalGetVariable
 #=======================================================================================================================
@@ -1245,6 +1288,82 @@ class InternalGetArray(InternalThreadCommand):
             cmd = dbg.cmd_factory.make_error_message(self.sequence, "Error resolving array: " + get_exception_traceback_str())
             dbg.writer.add_command(cmd)
 
+
+#=======================================================================================================================
+# InternalDataViewerAction
+#=======================================================================================================================
+class InternalDataViewerAction(InternalThreadCommand):
+    def __init__(self, sequence, thread_id, frame_id, var, action, args):
+        self.sequence = sequence
+        self.thread_id = thread_id
+        self.frame_id = frame_id
+        self.var = var
+        self.action = action
+        self.args = args
+
+    def do_it(self, dbg):
+        try:
+            frame = pydevd_vars.find_frame(self.thread_id, self.frame_id)
+            tmp_var = pydevd_vars.eval_in_context(self.var, frame.f_globals, frame.f_locals)
+
+            self.act(tmp_var, self.action, self.args)
+
+            cmd = dbg.cmd_factory.make_successful_dataviewer_action_message(
+                self.sequence,
+                "Successful execution")
+            dbg.writer.add_command(cmd)
+
+        except Exception as e:
+            cmd = dbg.cmd_factory.make_error_message(
+                self.sequence,
+                type(e).__name__ + "\nError exporting frame: " + get_exception_traceback_str())
+            dbg.writer.add_command(cmd)
+
+    @staticmethod
+    def act(tmp_var, action, args):
+        if action == 'EXPORT':
+            return InternalDataViewerAction.export_action(tmp_var, args)
+
+    @staticmethod
+    def get_type_info(var):
+        tp = type(var)
+        tp_name = tp.__name__
+        tp_qualifier = getattr(tp, "__module__", "")
+
+        return tp_qualifier, tp_name
+
+    @staticmethod
+    def export_action(var, args):
+        # args: (filepath)
+        filepath = args[0]
+        extension = filepath.rsplit('.', 1)[1].lower()
+
+        tp_qualifier, tp_name = InternalDataViewerAction.get_type_info(var)
+
+        if is_pandas_container(tp_qualifier, tp_name, var):
+            if extension in ('csv', 'tsv'):
+                delim = ',' if extension == 'csv' else '\t'
+                var.to_csv(filepath, sep=delim)
+            else:
+                raise AttributeError("Format '{}' is not supported".format(extension))
+
+        elif is_numpy_container(tp_qualifier, tp_name, var):
+            try:
+                import numpy as np
+
+            except ImportError:
+                # Strange. We have an instance of numpy array but we failed to import numpy
+                raise
+
+            if extension in ('csv', 'tsv'):
+                delim = ',' if extension == 'csv' else '\t'
+                np.savetxt(filepath, var, fmt="%s", delimiter=delim)
+            else:
+                raise AttributeError("Format '{}' is not supported".format(extension))
+
+        else:
+            raise AttributeError("Type {} is not supported".format(type(var)))
+
 #=======================================================================================================================
 # InternalChangeVariable
 #=======================================================================================================================
@@ -1302,6 +1421,43 @@ class InternalGetFrame(InternalThreadCommand):
         except:
             cmd = dbg.cmd_factory.make_error_message(self.sequence, "Error resolving frame: %s from thread: %s" % (self.frame_id, self.thread_id))
             dbg.writer.add_command(cmd)
+
+
+class InternalGetSmartStepIntoVariants(InternalThreadCommand):
+    def __init__(self, seq, thread_id, frame_id, start_line, end_line):
+        self.sequence = seq
+        self.thread_id = thread_id
+        self.frame_id = frame_id
+        self.start_line = int(start_line)
+        self.end_line = int(end_line)
+
+    def do_it(self, dbg):
+        try:
+            frame = pydevd_vars.find_frame(self.thread_id, self.frame_id)
+            variants = pydevd_bytecode_utils.calculate_smart_step_into_variants(frame, self.start_line, self.end_line)
+            xml = "<xml>"
+
+            for name, is_visited in variants:
+                xml += '<variant name="%s" isVisited="%s"></variant>' % (quote(name), str(is_visited).lower())
+
+            xml += "</xml>"
+            cmd = NetCommand(CMD_GET_SMART_STEP_INTO_VARIANTS, self.sequence, xml)
+            dbg.writer.add_command(cmd)
+        except:
+            pydevd_log(1, traceback.format_exc())
+            cmd = dbg.cmd_factory.make_error_message(self.sequence, "Error getting smart step into veriants for frame: %s from thread: %s"
+                                                     % (self.frame_id, self.thread_id))
+            self._reset_smart_step_context()
+            dbg.writer.add_command(cmd)
+
+    def _reset_smart_step_context(self):
+        t = pydevd_find_thread_by_id(self.thread_id)
+        if t:
+            try:
+                t.additional_info.pydev_smart_step_context.reset()
+            except:
+                pydevd_log(1, "Error while resetting smart step into context for thread %s" % self.thread_id)
+
 
 #=======================================================================================================================
 # InternalGetNextStatementTargets
@@ -1764,7 +1920,7 @@ def pydevd_find_thread_by_id(thread_id):
 
         # This can happen when a request comes for a thread which was previously removed.
         pydevd_log(1, "Could not find thread %s\n" % thread_id)
-        pydevd_log(1, "Available: %s\n" % [get_thread_id(t) for t in threads] % thread_id)
+        pydevd_log(1, "Available: %s\n" % [get_thread_id(t) for t in threads])
     except:
         traceback.print_exc()
 

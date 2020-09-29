@@ -1,11 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.externalSystem.service.internal;
 
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
 import com.intellij.openapi.externalSystem.importing.ImportSpec;
 import com.intellij.openapi.externalSystem.importing.ImportSpecImpl;
-import com.intellij.openapi.externalSystem.importing.IncrementalDataResolverPolicy;
 import com.intellij.openapi.externalSystem.importing.ProjectResolverPolicy;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.ProjectKeys;
@@ -14,9 +13,11 @@ import com.intellij.openapi.externalSystem.model.project.ModuleData;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
 import com.intellij.openapi.externalSystem.model.settings.ExternalSystemExecutionSettings;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId;
+import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationListener;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskState;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskType;
 import com.intellij.openapi.externalSystem.service.ExternalSystemFacadeManager;
+import com.intellij.openapi.externalSystem.service.execution.ExternalSystemExecutionAware;
 import com.intellij.openapi.externalSystem.service.notification.ExternalSystemProgressNotificationManager;
 import com.intellij.openapi.externalSystem.service.project.manage.ProjectDataManagerImpl;
 import com.intellij.openapi.externalSystem.service.remote.ExternalSystemProgressNotificationManagerImpl;
@@ -74,8 +75,14 @@ public class ExternalSystemResolveProjectTask extends AbstractExternalSystemTask
     try {
       progressNotificationManager.onStart(id, myProjectPath);
 
-      final ExternalSystemFacadeManager manager = ServiceManager.getService(ExternalSystemFacadeManager.class);
       ideProject = getIdeProject();
+
+      ExternalSystemTaskNotificationListener progressNotificationListener = wrapWithListener(progressNotificationManager);
+      for (ExternalSystemExecutionAware executionAware : ExternalSystemExecutionAware.getExtensions(getExternalSystemId())) {
+        executionAware.prepareExecution(this, myProjectPath, myIsPreviewMode, progressNotificationListener, ideProject);
+      }
+
+      final ExternalSystemFacadeManager manager = ServiceManager.getService(ExternalSystemFacadeManager.class);
       resolver = manager.getFacade(ideProject, myProjectPath, getExternalSystemId()).getResolver();
       settings = ExternalSystemApiUtil.getExecutionSettings(ideProject, myProjectPath, getExternalSystemId());
       if (StringUtil.isNotEmpty(myVmOptions)) {
@@ -133,12 +140,16 @@ public class ExternalSystemResolveProjectTask extends AbstractExternalSystemTask
     return ExternalSystemBundle.message("progress.update.text", getExternalSystemId().getReadableName(), text);
   }
 
+  public @Nullable ProjectResolverPolicy getResolverPolicy() {
+    return myResolverPolicy;
+  }
+
   @Override
   protected void setState(@NotNull ExternalSystemTaskState state) {
     super.setState(state);
     if (state.isStopped() &&
-        // merging cache data with the new incremental data is not supported yet
-        !(myResolverPolicy instanceof IncrementalDataResolverPolicy)) {
+        // merging existing cache data with the new partial data is not supported yet
+        !(myResolverPolicy != null && myResolverPolicy.isPartialDataResolveAllowed())) {
       InternalExternalProjectInfo projectInfo =
         new InternalExternalProjectInfo(getExternalSystemId(), getExternalProjectPath(), myExternalProject.getAndSet(null));
       final long currentTimeMillis = System.currentTimeMillis();

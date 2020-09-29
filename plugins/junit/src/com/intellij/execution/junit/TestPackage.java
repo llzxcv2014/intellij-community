@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.junit;
 
 import com.intellij.execution.*;
@@ -9,14 +9,15 @@ import com.intellij.execution.junit2.info.MethodLocation;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.testframework.SearchForTestsTask;
 import com.intellij.execution.testframework.SourceScope;
+import com.intellij.execution.testframework.TestRunnerBundle;
 import com.intellij.execution.testframework.TestSearchScope;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Condition;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.psi.*;
 import com.intellij.psi.search.GlobalSearchScope;
@@ -33,6 +34,7 @@ import org.jetbrains.annotations.TestOnly;
 import java.io.File;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 public class TestPackage extends TestObject {
@@ -61,15 +63,7 @@ public class TestPackage extends TestObject {
   public SearchForTestsTask createSearchingForTestsTask() throws ExecutionException {
     final JUnitConfiguration.Data data = getConfiguration().getPersistentData();
     final Module module = getConfiguration().getConfigurationModule().getModule();
-    final TestClassFilter classFilter;
-    try {
-      classFilter =
-        DumbService.getInstance(getConfiguration().getProject()).computeWithAlternativeResolveEnabled(() -> getClassFilter(data));
-      LOG.assertTrue(classFilter.getBase() != null);
-    }
-    catch (IndexNotReadyException e) {
-      throw new ExecutionException("Running tests is disabled during index update");
-    }
+    final TestClassFilter classFilter = computeFilter(data);
     return new SearchForTestsTask(getConfiguration().getProject(), myServerSocket) {
       private final Set<Location<?>> myClasses = new LinkedHashSet<>();
       @Override
@@ -111,6 +105,23 @@ public class TestPackage extends TestObject {
     };
   }
 
+  @Nullable
+  private TestClassFilter computeFilter(JUnitConfiguration.Data data) throws ExecutionException {
+    final TestClassFilter classFilter;
+    try {
+      classFilter =
+        DumbService.getInstance(getConfiguration().getProject()).computeWithAlternativeResolveEnabled(() -> getClassFilter(data));
+      LOG.assertTrue(classFilter.getBase() != null);
+      return classFilter;
+    }
+    catch (JUnitUtil.NoJUnitException e) {
+      return null;
+    }
+    catch (IndexNotReadyException e) {
+      throw new ExecutionException(JUnitBundle.message("running.tests.disabled.during.index.update.error.message"));
+    }
+  }
+
   protected boolean requiresSmartMode() {
     return !JUnitStarter.JUNIT5_PARAMETER.equals(getRunner());
   }
@@ -119,7 +130,7 @@ public class TestPackage extends TestObject {
     return getConfiguration().getTestSearchScope() == TestSearchScope.SINGLE_MODULE;
   }
 
-  protected String getFilters(Set<Location<?>> foundClasses, String packageName) {
+  protected @NlsSafe String getFilters(Set<Location<?>> foundClasses, @NlsSafe String packageName) {
     return foundClasses.isEmpty() ? packageName.isEmpty() ? ".*" : packageName + "\\..*" : "";
   }
 
@@ -142,7 +153,7 @@ public class TestPackage extends TestObject {
   }
 
   @NotNull
-  protected String getPackageName(JUnitConfiguration.Data data) throws CantRunException {
+  protected @NlsSafe String getPackageName(JUnitConfiguration.Data data) throws CantRunException {
     PsiPackage aPackage = getPackage(data);
     return aPackage != null ? aPackage.getQualifiedName() : "";
   }
@@ -241,7 +252,7 @@ public class TestPackage extends TestObject {
     final JUnitConfiguration.Data data = getConfiguration().getPersistentData();
     return data.getPackageName().trim().length() > 0
            ? ExecutionBundle.message("test.in.scope.presentable.text", data.getPackageName())
-           : ExecutionBundle.message("all.tests.scope.presentable.text");
+           : TestRunnerBundle.message("all.tests.scope.presentable.text");
   }
 
   @Override
@@ -255,7 +266,7 @@ public class TestPackage extends TestObject {
                                        PsiMethod testMethod,
                                        PsiPackage testPackage,
                                        PsiDirectory testDir) {
-    return testPackage != null && Comparing.equal(testPackage.getQualifiedName(), configuration.getPersistentData().getPackageName());
+    return testPackage != null && Objects.equals(testPackage.getQualifiedName(), configuration.getPersistentData().getPackageName());
   }
 
   @Override
@@ -264,7 +275,7 @@ public class TestPackage extends TestObject {
     final String packageName = getConfiguration().getPersistentData().getPackageName();
     final PsiPackage aPackage = JavaPsiFacade.getInstance(getConfiguration().getProject()).findPackage(packageName);
     if (aPackage == null) {
-      throw new RuntimeConfigurationWarning(ExecutionBundle.message("package.does.not.exist.error.message", packageName));
+      throw new RuntimeConfigurationWarning(JUnitBundle.message("package.does.not.exist.error.message", packageName));
     }
     if (getSourceScope() == null) {
       getConfiguration().getConfigurationModule().checkForWarning();

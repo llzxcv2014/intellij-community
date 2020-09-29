@@ -2,6 +2,7 @@
 package com.intellij.psi;
 
 import com.intellij.lang.jvm.JvmParameter;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.util.ArrayFactory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -47,13 +48,13 @@ public interface PsiParameter extends PsiVariable, JvmParameter, PsiJvmModifiers
   PsiType getType();
 
   // binary compatibility
-  @NotNull
   @Override
-  default PsiAnnotation[] getAnnotations() {
+  default PsiAnnotation @NotNull [] getAnnotations() {
     return PsiJvmModifiersOwner.super.getAnnotations();
   }
 
   @NotNull
   @Override
+  @NlsSafe
   String getName();
 }

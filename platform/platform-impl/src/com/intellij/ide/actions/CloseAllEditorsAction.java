@@ -3,6 +3,7 @@
 package com.intellij.ide.actions;
 
 import com.intellij.ide.IdeBundle;
+import com.intellij.idea.ActionsBundle;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -46,10 +47,10 @@ public class CloseAllEditorsAction extends AnAction implements DumbAware {
     Presentation presentation = event.getPresentation();
     final EditorWindow editorWindow = event.getData(EditorWindow.DATA_KEY);
     if (editorWindow != null && editorWindow.inSplitter()) {
-      presentation.setText(IdeBundle.message("action.close.all.editors.in.tab.group"));
+      presentation.setText(IdeBundle.messagePointer("action.close.all.editors.in.tab.group"));
     }
     else {
-      presentation.setText(IdeBundle.message("action.close.all.editors"));
+      presentation.setText(ActionsBundle.messagePointer("action.CloseAllEditors.text"));
     }
     Project project = event.getData(CommonDataKeys.PROJECT);
     if (project == null) {

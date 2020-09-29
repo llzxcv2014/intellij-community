@@ -1,12 +1,17 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.xml.impl;
 
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.application.Application;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.extensions.ExtensionPointListener;
 import com.intellij.openapi.extensions.ExtensionPointName;
+import com.intellij.openapi.extensions.PluginDescriptor;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.xml.DomReflectionUtil;
 import com.intellij.util.xml.Implementation;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
@@ -17,7 +22,7 @@ import java.util.TreeSet;
 /**
  * @author peter
  */
-class ImplementationClassCache {
+final class ImplementationClassCache {
   private static final Comparator<Class> CLASS_COMPARATOR = (o1, o2) -> {
     if (o1.isAssignableFrom(o2)) return 1;
     if (o2.isAssignableFrom(o1)) return -1;
@@ -25,18 +30,30 @@ class ImplementationClassCache {
     throw new AssertionError("Incompatible implementation classes: " + o1 + " & " + o2);
   };
 
-
   private final MultiMap<String, DomImplementationClassEP> myImplementationClasses = new MultiMap<>();
-  private final SofterCache<Class, Class> myCache = SofterCache.create(dom -> calcImplementationClass(dom));
+  private final SofterCache<Class<?>, Class<?>> myCache = SofterCache.create(dom -> calcImplementationClass(dom));
 
   ImplementationClassCache(ExtensionPointName<DomImplementationClassEP> epName) {
-    for (DomImplementationClassEP ep : epName.getExtensionList()) {
-      myImplementationClasses.putValue(ep.interfaceName, ep);
+    Application app = ApplicationManager.getApplication();
+    if (!app.isDisposed()) {
+      epName.getPoint().addExtensionPointListener(new ExtensionPointListener<DomImplementationClassEP>() {
+        @Override
+        public void extensionAdded(@NotNull DomImplementationClassEP ep, @NotNull PluginDescriptor pluginDescriptor) {
+          myImplementationClasses.putValue(ep.interfaceName, ep);
+          clearCache();
+        }
+
+        @Override
+        public void extensionRemoved(@NotNull DomImplementationClassEP ep, @NotNull PluginDescriptor pluginDescriptor) {
+          myImplementationClasses.remove(ep.interfaceName, ep);
+          clearCache();
+        }
+      }, true, null);
     }
   }
 
-  private Class calcImplementationClass(Class concreteInterface) {
-    final TreeSet<Class> set = new TreeSet<>(CLASS_COMPARATOR);
+  private Class<?> calcImplementationClass(Class<?> concreteInterface) {
+    TreeSet<Class<?>> set = new TreeSet<>(CLASS_COMPARATOR);
     findImplementationClassDFS(concreteInterface, set);
     if (!set.isEmpty()) {
       return set.first();
@@ -45,7 +62,7 @@ class ImplementationClassCache {
     return implementation == null ? concreteInterface : implementation.value();
   }
 
-  private void findImplementationClassDFS(final Class concreteInterface, SortedSet<? super Class> results) {
+  private void findImplementationClassDFS(@NotNull Class<?> concreteInterface, SortedSet<? super Class<?>> results) {
     final Collection<DomImplementationClassEP> values = myImplementationClasses.get(concreteInterface.getName());
     for (DomImplementationClassEP value : values) {
       if (value.getInterfaceClass() == concreteInterface) {
@@ -53,16 +70,15 @@ class ImplementationClassCache {
         return;
       }
     }
-    for (final Class aClass1 : concreteInterface.getInterfaces()) {
+    for (Class<?> aClass1 : concreteInterface.getInterfaces()) {
       findImplementationClassDFS(aClass1, results);
     }
   }
 
-  public final void registerImplementation(final Class domElementClass, final Class implementationClass,
-                                           @Nullable final Disposable parentDisposable) {
+  void registerImplementation(Class<?> domElementClass, Class<?> implementationClass, @Nullable Disposable parentDisposable) {
     final DomImplementationClassEP ep = new DomImplementationClassEP() {
       @Override
-      public Class getInterfaceClass() {
+      public Class<?> getInterfaceClass() {
         return domElementClass;
       }
 
@@ -83,10 +99,12 @@ class ImplementationClassCache {
     myCache.clearCache();
   }
 
-  public Class get(Class key) {
+  Class get(Class<?> key) {
     Class impl = myCache.getCachedValue(key);
     return impl == key ? null : impl;
   }
 
-
+  void clearCache() {
+    myCache.clearCache();
+  }
 }

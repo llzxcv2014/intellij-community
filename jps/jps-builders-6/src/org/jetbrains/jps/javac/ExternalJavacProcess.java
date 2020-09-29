@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.jps.javac;
 
 import io.netty.bootstrap.Bootstrap;
@@ -13,6 +13,7 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Log4JLoggerFactory;
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.api.CanceledStatus;
@@ -20,8 +21,7 @@ import org.jetbrains.jps.builders.impl.java.JavacCompilerTool;
 import org.jetbrains.jps.builders.java.JavaCompilingTool;
 import org.jetbrains.jps.javac.ast.api.JavacFileData;
 
-import javax.tools.Diagnostic;
-import javax.tools.JavaFileObject;
+import javax.tools.*;
 import java.io.File;
 import java.util.*;
 import java.util.concurrent.*;
@@ -31,7 +31,7 @@ import java.util.concurrent.*;
  */
 public class ExternalJavacProcess {
   public static final String JPS_JAVA_COMPILING_TOOL_PROPERTY = "jps.java.compiling.tool";
-  private final ChannelInitializer myChannelInitializer;
+  private final ChannelInitializer<?> myChannelInitializer;
   private final EventLoopGroup myEventLoopGroup;
   private final boolean myKeepRunning;
   private volatile ChannelFuture myConnectFuture;
@@ -39,12 +39,12 @@ public class ExternalJavacProcess {
   private final Executor myThreadPool = Executors.newCachedThreadPool();
 
   static {
-    org.apache.log4j.Logger root = org.apache.log4j.Logger.getRootLogger();
+    Logger root = Logger.getRootLogger();
     if (!root.getAllAppenders().hasMoreElements()) {
       root.setLevel(Level.INFO);
       root.addAppender(new ConsoleAppender(new PatternLayout(PatternLayout.DEFAULT_CONVERSION_PATTERN)));
     }
-    InternalLoggerFactory.setDefaultFactory(new Log4JLoggerFactory());
+    InternalLoggerFactory.setDefaultFactory(Log4JLoggerFactory.INSTANCE);
   }
 
   public ExternalJavacProcess(boolean keepRunning) {
@@ -54,7 +54,7 @@ public class ExternalJavacProcess {
     myEventLoopGroup = new NioEventLoopGroup(1, myThreadPool);
     myChannelInitializer = new ChannelInitializer() {
       @Override
-      protected void initChannel(Channel channel) throws Exception {
+      protected void initChannel(Channel channel) {
         channel.pipeline().addLast(new ProtobufVarint32FrameDecoder(),
                                    new ProtobufDecoder(msgDefaultInstance),
                                    new ProtobufVarint32LengthFieldPrepender(),
@@ -71,7 +71,7 @@ public class ExternalJavacProcess {
    * @param args: SessionUUID, host, port,
    */
   public static void main(String[] args) {
-    //myGlobalStart = System.currentTimeMillis();
+    //myGlobalStart = System.nanoTime();
     UUID uuid = null;
     String host = null;
     int port = -1;
@@ -106,10 +106,10 @@ public class ExternalJavacProcess {
 
     final ExternalJavacProcess process = new ExternalJavacProcess(keepRunning);
     try {
-      //final long connectStart = System.currentTimeMillis();
+      //final long connectStart = System.nanoTime();
       if (process.connect(host, port)) {
-        //final long connectEnd = System.currentTimeMillis();
-        //System.err.println("Connected in " + (connectEnd - connectStart) + " ms; since start: " + (connectEnd - myGlobalStart));
+        //final long connectEnd = System.nanoTime();
+        //System.err.println("Connected in " + TimeUnit.NANOSECONDS.toMillis(connectEnd - connectStart) + " ms; since start: " + TimeUnit.NANOSECONDS.toMillis(connectEnd - myGlobalStart));
         process.myConnectFuture.channel().writeAndFlush(
           JavacProtoUtil.toMessage(uuid, JavacProtoUtil.createRequestAckResponse())
         );
@@ -147,8 +147,8 @@ public class ExternalJavacProcess {
                                                   Collection<? extends File> sourcePath,
                                                   Map<File, Set<File>> outs,
                                                   final CanceledStatus canceledStatus) {
-    final long compileStart = System.currentTimeMillis();
-    //System.err.println("Compile start; since global start: " + (compileStart - myGlobalStart));
+    //final long compileStart = System.nanoTime();
+    //System.err.println("Compile start; since global start: " + TimeUnit.NANOSECONDS.toMillis(compileStart - myGlobalStart));
     final DiagnosticOutputConsumer diagnostic = new DiagnosticOutputConsumer() {
       @Override
       public void javaFileLoaded(File file) {
@@ -197,11 +197,11 @@ public class ExternalJavacProcess {
       e.printStackTrace(System.err);
       return JavacProtoUtil.toMessage(sessionId, JavacProtoUtil.createFailure(e.getMessage(), e));
     }
-    finally {
-      final long compileEnd = System.currentTimeMillis();
-      System.err.println("Compiled in " + (compileEnd - compileStart) + " ms");
-      //System.err.println("Compiled in " + (compileEnd - compileStart) + " ms; since global start: " + (compileEnd - myGlobalStart));
-    }
+    //finally {
+      //final long compileEnd = System.nanoTime();
+      //System.err.println("Compiled in " + TimeUnit.NANOSECONDS.toMillis(compileEnd - compileStart) + " ms");
+      //System.err.println("Compiled in " + TimeUnit.NANOSECONDS.toMillis(compileEnd - compileStart) + " ms; since global start: " + TimeUnit.NANOSECONDS.toMillis(compileEnd - myGlobalStart));
+    //}
   }
 
   private static JavaCompilingTool getCompilingTool() {
@@ -244,7 +244,7 @@ public class ExternalJavacProcess {
                 modulePathBuilder.add(namesMap.get(path), new File(path));
               }
               final ModulePath modulePath = modulePathBuilder.create();
-              
+
               final List<File> upgradeModulePath = toFiles(request.getUpgradeModulePathList());
 
               final Map<File, Set<File>> outs = new HashMap<File, Set<File>>();
@@ -269,7 +269,12 @@ public class ExternalJavacProcess {
                   }
                   finally {
                     myCanceled.remove(sessionId); // state cleanup
-                    if (!myKeepRunning) {
+                    if (myKeepRunning) {
+                      JavacMain.clearCompilerZipFileCache();
+                      //noinspection CallToSystemGC
+                      System.gc();
+                    }
+                    else {
                       // in this mode this is only one-time compilation process that should stop after build is complete
                       ExternalJavacProcess.this.stop();
                     }
@@ -314,15 +319,15 @@ public class ExternalJavacProcess {
 
   public void stop() {
     try {
-      //final long stopStart = System.currentTimeMillis();
-      //System.err.println("Exiting. Since global start " + (stopStart - myGlobalStart));
+      //final long stopStart = System.nanoTime();
+      //System.err.println("Exiting. Since global start " + TimeUnit.NANOSECONDS.toMillis(stopStart - myGlobalStart));
       final ChannelFuture future = myConnectFuture;
       if (future != null) {
         future.channel().close().await();
       }
       myEventLoopGroup.shutdownGracefully(0, 15, TimeUnit.SECONDS).await();
-      //final long stopEnd = System.currentTimeMillis();
-      //System.err.println("Stop completed in " + (stopEnd - stopStart) + "ms; since global start: " + ((stopEnd - myGlobalStart)));
+      //final long stopEnd = System.nanoTime();
+      //System.err.println("Stop completed in " + TimeUnit.NANOSECONDS.toMillis(stopEnd - stopStart) + "ms; since global start: " + TimeUnit.NANOSECONDS.toMillis(stopEnd - myGlobalStart));
       System.exit(0);
     }
     catch (Throwable e) {

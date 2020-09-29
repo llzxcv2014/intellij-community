@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.jsonSchema.impl;
 
 import com.intellij.codeInsight.completion.CompletionUtil;
@@ -50,9 +50,8 @@ public class JsonPointerReferenceProvider extends PsiReferenceProvider {
     myIsSchemaProperty = isSchemaProperty;
   }
 
-  @NotNull
   @Override
-  public PsiReference[] getReferencesByElement(@NotNull PsiElement element, @NotNull ProcessingContext context) {
+  public PsiReference @NotNull [] getReferencesByElement(@NotNull PsiElement element, @NotNull ProcessingContext context) {
     if (!(element instanceof JsonStringLiteral)) return PsiReference.EMPTY_ARRAY;
     List<PsiReference> refs = new ArrayList<>();
 
@@ -126,9 +125,8 @@ public class JsonPointerReferenceProvider extends PsiReferenceProvider {
             return FileInfoManager.getFileLookupItem(candidate);
           }
 
-          @NotNull
           @Override
-          public Object[] getVariants() {
+          public Object @NotNull [] getVariants() {
             final Object[] fileVariants = super.getVariants();
             if (!isCompletion || getRangeInElement().getStartOffset() != 1) {
               return fileVariants;
@@ -136,8 +134,7 @@ public class JsonPointerReferenceProvider extends PsiReferenceProvider {
             return ArrayUtil.mergeArrays(fileVariants, collectCatalogVariants());
           }
 
-          @NotNull
-          private Object[] collectCatalogVariants() {
+          private Object @NotNull [] collectCatalogVariants() {
             List<LookupElement> elements = new ArrayList<>();
             final Project project = getElement().getProject();
             final List<JsonSchemaInfo> schemas = JsonSchemaService.Impl.get(project).getAllUserVisibleSchemas();
@@ -184,7 +181,7 @@ public class JsonPointerReferenceProvider extends PsiReferenceProvider {
     return value == null ? psiFile : new JsonPointerResolver(value, StringUtil.join(chain, "/")).resolve();
   }
 
-  public static class JsonSchemaIdReference extends JsonSchemaBaseReference<JsonValue> {
+  public static final class JsonSchemaIdReference extends JsonSchemaBaseReference<JsonValue> {
     private final String myText;
 
     private JsonSchemaIdReference(JsonValue element, String text) {
@@ -206,9 +203,8 @@ public class JsonPointerReferenceProvider extends PsiReferenceProvider {
       return resolveForPath(myElement, "#" + id, false);
     }
 
-    @NotNull
     @Override
-    public Object[] getVariants() {
+    public Object @NotNull [] getVariants() {
       return JsonCachedValues.getAllIdsInFile(myElement.getContainingFile()).toArray();
     }
   }
@@ -238,9 +234,8 @@ public class JsonPointerReferenceProvider extends PsiReferenceProvider {
       return super.isIdenticalTo(that) && getRangeInElement().equals(that.getRangeInElement());
     }
 
-    @NotNull
     @Override
-    public Object[] getVariants() {
+    public Object @NotNull [] getVariants() {
       String text = getCanonicalText();
       int index = text.indexOf(CompletionUtilCore.DUMMY_IDENTIFIER_TRIMMED);
       if (index >= 0) {

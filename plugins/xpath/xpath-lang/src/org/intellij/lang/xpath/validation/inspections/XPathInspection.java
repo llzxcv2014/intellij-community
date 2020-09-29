@@ -34,14 +34,7 @@ import org.jetbrains.annotations.Nullable;
 public abstract class XPathInspection extends LocalInspectionTool implements CustomSuppressableInspectionTool {
 
   @Override
-  @NotNull
-  public String getGroupDisplayName() {
-    return "XPath";
-  }
-
-  @Override
-  @NotNull
-  public SuppressIntentionAction[] getSuppressActions(@Nullable PsiElement element) {
+  public SuppressIntentionAction @NotNull [] getSuppressActions(@Nullable PsiElement element) {
     final XPathElement e = PsiTreeUtil.getContextOfType(element, XPathElement.class, false);
     return ContextProvider.getContextProvider(e != null ? e : element).getQuickFixFactory().getSuppressActions(this);
   }
@@ -54,8 +47,7 @@ public abstract class XPathInspection extends LocalInspectionTool implements Cus
   protected abstract Visitor createVisitor(InspectionManager manager, boolean isOnTheFly);
 
   @Override
-  @Nullable
-  public ProblemDescriptor[] checkFile(@NotNull PsiFile file, @NotNull InspectionManager manager, boolean isOnTheFly) {
+  public ProblemDescriptor @Nullable [] checkFile(@NotNull PsiFile file, @NotNull InspectionManager manager, boolean isOnTheFly) {
     final Language language = file.getLanguage();
     if (!acceptsLanguage(language)) return null;
 
@@ -79,7 +71,7 @@ public abstract class XPathInspection extends LocalInspectionTool implements Cus
     }
 
     @Override
-    public void visitElement(PsiElement psiElement) {
+    public void visitElement(@NotNull PsiElement psiElement) {
       super.visitElement(psiElement);
 
       if (myProblems != null) {
@@ -111,8 +103,7 @@ public abstract class XPathInspection extends LocalInspectionTool implements Cus
     protected void checkNodeTest(XPathNodeTest nodeTest) {
     }
 
-    @Nullable
-    private ProblemDescriptor[] getProblems() {
+    private ProblemDescriptor @Nullable [] getProblems() {
       return myProblems == null ? null : myProblems.toArray(ProblemDescriptor.EMPTY_ARRAY);
     }
 

@@ -19,6 +19,7 @@ import com.intellij.codeInsight.ChangeContextUtil;
 import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInsight.TargetElementUtil;
 import com.intellij.codeInsight.intention.impl.BaseIntentionAction;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
@@ -34,19 +35,17 @@ import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
-import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
 public class ReplaceImplementsWithStaticImportAction extends BaseIntentionAction {
   private static final Logger LOG = Logger.getInstance(ReplaceImplementsWithStaticImportAction.class);
-  @NonNls private static final String FIND_CONSTANT_FIELD_USAGES = "Find Constant Field Usages...";
 
   @Override
   @NotNull
   public String getText() {
-    return "Replace implements with static import";
+    return JavaBundle.message("intention.text.replace.implements.with.static.import");
   }
 
   @Override
@@ -150,7 +149,7 @@ public class ReplaceImplementsWithStaticImportAction extends BaseIntentionAction
           }
         }
       }
-    }), FIND_CONSTANT_FIELD_USAGES, true, project)) {
+    }), JavaBundle.message("replace.implements.with.static.import.field.usages.progress"), true, project)) {
       return;
     }
 
@@ -164,7 +163,7 @@ public class ReplaceImplementsWithStaticImportAction extends BaseIntentionAction
         if (collectExtendsImplements(targetClass, psiClass.getExtendsList(), refs2Unimplement)) continue;
         collectExtendsImplements(targetClass, psiClass.getImplementsList(), refs2Unimplement);
       }
-    }), "Find References in Implement/Extends Lists...", true, project)) {
+    }), JavaBundle.message("progress.title.find.references.in.implement.extends.lists"), true, project)) {
       return;
     }
 
@@ -198,7 +197,7 @@ public class ReplaceImplementsWithStaticImportAction extends BaseIntentionAction
           }
         }
       }
-    }), "Optimize Imports...", true, project)) return;
+    }), JavaBundle.message("progress.title.optimize.imports"), true, project)) return;
     ApplicationManager.getApplication().runWriteAction(() -> {
       for (PsiJavaFile file1 : redundant.keySet()) {
         final PsiImportList importList = redundant.get(file1);

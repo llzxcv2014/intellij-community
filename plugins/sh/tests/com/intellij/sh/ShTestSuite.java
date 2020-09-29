@@ -2,10 +2,11 @@
 package com.intellij.sh;
 
 import com.intellij.sh.actions.ShBaseGenerateActionsTest;
+import com.intellij.sh.codeInsight.ShFunctionResolverTest;
 import com.intellij.sh.completion.ShCompletionTest;
 import com.intellij.sh.completion.ShFileCompletionTest;
 import com.intellij.sh.completion.ShKeywordCompletionTest;
-import com.intellij.sh.editing.ShTypingTest;
+import com.intellij.sh.editor.ShTypingTest;
 import com.intellij.sh.formatter.ShLineIndentProviderTest;
 import com.intellij.sh.lexer.ShFileLexerTest;
 import com.intellij.sh.lexer.ShOldLexerVersion3Test;
@@ -13,7 +14,8 @@ import com.intellij.sh.lexer.ShOldLexerVersion4Test;
 import com.intellij.sh.oldParser.ShOldParserTest;
 import com.intellij.sh.parser.ShParserTest;
 import com.intellij.sh.parser.ShShebangParserUtilTest;
-import com.intellij.sh.rename.ShRenameTest;
+import com.intellij.sh.rename.ShFunctionRenamingTest;
+import com.intellij.sh.rename.ShRenameAllOccurrencesTest;
 import com.intellij.sh.shellcheck.ShShellcheckInspectionTest;
 import com.intellij.sh.shellcheck.ShShellcheckTestSetup;
 import com.intellij.sh.template.ShArrayLiveTemplateTest;
@@ -74,9 +76,11 @@ public class ShTestSuite {
   public static class OthersSuite {
     public static Test suite() {
       TestSuite suite = new TestSuite("Others");
-      suite.addTestSuite(ShRenameTest.class);
+      suite.addTestSuite(ShRenameAllOccurrencesTest.class);
+      suite.addTestSuite(ShFunctionRenamingTest.class);
       suite.addTestSuite(ShTypingTest.class);
       suite.addTestSuite(ShLineIndentProviderTest.class);
+      suite.addTestSuite(ShFunctionResolverTest.class);
       return suite;
     }
   }

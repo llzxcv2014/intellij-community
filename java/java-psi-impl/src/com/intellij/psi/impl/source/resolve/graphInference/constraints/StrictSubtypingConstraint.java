@@ -15,6 +15,7 @@
  */
 package com.intellij.psi.impl.source.resolve.graphInference.constraints;
 
+import com.intellij.core.JavaPsiBundle;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.resolve.graphInference.InferenceBound;
 import com.intellij.psi.impl.source.resolve.graphInference.InferenceSession;
@@ -25,6 +26,7 @@ import com.intellij.psi.util.TypeConversionUtil;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class StrictSubtypingConstraint implements ConstraintFormula {
   private PsiType myS;
@@ -51,16 +53,18 @@ public class StrictSubtypingConstraint implements ConstraintFormula {
 
 
   @Override
-  public boolean reduce(InferenceSession session, List<ConstraintFormula> constraints) {
+  public boolean reduce(InferenceSession session, List<? super ConstraintFormula> constraints) {
     final HashSet<InferenceVariable> dependencies = new HashSet<>();
     final boolean reduceResult = doReduce(session, dependencies, constraints);
     if (!reduceResult) {
-      session.registerIncompatibleErrorMessage(dependencies, session.getPresentableText(myS) + " conforms to " + session.getPresentableText(myT));
+      session.registerIncompatibleErrorMessage(dependencies,
+                                               JavaPsiBundle.message("type.conforms.to.constraint", 
+                                                                     session.getPresentableText(myS), session.getPresentableText(myT)));
     }
     return reduceResult;
   }
 
-  private boolean doReduce(InferenceSession session, HashSet<InferenceVariable> dependencies, List<ConstraintFormula> constraints) {
+  private boolean doReduce(InferenceSession session, Set<? super InferenceVariable> dependencies, List<? super ConstraintFormula> constraints) {
     if (!session.collectDependencies(myS, dependencies) && !session.collectDependencies(myT, dependencies)) {
       if (myT == null) return myS == null || myS.equalsToText(CommonClassNames.JAVA_LANG_OBJECT);
       if (myS == null) return true;

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/kotlin" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/testData" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="intellij.grazie" />
+    <orderEntry type="module" module-name="intellij.spellchecker" />
+    <orderEntry type="library" name="kotlin-test" level="project" />
+    <orderEntry type="module" module-name="intellij.java.testFramework" exported="" />
+    <orderEntry type="module-library" scope="TEST">
+      <library name="org.languagetool:language-ru:5.0" type="repository">
+        <properties include-transitive-deps="false" maven-id="org.languagetool:language-ru:5.0" />
+        <CLASSES>
+          <root url="jar://$MAVEN_REPOSITORY$/org/languagetool/language-ru/5.0/language-ru-5.0.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library" scope="TEST">
+      <library name="org.languagetool:language-de:5.0" type="repository">
+        <properties maven-id="org.languagetool:language-de:5.0">
+          <exclude>
+            <dependency maven-id="org.apache.commons:commons-lang3" />
+            <dependency maven-id="org.apache.commons:commons-text" />
+            <dependency maven-id="com.google.guava:guava" />
+            <dependency maven-id="org.carrot2:morfologik-fsa" />
+            <dependency maven-id="org.carrot2:morfologik-fsa-builders" />
+            <dependency maven-id="org.carrot2:morfologik-speller" />
+            <dependency maven-id="org.carrot2:morfologik-stemming" />
+            <dependency maven-id="com.carrotsearch:hppc" />
+            <dependency maven-id="net.loomchild:segment" />
+            <dependency maven-id="com.hankcs:aho-corasick-double-array-trie" />
+            <dependency maven-id="com.optimaize.languagedetector:language-detector" />
+            <dependency maven-id="com.intellij:annotations" />
+            <dependency maven-id="org.apache.lucene:lucene-core" />
+            <dependency maven-id="org.apache.lucene:lucene-backward-codecs" />
+            <dependency maven-id="com.fasterxml.jackson.core:jackson-databind" />
+            <dependency maven-id="javax.measure:unit-api" />
+            <dependency maven-id="tech.units:indriya" />
+            <dependency maven-id="javax.xml.bind:jaxb-api" />
+            <dependency maven-id="org.glassfish.jaxb:jaxb-runtime" />
+            <dependency maven-id="javax.activation:javax.activation-api" />
+            <dependency maven-id="org.slf4j:slf4j-api" />
+            <dependency maven-id="org.apache.commons:commons-csv" />
+            <dependency maven-id="commons-logging:commons-logging" />
+            <dependency maven-id="io.prometheus:simpleclient" />
+            <dependency maven-id="io.prometheus:simpleclient_guava" />
+            <dependency maven-id="javax.annotation:javax.annotation-api" />
+            <dependency maven-id="io.grpc:grpc-netty-shaded" />
+            <dependency maven-id="io.grpc:grpc-protobuf" />
+            <dependency maven-id="io.grpc:grpc-stub" />
+            <dependency maven-id="org.apache.commons:commons-pool2" />
+            <dependency maven-id="org.jetbrains.intellij.deps:trove4j" />
+            <dependency maven-id="org.languagetool:languagetool-core" />
+            <dependency maven-id="com.gitlab.dumonts:hunspell" />
+            <dependency maven-id="com.google.android.tools:dx" />
+            <dependency maven-id="com.nativelibs4java:bridj" />
+          </exclude>
+        </properties>
+        <CLASSES>
+          <root url="jar://$MAVEN_REPOSITORY$/org/languagetool/language-de/5.0/language-de-5.0.jar!/" />
+          <root url="jar://$MAVEN_REPOSITORY$/de/danielnaber/german-pos-dict/1.2.1/german-pos-dict-1.2.1.jar!/" />
+          <root url="jar://$MAVEN_REPOSITORY$/edu/washington/cs/knowitall/openregex/1.1.1/openregex-1.1.1.jar!/" />
+          <root url="jar://$MAVEN_REPOSITORY$/de/danielnaber/jwordsplitter/4.4/jwordsplitter-4.4.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+  </component>
+</module>

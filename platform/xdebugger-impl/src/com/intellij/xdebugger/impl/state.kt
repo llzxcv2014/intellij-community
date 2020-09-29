@@ -2,7 +2,6 @@
 package com.intellij.xdebugger.impl
 
 import com.intellij.openapi.components.BaseState
-import com.intellij.util.SmartList
 import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Property
 import com.intellij.util.xmlb.annotations.Tag
@@ -12,18 +11,19 @@ import com.intellij.xdebugger.impl.breakpoints.BreakpointState
 import com.intellij.xdebugger.impl.breakpoints.LineBreakpointState
 import com.intellij.xdebugger.impl.breakpoints.XBreakpointsDialogState
 import com.intellij.xdebugger.impl.breakpoints.XExpressionState
+import com.intellij.xdebugger.impl.inline.InlineWatch
 import com.intellij.xdebugger.impl.pinned.items.PinnedItemInfo
 
 @Tag("breakpoint-manager")
 class BreakpointManagerState : BaseState() {
   @get:XCollection(propertyElementName = "default-breakpoints")
-  var defaultBreakpoints by list<BreakpointState<*, *, *>>()
+  val defaultBreakpoints by list<BreakpointState<*, *, *>>()
 
   @get:XCollection(elementTypes = [BreakpointState::class, LineBreakpointState::class], style = XCollection.Style.v2)
-  var breakpoints by list<BreakpointState<*, *, *>>()
+  val breakpoints by list<BreakpointState<*, *, *>>()
 
   @get:XCollection(propertyElementName = "breakpoints-defaults", elementTypes = [BreakpointState::class, LineBreakpointState::class])
-  var breakpointsDefaults by list<BreakpointState<*, *, *>>()
+  val breakpointsDefaults by list<BreakpointState<*, *, *>>()
 
   @get:Tag("breakpoints-dialog")
   var breakpointsDialogProperties by property<XBreakpointsDialogState>()
@@ -35,18 +35,23 @@ class BreakpointManagerState : BaseState() {
 class WatchesManagerState : BaseState() {
   @get:Property(surroundWithTag = false)
   @get:XCollection
-  var expressions by list<ConfigurationState>()
+  val expressions by list<ConfigurationState>()
+
+  @get:Property(surroundWithTag = false)
+  @get:XCollection
+  val inlineExpressionStates by list<InlineWatchState>()
 }
 
 @Tag("configuration")
-class ConfigurationState @JvmOverloads constructor(name: String? = null, expressions: List<XExpression>? = null) : BaseState() {
+class ConfigurationState @JvmOverloads constructor(name: String? = null,
+                                                   expressions: List<XExpression>? = null) : BaseState() {
   @get:Attribute
   var name by string()
 
   @Suppress("MemberVisibilityCanPrivate")
   @get:Property(surroundWithTag = false)
   @get:XCollection
-  var expressionStates by list<WatchState>()
+  val expressionStates by list<WatchState>()
 
   init {
     // passed values are not default - constructor provided only for convenience
@@ -54,8 +59,26 @@ class ConfigurationState @JvmOverloads constructor(name: String? = null, express
       this.name = name
     }
     if (expressions != null) {
-      expressionStates = expressions.mapTo(SmartList()) { WatchState(it) }
+      expressionStates.clear()
+      expressions.mapTo(expressionStates) { WatchState(it) }
     }
+  }
+}
+
+@Tag("inline-watch")
+class InlineWatchState @JvmOverloads  constructor(expression: XExpression? = null, line: Int = -1, fileUrl: String? = null) : BaseState() {
+
+  @get:Attribute
+  var fileUrl by string()
+  @get:Attribute
+  var line by property(-1)
+  @get:Property(surroundWithTag = false)
+  var watchState by property<WatchState?>(null) {it == null}
+
+  init {
+    this.fileUrl = fileUrl
+    this.line = line
+    this.watchState = expression?.let { WatchState(it) }
   }
 }
 

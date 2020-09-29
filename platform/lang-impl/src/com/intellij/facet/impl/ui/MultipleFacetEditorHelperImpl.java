@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.facet.impl.ui;
 
 import com.intellij.facet.ui.FacetEditor;
@@ -19,15 +19,12 @@ import java.awt.event.ItemListener;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * @author nik
- */
 public class MultipleFacetEditorHelperImpl implements MultipleFacetEditorHelper {
   private static final Logger LOG = Logger.getInstance(MultipleFacetSettingsEditor.class);
   private final List<AbstractBinding> myBindings = new ArrayList<>();
 
   @Override
-  public void bind(@NotNull ThreeStateCheckBox common, @NotNull FacetEditor[] editors, @NotNull NotNullFunction<? super FacetEditor, ? extends JCheckBox> fun) {
+  public void bind(@NotNull ThreeStateCheckBox common, FacetEditor @NotNull [] editors, @NotNull NotNullFunction<? super FacetEditor, ? extends JCheckBox> fun) {
     List<JCheckBox> checkBoxesList = new ArrayList<>();
     for (FacetEditor editor : editors) {
       checkBoxesList.add(fun.fun(editor));
@@ -38,7 +35,7 @@ public class MultipleFacetEditorHelperImpl implements MultipleFacetEditorHelper 
   }
 
   @Override
-  public void bind(@NotNull JTextField common, @NotNull FacetEditor[] editors, @NotNull NotNullFunction<? super FacetEditor, ? extends JTextField> fun) {
+  public void bind(@NotNull JTextField common, FacetEditor @NotNull [] editors, @NotNull NotNullFunction<? super FacetEditor, ? extends JTextField> fun) {
     List<JTextField> componentsList = new ArrayList<>();
     for (FacetEditor editor : editors) {
       componentsList.add(fun.fun(editor));
@@ -49,7 +46,7 @@ public class MultipleFacetEditorHelperImpl implements MultipleFacetEditorHelper 
   }
 
   @Override
-  public void bind(@NotNull JComboBox common, @NotNull FacetEditor[] editors, @NotNull NotNullFunction<? super FacetEditor, ? extends JComboBox> fun) {
+  public void bind(@NotNull JComboBox common, FacetEditor @NotNull [] editors, @NotNull NotNullFunction<? super FacetEditor, ? extends JComboBox> fun) {
     List<JComboBox> componentsList = new ArrayList<>();
     for (FacetEditor editor : editors) {
       componentsList.add(fun.fun(editor));
@@ -125,7 +122,7 @@ public class MultipleFacetEditorHelperImpl implements MultipleFacetEditorHelper 
     }
   }
 
-  private static class TextFieldBinding extends AbstractBinding {
+  private static final class TextFieldBinding extends AbstractBinding {
     private final JTextField myCommon;
     private final List<JTextField> myTextFields;
     private final List<String> myInitialValues;

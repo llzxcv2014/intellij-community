@@ -15,11 +15,11 @@
  */
 package com.intellij.lang.properties.references;
 
-import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.codeInspection.util.IntentionName;
 import com.intellij.lang.properties.PropertiesBundle;
 import com.intellij.lang.properties.psi.PropertiesFile;
 import com.intellij.openapi.application.ApplicationManager;
@@ -45,8 +45,6 @@ public class CreatePropertyFix implements IntentionAction, LocalQuickFix {
   private final String myKey;
   private final List<PropertiesFile> myPropertiesFiles;
 
-  public static final String NAME = PropertiesBundle.message("create.property.quickfix.text");
-
   public CreatePropertyFix() {
     this(null, null, null);
   }
@@ -60,7 +58,7 @@ public class CreatePropertyFix implements IntentionAction, LocalQuickFix {
   @Override
   @NotNull
   public String getName() {
-    return NAME;
+    return getFixName();
   }
 
   @Override
@@ -80,7 +78,7 @@ public class CreatePropertyFix implements IntentionAction, LocalQuickFix {
   @Override
   @NotNull
   public String getText() {
-    return NAME;
+    return getFixName();
   }
 
   @Override
@@ -127,14 +125,14 @@ public class CreatePropertyFix implements IntentionAction, LocalQuickFix {
       model = new I18nizeQuickFixDialog(
         project,
         file,
-        NAME, dialogCustomization
+        getFixName(), dialogCustomization
       );
     }
     doAction(project, psiElement, model);
   }
 
   protected static I18nizeQuickFixDialog.DialogCustomization createDefaultCustomization(String suggestedKey, List<PropertiesFile> propertiesFiles) {
-    return new I18nizeQuickFixDialog.DialogCustomization(NAME, false, true, propertiesFiles, suggestedKey == null ? "" : suggestedKey);
+    return new I18nizeQuickFixDialog.DialogCustomization(getFixName(), false, true, propertiesFiles, suggestedKey == null ? "" : suggestedKey);
   }
 
   protected Couple<String> doAction(Project project, PsiElement psiElement, I18nizeQuickFixModel model) {
@@ -167,11 +165,15 @@ public class CreatePropertyFix implements IntentionAction, LocalQuickFix {
       catch (IncorrectOperationException e) {
         LOG.error(e);
       }
-    }, CodeInsightBundle.message("quickfix.i18n.command.name"), project));
+    }, PropertiesBundle.message("quickfix.i18n.command.name"), project));
   }
 
   @Override
   public boolean startInWriteAction() {
     return false;
+  }
+
+  public static @IntentionName String getFixName() {
+    return PropertiesBundle.message("create.property.quickfix.text");
   }
 }

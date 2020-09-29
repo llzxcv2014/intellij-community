@@ -1,23 +1,10 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.dvcs.actions;
 
 import com.intellij.dvcs.DvcsUtil;
 import com.intellij.dvcs.repo.AbstractRepositoryManager;
 import com.intellij.dvcs.repo.Repository;
+import com.intellij.dvcs.ui.DvcsBundle;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.Presentation;
@@ -26,7 +13,7 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
-import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vcs.VcsDataKeys;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vcs.VcsNotifier;
@@ -39,8 +26,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
-import static com.intellij.util.ObjectUtils.assertNotNull;
 import static com.intellij.util.ObjectUtils.chooseNotNull;
 import static com.intellij.util.containers.UtilKt.getIfSingle;
 
@@ -52,17 +39,17 @@ public abstract class DvcsCompareWithBranchAction<T extends Repository> extends 
   @Override
   public void actionPerformed(@NotNull AnActionEvent e) {
     Project project = e.getRequiredData(CommonDataKeys.PROJECT);
-    VirtualFile file = assertNotNull(getIfSingle(e.getData(VcsDataKeys.VIRTUAL_FILE_STREAM)));
+    VirtualFile file = Objects.requireNonNull(getIfSingle(e.getData(VcsDataKeys.VIRTUAL_FILE_STREAM)));
 
-    T repository = assertNotNull(getRepositoryManager(project).getRepositoryForFile(file));
+    T repository = Objects.requireNonNull(getRepositoryManager(project).getRepositoryForFileQuick(file));
     assert !repository.isFresh();
     String presentableRevisionName = chooseNotNull(repository.getCurrentBranchName(),
-                                                   DvcsUtil.getShortHash(assertNotNull(repository.getCurrentRevision())));
+                                                   DvcsUtil.getShortHash(Objects.requireNonNull(repository.getCurrentRevision())));
     List<String> branchNames = getBranchNamesExceptCurrent(repository);
 
     JBPopupFactory.getInstance()
       .createPopupChooserBuilder(branchNames)
-      .setTitle("Select Branch to Compare")
+      .setTitle(DvcsBundle.message("popup.title.select.branch.to.compare"))
       .setItemChosenCallback(selected -> showDiffWithBranchUnderModalProgress(project, file, presentableRevisionName, selected))
       .setAutoselectOnMouseMove(true)
       .setNamerForFiltering(o -> o)
@@ -98,9 +85,9 @@ public abstract class DvcsCompareWithBranchAction<T extends Repository> extends 
 
   private void showDiffWithBranchUnderModalProgress(@NotNull final Project project,
                                                     @NotNull final VirtualFile file,
-                                                    @NotNull final String head,
-                                                    @NotNull final String compare) {
-    new Task.Backgroundable(project, "Collecting Changes...", true) {
+                                                    @NotNull final @NlsSafe String head,
+                                                    @NotNull final @NlsSafe String compare) {
+    new Task.Backgroundable(project, DvcsBundle.message("progress.title.collecting.changes"), true) {
       private Collection<Change> changes;
 
       @Override
@@ -109,8 +96,11 @@ public abstract class DvcsCompareWithBranchAction<T extends Repository> extends 
           changes = getDiffChanges(project, file, compare);
         }
         catch (VcsException e) {
-          VcsNotifier.getInstance(project).notifyImportantWarning("Couldn't compare with branch", String
-            .format("Couldn't compare " + DvcsUtil.fileOrFolder(file) + " [%s] with branch [%s];\n %s", file, compare, e.getMessage()));
+          VcsNotifier.getInstance(project).notifyImportantWarning(
+            "vcs.could.not.compare.with.branch",
+            DvcsBundle.message("notification.title.couldn.t.compare.with.branch"),
+            DvcsBundle.message("notification.message.couldn.t.compare.with.branch",
+                               file.isDirectory() ? 1 : 0, file.getPresentableUrl(), compare, e.getMessage()));
         }
       }
 
@@ -125,9 +115,9 @@ public abstract class DvcsCompareWithBranchAction<T extends Repository> extends 
     }.queue();
   }
 
+  @NlsSafe
   protected static String fileDoesntExistInBranchError(@NotNull VirtualFile file, @NotNull String branchToCompare) {
-    return String.format("%s <code>%s</code> doesn't exist in branch <code>%s</code>",
-                         StringUtil.capitalize(DvcsUtil.fileOrFolder(file)), file.getPresentableUrl(),
-                         branchToCompare);
+    return DvcsBundle.message("error.text.file.not.found.in.branch",
+                              file.isDirectory() ? 1 : 0, file.getPresentableUrl(), branchToCompare);
   }
 }

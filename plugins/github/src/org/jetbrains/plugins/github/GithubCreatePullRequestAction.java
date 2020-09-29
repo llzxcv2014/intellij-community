@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.github;
 
 import com.intellij.icons.AllIcons;
@@ -11,24 +11,28 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.github.api.GithubApiRequestExecutor;
 import org.jetbrains.plugins.github.api.GithubApiRequestExecutorManager;
 import org.jetbrains.plugins.github.authentication.accounts.GithubAccount;
+import org.jetbrains.plugins.github.i18n.GithubBundle;
 import org.jetbrains.plugins.github.ui.GithubCreatePullRequestDialog;
+import org.jetbrains.plugins.github.util.GHGitRepositoryMapping;
+import org.jetbrains.plugins.github.util.GitRemoteUrlCoordinates;
 
 /**
  * @author Aleksey Pivovarov
  */
 public class GithubCreatePullRequestAction extends AbstractAuthenticatingGithubUrlGroupingAction {
   public GithubCreatePullRequestAction() {
-    super("Create Pull Request", "Create pull request from current branch", AllIcons.Vcs.Vendors.Github);
+    super(GithubBundle.messagePointer("pull.request.create.action"),
+          GithubBundle.messagePointer("pull.request.create.action.description"),
+          AllIcons.Vcs.Vendors.Github);
   }
 
   @Override
   public void actionPerformed(@NotNull AnActionEvent e,
                               @NotNull Project project,
-                              @NotNull GitRepository repository,
-                              @NotNull GitRemote remote,
-                              @NotNull String remoteUrl,
+                              @NotNull GHGitRepositoryMapping repository,
                               @NotNull GithubAccount account) {
-    createPullRequest(project, repository, remote, remoteUrl, account);
+    GitRemoteUrlCoordinates remoteCoordinates = repository.getGitRemote();
+    createPullRequest(project, remoteCoordinates.getRepository(), remoteCoordinates.getRemote(), remoteCoordinates.getUrl(), account);
   }
 
   static void createPullRequest(@NotNull Project project,

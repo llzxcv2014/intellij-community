@@ -43,7 +43,7 @@ import java.util.List;
 
 public class BooleanMethodNameMustStartWithQuestionInspection extends BaseInspection {
 
-  public static final String DEFAULT_QUESTION_WORDS =
+  public static final @NonNls String DEFAULT_QUESTION_WORDS =
     "add,are,can,check,contains,could,endsWith,equals,has,is,matches,must,put,remove,shall,should,startsWith,was,were,will,would";
   @SuppressWarnings("PublicField")
   public boolean ignoreBooleanMethods = false;
@@ -53,7 +53,7 @@ public class BooleanMethodNameMustStartWithQuestionInspection extends BaseInspec
   public boolean onlyWarnOnBaseMethods = true;
   @SuppressWarnings("PublicField")
   @NonNls public String questionString = DEFAULT_QUESTION_WORDS;
-  List<String> questionList = new ArrayList(32);
+  List<String> questionList = new ArrayList<>(32);
 
   public BooleanMethodNameMustStartWithQuestionInspection() {
     parseString(this.questionString, this.questionList);
@@ -95,12 +95,6 @@ public class BooleanMethodNameMustStartWithQuestionInspection extends BaseInspec
   @Override
   protected InspectionGadgetsFix buildFix(Object... infos) {
     return new RenameFix();
-  }
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("boolean.method.name.must.start.with.question.display.name");
   }
 
   @Override

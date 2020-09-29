@@ -14,15 +14,15 @@ import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.PsiField;
 import com.siyeh.HardcodedMethodConstants;
 import com.siyeh.ig.fixes.RenameFix;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.Arrays;
 
 public class FieldNamingConventionInspection extends AbstractNamingConventionInspection<PsiField> {
   public static final ExtensionPointName<NamingConvention<PsiField>> EP_NAME = ExtensionPointName.create("com.intellij.naming.convention.field");
   public FieldNamingConventionInspection() {
-    super(Arrays.asList(EP_NAME.getExtensions()), null);
+    super(EP_NAME.getExtensionList(), null);
+    registerConventionsListener(EP_NAME);
   }
 
   @Nullable
@@ -44,7 +44,7 @@ public class FieldNamingConventionInspection extends AbstractNamingConventionIns
   }
 
   static class FieldNamingConventionBean extends NamingConventionBean {
-    FieldNamingConventionBean(String regex, int minLength, int maxLength) {
+    FieldNamingConventionBean(@NonNls String regex, int minLength, int maxLength) {
       super(regex, minLength, maxLength, HardcodedMethodConstants.SERIAL_VERSION_UID);
     }
   }

@@ -1,91 +1,160 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.github.pullrequest.comment
 
 import com.intellij.diff.tools.fragmented.UnifiedDiffViewer
 import com.intellij.diff.tools.simple.SimpleOnesideDiffViewer
 import com.intellij.diff.tools.util.base.DiffViewerBase
 import com.intellij.diff.tools.util.side.TwosideTextDiffViewer
-import com.intellij.diff.util.Range
+import com.intellij.execution.process.ProcessIOExecutorService
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.diagnostic.logger
-import com.intellij.openapi.project.Project
+import com.intellij.openapi.diff.impl.patch.PatchReader
 import org.jetbrains.plugins.github.api.data.GHUser
+import org.jetbrains.plugins.github.api.data.pullrequest.GHPullRequestPendingReview
 import org.jetbrains.plugins.github.api.data.pullrequest.GHPullRequestReviewThread
 import org.jetbrains.plugins.github.pullrequest.avatars.CachingGithubAvatarIconsProvider
 import org.jetbrains.plugins.github.pullrequest.comment.ui.GHPRDiffEditorReviewComponentsFactoryImpl
+import org.jetbrains.plugins.github.pullrequest.comment.ui.GHPRReviewProcessModelImpl
 import org.jetbrains.plugins.github.pullrequest.comment.viewer.GHPRSimpleOnesideDiffViewerReviewThreadsHandler
 import org.jetbrains.plugins.github.pullrequest.comment.viewer.GHPRTwosideDiffViewerReviewThreadsHandler
 import org.jetbrains.plugins.github.pullrequest.comment.viewer.GHPRUnifiedDiffViewerReviewThreadsHandler
-import org.jetbrains.plugins.github.pullrequest.data.GHPRChangedFileLinesMapper
-import org.jetbrains.plugins.github.pullrequest.data.service.GHPRReviewServiceAdapter
+import org.jetbrains.plugins.github.pullrequest.data.GHPRChangeDiffData
+import org.jetbrains.plugins.github.pullrequest.data.provider.GHPRReviewDataProvider
+import org.jetbrains.plugins.github.pullrequest.ui.GHCompletableFutureLoadingModel
+import org.jetbrains.plugins.github.pullrequest.ui.GHLoadingModel
+import org.jetbrains.plugins.github.pullrequest.ui.GHSimpleLoadingModel
+import org.jetbrains.plugins.github.pullrequest.ui.SimpleEventListener
+import org.jetbrains.plugins.github.pullrequest.ui.changes.GHPRCreateDiffCommentParametersHelper
 import org.jetbrains.plugins.github.ui.util.SingleValueModel
-import org.jetbrains.plugins.github.util.handleOnEdt
-import kotlin.properties.Delegates
+import org.jetbrains.plugins.github.util.GHPatchHunkUtil
+import java.util.function.Function
+import kotlin.properties.Delegates.observable
 
-class GHPRDiffReviewSupportImpl(private val project: Project,
-                                private val reviewService: GHPRReviewServiceAdapter,
-                                private val diffRanges: List<Range>,
-                                private val fileLinesMapper: GHPRChangedFileLinesMapper,
-                                private val lastCommitSha: String,
-                                private val filePath: String,
-                                private val reviewThreadsFilter: (String, String) -> Boolean,
+class GHPRDiffReviewSupportImpl(private val reviewDataProvider: GHPRReviewDataProvider,
+                                private val diffData: GHPRChangeDiffData,
                                 private val avatarIconsProviderFactory: CachingGithubAvatarIconsProvider.Factory,
                                 private val currentUser: GHUser)
   : GHPRDiffReviewSupport {
 
-  private val reviewThreadsModel = SingleValueModel<List<GHPullRequestReviewThread>?>(null)
+  private var pendingReviewLoadingModel: GHSimpleLoadingModel<GHPullRequestPendingReview?>? = null
+  private val reviewProcessModel = GHPRReviewProcessModelImpl()
 
-  override var isLoadingReviewThreads: Boolean = false
-    private set
+  private var reviewThreadsLoadingModel: GHSimpleLoadingModel<List<GHPRDiffReviewThreadMapping>>? = null
+  private val reviewThreadsModel = SingleValueModel<List<GHPRDiffReviewThreadMapping>?>(null)
 
-  override var showReviewThreads by Delegates.observable(true) { _, _, newValue ->
-    if (newValue) reloadReviewThreads()
-    else reviewThreadsModel.value = null
+  override val isLoadingReviewData: Boolean
+    get() = reviewThreadsLoadingModel?.loading == true || pendingReviewLoadingModel?.loading == true
+
+  override var showReviewThreads by observable(true) { _, _, _ ->
+    updateReviewThreads()
+  }
+
+  override var showResolvedReviewThreads by observable(false) { _, _, _ ->
+    updateReviewThreads()
   }
 
   override fun install(viewer: DiffViewerBase) {
-    val diffRangesModel = SingleValueModel(if (reviewService.canComment()) diffRanges else null)
-    loadReviewThreads(reviewThreadsModel, viewer)
+    val diffRangesModel = SingleValueModel(if (reviewDataProvider.canComment()) diffData.diffRanges else null)
 
-    val componentsFactory = GHPRDiffEditorReviewComponentsFactoryImpl(project, reviewService, lastCommitSha, filePath,
+    if (reviewDataProvider.canComment()) {
+      loadPendingReview(viewer)
+      var rangesInstalled = false
+      reviewProcessModel.addAndInvokeChangesListener(object : SimpleEventListener {
+        override fun eventOccurred() {
+          if (reviewProcessModel.isActual && !rangesInstalled) {
+            diffRangesModel.value = diffData.diffRanges
+            rangesInstalled = true
+          }
+        }
+      })
+    }
+
+    loadReviewThreads(viewer)
+
+    val createCommentParametersHelper = GHPRCreateDiffCommentParametersHelper(diffData.commitSha, diffData.filePath, diffData.linesMapper)
+    val componentsFactory = GHPRDiffEditorReviewComponentsFactoryImpl(reviewDataProvider,
+                                                                      createCommentParametersHelper,
                                                                       avatarIconsProviderFactory, currentUser)
     when (viewer) {
       is SimpleOnesideDiffViewer ->
-        GHPRSimpleOnesideDiffViewerReviewThreadsHandler(diffRangesModel, reviewThreadsModel, viewer, fileLinesMapper, componentsFactory)
+        GHPRSimpleOnesideDiffViewerReviewThreadsHandler(reviewProcessModel, diffRangesModel, reviewThreadsModel, viewer, componentsFactory)
       is UnifiedDiffViewer ->
-        GHPRUnifiedDiffViewerReviewThreadsHandler(diffRangesModel, reviewThreadsModel, viewer, fileLinesMapper, componentsFactory)
+        GHPRUnifiedDiffViewerReviewThreadsHandler(reviewProcessModel, diffRangesModel, reviewThreadsModel, viewer, componentsFactory)
       is TwosideTextDiffViewer ->
-        GHPRTwosideDiffViewerReviewThreadsHandler(diffRangesModel, reviewThreadsModel, viewer, fileLinesMapper, componentsFactory)
+        GHPRTwosideDiffViewerReviewThreadsHandler(reviewProcessModel, diffRangesModel, reviewThreadsModel, viewer, componentsFactory)
       else -> return
     }
   }
 
-  override fun reloadReviewThreads() {
-    reviewService.resetReviewThreads()
+  override fun reloadReviewData() {
+    reviewDataProvider.resetPendingReview()
+    reviewDataProvider.resetReviewThreads()
   }
 
-  private fun loadReviewThreads(threadsModel: SingleValueModel<List<GHPullRequestReviewThread>?>, disposable: Disposable) {
-    doLoadReviewThreads(threadsModel, disposable)
-    reviewService.addReviewThreadsListener(disposable) {
-      doLoadReviewThreads(threadsModel, disposable)
+  private fun loadPendingReview(disposable: Disposable) {
+    val loadingModel = GHCompletableFutureLoadingModel<GHPullRequestPendingReview?>(disposable).also {
+      it.addStateChangeListener(object : GHLoadingModel.StateChangeListener {
+        override fun onLoadingCompleted() {
+          if (it.resultAvailable) {
+            reviewProcessModel.populatePendingReviewData(it.result)
+          }
+        }
+      })
+    }
+    pendingReviewLoadingModel = loadingModel
+
+    doLoadPendingReview(loadingModel)
+    reviewDataProvider.addPendingReviewListener(disposable) {
+      reviewProcessModel.clearPendingReviewData()
+      doLoadPendingReview(loadingModel)
     }
   }
 
-  private fun doLoadReviewThreads(threadsModel: SingleValueModel<List<GHPullRequestReviewThread>?>, disposable: Disposable) {
-    isLoadingReviewThreads = true
-    reviewService.loadReviewThreads().handleOnEdt(disposable) { result, error ->
-      if (result != null) {
-        if (showReviewThreads)
-          threadsModel.value = result.filter { it.position != null && reviewThreadsFilter(it.commit.oid, it.path) }
-      }
-      if (error != null) {
-        LOG.info("Failed to load review threads", error)
-      }
-      isLoadingReviewThreads = false
+  private fun doLoadPendingReview(model: GHCompletableFutureLoadingModel<GHPullRequestPendingReview?>) {
+    model.future = reviewDataProvider.loadPendingReview()
+  }
+
+  private fun loadReviewThreads(disposable: Disposable) {
+    val loadingModel = GHCompletableFutureLoadingModel<List<GHPRDiffReviewThreadMapping>>(disposable).apply {
+      addStateChangeListener(object : GHLoadingModel.StateChangeListener {
+        override fun onLoadingCompleted() = updateReviewThreads()
+      })
+    }
+    reviewThreadsLoadingModel = loadingModel
+
+    doLoadReviewThreads(loadingModel)
+    reviewDataProvider.addReviewThreadsListener(disposable) {
+      doLoadReviewThreads(loadingModel)
     }
   }
 
-  companion object {
-    val LOG = logger<GHPRDiffReviewSupportImpl>()
+  private fun doLoadReviewThreads(model: GHCompletableFutureLoadingModel<List<GHPRDiffReviewThreadMapping>>) {
+    model.future = reviewDataProvider.loadReviewThreads().thenApplyAsync(Function {
+      it.mapNotNull(::mapThread)
+    }, ProcessIOExecutorService.INSTANCE)
+  }
+
+  private fun mapThread(thread: GHPullRequestReviewThread): GHPRDiffReviewThreadMapping? {
+    val originalCommitSha = thread.originalCommit?.oid ?: return null
+    if (!diffData.contains(originalCommitSha, thread.path)) return null
+
+    val (side, line) = when (diffData) {
+      is GHPRChangeDiffData.Cumulative -> thread.position?.let { diffData.linesMapper.findFileLocation(it) } ?: return null
+      is GHPRChangeDiffData.Commit -> {
+        val patchReader = PatchReader(GHPatchHunkUtil.createPatchFromHunk(thread.path, thread.diffHunk))
+        patchReader.readTextPatches()
+        val patchHunk = patchReader.textPatches[0].hunks.lastOrNull() ?: return null
+        val position = GHPatchHunkUtil.getHunkLinesCount(patchHunk) - 1
+        val (unmappedSide, unmappedLine) = GHPatchHunkUtil.findSideFileLineFromHunkLineIndex(patchHunk, position) ?: return null
+        diffData.mapPosition(originalCommitSha, unmappedSide, unmappedLine) ?: return null
+      }
+    }
+
+    return GHPRDiffReviewThreadMapping(side, line, thread)
+  }
+
+  private fun updateReviewThreads() {
+    val loadingModel = reviewThreadsLoadingModel ?: return
+    if (loadingModel.loading) return
+    reviewThreadsModel.value = if (showReviewThreads) loadingModel.result?.filter { showResolvedReviewThreads || !it.thread.isResolved } else null
   }
 }

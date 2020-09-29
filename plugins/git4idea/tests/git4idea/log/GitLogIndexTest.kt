@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.log
 
 import com.intellij.openapi.Disposable
@@ -6,6 +6,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vcs.Executor
 import com.intellij.openapi.vcs.Executor.*
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.util.CollectConsumer
 import com.intellij.util.Consumer
 import com.intellij.vcs.log.VcsCommitMetadata
 import com.intellij.vcs.log.data.VcsLogStorage
@@ -32,7 +33,7 @@ class GitLogIndexTest : GitSingleRepoTest() {
     super.setUp()
 
     disposable = Disposable { }
-    Disposer.register(myProject, disposable)
+    Disposer.register(testRootDisposable, disposable)
 
     index = setUpIndex(myProject, repo.root, logProvider, disposable)
   }
@@ -61,7 +62,9 @@ class GitLogIndexTest : GitSingleRepoTest() {
 
     indexAll()
 
-    val expectedMetadata = logProvider.readMetadata(repo.root, listOf(commitHash)).first()
+    val collector = CollectConsumer<VcsCommitMetadata>()
+    logProvider.readMetadata(repo.root, listOf(commitHash), collector)
+    val expectedMetadata = collector.result.first()
     val actualMetadata = IndexedDetails(dataGetter, storage, getCommitIndex(commitHash), 0L)
 
     TestCase.assertEquals(expectedMetadata.presentation(), actualMetadata.presentation())
@@ -86,6 +89,31 @@ class GitLogIndexTest : GitSingleRepoTest() {
     TestCase.assertEquals(expected, actual)
   }
 
+  fun `test text filter with multiple patterns`() {
+    val keyword1 = "keyword1"
+    val keyword2 = "keyword2"
+    val expected = mutableSetOf<Int>()
+
+    val file = "file.txt"
+    touch(file, "content")
+    repo.addCommit("some message without any keywords")
+
+    append(file, "more content")
+    expected.add(getCommitIndex(repo.addCommit("message with $keyword1")))
+
+    append(file, "some more content")
+    expected.add(getCommitIndex(repo.addCommit("message with $keyword2")))
+
+    append(file, "even more content")
+    repo.addCommit("some other message")
+
+    indexAll()
+
+    val actual = dataGetter.filter(listOf(VcsLogFilterObject.fromPatternsList(listOf(keyword1, keyword2))))
+
+    TestCase.assertEquals(expected.sorted(), actual.sorted())
+  }
+
   fun `test author filter`() {
     val file = "file.txt"
     touch(file, "content")
@@ -100,6 +128,36 @@ class GitLogIndexTest : GitSingleRepoTest() {
     indexAll()
 
     val actual = dataGetter.filter(listOf(VcsLogFilterObject.fromUser(author, setOf(author, defaultUser))))
+
+    TestCase.assertEquals(expected, actual)
+  }
+
+  fun `test text and author filter`() {
+    val author = VcsUserImpl("Name", "name@server.com")
+    val keyword = "keyword"
+    val expected = mutableSetOf<Int>()
+
+    val file = "file.txt"
+    touch(file, "content")
+    repo.addCommit("some message")
+
+    setupUsername(project, author.name, author.email)
+
+    append(file, "content 2")
+    expected.add(getCommitIndex(repo.addCommit("some message with $keyword")))
+
+    append(file, "content 3")
+    repo.addCommit("some other message")
+
+    setupDefaultUsername(project)
+
+    append(file, "even more content")
+    repo.addCommit("some other message with $keyword")
+
+    indexAll()
+
+    val actual = dataGetter.filter(listOf(VcsLogFilterObject.fromUser(author, setOf(author, defaultUser)),
+                                          VcsLogFilterObject.fromPattern(keyword)))
 
     TestCase.assertEquals(expected, actual)
   }

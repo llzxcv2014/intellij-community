@@ -1,24 +1,12 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.inferNullity;
 
 import com.intellij.codeInsight.Nullability;
 import com.intellij.codeInsight.NullabilityAnnotationInfo;
 import com.intellij.codeInsight.NullableNotNullManager;
 import com.intellij.codeInsight.intention.AddAnnotationFix;
+import com.intellij.java.JavaBundle;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.psi.*;
@@ -161,7 +149,8 @@ public class NullityInferrer {
 
   public static void nothingFoundMessage(final Project project) {
     SwingUtilities.invokeLater(
-      () -> Messages.showInfoMessage(project, "No places found to infer @Nullable/@NotNull", "Infer Nullity Results"));
+      () -> Messages.showInfoMessage(project, JavaBundle.message("dialog.message.no.places.found.to.infer.nullable.notnull"),
+                                     JavaBundle.message("dialog.title.infer.nullity.results")));
   }
 
   private static void annotateNotNull(Project project,
@@ -226,19 +215,19 @@ public class NullityInferrer {
     numAnnotationsAdded++;
   }
 
-  private static class NullableUsageInfo extends UsageInfo {
+  private static final class NullableUsageInfo extends UsageInfo {
     private NullableUsageInfo(@NotNull PsiElement element) {
       super(element);
     }
   }
 
-  private static class NotNullUsageInfo extends UsageInfo {
+  private static final class NotNullUsageInfo extends UsageInfo {
     private NotNullUsageInfo(@NotNull PsiElement element) {
       super(element);
     }
   }
 
-  public void collect(List<? super UsageInfo> usages) {
+  void collect(List<? super UsageInfo> usages) {
     collect(usages, true);
     collect(usages, false);
   }
@@ -246,10 +235,12 @@ public class NullityInferrer {
   private void collect(List<? super UsageInfo> usages, boolean nullable) {
     final List<SmartPsiElementPointer<? extends PsiModifierListOwner>> set = nullable ? myNullableSet : myNotNullSet;
     for (SmartPsiElementPointer<? extends PsiModifierListOwner> elementPointer : set) {
-      final PsiModifierListOwner element = elementPointer.getElement();
-      if (element != null && !shouldIgnore(element)) {
-        usages.add(nullable ? new NullableUsageInfo(element) : new NotNullUsageInfo(element));
-      }
+      ReadAction.run(() -> {
+        PsiModifierListOwner element = elementPointer.getElement();
+        if (element != null && !shouldIgnore(element)) {
+          usages.add(nullable ? new NullableUsageInfo(element) : new NotNullUsageInfo(element));
+        }
+      });
     }
   }
 
@@ -356,7 +347,7 @@ public class NullityInferrer {
     private boolean sometimesNull;
 
     @Override
-    public void visitElement(PsiElement element) {
+    public void visitElement(@NotNull PsiElement element) {
       if (sometimesNull) return;
       super.visitElement(element);
     }
@@ -513,7 +504,7 @@ public class NullityInferrer {
           public void visitLambdaExpression(PsiLambdaExpression expression) {}
 
           @Override
-          public void visitElement(PsiElement element) {
+          public void visitElement(@NotNull PsiElement element) {
             if (sometimesReturnsNull[0]) return;
             super.visitElement(element);
           }

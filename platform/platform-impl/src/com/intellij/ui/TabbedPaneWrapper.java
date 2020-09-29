@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
 import com.intellij.openapi.Disposable;
@@ -20,6 +6,8 @@ import com.intellij.openapi.actionSystem.DataProvider;
 import com.intellij.openapi.application.ex.ApplicationEx;
 import com.intellij.openapi.application.ex.ApplicationManagerEx;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsContexts.TabTitle;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.openapi.wm.ex.IdeFocusTraversalPolicy;
 import com.intellij.ui.tabs.JBTabs;
@@ -82,10 +70,6 @@ public class TabbedPaneWrapper  {
     assertIsDispatchThread();
   }
 
-  public boolean isDisposed() {
-    return myTabbedPane != null && myTabbedPane.isDisposed();
-  }
-
   private void assertIsDispatchThread() {
     final ApplicationEx application = ApplicationManagerEx.getApplicationEx();
     if (application != null){
@@ -115,15 +99,15 @@ public class TabbedPaneWrapper  {
   /**
    * @see JTabbedPane#addTab(String, Icon, Component, String)
    */
-  public final synchronized void addTab(final String title, final Icon icon, final JComponent component, final String tip) {
+  public final synchronized void addTab(@TabTitle final String title, final Icon icon, final JComponent component, final @NlsContexts.Tooltip String tip) {
     insertTab(title, icon, component, tip, myTabbedPane.getTabCount());
   }
 
-  public final synchronized void addTab(final String title, final JComponent component) {
+  public final synchronized void addTab(@TabTitle final String title, final JComponent component) {
     insertTab(title, null, component, null, myTabbedPane.getTabCount());
   }
 
-  public synchronized void insertTab(final String title, final Icon icon, final JComponent component, final String tip, final int index) {
+  public synchronized void insertTab(@TabTitle final String title, final Icon icon, final JComponent component, final @NlsContexts.Tooltip String tip, final int index) {
     myTabbedPane.insertTab(title, icon, createTabWrapper(component), tip, index);
   }
 
@@ -238,12 +222,12 @@ public class TabbedPaneWrapper  {
     return (TabWrapper)myTabbedPane.getComponentAt(i);
   }
 
-  public final void setTitleAt(final int index, @NotNull String title) {
+  public final void setTitleAt(final int index, @NotNull @TabTitle String title) {
     assertIsDispatchThread();
     myTabbedPane.setTitleAt(index, title);
   }
 
-  public final void setToolTipTextAt(final int index, final String toolTipText) {
+  public final void setToolTipTextAt(final int index, @NlsContexts.Tooltip String toolTipText) {
     assertIsDispatchThread();
     myTabbedPane.setToolTipTextAt(index, toolTipText);
   }
@@ -473,7 +457,7 @@ public class TabbedPaneWrapper  {
     TabWrapper createTabWrapper(@NotNull JComponent component);
   }
 
-  private static class JTabbedPaneFactory implements TabFactory {
+  private static final class JTabbedPaneFactory implements TabFactory {
     private final TabbedPaneWrapper myWrapper;
 
     private JTabbedPaneFactory(TabbedPaneWrapper wrapper) {
@@ -499,7 +483,7 @@ public class TabbedPaneWrapper  {
     }
   }
 
-  private static class JBTabsFactory implements TabFactory {
+  private static final class JBTabsFactory implements TabFactory {
 
     private final Project myProject;
     private final Disposable myParent;

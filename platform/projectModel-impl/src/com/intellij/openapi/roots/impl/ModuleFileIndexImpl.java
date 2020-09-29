@@ -7,12 +7,17 @@ import com.intellij.openapi.roots.*;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileFilter;
 import com.intellij.util.IncorrectOperationException;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.model.module.JpsModuleSourceRootType;
 
 import java.util.*;
 
+/**
+ * This is an internal class, {@link ModuleFileIndex} must be used instead.
+ */
+@ApiStatus.Internal
 public class ModuleFileIndexImpl extends FileIndexBase implements ModuleFileIndex {
   @NotNull
   private final Module myModule;
@@ -40,7 +45,10 @@ public class ModuleFileIndexImpl extends FileIndexBase implements ModuleFileInde
     return ReadAction.compute(() -> {
       if (myModule.isDisposed()) return Collections.emptySet();
       Set<VirtualFile> result = new LinkedHashSet<>();
-      VirtualFile[][] allRoots = getModuleContentAndSourceRoots(myModule);
+      List<VirtualFile[]> allRoots = Arrays.asList(
+        ModuleRootManager.getInstance(myModule).getContentRoots(),
+        ModuleRootManager.getInstance(myModule).getSourceRoots()
+      );
       for (VirtualFile[] roots : allRoots) {
         for (VirtualFile root : roots) {
           DirectoryInfo info = getInfoForFileOrDirectory(root);
@@ -142,15 +150,13 @@ public class ModuleFileIndexImpl extends FileIndexBase implements ModuleFileInde
       myOwnerModule = ownerModule;
     }
 
-    @NotNull
     @Override
-    public VirtualFile[] getFiles(@NotNull OrderRootType type) {
+    public VirtualFile @NotNull [] getFiles(@NotNull OrderRootType type) {
       throw new IncorrectOperationException();
     }
 
-    @NotNull
     @Override
-    public String[] getUrls(@NotNull OrderRootType rootType) {
+    public String @NotNull [] getUrls(@NotNull OrderRootType rootType) {
       throw new IncorrectOperationException();
     }
 

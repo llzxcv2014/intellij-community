@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.application.options.colors.fileStatus;
 
 import com.intellij.application.options.colors.ColorAndFontOptions;
@@ -29,7 +15,6 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
@@ -39,31 +24,26 @@ public class FileStatusColorsTableModel extends AbstractTableModel {
   private final List<FileStatusColorDescriptor> myDescriptors;
 
   private final static ColumnInfo[] COLUMNS_INFO = {
-    new ColumnInfo(
-      Boolean.class, "", descriptor -> descriptor.isDefault()
-    ),
-    new ColumnInfo(
-      String.class, ApplicationBundle.message("file.status.colors.header.status"), descriptor -> descriptor.getStatus().getText())
+    new ColumnInfo(Boolean.class, descriptor -> descriptor.isDefault()),
+    new ColumnInfo(String.class, descriptor -> descriptor.getStatus().getText())
   };
 
   private static class ColumnInfo {
-    public Class columnClass;
-    public String columnName;
-    public Function<FileStatusColorDescriptor,Object> dataFunction;
+    Class<?> columnClass;
+    Function<FileStatusColorDescriptor,Object> dataFunction;
 
-    ColumnInfo(Class columnClass, String columnName, Function<FileStatusColorDescriptor,Object> dataFunction) {
+    ColumnInfo(Class<?> columnClass, Function<FileStatusColorDescriptor, Object> dataFunction) {
       this.columnClass = columnClass;
-      this.columnName = columnName;
       this.dataFunction = dataFunction;
     }
   }
 
-  public FileStatusColorsTableModel(@NotNull FileStatus[] fileStatuses, @NotNull EditorColorsScheme scheme) {
+  public FileStatusColorsTableModel(FileStatus @NotNull [] fileStatuses, @NotNull EditorColorsScheme scheme) {
     myScheme = scheme;
     myDescriptors = createDescriptors(fileStatuses, myScheme);
   }
 
-  private static List<FileStatusColorDescriptor> createDescriptors(@NotNull FileStatus[] fileStatuses, @NotNull EditorColorsScheme scheme) {
+  private static List<FileStatusColorDescriptor> createDescriptors(FileStatus @NotNull [] fileStatuses, @NotNull EditorColorsScheme scheme) {
     EditorColorsScheme baseScheme = scheme instanceof AbstractColorsScheme ? ((AbstractColorsScheme)scheme).getParentScheme() : null;
     List<FileStatusColorDescriptor> descriptors = new ArrayList<>();
     for (FileStatus fileStatus : fileStatuses) {
@@ -71,7 +51,7 @@ public class FileStatusColorsTableModel extends AbstractTableModel {
       Color originalColor = baseScheme != null ? baseScheme.getColor(fileStatus.getColorKey()) : null;
       descriptors.add(new FileStatusColorDescriptor(fileStatus, color, originalColor));
     }
-    Collections.sort(descriptors, Comparator.comparing(d -> d.getStatus().getText()));
+    descriptors.sort(Comparator.comparing(d -> d.getStatus().getText()));
     return descriptors;
   }
 
@@ -87,7 +67,7 @@ public class FileStatusColorsTableModel extends AbstractTableModel {
 
   @Override
   public String getColumnName(int columnIndex) {
-    return COLUMNS_INFO[columnIndex].columnName;
+    return columnIndex == 0 ? "" : ApplicationBundle.message("file.status.colors.header.status");
   }
 
   @Override
@@ -112,8 +92,7 @@ public class FileStatusColorsTableModel extends AbstractTableModel {
     fireTableCellUpdated(rowIndex, 1);
   }
 
-  @Nullable
-  FileStatusColorDescriptor getDescriptorByName(String statusName) {
+  @Nullable FileStatusColorDescriptor getDescriptorByName(String statusName) {
     for (FileStatusColorDescriptor descriptor : myDescriptors) {
       if (statusName.equals(descriptor.getStatus().getText())) {
         return descriptor;
@@ -151,8 +130,7 @@ public class FileStatusColorsTableModel extends AbstractTableModel {
     }
   }
 
-  @Nullable
-  public FileStatusColorDescriptor getDescriptorAt(int index) {
+  public @Nullable FileStatusColorDescriptor getDescriptorAt(int index) {
     if (index >= 0 && index < myDescriptors.size()) {
       return myDescriptors.get(index);
     }

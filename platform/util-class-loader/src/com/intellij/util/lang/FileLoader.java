@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.lang;
 
 import com.intellij.openapi.util.io.DataInputOutputUtilRt;
@@ -13,7 +13,7 @@ import java.net.URL;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-class FileLoader extends Loader {
+final class FileLoader extends Loader {
   private final File myRootDir;
   private final String myRootDirAbsolutePath;
   private final ClassPath myConfiguration;
@@ -39,7 +39,7 @@ class FileLoader extends Loader {
     }
 
     boolean containsClasses = false;
-    
+
     for (File file : files) {
       final boolean isClass = file.getPath().endsWith(UrlClassLoader.CLASS_EXTENSION);
       if (isClass) {
@@ -72,20 +72,19 @@ class FileLoader extends Loader {
   private static class DirEntry {
     static final int[] empty = new int[0];
     volatile int[] childrenNameHashes;
-    
+
     volatile DirEntry[] childrenDirectories;
     final int nameHash;
-    @NotNull
-    final String name;
-    
+    @NotNull final String name;
+
     DirEntry(int nameHash, @NotNull String name) {
       this.nameHash = nameHash;
       this.name = name;
     }
   }
-  
+
   private final DirEntry root = new DirEntry(0, "");
-  
+
   @Override
   @Nullable
   Resource getResource(@NotNull final String name) {
@@ -97,8 +96,10 @@ class FileLoader extends Loader {
 
         while (true) {
           int nameEnd = nextIndex == -1 ? name.length() : nextIndex; // prevIndex, nameEnd is package or class name
-          int nameHash = stringHashCodeInsensitive(name, prevIndex, nameEnd);
-          if (!nameHashIsPresentInChildren(lastEntry, name, prevIndex, nameHash)) return null;
+          int nameHash = StringUtilRt.stringHashCodeInsensitive(name, prevIndex, nameEnd);
+          if (!nameHashIsPresentInChildren(lastEntry, name, prevIndex, nameHash)) {
+            return null;
+          }
           if (nextIndex == -1 || nextIndex == name.length() - 1) {
             break;
           }
@@ -150,7 +151,7 @@ class FileLoader extends Loader {
         newChildrenDirectories[directories.length] = nextEntry;
       }
       else {
-        newChildrenDirectories = new DirEntry[] {nextEntry};
+        newChildrenDirectories = new DirEntry[]{nextEntry};
       }
       lastEntry.childrenDirectories = newChildrenDirectories; // volatile write with new copy of data
     }
@@ -168,7 +169,7 @@ class FileLoader extends Loader {
       if (list != null) {
         childrenNameHashes = new int[list.length];
         for (int i = 0; i < list.length; ++i) {
-          childrenNameHashes[i] = stringHashCodeInsensitive(list[i], 0, list[i].length());
+          childrenNameHashes[i] = StringUtilRt.stringHashCodeInsensitive(list[i], 0, list[i].length());
         }
       }
       else {
@@ -330,7 +331,8 @@ class FileLoader extends Loader {
         System.out.println("Scanned: " + myRootDirAbsolutePath + " for " + (doneNanos / nsMsFactor) + "ms");
       }
       trySaveToIndex(loaderData);
-    } else {
+    }
+    else {
       currentScanningTime = totalScanning.get();
     }
 
@@ -342,7 +344,7 @@ class FileLoader extends Loader {
     return loaderData;
   }
 
-  private static class MyResource extends Resource {
+  private static final class MyResource extends Resource {
     private final URL myUrl;
     private final File myFile;
 
@@ -381,15 +383,7 @@ class FileLoader extends Loader {
     return "FileLoader [" + myRootDir + "]";
   }
 
-  private static int stringHashCodeInsensitive(@NotNull String s, int from, int to) {
-    int h = 0;
-    for (int off = from; off < to; off++) {
-      h = 31 * h + StringUtilRt.toLowerCase(s.charAt(off));
-    }
-    return h;
-  }
-
-  private static class UnsyncDataOutputStream extends java.io.DataOutputStream {
+  private static final class UnsyncDataOutputStream extends DataOutputStream {
     UnsyncDataOutputStream(@NotNull OutputStream out) {
       super(out);
     }

@@ -2,6 +2,7 @@
 package com.jetbrains.python.validation;
 
 import com.intellij.lang.ASTNode;
+import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
 import com.jetbrains.python.PyElementTypes;
@@ -23,7 +24,7 @@ public class StringLiteralQuotesAnnotator extends PyAnnotator {
   private static final String TRIPLE_APOS = "'''";
 
   @Override
-  public void visitPyStringLiteralExpression(final PyStringLiteralExpression node) {
+  public void visitPyStringLiteralExpression(final @NotNull PyStringLiteralExpression node) {
     final List<ASTNode> stringNodes = node.getStringNodes();
     for (ASTNode stringNode : stringNodes) {
       // TODO Migrate to newer PyStringElement API
@@ -62,7 +63,7 @@ public class StringLiteralQuotesAnnotator extends PyAnnotator {
       }
     }
     if (nodeText.length() == 1 || lastChar != firstQuote || precedingBackslashCount % 2 != 0) {
-      getHolder().createErrorAnnotation(stringNode, PyPsiBundle.message("ANN.missing.closing.quote", firstQuote));
+      getHolder().newAnnotation(HighlightSeverity.ERROR, PyPsiBundle.message("ANN.missing.closing.quote", firstQuote)).range(stringNode).create();
       return true;
     }
     return false;
@@ -78,7 +79,7 @@ public class StringLiteralQuotesAnnotator extends PyAnnotator {
         startOffset = stringNode.getTextRange().getStartOffset() + startOffset + 1;
       }
       final TextRange highlightRange = new TextRange(startOffset, stringNode.getTextRange().getEndOffset());
-      getHolder().createErrorAnnotation(highlightRange, PyPsiBundle.message("ANN.missing.closing.triple.quotes"));
+      getHolder().newAnnotation(HighlightSeverity.ERROR, PyPsiBundle.message("ANN.missing.closing.triple.quotes")).range(highlightRange).create();
       return true;
     }
     return false;

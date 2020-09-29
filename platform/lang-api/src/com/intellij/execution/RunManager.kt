@@ -1,11 +1,11 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution
 
 import com.intellij.execution.configurations.*
-import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.text.nullize
 import org.jetbrains.annotations.ApiStatus
@@ -24,7 +24,7 @@ abstract class RunManager {
         // https://gist.github.com/develar/5bcf39b3f0ec08f507ec112d73375f2b
         LOG.debug("Must be not called before project components initialized")
       }
-      return ServiceManager.getService(project, RunManager::class.java)
+      return project.getService(RunManager::class.java)
     }
 
     @JvmStatic
@@ -46,6 +46,8 @@ abstract class RunManager {
       val matcher = UNIQUE_NAME_PATTERN.matcher(uniqueName)
       return if (matcher.matches()) matcher.group(1) else uniqueName
     }
+
+    const val CONFIGURATION_TYPE_FEATURE_ID: String = "com.intellij.configurationType"
   }
 
   /**
@@ -124,7 +126,7 @@ abstract class RunManager {
    * @param factory the factory instance.
    * @see RunManager.suggestUniqueName
    */
-  abstract fun createConfiguration(name: String, factory: ConfigurationFactory): RunnerAndConfigurationSettings
+  abstract fun createConfiguration(@NlsSafe name: String, factory: ConfigurationFactory): RunnerAndConfigurationSettings
 
   fun createConfiguration(name: String, typeClass: Class<out ConfigurationType>): RunnerAndConfigurationSettings {
     return createConfiguration(name, ConfigurationTypeUtil.findConfigurationType(typeClass).configurationFactories.first())
@@ -153,13 +155,24 @@ abstract class RunManager {
   abstract fun addConfiguration(settings: RunnerAndConfigurationSettings)
 
   /**
-   * Adds the specified run configuration to the list of run configurations stored in the project.
-   * @param settings the run configuration settings.
-   * @param isShared true if the configuration is marked as shared (stored in the versioned part of the project files), false if it's local
-   * *                 (stored in the workspace file).
+   * This method is deprecated because there are different ways of storing run configuration in a file.
+   * Clients should use [addConfiguration(RunnerAndConfigurationSettings)] and before that, if needed,
+   * [RunnerAndConfigurationSettings#storeInDotIdeaFolder()], [RunnerAndConfigurationSettings#storeInArbitraryFileInProject(String)]
+   * or [RunnerAndConfigurationSettings#storeInLocalWorkspace()].
+   * @see RunnerAndConfigurationSettings.storeInDotIdeaFolder
+   * @see RunnerAndConfigurationSettings.storeInArbitraryFileInProject
+   * @see RunnerAndConfigurationSettings.storeInLocalWorkspace
    */
-  fun addConfiguration(settings: RunnerAndConfigurationSettings, isShared: Boolean) {
-    settings.isShared = isShared
+  @Deprecated("There are different ways of storing run configuration in a file. " +
+              "Clients should use RunManager.addConfiguration(RunnerAndConfigurationSettings) and before that, if needed, " +
+              "RunnerAndConfigurationSettings.storeInDotIdeaFolder(), storeInArbitraryFileInProject(String) or storeInLocalWorkspace().")
+  fun addConfiguration(settings: RunnerAndConfigurationSettings, storeInDotIdeaFolder: Boolean) {
+    if (storeInDotIdeaFolder) {
+      settings.storeInDotIdeaFolder()
+    }
+    else {
+      settings.storeInLocalWorkspace()
+    }
     addConfiguration(settings)
   }
 
@@ -222,7 +235,7 @@ abstract class RunManager {
 
   // due to historical reasons findSettings() searches by name in addition to instance and this behavior is bad for isTemplate,
   // so, client cannot for now use `findSettings()?.isTemplate() ?: false`.
-  @ApiStatus.Experimental
+  @ApiStatus.Internal
   abstract fun isTemplate(configuration: RunConfiguration): Boolean
 }
 

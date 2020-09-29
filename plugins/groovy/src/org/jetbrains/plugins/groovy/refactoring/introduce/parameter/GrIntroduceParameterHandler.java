@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.refactoring.introduce.parameter;
 
 import com.intellij.ide.util.SuperMethodWarningUtil;
@@ -45,7 +45,6 @@ import java.util.Map;
  * @author Maxim.Medvedev
  */
 public class GrIntroduceParameterHandler implements RefactoringActionHandler, MethodOrClosureScopeChooser.JBPopupOwner {
-  static final String REFACTORING_NAME = RefactoringBundle.message("introduce.parameter.title");
   private JBPopup myEnclosingMethodsPopup;
 
   @Override
@@ -99,7 +98,7 @@ public class GrIntroduceParameterHandler implements RefactoringActionHandler, Me
       final GrParameterListOwner owner = scopes.get(0);
       final PsiElement toSearchFor;
       if (owner instanceof GrMethod) {
-        toSearchFor = SuperMethodWarningUtil.checkSuperMethod((PsiMethod)owner, RefactoringBundle.message("to.refactor"));
+        toSearchFor = SuperMethodWarningUtil.checkSuperMethod((PsiMethod)owner);
         if (toSearchFor == null) return; //if it is null, refactoring was canceled
       }
       else {
@@ -171,7 +170,7 @@ public class GrIntroduceParameterHandler implements RefactoringActionHandler, Me
   }
 
   @Override
-  public void invoke(@NotNull Project project, @NotNull PsiElement[] elements, DataContext dataContext) {
+  public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext dataContext) {
     // Does nothing
   }
 

@@ -1,18 +1,28 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch;
 
-import com.intellij.openapi.util.registry.Registry;
+import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.util.SmartList;
 import org.jdom.Attribute;
 import org.jdom.DataConversionException;
 import org.jdom.Element;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
+
 /**
  * @author Maxim.Mossienko
  */
 public class MatchVariableConstraint extends NamedScriptableDefinition {
+  private static final Pattern VALID_CONSTRAINT_NAME = Pattern.compile("[a-z][A-Za-z\\d]*");
+
+  private Map<String, String> additionalConstraints;
+
   @NotNull
   private String regExp = "";
   private boolean invertRegExp;
@@ -47,11 +57,11 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
   private boolean invertContainsConstraint;
   private boolean invertWithinConstraint;
 
+  @NotNull private String contextConstraint = "";
+
   @NonNls private static final String REFERENCE_CONDITION = "reference";
   @NonNls private static final String NAME_OF_EXPRTYPE = "nameOfExprType";
-  @NonNls private static final String EXPRESSION_TYPES = "expressionTypes";
   @NonNls private static final String NAME_OF_FORMALTYPE = "nameOfFormalType";
-  @NonNls private static final String EXPECTED_TYPES = "exceptedTypes";
   @NonNls private static final String REGEXP = "regexp";
   @NonNls private static final String EXPRTYPE_WITHIN_HIERARCHY = "exprTypeWithinHierarchy";
   @NonNls private static final String FORMALTYPE_WITHIN_HIERARCHY = "formalTypeWithinHierarchy";
@@ -69,17 +79,18 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
   @NonNls private static final String WITHIN_CONDITION = "within";
   @NonNls private static final String CONTAINS_CONDITION = "contains";
   @NonNls private static final String TARGET = "target";
+  @NonNls private static final String CONTEXT = "context";
 
   @NonNls private static final String WHOLE_WORDS_ONLY = "wholeWordsOnly";
   @NonNls private static final String TRUE = Boolean.TRUE.toString();
 
   public MatchVariableConstraint() {}
 
-  public MatchVariableConstraint(String name) {
+  public MatchVariableConstraint(@NotNull String name) {
     setName(name);
   }
 
-  MatchVariableConstraint(MatchVariableConstraint constraint) {
+  private MatchVariableConstraint(@NotNull MatchVariableConstraint constraint) {
     super(constraint);
     regExp = constraint.regExp;
     invertRegExp = constraint.invertRegExp;
@@ -104,6 +115,13 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
     containsConstraint = constraint.containsConstraint;
     invertContainsConstraint = constraint.invertContainsConstraint;
     invertWithinConstraint = constraint.invertWithinConstraint;
+    contextConstraint = constraint.contextConstraint;
+    final Map<String, String> additionalConstraints = constraint.additionalConstraints;
+    if (additionalConstraints != null) {
+      for (Map.Entry<String, String> entry : additionalConstraints.entrySet()) {
+        putAdditionalConstraint(entry.getKey(), entry.getValue());
+      }
+    }
   }
 
   @Override
@@ -248,18 +266,26 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
 
   @NotNull
   public String getNameOfExprType() {
-    return Registry.is("ssr.use.regexp.to.specify.type") ? nameOfExprType : expressionTypes;
+    return nameOfExprType;
+  }
+
+  @NotNull
+  public String getExpressionTypes() {
+    return expressionTypes;
   }
 
   public void setNameOfExprType(@NotNull String nameOfExprType) {
-    if (Registry.is("ssr.use.regexp.to.specify.type")) {
-      this.nameOfExprType = nameOfExprType;
-      this.expressionTypes = convertRegExpTypeToTypeString(nameOfExprType);
-    }
-    else {
-      this.nameOfExprType = convertTypeStringToRegExp(nameOfExprType);
-      this.expressionTypes = nameOfExprType;
-    }
+    this.nameOfExprType = nameOfExprType;
+    this.expressionTypes = convertRegExpTypeToTypeString(nameOfExprType);
+  }
+
+  public void setExpressionTypes(@NotNull String expressionTypes) {
+    this.expressionTypes = expressionTypes;
+    this.nameOfExprType = convertTypeStringToRegExp(expressionTypes);
+  }
+
+  public boolean isRegexExprType() {
+    return StringUtil.isEmpty(expressionTypes) && !StringUtil.isEmpty(nameOfExprType);
   }
 
   public boolean isInvertExprType() {
@@ -288,18 +314,26 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
 
   @NotNull
   public String getNameOfFormalArgType() {
-    return Registry.is("ssr.use.regexp.to.specify.type") ? nameOfFormalArgType : expectedTypes;
+    return nameOfFormalArgType;
+  }
+
+  @NotNull
+  public String getExpectedTypes() {
+    return expectedTypes;
   }
 
   public void setNameOfFormalArgType(@NotNull String nameOfFormalArgType) {
-    if (Registry.is("ssr.use.regexp.to.specify.type")) {
-      this.nameOfFormalArgType = nameOfFormalArgType;
-      this.expectedTypes = convertRegExpTypeToTypeString(nameOfFormalArgType);
-    }
-    else {
-      this.nameOfFormalArgType = convertTypeStringToRegExp(nameOfFormalArgType);
-      this.expectedTypes = nameOfFormalArgType;
-    }
+    this.nameOfFormalArgType = nameOfFormalArgType;
+    this.expectedTypes = convertRegExpTypeToTypeString(nameOfFormalArgType);
+  }
+
+  public void setExpectedTypes(@NotNull String expectedTypes) {
+    this.expectedTypes = expectedTypes;
+    this.nameOfFormalArgType = convertTypeStringToRegExp(expectedTypes);
+  }
+
+  public boolean isRegexFormalType() {
+    return StringUtil.isEmpty(expectedTypes) && !StringUtil.isEmpty(nameOfFormalArgType);
   }
 
   public boolean isInvertFormalType() {
@@ -318,37 +352,88 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
     this.formalArgTypeWithinHierarchy = formalArgTypeWithinHierarchy;
   }
 
+  @NotNull
+  public String getContextConstraint() {
+    return contextConstraint;
+  }
+
+  public void setContextConstraint(@NotNull String contextConstraint) {
+    this.contextConstraint = contextConstraint;
+  }
+
+  private static boolean isValidConstraintName(String name) {
+    return VALID_CONSTRAINT_NAME.matcher(name).matches();
+  }
+
+  public void putAdditionalConstraint(String name, String value) {
+    if (!isValidConstraintName(name)) {
+      throw new IllegalArgumentException("Invalid constraint name");
+    }
+    if (additionalConstraints == null) {
+      if (value == null) {
+        return;
+      }
+      additionalConstraints = new HashMap<>();
+    }
+    if (value == null) {
+      additionalConstraints.remove(name);
+      if (additionalConstraints.isEmpty()) {
+        additionalConstraints = null;
+      }
+    }
+    else {
+      additionalConstraints.put(name, value);
+    }
+  }
+
+  public String getAdditionalConstraint(String name) {
+    return (additionalConstraints == null) ? null : additionalConstraints.get(name);
+  }
+
+  /**
+   * @return an unmodifiable map of all additional constraints.
+   */
+  public Map<String, String> getAllAdditionalConstraints() {
+    return (additionalConstraints == null) ? Collections.emptyMap() : Collections.unmodifiableMap(additionalConstraints);
+  }
+
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof MatchVariableConstraint)) return false;
-    if (!(super.equals(o))) return false;
+    if (!super.equals(o)) return false;
 
-    final MatchVariableConstraint matchVariableConstraint = (MatchVariableConstraint)o;
+    final MatchVariableConstraint other = (MatchVariableConstraint)o;
 
-    if (exprTypeWithinHierarchy != matchVariableConstraint.exprTypeWithinHierarchy) return false;
-    if (formalArgTypeWithinHierarchy != matchVariableConstraint.formalArgTypeWithinHierarchy) return false;
-    if (greedy != matchVariableConstraint.greedy) return false;
-    if (invertExprType != matchVariableConstraint.invertExprType) return false;
-    if (invertFormalType != matchVariableConstraint.invertFormalType) return false;
-    if (invertReference != matchVariableConstraint.invertReference) return false;
-    if (invertRegExp != matchVariableConstraint.invertRegExp) return false;
-    if (maxCount != matchVariableConstraint.maxCount) return false;
-    if (minCount != matchVariableConstraint.minCount) return false;
-    if (partOfSearchResults != matchVariableConstraint.partOfSearchResults) return false;
-    if (strictlyWithinHierarchy != matchVariableConstraint.strictlyWithinHierarchy) return false;
-    if (wholeWordsOnly != matchVariableConstraint.wholeWordsOnly) return false;
-    if (withinHierarchy != matchVariableConstraint.withinHierarchy) return false;
-    if (!nameOfExprType.equals(matchVariableConstraint.nameOfExprType)) return false;
-    if (!expressionTypes.equals(matchVariableConstraint.expressionTypes)) return false;
-    if (!nameOfFormalArgType.equals(matchVariableConstraint.nameOfFormalArgType)) return false;
-    if (!expectedTypes.equals(matchVariableConstraint.expectedTypes)) return false;
-    if (!referenceConstraint.equals(matchVariableConstraint.referenceConstraint)) return false;
-    if (!regExp.equals(matchVariableConstraint.regExp)) return false;
-    if (!withinConstraint.equals(matchVariableConstraint.withinConstraint)) return false;
-    if (!containsConstraint.equals(matchVariableConstraint.containsConstraint)) return false;
-    if (invertWithinConstraint != matchVariableConstraint.invertWithinConstraint) return false;
-    if (invertContainsConstraint != matchVariableConstraint.invertContainsConstraint) return false;
-
+    if (exprTypeWithinHierarchy != other.exprTypeWithinHierarchy) return false;
+    if (formalArgTypeWithinHierarchy != other.formalArgTypeWithinHierarchy) return false;
+    if (greedy != other.greedy) return false;
+    if (invertExprType != other.invertExprType) return false;
+    if (invertFormalType != other.invertFormalType) return false;
+    if (invertReference != other.invertReference) return false;
+    if (invertRegExp != other.invertRegExp) return false;
+    if (maxCount != other.maxCount) return false;
+    if (minCount != other.minCount) return false;
+    if (partOfSearchResults != other.partOfSearchResults) return false;
+    if (strictlyWithinHierarchy != other.strictlyWithinHierarchy) return false;
+    if (wholeWordsOnly != other.wholeWordsOnly) return false;
+    if (withinHierarchy != other.withinHierarchy) return false;
+    if (!nameOfExprType.equals(other.nameOfExprType)) return false;
+    if (!expressionTypes.equals(other.expressionTypes)) return false;
+    if (!nameOfFormalArgType.equals(other.nameOfFormalArgType)) return false;
+    if (!expectedTypes.equals(other.expectedTypes)) return false;
+    if (!referenceConstraint.equals(other.referenceConstraint)) return false;
+    if (!regExp.equals(other.regExp)) return false;
+    if (!withinConstraint.equals(other.withinConstraint)) return false;
+    if (!containsConstraint.equals(other.containsConstraint)) return false;
+    if (invertWithinConstraint != other.invertWithinConstraint) return false;
+    if (invertContainsConstraint != other.invertContainsConstraint) return false;
+    if (!contextConstraint.equals(other.contextConstraint)) return false;
+    if (additionalConstraints != null) {
+       if (!additionalConstraints.equals(other.additionalConstraints)) return false;
+    }
+    else {
+      return other.additionalConstraints == null;
+    }
     return true;
   }
 
@@ -375,9 +460,11 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
     result = 29 * result + (formalArgTypeWithinHierarchy ? 1 : 0);
     result = 29 * result + withinConstraint.hashCode();
     result = 29 * result + containsConstraint.hashCode();
-    
+    result = 29 * result + contextConstraint.hashCode();
+
     if (invertContainsConstraint) result = 29 * result + 1;
     if (invertWithinConstraint) result = 29 * result + 1;
+    if (additionalConstraints != null) result = 29 * result + additionalConstraints.hashCode();
     return result;
   }
 
@@ -390,21 +477,14 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
     invertRegExp = getBooleanValue(element, NEGATE_NAME_CONDITION, false);
     wholeWordsOnly = getBooleanValue(element, WHOLE_WORDS_ONLY, false);
 
-    expressionTypes = StringUtil.notNullize(element.getAttributeValue(EXPRESSION_TYPES));
-
     nameOfExprType = StringUtil.notNullize(element.getAttributeValue(NAME_OF_EXPRTYPE));
-    if (expressionTypes.isEmpty() && !nameOfExprType.isEmpty()) {
-      expressionTypes = convertRegExpTypeToTypeString(nameOfExprType);
-    }
+    expressionTypes = convertRegExpTypeToTypeString(nameOfExprType);
 
     exprTypeWithinHierarchy = getBooleanValue(element, EXPRTYPE_WITHIN_HIERARCHY, false);
     invertExprType = getBooleanValue(element, NEGATE_EXPRTYPE_CONDITION, false);
-    expectedTypes = StringUtil.notNullize(element.getAttributeValue(EXPECTED_TYPES));
 
     nameOfFormalArgType = StringUtil.notNullize(element.getAttributeValue(NAME_OF_FORMALTYPE));
-    if (expectedTypes.isEmpty() && !nameOfFormalArgType.isEmpty()) {
-      expectedTypes = convertRegExpTypeToTypeString(nameOfFormalArgType);
-    }
+    expectedTypes = convertRegExpTypeToTypeString(nameOfFormalArgType);
 
     formalArgTypeWithinHierarchy = getBooleanValue(element, FORMALTYPE_WITHIN_HIERARCHY, false);
     invertFormalType = getBooleanValue(element, NEGATE_FORMALTYPE_CONDITION, false);
@@ -422,6 +502,23 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
     invertWithinConstraint = getBooleanValue(element, NEGATE_WITHIN_CONDITION, false);
 
     partOfSearchResults = getBooleanValue(element, TARGET, false);
+
+    contextConstraint = StringUtil.notNullize(element.getAttributeValue(CONTEXT));
+
+    for (Attribute attribute : element.getAttributes()) {
+      final String mangledName = attribute.getName();
+      if (!StringUtil.startsWith(mangledName, "_")) {
+        continue;
+      }
+      final String name = mangledName.substring(1);
+      if (!isValidConstraintName(name)) {
+        throw new InvalidDataException();
+      }
+      if (additionalConstraints == null) {
+        additionalConstraints = new HashMap<>();
+      }
+      additionalConstraints.put(name, attribute.getValue());
+    }
   }
 
   public static boolean getBooleanValue(Element element, String attributeName, boolean defaultValue) {
@@ -453,14 +550,8 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
 
     if (!regExp.isEmpty()) element.setAttribute(REGEXP, regExp);
     if (!nameOfExprType.isEmpty()) element.setAttribute(NAME_OF_EXPRTYPE, nameOfExprType);
-    if (!Registry.is("ssr.use.regexp.to.specify.type") && !expressionTypes.isEmpty() && !expressionTypes.equals(nameOfExprType)) {
-      element.setAttribute(EXPRESSION_TYPES, expressionTypes);
-    }
     if (!referenceConstraint.isEmpty()) element.setAttribute(REFERENCE_CONDITION, referenceConstraint);
     if (!nameOfFormalArgType.isEmpty()) element.setAttribute(NAME_OF_FORMALTYPE, nameOfFormalArgType);
-    if (!Registry.is("ssr.use.regexp.to.specify.type") && !expectedTypes.isEmpty() && !expectedTypes.equals(nameOfFormalArgType)) {
-      element.setAttribute(EXPECTED_TYPES, expectedTypes);
-    }
 
     if (withinHierarchy) element.setAttribute(WITHIN_HIERARCHY, TRUE);
     if (exprTypeWithinHierarchy) element.setAttribute(EXPRTYPE_WITHIN_HIERARCHY, TRUE);
@@ -480,6 +571,19 @@ public class MatchVariableConstraint extends NamedScriptableDefinition {
     if (invertWithinConstraint) element.setAttribute(NEGATE_WITHIN_CONDITION, TRUE);
     element.setAttribute(WITHIN_CONDITION, withinConstraint);
     element.setAttribute(CONTAINS_CONDITION, containsConstraint);
+
+    if (!contextConstraint.isEmpty()) element.setAttribute(CONTEXT, contextConstraint);
+
+    if (additionalConstraints != null && !additionalConstraints.isEmpty()) {
+      final SmartList<String> list = new SmartList<>(additionalConstraints.keySet());
+      Collections.sort(list);
+      for (String key : list) {
+        final String value = additionalConstraints.get(key);
+        if (value != null) {
+          element.setAttribute('_' + key, value);
+        }
+      }
+    }
   }
 
   @NotNull

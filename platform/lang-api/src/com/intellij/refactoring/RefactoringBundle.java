@@ -1,92 +1,76 @@
-/*
- * Copyright 2000-2013 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring;
 
-import com.intellij.CommonBundle;
-import org.jetbrains.annotations.NonNls;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.PropertyKey;
+import com.intellij.DynamicBundle;
+import com.intellij.ide.IdeDeprecatedMessagesBundle;
+import com.intellij.openapi.util.NlsContexts;
+import org.jetbrains.annotations.*;
 
-import java.lang.ref.Reference;
-import java.lang.ref.SoftReference;
-import java.util.ResourceBundle;
+import java.util.function.Supplier;
 
-/**
- * @author ven
- */
-public class RefactoringBundle {
-
-  public static String message(@NotNull @PropertyKey(resourceBundle = BUNDLE) String key, @NotNull Object... params) {
-    return CommonBundle.message(getBundle(), key, params);
-  }
-
-  private static Reference<ResourceBundle> ourBundle;
+public final class RefactoringBundle extends DynamicBundle {
   @NonNls private static final String BUNDLE = "messages.RefactoringBundle";
+  private static final RefactoringBundle INSTANCE = new RefactoringBundle();
 
-  private RefactoringBundle() {
+  private RefactoringBundle() { super(BUNDLE); }
+
+  @NotNull
+  public static @Nls String message(@NotNull @PropertyKey(resourceBundle = BUNDLE) String key, Object @NotNull ... params) {
+    if (INSTANCE.containsKey(key)) {
+      return INSTANCE.getMessage(key, params);
+    }
+    return IdeDeprecatedMessagesBundle.message(key, params);
   }
 
-  public static String getSearchInCommentsAndStringsText() {
+  @NotNull
+  public static Supplier<@Nls String> messagePointer(@NotNull @PropertyKey(resourceBundle = BUNDLE) String key, Object @NotNull ... params) {
+    if (INSTANCE.containsKey(key)) {
+      return INSTANCE.getLazyMessage(key, params);
+    }
+    return IdeDeprecatedMessagesBundle.messagePointer(key, params);
+  }
+
+  @NotNull
+  public static @Nls String message(@NotNull @PropertyKey(resourceBundle = BUNDLE) String key) {
+    if (INSTANCE.containsKey(key)) {
+      return INSTANCE.getMessage(key);
+    }
+    return IdeDeprecatedMessagesBundle.message(key);
+  }
+
+  public static @NlsContexts.Label String getSearchInCommentsAndStringsText() {
     return message("search.in.comments.and.strings");
   }
 
-  public static String getSearchForTextOccurrencesText() {
+  public static @NlsContexts.Label String getSearchForTextOccurrencesText() {
     return message("search.for.text.occurrences");
   }
 
-  public static String getVisibilityPackageLocal() {
+  public static @Nls String getVisibilityPackageLocal() {
     return message("visibility.package.local");
   }
 
-  public static String getVisibilityPrivate() {
+  public static @Nls String getVisibilityPrivate() {
     return message("visibility.private");
   }
 
-  public static String getVisibilityProtected() {
+  public static @Nls String getVisibilityProtected() {
     return message("visibility.protected");
   }
 
-  public static String getVisibilityPublic() {
+  public static @Nls String getVisibilityPublic() {
     return message("visibility.public");
   }
 
-  public static String getVisibilityAsIs() {
+  public static @Nls String getVisibilityAsIs() {
     return message("visibility.as.is");
   }
 
-  public static String getEscalateVisibility() {
+  public static @Nls String getEscalateVisibility() {
     return message("visibility.escalate");
   }
 
-  public static String getCannotRefactorMessage(@Nullable final String message) {
+  public static @NlsContexts.DialogMessage String getCannotRefactorMessage(@NlsContexts.DialogMessage @Nullable final String message) {
     return message("cannot.perform.refactoring") + (message == null ? "" : "\n" + message);
-  }
-
-  public static String message(@PropertyKey(resourceBundle = BUNDLE) String key) {
-    return CommonBundle.message(getBundle(), key);
-  }
-
-  private static ResourceBundle getBundle() {
-    ResourceBundle bundle = com.intellij.reference.SoftReference.dereference(ourBundle);
-    if (bundle == null) {
-      bundle = ResourceBundle.getBundle(BUNDLE);
-      ourBundle = new SoftReference<>(bundle);
-    }
-    return bundle;
   }
 }

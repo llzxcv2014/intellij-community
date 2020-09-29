@@ -1,7 +1,9 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.impl;
 
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.changes.ContentRevision;
 import com.intellij.openapi.vcs.changes.patch.RelativePathCalculator;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -22,9 +24,13 @@ public class PlatformVcsPathPresenter extends VcsPathPresenter {
   @Override
   @NotNull
   public String getPresentableRelativePath(final ContentRevision fromRevision, final ContentRevision toRevision) {
-    RelativePathCalculator calculator = new RelativePathCalculator(toRevision.getFile().getPath(), fromRevision.getFile().getPath());
+    FilePath path = toRevision.getFile();
+    FilePath originalPath = fromRevision.getFile();
+    return getPresentableRelativePath(path, originalPath);
+  }
 
-    final String result = calculator.execute();
-    return result.replace("/", File.separator);
+  public static @NlsSafe @NotNull String getPresentableRelativePath(@NotNull FilePath path, @NotNull FilePath originalPath) {
+    RelativePathCalculator calculator = new RelativePathCalculator(path.getPath(), originalPath.getPath());
+    return calculator.execute().replace("/", File.separator);
   }
 }

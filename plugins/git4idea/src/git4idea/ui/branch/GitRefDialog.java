@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.ui.branch;
 
 import com.intellij.codeInsight.completion.CompletionResultSet;
@@ -9,6 +9,7 @@ import com.intellij.openapi.progress.util.BackgroundTaskUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.components.JBLabel;
@@ -51,8 +52,8 @@ public class GitRefDialog extends DialogWrapper {
 
   public GitRefDialog(@NotNull Project project,
                       @NotNull List<GitRepository> repositories,
-                      @NotNull String title,
-                      @NotNull String message) {
+                      @NotNull @NlsContexts.DialogTitle String title,
+                      @NotNull @NlsContexts.Label String message) {
     super(project);
 
     setTitle(title);
@@ -183,7 +184,7 @@ public class GitRefDialog extends DialogWrapper {
     }
   }
 
-  private static class VcsRefDescriptor extends DefaultTextCompletionValueDescriptor<VcsRef> {
+  private static final class VcsRefDescriptor extends DefaultTextCompletionValueDescriptor<VcsRef> {
     @NotNull private final Comparator<? super VcsRef> myReferenceComparator;
 
     private VcsRefDescriptor(@NotNull Comparator<? super VcsRef> comparator) {
@@ -210,7 +211,7 @@ public class GitRefDialog extends DialogWrapper {
 
     @Override
     public boolean equals(VcsRef o1, VcsRef o2) {
-      return Comparing.equal(o1.getName(), o2.getName()) &&
+      return Objects.equals(o1.getName(), o2.getName()) &&
              Comparing.equal(o1.getType(), o2.getType());
     }
   }

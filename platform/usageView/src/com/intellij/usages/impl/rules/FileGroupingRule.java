@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2013 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.usages.impl.rules;
 
 import com.intellij.injected.editor.VirtualFileWindow;
@@ -24,6 +10,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Iconable;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vcs.FileStatus;
 import com.intellij.openapi.vcs.FileStatusManager;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -31,6 +18,7 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.usages.*;
 import com.intellij.usages.rules.SingleParentUsageGroupingRule;
+import com.intellij.usages.rules.UsageGroupingRuleEx;
 import com.intellij.usages.rules.UsageInFile;
 import com.intellij.util.IconUtil;
 import org.jetbrains.annotations.NotNull;
@@ -38,10 +26,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
-/**
- * @author max
- */
-public class FileGroupingRule extends SingleParentUsageGroupingRule implements DumbAware {
+public class FileGroupingRule extends SingleParentUsageGroupingRule implements DumbAware, UsageGroupingRuleEx {
   private final Project myProject;
 
   public FileGroupingRule(Project project) {
@@ -50,7 +35,7 @@ public class FileGroupingRule extends SingleParentUsageGroupingRule implements D
 
   @Nullable
   @Override
-  public UsageGroup getParentGroupFor(@NotNull Usage usage, @NotNull UsageTarget[] targets) {
+  public UsageGroup getParentGroupFor(@NotNull Usage usage, UsageTarget @NotNull [] targets) {
     VirtualFile virtualFile;
     if (usage instanceof UsageInFile && (virtualFile = ((UsageInFile)usage).getFile()) != null) {
       return new FileUsageGroup(myProject, virtualFile);
@@ -58,10 +43,20 @@ public class FileGroupingRule extends SingleParentUsageGroupingRule implements D
     return null;
   }
 
+  @Override
+  public @Nullable String getGroupingActionId() {
+    return "UsageGrouping.FileStructure";
+  }
+
+  @Override
+  public boolean isGroupingActionInverted() {
+    return true;
+  }
+
   public static class FileUsageGroup implements UsageGroup, TypeSafeDataProvider, NamedPresentably {
     private final Project myProject;
     private final VirtualFile myFile;
-    private String myPresentableName;
+    private @NlsSafe String myPresentableName;
     private Icon myIcon;
 
     public FileUsageGroup(@NotNull Project project, @NotNull VirtualFile file) {
@@ -109,7 +104,7 @@ public class FileGroupingRule extends SingleParentUsageGroupingRule implements D
 
     @Override
     public FileStatus getFileStatus() {
-      return isValid() ? FileStatusManager.getInstance(myProject).getStatus(myFile) : null;
+      return !myProject.isDisposed() && isValid() ? FileStatusManager.getInstance(myProject).getStatus(myFile) : null;
     }
 
     @Override
@@ -119,7 +114,7 @@ public class FileGroupingRule extends SingleParentUsageGroupingRule implements D
 
     @Override
     public void navigate(boolean focus) throws UnsupportedOperationException {
-      FileEditorManager.getInstance(myProject).openFile(myFile, focus);
+      if (!myProject.isDisposed()) FileEditorManager.getInstance(myProject).openFile(myFile, focus);
     }
 
     @Override

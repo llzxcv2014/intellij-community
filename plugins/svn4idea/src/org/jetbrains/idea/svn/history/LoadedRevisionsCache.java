@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn.history;
 
 import com.intellij.openapi.Disposable;
@@ -8,8 +8,8 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.RepositoryLocation;
 import com.intellij.openapi.vcs.changes.committed.ChangesBunch;
-import com.intellij.openapi.vcs.changes.committed.CommittedChangesAdapter;
 import com.intellij.openapi.vcs.changes.committed.CommittedChangesCache;
+import com.intellij.openapi.vcs.changes.committed.CommittedChangesListener;
 import com.intellij.openapi.vcs.versionBrowser.CommittedChangeList;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.messages.MessageBusConnection;
@@ -18,7 +18,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class LoadedRevisionsCache implements Disposable {
+public final class LoadedRevisionsCache implements Disposable {
   private static final Logger LOG = Logger.getInstance(LoadedRevisionsCache.class);
 
   private final Project myProject;
@@ -36,10 +36,9 @@ public class LoadedRevisionsCache implements Disposable {
     myMap = (ApplicationManager.getApplication().isUnitTestMode()) ? new HashMap<>() : ContainerUtil.createSoftMap();
 
     myConnection = project.getMessageBus().connect();
-    myConnection.subscribe(CommittedChangesCache.COMMITTED_TOPIC, new CommittedChangesAdapter() {
-
+    myConnection.subscribe(CommittedChangesCache.COMMITTED_TOPIC, new CommittedChangesListener() {
       @Override
-      public void changesLoaded(final RepositoryLocation location, final List<CommittedChangeList> changes) {
+      public void changesLoaded(@NotNull RepositoryLocation location, @NotNull List<CommittedChangeList> changes) {
         ApplicationManager.getApplication().invokeLater(() -> {
           myMap.clear();
           setRefreshTime(System.currentTimeMillis());
@@ -135,7 +134,7 @@ public class LoadedRevisionsCache implements Disposable {
     return new BunchIterator(bunch);
   }
 
-  private class BunchIterator implements Iterator<ChangesBunch> {
+  private final class BunchIterator implements Iterator<ChangesBunch> {
     private final long myCreationTime;
     private Bunch myBunch;
 
@@ -172,7 +171,7 @@ public class LoadedRevisionsCache implements Disposable {
     }
   }
 
-  public static class Bunch extends ChangesBunch {
+  public static final class Bunch extends ChangesBunch {
     private final Bunch myNext;
 
     private Bunch(final List<CommittedChangeList> list, final boolean consistent, final Bunch next) {

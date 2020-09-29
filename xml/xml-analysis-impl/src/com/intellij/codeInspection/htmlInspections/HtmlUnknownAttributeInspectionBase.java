@@ -15,7 +15,6 @@
  */
 package com.intellij.codeInspection.htmlInspections;
 
-import com.intellij.codeInsight.daemon.XmlErrorMessages;
 import com.intellij.codeInsight.daemon.impl.analysis.RemoveAttributeIntentionFix;
 import com.intellij.codeInsight.intention.HighPriorityAction;
 import com.intellij.codeInspection.LocalQuickFix;
@@ -30,16 +29,15 @@ import com.intellij.psi.xml.XmlAttribute;
 import com.intellij.psi.xml.XmlTag;
 import com.intellij.util.text.EditDistance;
 import com.intellij.xml.XmlAttributeDescriptor;
-import com.intellij.xml.XmlBundle;
 import com.intellij.xml.XmlElementDescriptor;
+import com.intellij.xml.analysis.XmlAnalysisBundle;
 import com.intellij.xml.impl.schema.AnyXmlElementDescriptor;
 import com.intellij.xml.util.HtmlUtil;
 import com.intellij.xml.util.XmlUtil;
+import java.util.ArrayList;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.ArrayList;
 
 public class HtmlUnknownAttributeInspectionBase extends HtmlUnknownElementInspection {
   private static final Key<HtmlUnknownElementInspection> ATTRIBUTE_KEY = Key.create(ATTRIBUTE_SHORT_NAME);
@@ -54,13 +52,6 @@ public class HtmlUnknownAttributeInspectionBase extends HtmlUnknownElementInspec
   }
 
   @Override
-  @Nls
-  @NotNull
-  public String getDisplayName() {
-    return XmlBundle.message("html.inspections.unknown.attribute");
-  }
-
-  @Override
   @NonNls
   @NotNull
   public String getShortName() {
@@ -69,13 +60,13 @@ public class HtmlUnknownAttributeInspectionBase extends HtmlUnknownElementInspec
 
   @Override
   protected String getCheckboxTitle() {
-    return XmlBundle.message("html.inspections.unknown.tag.attribute.checkbox.title");
+    return XmlAnalysisBundle.message("html.inspections.unknown.tag.attribute.checkbox.title");
   }
 
   @NotNull
   @Override
   protected String getPanelTitle() {
-    return XmlBundle.message("html.inspections.unknown.tag.attribute.title");
+    return XmlAnalysisBundle.message("html.inspections.unknown.tag.attribute.title");
   }
 
   @Override
@@ -94,22 +85,22 @@ public class HtmlUnknownAttributeInspectionBase extends HtmlUnknownElementInspec
         return;
       }
 
-      XmlAttributeDescriptor attributeDescriptor = elementDescriptor.getAttributeDescriptor(attribute);
-
+      XmlAttributeDescriptor attributeDescriptor = attribute.getDescriptor();
       if (attributeDescriptor == null && !attribute.isNamespaceDeclaration()) {
         final String name = attribute.getName();
         if (!XmlUtil.attributeFromTemplateFramework(name, tag) && (!isCustomValuesEnabled() || !isCustomValue(name))) {
           boolean maySwitchToHtml5 = HtmlUtil.isCustomHtml5Attribute(name) && !HtmlUtil.hasNonHtml5Doctype(tag);
           ArrayList<LocalQuickFix> quickfixes = new ArrayList<>(6);
           quickfixes
-            .add(new AddCustomHtmlElementIntentionAction(ATTRIBUTE_KEY, name, XmlBundle.message("add.custom.html.attribute", name)));
+            .add(new AddCustomHtmlElementIntentionAction(ATTRIBUTE_KEY, name, XmlAnalysisBundle.message(
+              "html.quickfix.add.custom.html.attribute", name)));
           quickfixes.add(new RemoveAttributeIntentionFix(name));
           if (maySwitchToHtml5) {
             quickfixes.add(new SwitchToHtml5WithHighPriorityAction());
           }
           addSimilarAttributesQuickFixes(tag, name, quickfixes);
 
-          registerProblemOnAttributeName(attribute, XmlErrorMessages.message("attribute.is.not.allowed.here", attribute.getName()), holder,
+          registerProblemOnAttributeName(attribute, XmlAnalysisBundle.message("xml.inspections.attribute.is.not.allowed.here", attribute.getName()), holder,
                                          quickfixes.toArray(LocalQuickFix.EMPTY_ARRAY));
         }
       }
@@ -140,14 +131,14 @@ public class HtmlUnknownAttributeInspectionBase extends HtmlUnknownElementInspec
     @NotNull
     @Override
     public String getFamilyName() {
-      return "Rename attribute";
+      return XmlAnalysisBundle.message("html.quickfix.rename.attribute.family");
     }
 
     @Nls
     @NotNull
     @Override
     public String getName() {
-      return "Rename attribute to " + name;
+      return XmlAnalysisBundle.message("html.quickfix.rename.attribute.text", name);
     }
 
     @Override

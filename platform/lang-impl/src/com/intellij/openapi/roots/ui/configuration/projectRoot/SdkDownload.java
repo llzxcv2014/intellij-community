@@ -6,6 +6,7 @@ import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.projectRoots.SdkModel;
 import com.intellij.openapi.projectRoots.SdkTypeId;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,6 +18,7 @@ import java.util.function.Consumer;
  * select an SDK from a list and have the implementation do download it
  */
 public interface SdkDownload {
+  @ApiStatus.Experimental
   ExtensionPointName<SdkDownload> EP_NAME = ExtensionPointName.create("com.intellij.sdkDownload");
 
   /**
@@ -27,9 +29,10 @@ public interface SdkDownload {
   boolean supportsDownload(@NotNull SdkTypeId sdkTypeId);
 
   /**
-   * @return the icon to show for the download action in the UI
+   * @return the icon to show for the download action in the dialog
    * for the given {@param sdkTypeId}, which satisfies the
    * {@link #supportsDownload(SdkTypeId)} test
+   * Invoked in the EDT thread
    */
   @NotNull
   default Icon getIconForDownloadAction(@NotNull SdkTypeId sdkTypeId) {

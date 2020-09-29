@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.lang;
 
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.TokenType;
 import com.intellij.psi.impl.source.CharTableImpl;
 import com.intellij.psi.impl.source.CodeFragmentElement;
@@ -18,9 +19,6 @@ import com.intellij.util.CharTable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * @author max
- */
 public abstract class ASTFactory {
   private static final CharTable WHITESPACES = new CharTableImpl();
 
@@ -70,7 +68,7 @@ public abstract class ASTFactory {
   }
 
   @NotNull
-  public static LeafElement leaf(@NotNull final IElementType type, @NotNull CharSequence text) {
+  public static LeafElement leaf(@NotNull final IElementType type, @NlsSafe @NotNull CharSequence text) {
     if (type == TokenType.WHITE_SPACE) {
       return new PsiWhiteSpaceImpl(text);
     }
@@ -93,8 +91,8 @@ public abstract class ASTFactory {
     CodeEditUtil.setNodeGenerated(w, true);
     return w;
   }
-  
-  public static class DefaultFactoryHolder {
+
+  public static final class DefaultFactoryHolder {
     public static final DefaultASTFactoryImpl DEFAULT = new DefaultASTFactoryImpl();
 
     private DefaultFactoryHolder() {

@@ -1,15 +1,17 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.rename.inplace;
 
 import com.intellij.codeInsight.TargetElementUtil;
+import com.intellij.codeInsight.template.impl.TemplateManagerImpl;
+import com.intellij.codeInsight.template.impl.TemplateState;
 import com.intellij.lang.Language;
 import com.intellij.lang.findUsages.DescriptiveNameUtil;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.TransactionGuard;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.command.impl.FinishMarkAction;
 import com.intellij.openapi.command.impl.StartMarkAction;
+import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.editor.impl.EditorImpl;
@@ -18,9 +20,12 @@ import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.TextRange;
+import com.intellij.openapi.util.registry.Registry;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
-import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil;
+import com.intellij.psi.impl.source.tree.injected.InjectedLanguageEditorUtil;
+import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.LocalSearchScope;
 import com.intellij.psi.search.ProjectScope;
 import com.intellij.psi.search.SearchScope;
@@ -33,13 +38,11 @@ import com.intellij.refactoring.rename.RenameUtil;
 import com.intellij.refactoring.rename.naming.AutomaticRenamerFactory;
 import com.intellij.refactoring.util.TextOccurrencesUtil;
 import com.intellij.usageView.UsageViewUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 public class MemberInplaceRenamer extends VariableInplaceRenamer {
   private final PsiElement mySubstituted;
@@ -83,7 +86,7 @@ public class MemberInplaceRenamer extends VariableInplaceRenamer {
   protected boolean acceptReference(PsiReference reference) {
     final PsiElement element = reference.getElement();
     final TextRange textRange = getRangeToRename(reference);
-    final String referenceText = element.getText().substring(textRange.getStartOffset(), textRange.getEndOffset());
+    final String referenceText = textRange.substring(element.getText());
     return Comparing.strEqual(referenceText, myElementToRename.getName());
   }
 
@@ -118,6 +121,16 @@ public class MemberInplaceRenamer extends VariableInplaceRenamer {
       return null;
     }
     return null;
+  }
+
+  @Override
+  protected void showDialogAdvertisement(@NonNls String actionId) {
+    if (Registry.is("enable.rename.options.inplace", true)) {
+      setAdvertisementText(RefactoringBundle.message("inplace.refactoring.tab.advertisement.text"));
+    }
+    else {
+      super.showDialogAdvertisement(actionId);
+    }
   }
 
   @Override
@@ -156,7 +169,7 @@ public class MemberInplaceRenamer extends VariableInplaceRenamer {
 
   @Override
   protected boolean appendAdditionalElement(Collection<PsiReference> refs, Collection<Pair<PsiElement, TextRange>> stringUsages) {
-    boolean showChooser = super.appendAdditionalElement(refs, stringUsages);
+    boolean showChooser = Registry.is("enable.rename.options.inplace", true) || super.appendAdditionalElement(refs, stringUsages);
     PsiNamedElement variable = getVariable();
     if (variable != null) {
       final PsiElement substituted = getSubstituted();
@@ -165,9 +178,11 @@ public class MemberInplaceRenamer extends VariableInplaceRenamer {
         RenamePsiElementProcessor processor = RenamePsiElementProcessor.forElement(substituted);
         final HashMap<PsiElement, String> allRenames = new HashMap<>();
         PsiFile currentFile = PsiDocumentManager.getInstance(myProject).getPsiFile(myEditor.getDocument());
-        processor.prepareRenaming(substituted, "", allRenames, new LocalSearchScope(currentFile));
-        for (PsiElement element : allRenames.keySet()) {
-          appendAdditionalElement(stringUsages, variable, element);
+        if (currentFile != null) {
+          processor.prepareRenaming(substituted, "", allRenames, new LocalSearchScope(currentFile));
+          for (PsiElement element : allRenames.keySet()) {
+            appendAdditionalElement(stringUsages, variable, element);
+          }
         }
       }
     }
@@ -210,7 +225,7 @@ public class MemberInplaceRenamer extends VariableInplaceRenamer {
 
           Runnable performRunnable = () -> {
             if (DumbService.isDumb(myProject)) {
-              DumbService.getInstance(myProject).showDumbModeNotification("Refactorings cannot be performed while indexing is in progress");
+              DumbService.getInstance(myProject).showDumbModeNotification(RefactoringBundle.message("refactoring.not.available.indexing"));
               return;
             }
 
@@ -227,14 +242,14 @@ public class MemberInplaceRenamer extends VariableInplaceRenamer {
             performRunnable.run();
           }
           else {
-            TransactionGuard.getInstance().submitTransactionLater(myProject, performRunnable);
+            ApplicationManager.getApplication().invokeLater(performRunnable, myProject.getDisposed());
           }
         }
       }
     }
     finally {
       try {
-        ((EditorImpl)InjectedLanguageUtil.getTopLevelEditor(myEditor)).stopDumbLater();
+        ((EditorImpl)InjectedLanguageEditorUtil.getTopLevelEditor(myEditor)).stopDumbLater();
       }
       finally {
         FinishMarkAction.finish(myProject, myEditor, markAction);
@@ -267,16 +282,35 @@ public class MemberInplaceRenamer extends VariableInplaceRenamer {
 
   @Override
   protected void collectAdditionalElementsToRename(@NotNull List<Pair<PsiElement, TextRange>> stringUsages) {
-    //do not highlight non-code usages in file
+    if (!Registry.is("enable.rename.options.inplace", true)) return;
+    if (!RenamePsiElementProcessor.forElement(myElementToRename).isToSearchInComments(myElementToRename)) {
+      return;
+    }
+    final String stringToSearch = myElementToRename.getName();
+    final PsiFile currentFile = PsiDocumentManager.getInstance(myProject).getPsiFile(myEditor.getDocument());
+    if (!StringUtil.isEmptyOrSpaces(stringToSearch) && currentFile != null) {
+      TextOccurrencesUtil.processUsagesInStringsAndComments(
+        myElementToRename, GlobalSearchScope.fileScope(currentFile),
+        stringToSearch, true, (psiElement, textRange) -> {
+          stringUsages.add(Pair.create(psiElement, textRange));
+          return true;
+        });
+    }
   }
 
   @Override
   protected void revertStateOnFinish() {
-    final Editor editor = InjectedLanguageUtil.getTopLevelEditor(myEditor);
+    final Editor editor = InjectedLanguageEditorUtil.getTopLevelEditor(myEditor);
     if (editor == FileEditorManager.getInstance(myProject).getSelectedTextEditor()) {
       ((EditorImpl)editor).startDumb();
     }
     revertState();
+  }
+
+  @Override
+  protected void navigateToAlreadyStarted(Document oldDocument, int exitCode) {
+    super.navigateToAlreadyStarted(oldDocument, exitCode);
+    ((EditorImpl)InjectedLanguageEditorUtil.getTopLevelEditor(myEditor)).stopDumbLater();
   }
 
   @Nullable
@@ -298,6 +332,29 @@ public class MemberInplaceRenamer extends VariableInplaceRenamer {
       }
     }
     return getVariable();
+  }
+
+  @Override
+  public void afterTemplateStart() {
+    super.afterTemplateStart();
+    if (Registry.is("enable.rename.options.inplace", true)) {
+      TemplateState templateState = TemplateManagerImpl.getTemplateState(myEditor);
+      PsiNamedElement variable = getVariable();
+      if (templateState == null || variable == null) return;
+      TextRange variableRange = templateState.getCurrentVariableRange();
+      if (variableRange == null) return;
+
+      Runnable restartCallback = () -> {
+        TemplateState state = TemplateManagerImpl.getTemplateState(myEditor);
+        PsiNamedElement var = getVariable();
+        if (state == null || var == null) return;
+        String insertedName = var.getName();
+        Editor editor = state.getEditor();
+        state.gotoEnd(true);
+        createInplaceRenamerToRestart(var, editor, insertedName).performInplaceRefactoring(new LinkedHashSet<>());
+      };
+      TemplateInlayUtil.createRenameSettingsInlay(templateState, variableRange.getEndOffset(), variable, restartCallback);
+    }
   }
 
   protected class MyRenameProcessor extends RenameProcessor {

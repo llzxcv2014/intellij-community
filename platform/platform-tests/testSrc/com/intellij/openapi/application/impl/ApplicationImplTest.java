@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.application.impl;
 
 import com.intellij.concurrency.Job;
@@ -7,7 +7,7 @@ import com.intellij.concurrency.JobSchedulerImpl;
 import com.intellij.diagnostic.ThreadDumper;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.*;
-import com.intellij.openapi.application.ex.ApplicationEx;
+import com.intellij.openapi.application.ex.ApplicationManagerEx;
 import com.intellij.openapi.application.ex.ApplicationUtil;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
@@ -18,21 +18,22 @@ import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.EmptyRunnable;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.ThrowableComputable;
-import com.intellij.testFramework.*;
+import com.intellij.testFramework.CpuUsageData;
+import com.intellij.testFramework.LightPlatformTestCase;
+import com.intellij.testFramework.PlatformTestUtil;
+import com.intellij.testFramework.RunFirst;
 import com.intellij.util.*;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.concurrency.Semaphore;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.UIUtil;
+import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 
 import javax.swing.*;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -123,7 +124,7 @@ public class ApplicationImplTest extends LightPlatformTestCase {
   }
 
   private static void runReadWrites(final int readIterations, final int writeIterations, int expectedMs) {
-    NonBlockingReadActionImpl.cancelAllTasks(); // someone might've submitted a task depending on app events which we disable now
+    NonBlockingReadActionImpl.waitForAsyncTaskCompletion(); // someone might've submitted a task depending on app events which we disable now
     final ApplicationImpl application = (ApplicationImpl)ApplicationManager.getApplication();
     Disposable disposable = Disposer.newDisposable();
     application.disableEventsUntil(disposable);
@@ -158,7 +159,7 @@ public class ApplicationImplTest extends LightPlatformTestCase {
     }
   }
 
-  private static void joinWithTimeout(List<? extends Future<?>> threads) throws TimeoutException {
+  private static void joinWithTimeout(Future<?>... threads) throws TimeoutException {
     for (Future<?> thread : threads) {
       try {
         thread.get(20, TimeUnit.SECONDS);
@@ -270,7 +271,7 @@ public class ApplicationImplTest extends LightPlatformTestCase {
         // make sure EDT called writelock
         while (!application.myLock.writeRequested) checkTimeout();
 
-        TestTimeOut c = setTimeout(2, TimeUnit.SECONDS);
+        TestTimeOut c = setTimeout(100, TimeUnit.MILLISECONDS);
         while (!c.timedOut()) {
           checkTimeout();
           assertTrue(aboutToAcquireWrite.get());
@@ -290,7 +291,7 @@ public class ApplicationImplTest extends LightPlatformTestCase {
         holdRead1.set(false);
         while (!writeAcquired.get()) checkTimeout();
 
-        c = setTimeout(2, TimeUnit.SECONDS);
+        c = setTimeout(100, TimeUnit.MILLISECONDS);
         while (!c.timedOut()) {
           checkTimeout();
           assertTrue(aboutToAcquireWrite.get());
@@ -311,7 +312,7 @@ public class ApplicationImplTest extends LightPlatformTestCase {
 
         while (!read2Released.get()) checkTimeout();
 
-        c = setTimeout(2, TimeUnit.SECONDS);
+        c = setTimeout(100, TimeUnit.MILLISECONDS);
         while (!c.timedOut()) {
           checkTimeout();
           assertTrue(aboutToAcquireWrite.get());
@@ -352,7 +353,7 @@ public class ApplicationImplTest extends LightPlatformTestCase {
       LOG.debug("write lock released");
     }
 
-    joinWithTimeout(Arrays.asList(readAction1, readActions2, checkThread));
+    joinWithTimeout(readAction1, readActions2, checkThread);
     if (exception != null) throw exception;
   }
 
@@ -377,7 +378,8 @@ public class ApplicationImplTest extends LightPlatformTestCase {
           while (!tryingToStartWriteAction) checkTimeout();
           TimeoutUtil.sleep(100);
 
-          readThreads = ContainerUtil.map(anotherReadActionStarted, readActionStarted -> ApplicationManager.getApplication().executeOnPooledThread(() -> {
+          readThreads = new ArrayList<>();
+          readThreads.addAll(ContainerUtil.map(anotherReadActionStarted, readActionStarted -> ApplicationManager.getApplication().executeOnPooledThread(() -> {
             int finalI = ArrayUtil.indexOf(anotherReadActionStarted, readActionStarted);
             LOG.append("\nanother thread started " + finalI);
             anotherThreadStarted[finalI].set(true);
@@ -394,7 +396,7 @@ public class ApplicationImplTest extends LightPlatformTestCase {
               LOG.append("\nfinished another thread read action " + finalI);
             });
             LOG.append("\nanother thread finished " + finalI);
-          }));
+          })));
 
           for (AtomicBoolean threadStarted : anotherThreadStarted) {
             while (!threadStarted.get()) checkTimeout();
@@ -427,7 +429,8 @@ public class ApplicationImplTest extends LightPlatformTestCase {
       }
       LOG.append("\nfinished write action");
     });
-    joinWithTimeout(ContainerUtil.concat(Collections.singletonList(main), readThreads));
+    readThreads.add(main);
+    joinWithTimeout(readThreads.toArray(new Future[0]));
 
     if (exception != null) {
       System.err.println(LOG);
@@ -488,13 +491,37 @@ public class ApplicationImplTest extends LightPlatformTestCase {
           exception = e;
         }
     });
-    joinWithTimeout(Collections.singletonList(thread));
+    joinWithTimeout(thread);
     assertNotNull(exception);
   }
 
+  public void testRunProcessWithProgressFromPooledThread() throws Throwable {
+    Future<?> thread = ApplicationManager.getApplication().executeOnPooledThread(() -> {
+      try {
+        boolean result = ApplicationManagerEx.getApplicationEx().runProcessWithProgressSynchronously(() -> {
+          // check that defaultModalityState() carries write-safe context now
+          ApplicationManager.getApplication().invokeAndWait(() -> {
+            ApplicationManager.getApplication().assertIsWriteThread();
+            ((TransactionGuardImpl)TransactionGuard.getInstance()).assertWriteActionAllowed();
+          });
+        }, "Title", true, getProject());
+        assertTrue(result);
+      }
+      catch (Throwable e) {
+        exception = e;
+      }
+    });
+    TestTimeOut p = setTimeout(500, TimeUnit.MILLISECONDS);
+    while (!p.timedOut()) {
+      UIUtil.dispatchAllInvocationEvents();
+    }
+    joinWithTimeout(thread);
+    if (exception != null) throw exception;
+  }
+
   public void testRunProcessWithProgressSynchronouslyInReadAction() throws Throwable {
-    boolean result = ((ApplicationEx)ApplicationManager.getApplication())
-      .runProcessWithProgressSynchronouslyInReadAction(getProject(), "title", true, "cancel", null, () -> {
+    boolean result = ApplicationManagerEx.getApplicationEx()
+      .runProcessWithProgressSynchronouslyInReadAction(getProject(), "Title", true, "Cancel", null, () -> {
         try {
           assertFalse(SwingUtilities.isEventDispatchThread());
           assertTrue(ApplicationManager.getApplication().isReadAccessAllowed());
@@ -507,11 +534,33 @@ public class ApplicationImplTest extends LightPlatformTestCase {
     if (exception != null) throw exception;
   }
 
+  public void testRunProcessWithProgressSynchronouslyInReadActionFromPooledThread() throws Throwable {
+    Future<?> thread = ApplicationManager.getApplication().executeOnPooledThread(()-> {
+      boolean result = ApplicationManagerEx.getApplicationEx()
+        .runProcessWithProgressSynchronouslyInReadAction(getProject(), "Title", true, "Cancel", null, () -> {
+          try {
+            assertFalse(SwingUtilities.isEventDispatchThread());
+            assertTrue(ApplicationManager.getApplication().isReadAccessAllowed());
+          }
+          catch (Throwable e) {
+            exception = e;
+          }
+        });
+      assertTrue(result);
+    });
+    TestTimeOut p = setTimeout(500, TimeUnit.MILLISECONDS);
+    while (!p.timedOut()) {
+      UIUtil.dispatchAllInvocationEvents();
+    }
+    joinWithTimeout(thread);
+    if (exception != null) throw exception;
+  }
+
   public void testRunProcessWithProgressSynchronouslyInReadActionWithPendingWriteAction() throws Throwable {
     SwingUtilities.invokeLater(() -> ApplicationManager.getApplication().runWriteAction(EmptyRunnable.getInstance()));
     AtomicBoolean ran = new AtomicBoolean();
-    boolean result = ((ApplicationEx)ApplicationManager.getApplication())
-      .runProcessWithProgressSynchronouslyInReadAction(getProject(), "title", true, "cancel", null,
+    boolean result = ApplicationManagerEx.getApplicationEx()
+      .runProcessWithProgressSynchronouslyInReadAction(getProject(), "Title", true, "Cancel", null,
                                                        () -> ran.set(true));
     assertTrue(result);
     UIUtil.dispatchAllInvocationEvents();
@@ -525,11 +574,12 @@ public class ApplicationImplTest extends LightPlatformTestCase {
       UIUtil.dispatchAllInvocationEvents();
     }
     int readIterations = 200_000_000;
-    ReadMostlyRWLock lock = new ReadMostlyRWLock(Thread.currentThread());
+    ReadMostlyRWLock lock = new ReadMostlyRWLock();
+    lock.setWriteThread(Thread.currentThread());
     final int numOfThreads = JobSchedulerImpl.getJobPoolParallelism();
-    final Field myThreadLocalsField = ObjectUtils.notNull(ReflectionUtil.getDeclaredField(Thread.class, "threadLocals"));
+    final Field myThreadLocalsField = Objects.requireNonNull(ReflectionUtil.getDeclaredField(Thread.class, "threadLocals"));
     //noinspection Convert2Lambda
-    List<Callable<Void>> callables = Collections.nCopies(numOfThreads, new Callable<Void>() {
+    List<Callable<Void>> callables = Collections.nCopies(numOfThreads, new Callable<>() {
       @Override
       public Void call() {
         // It's critical there are no collisions in the thread-local map
@@ -585,39 +635,6 @@ public class ApplicationImplTest extends LightPlatformTestCase {
     if (e.get() != null) throw e.get();
   }
 
-  public void testSuspendWriteActionDelaysForeignReadActions() throws Throwable {
-    Semaphore mayStartForeignRead = new Semaphore();
-    mayStartForeignRead.down();
-
-    List<Future<?>> futures = new ArrayList<>();
-
-    ApplicationImpl app = (ApplicationImpl)ApplicationManager.getApplication();
-    List<String> log = Collections.synchronizedList(new ArrayList<>());
-    futures.add(app.executeOnPooledThread(() -> {
-      assertTrue(mayStartForeignRead.waitFor(1000));
-      ReadAction.run(() -> log.add("foreign read"));
-    }));
-
-    safeWrite(() -> {
-      log.add("write started");
-      app.executeSuspendingWriteAction(getProject(), "", () -> {
-        app.invokeAndWait(() ->
-          futures.add(app.executeOnPooledThread(() -> ReadAction.run(() -> log.add("foreign read")))));
-
-        mayStartForeignRead.up();
-        TimeoutUtil.sleep(50);
-
-        ReadAction.run(() -> log.add("progress read"));
-        app.invokeAndWait(() -> WriteAction.run(() -> log.add("nested write")));
-        waitForFuture(app.executeOnPooledThread(() -> ReadAction.run(() -> log.add("forked read"))));
-      });
-      log.add("write finished");
-    });
-
-    futures.forEach(ApplicationImplTest::waitForFuture);
-    assertOrderedEquals(log, "write started", "progress read", "nested write", "forked read", "write finished", "foreign read", "foreign read");
-  }
-
   private static void waitForFuture(Future<?> future) {
     try {
       future.get(10_000, TimeUnit.MILLISECONDS);
@@ -629,7 +646,7 @@ public class ApplicationImplTest extends LightPlatformTestCase {
 
   public void testHasWriteActionWorksInOtherThreads() throws Throwable {
     ApplicationImpl app = (ApplicationImpl)ApplicationManager.getApplication();
-    ThrowableRunnable<RuntimeException> runnable = new ThrowableRunnable<RuntimeException>() {
+    ThrowableRunnable<RuntimeException> runnable = new ThrowableRunnable<>() {
       @Override
       public void run() throws RuntimeException {
         Class<? extends ThrowableRunnable<RuntimeException>> actionClass = getClass();
@@ -643,70 +660,6 @@ public class ApplicationImplTest extends LightPlatformTestCase {
 
     assertFalse(app.hasWriteAction(runnable.getClass()));
     safeWrite(runnable);
-  }
-
-  public void testPooledThreadsThatHappenInSuspendedWriteActionStayInSuspendedWriteAction() throws Throwable {
-    LoggedErrorProcessor.getInstance().disableStderrDumping(getTestRootDisposable());
-
-    Ref<Future<?>> future = Ref.create();
-    ApplicationImpl app = (ApplicationImpl)ApplicationManager.getApplication();
-    safeWrite(() -> {
-      try {
-        Semaphore started = new Semaphore();
-        started.down();
-        app.executeSuspendingWriteAction(getProject(), "", () -> {
-          future.set(app.executeOnPooledThread(() -> {
-            started.up();
-            TimeoutUtil.sleep(1000);
-          }));
-          assertTrue(started.waitFor(1000));
-        });
-        fail("should not allow pooled thread to stay there");
-      }
-      catch (AssertionError e) {
-        assertTrue(ExceptionUtil.getThrowableText(e), isEscapingThreadAssertion(e));
-      }
-    });
-    waitForFuture(future.get());
-  }
-
-  public void testPooledThreadsStartedAfterQuickSuspendedWriteActionDontGetReadPrivileges() throws Throwable {
-    for (int i = 0; i < 1000; i++) {
-      safeWrite(this::checkPooledThreadsDontGetWrongPrivileges);
-    }
-  }
-
-  private void checkPooledThreadsDontGetWrongPrivileges() {
-    ApplicationImpl app = (ApplicationImpl)ApplicationManager.getApplication();
-    Ref<Future<?>> future = Ref.create();
-
-    Disposable disableStderrDumping = Disposer.newDisposable();
-    LoggedErrorProcessor.getInstance().disableStderrDumping(disableStderrDumping);
-
-    Semaphore mayFinish = new Semaphore();
-    mayFinish.down();
-    try {
-      app.executeSuspendingWriteAction(getProject(), "", () ->
-        future.set(app.executeOnPooledThread(
-          () -> assertTrue(mayFinish.waitFor(5_000)))));
-    }
-    catch (AssertionError e) {
-      if (!isEscapingThreadAssertion(e)) {
-        e.printStackTrace();
-        throw e;
-      }
-    }
-    finally {
-      Disposer.dispose(disableStderrDumping);
-    }
-
-    app.executeSuspendingWriteAction(getProject(), "", () -> {});
-    mayFinish.up();
-    waitForFuture(future.get());
-  }
-
-  private static boolean isEscapingThreadAssertion(AssertionError e) {
-    return e.getMessage().contains("should have been terminated");
   }
 
   public void testReadActionInImpatientModeShouldThrowWhenThereIsAPendingWrite() throws Throwable {
@@ -831,8 +784,7 @@ public class ApplicationImplTest extends LightPlatformTestCase {
     String oldHost = System.setProperty(ApplicationInfoImpl.IDEA_PLUGINS_HOST_PROPERTY, host);
 
     try {
-      ApplicationInfoImpl applicationInfo = new ApplicationInfoImpl();
-
+      ApplicationInfoImpl applicationInfo = new ApplicationInfoImpl(new Element("state"));
       Assert.assertThat(applicationInfo.getPluginManagerUrl(), containsString(host));
       Assert.assertThat(applicationInfo.getPluginsListUrl(), containsString(host));
       Assert.assertThat(applicationInfo.getPluginsDownloadUrl(), containsString(host));

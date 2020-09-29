@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.mac.touchbar;
 
 import com.intellij.ide.ui.UISettings;
@@ -25,13 +25,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class NST {
+public final class NST {
   private static final Logger LOG = Logger.getInstance(NST.class);
   private static final String ourRegistryKeyTouchbar = "ide.mac.touchbar.use";
   private static NSTLibrary ourNSTLibrary = null; // NOTE: JNA is stateless (doesn't have any limitations of multi-threaded use)
 
   private static final String MIN_OS_VERSION = "10.12.2";
-  static boolean isSupportedOS() { return SystemInfo.isMac && SystemInfo.isOsVersionAtLeast(MIN_OS_VERSION); }
+
+  static boolean isSupportedOS() {
+    return SystemInfo.isMac && SystemInfo.isOsVersionAtLeast(MIN_OS_VERSION);
+  }
 
   static void initialize() {
     try {
@@ -92,7 +95,9 @@ public class NST {
     return ourNSTLibrary = Native.load("nst", NSTLibrary.class, Collections.singletonMap("jna.encoding", "UTF8"));
   }
 
-  public static boolean isAvailable() { return ourNSTLibrary != null; }
+  public static boolean isAvailable() {
+    return ourNSTLibrary != null;
+  }
 
   public static ID createTouchBar(String name, NSTLibrary.ItemCreator creator, String escID) {
     return ourNSTLibrary.createTouchBar(name, creator, escID); // creates autorelease-pool internally
@@ -248,9 +253,9 @@ public class NST {
           IconLoader.getDarkIcon(id.getIcon(), true) : null;
 
         if (id.darkIcon != null) {
-          id.fMulX = getIconScaleForTouchbar(id.getIcon());
-          id.scaledWidth = Math.round(id.getIcon().getIconWidth()*id.fMulX);
-          id.scaledHeight = Math.round(id.getIcon().getIconHeight()*id.fMulX);
+          id.fMulX = getIconScaleForTouchbar(id.darkIcon);
+          id.scaledWidth = Math.round(id.darkIcon.getIconWidth()*id.fMulX);
+          id.scaledHeight = Math.round(id.darkIcon.getIconHeight()*id.fMulX);
           final int sizeInBytes = id.scaledWidth * id.scaledHeight * 4;
           final int totalSize = sizeInBytes + 4;
           byteCount += totalSize;

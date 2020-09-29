@@ -3,10 +3,12 @@ package com.intellij.ui.tabs;
 
 import com.intellij.openapi.actionSystem.DataKey;
 import com.intellij.openapi.util.ActionCallback;
+import com.intellij.ui.tabs.impl.tabsLayout.TabsLayoutInfo;
+import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.awt.event.MouseEvent;
+import javax.swing.*;
 import java.util.Comparator;
 
 /**
@@ -18,10 +20,6 @@ public interface JBTabsEx extends JBTabs {
   boolean isEditorTabs();
 
   void updateTabActions(boolean validateNow);
-
-  boolean canShowMorePopup();
-
-  void showMorePopup(@Nullable MouseEvent e);
 
   TabInfo addTabSilently(TabInfo info, int index);
 
@@ -35,6 +33,10 @@ public interface JBTabsEx extends JBTabs {
 
   int getDropInfoIndex();
 
+  @MagicConstant(intValues = {SwingConstants.TOP, SwingConstants.LEFT, SwingConstants.BOTTOM, SwingConstants.RIGHT, -1})
+  int getDropSide();
+
   boolean isEmptyVisible();
 
+  void updateTabsLayout(@NotNull TabsLayoutInfo newTabsLayoutInfo);
 }

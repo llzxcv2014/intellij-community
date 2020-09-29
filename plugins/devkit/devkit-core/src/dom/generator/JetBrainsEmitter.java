@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 /*
  * XSD/DTD Model generator tool
@@ -21,6 +21,7 @@ import java.util.*;
  * @author Gregory.Shrago
  * @author Konstantin Bulenkov
  */
+@SuppressWarnings("HardCodedStringLiteral")
 public class JetBrainsEmitter implements Emitter {
   static final boolean NOT_COMPARE_MODE = true; // compare mode: skip package decl & all comments/javadoc
   static final boolean JB_OFF = false;
@@ -545,7 +546,7 @@ public class JetBrainsEmitter implements Emitter {
 
       for (TypeDesc td : jtList) {
         ArrayList<FieldDesc> fields = new ArrayList<>(td.fdMap.values());
-        Collections.sort(fields, Comparator.comparingInt(o -> o.realIndex));
+        fields.sort(Comparator.comparingInt(o -> o.realIndex));
         int guessPriority = 0;
         FieldDesc guessedField = null;
         for (FieldDesc fd : fields) {

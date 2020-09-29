@@ -1,5 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.tasks.context;
 
 import com.intellij.notification.Notification;
@@ -8,7 +7,7 @@ import com.intellij.notification.Notifications;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
-import com.intellij.openapi.components.ServiceManager;
+import com.intellij.openapi.components.Service;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
@@ -18,6 +17,7 @@ import com.intellij.openapi.util.WriteExternalException;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.tasks.Task;
+import com.intellij.tasks.TaskBundle;
 import com.intellij.util.NullableFunction;
 import com.intellij.util.ThrowableConsumer;
 import com.intellij.util.containers.ContainerUtil;
@@ -38,10 +38,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * @author Dmitry Avdeev
- */
-public class WorkingContextManager {
+@Service
+public final class WorkingContextManager {
   private static final Logger LOG = Logger.getInstance(WorkingContextManager.class);
   @NonNls private static final String TASKS_FOLDER = "tasks";
 
@@ -53,7 +51,7 @@ public class WorkingContextManager {
   private boolean ENABLED;
 
   public static WorkingContextManager getInstance(@NotNull Project project) {
-    return ServiceManager.getService(project, WorkingContextManager.class);
+    return project.getService(WorkingContextManager.class);
   }
 
   public WorkingContextManager(@NotNull Project project) {
@@ -146,9 +144,8 @@ public class WorkingContextManager {
       JBZipFile zipFile = null;
       try {
         zipFile = new JBZipFile(file);
-        Notifications.Bus.notify(new Notification("Tasks", "Context Data Corrupted",
-                                                  "Context information history for " + myProject.getName() + " was corrupted.\n" +
-                                                  "The history was replaced with empty one.", NotificationType.ERROR), myProject);
+        Notifications.Bus.notify(new Notification("Tasks", TaskBundle.message("notification.title.context.data.corrupted"),
+                                                  TaskBundle.message("notification.content.context.information.history", myProject.getName()), NotificationType.ERROR), myProject);
       }
       catch (IOException e1) {
         LOG.error("Can't repair form context data corruption", e1);
@@ -158,7 +155,7 @@ public class WorkingContextManager {
   }
 
   private File getArchiveFile(String postfix) {
-    File tasksFolder = new File(PathManager.getConfigPath(), TASKS_FOLDER);
+    File tasksFolder = PathManager.getConfigDir().resolve(TASKS_FOLDER).toFile();
     if (!tasksFolder.exists()) {
       //noinspection ResultOfMethodCallIgnored
       tasksFolder.mkdirs();

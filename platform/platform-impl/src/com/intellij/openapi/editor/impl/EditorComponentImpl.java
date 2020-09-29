@@ -1,7 +1,6 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.editor.impl;
 
-import com.intellij.diagnostic.Activity;
 import com.intellij.ide.CutProvider;
 import com.intellij.ide.DataManager;
 import com.intellij.ide.IdeEventQueue;
@@ -41,8 +40,10 @@ import com.intellij.openapi.util.ActionCallback;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.TextRange;
+import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.ui.DirtyUI;
 import com.intellij.ui.Grayer;
 import com.intellij.ui.components.Magnificator;
 import com.intellij.ui.paint.PaintUtil;
@@ -69,6 +70,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+@DirtyUI
 public class EditorComponentImpl extends JTextComponent implements Scrollable, DataProvider, Queryable, TypingTarget, Accessible {
   private final EditorImpl myEditor;
 
@@ -113,6 +115,7 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     for (FocusListener l : getFocusListeners()) removeFocusListener(l);
   }
 
+  @DirtyUI
   @Override
   public void paint(@NotNull Graphics g) {
     if (!isEnabled()) {
@@ -162,11 +165,13 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     return null;
   }
 
+  @DirtyUI
   @Override
   public Color getBackground() {
     return myEditor.getBackgroundColor();
   }
 
+  @DirtyUI
   @Override
   public Dimension getPreferredSize() {
     return myEditor.getPreferredSize();
@@ -219,17 +224,21 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     return IdeEventQueue.getInstance().isInputMethodEnabled() ? myEditor.getInputMethodRequests() : null;
   }
 
+  @DirtyUI
   @Override
   protected Graphics getComponentGraphics(Graphics graphics) {
     return JBSwingUtilities.runGlobalCGTransform(this, super.getComponentGraphics(graphics));
   }
 
+  @DirtyUI
   @Override
   public void paintComponent(Graphics g) {
     myEditor.measureTypingLatency();
 
     Graphics2D gg = (Graphics2D)g;
-    UIUtil.setupComposite(gg);
+    if (Registry.is("editor.legacy.compositing")) {
+      UIUtil.setupComposite(gg);
+    }
     if (myEditor.useEditorAntialiasing()) {
       EditorUIUtil.setupAntialiasing(gg);
     }
@@ -241,19 +250,10 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     myEditor.paint(gg);
     if (origTx != null) gg.setTransform(origTx);
 
-    Activity activity = ApplicationManager.getApplication().getUserData(EditorsSplitters.OPEN_FILES_ACTIVITY);
-    if (activity != null) {
-      activity.end();
-      ApplicationManager.getApplication().putUserData(EditorsSplitters.OPEN_FILES_ACTIVITY, null);
+    Project project = myEditor.getProject();
+    if (project != null) {
+      EditorsSplitters.stopOpenFilesActivity(project);
     }
-  }
-
-  public void repaintEditorComponent() {
-    repaint();
-  }
-
-  public void repaintEditorComponentExact(int x, int y, int width, int height) {
-    repaint(x, y, width, height);
   }
 
   public void repaintEditorComponent(int x, int y, int width, int height) {
@@ -263,11 +263,13 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
   }
 
   //--implementation of Scrollable interface--------------------------------------
+  @DirtyUI
   @Override
   public Dimension getPreferredScrollableViewportSize() {
     return myEditor.getPreferredSize();
   }
 
+  @DirtyUI
   @Override
   public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
     if (orientation == SwingConstants.VERTICAL) {
@@ -277,6 +279,7 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     return EditorUtil.getSpaceWidth(Font.PLAIN, myEditor);
   }
 
+  @DirtyUI
   @Override
   public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
     if (orientation == SwingConstants.VERTICAL) {
@@ -373,6 +376,7 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     return myEditor.getCaretModel().getOffset();
   }
 
+  @DirtyUI
   @Override
   public void updateUI() {
     // Don't use the default TextUI, BaseTextUI, which does a lot of unnecessary
@@ -380,6 +384,9 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     // screen reader support code will invoke it
     setUI(new EditorAccessibilityTextUI());
     UISettings.setupEditorAntialiasing(this);
+    // myEditor is null when updateUI() is called from parent's constructor
+    putClientProperty(RenderingHints.KEY_FRACTIONALMETRICS, myEditor == null ? EditorImpl.calcFractionalMetricsHint()
+                                                                             : myEditor.myFractionalMetricsHintValue);
     invalidate();
   }
 
@@ -697,6 +704,7 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     }
   }
 
+  @DirtyUI
   @Override
   public void setText(String text) {
     editDocumentSafely(0, myEditor.getDocument().getTextLength(), text);
@@ -882,7 +890,7 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     }
   }
 
-  private static class TextAccessibleRole extends AccessibleRole {
+  private static final class TextAccessibleRole extends AccessibleRole {
     // Can't use AccessibleRole.TEXT: The screen reader verbally refers to it as a text field
     // and doesn't do multi-line iteration. (This is hardcoded into the sun/lwawt/macosx implementation.)
     // As you can see from JavaAccessibilityUtilities.m, we should use the exact key "textarea" to get
@@ -892,7 +900,7 @@ public class EditorComponentImpl extends JTextComponent implements Scrollable, D
     @SuppressWarnings("SpellCheckingInspection")
     private static final AccessibleRole TEXT_AREA = new TextAccessibleRole("textarea");
 
-    private TextAccessibleRole(String key) {
+    private TextAccessibleRole(@NonNls String key) {
       super(key);
     }
   }

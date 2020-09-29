@@ -11,6 +11,7 @@ import com.intellij.openapi.fileChooser.FileChooserDialog;
 import com.intellij.openapi.fileChooser.PathChooserDialog;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.PathChooserDialogHelper;
 import com.intellij.ui.UIBundle;
@@ -35,7 +36,7 @@ public class WinPathChooserDialog implements PathChooserDialog, FileChooserDialo
   private final FileChooserDescriptor myFileChooserDescriptor;
   private final WeakReference<Component> myParent;
   private final Project myProject;
-  private final String myTitle;
+  private final @NlsContexts.DialogTitle String myTitle;
   private VirtualFile [] virtualFiles;
   private final PathChooserDialogHelper myHelper;
 
@@ -56,7 +57,7 @@ public class WinPathChooserDialog implements PathChooserDialog, FileChooserDialo
       .ifNull(frameConsumer);
   }
 
-  private static String getChooserTitle(final FileChooserDescriptor descriptor) {
+  private static @NlsContexts.DialogTitle String getChooserTitle(final FileChooserDescriptor descriptor) {
     final String title = descriptor.getTitle();
     return title != null ? title : UIBundle.message("file.chooser.default.title");
   }
@@ -146,16 +147,14 @@ public class WinPathChooserDialog implements PathChooserDialog, FileChooserDialo
     return new FileDialog((Frame)null, title, load);
   }
 
-  @NotNull
   @Override
-  public VirtualFile[] choose(@Nullable VirtualFile toSelect, @Nullable Project project) {
+  public VirtualFile @NotNull [] choose(@Nullable VirtualFile toSelect, @Nullable Project project) {
     choose(toSelect, files -> {});
     return virtualFiles;
   }
 
-  @NotNull
   @Override
-  public VirtualFile[] choose(@Nullable Project project, @NotNull VirtualFile... toSelect) {
+  public VirtualFile @NotNull [] choose(@Nullable Project project, VirtualFile @NotNull ... toSelect) {
     return choose((toSelect.length > 0 ? toSelect[0] : null), project);
   }
 }

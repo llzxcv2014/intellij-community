@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.java.execution;
 
 import com.intellij.execution.Location;
@@ -30,11 +30,15 @@ import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.testFramework.*;
+import com.theoryinpractice.testng.configuration.TestNGConfiguration;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public abstract class BaseConfigurationTestCase extends JavaProjectTestCase {
   private final List<Module> myModulesToDispose = new ArrayList<>();
@@ -80,20 +84,20 @@ public abstract class BaseConfigurationTestCase extends JavaProjectTestCase {
     ModuleManager.getInstance(myProject).disposeModule(missingModule);
   }
 
-  protected Module createEmptyModule() {
+  protected @NotNull Module createEmptyModule() {
     Module module = createTempModule();
     myModulesToDispose.add(module);
     return module;
   }
 
-  private Module createTempModule() {
+  private @NotNull Module createTempModule() {
     return createTempModule(getTempDir(), myProject);
   }
 
-  @NotNull
-  public static Module createTempModule(TempFiles tempFiles, final Project project) {
-    final String tempPath = tempFiles.createTempFile("xxx", ".iml").getAbsolutePath();
-    Module result = WriteAction.compute(() -> ModuleManager.getInstance(project).newModule(tempPath, StdModuleTypes.JAVA.getId()));
+  public static @NotNull Module createTempModule(@NotNull TemporaryDirectory tempDir, Project project) {
+    Path tempPath = tempDir.newPath(".iml");
+    ModuleManager moduleManager = ModuleManager.getInstance(project);
+    Module result = WriteAction.compute(() -> moduleManager.newModule(tempPath, StdModuleTypes.JAVA.getId()));
     PlatformTestUtil.saveProject(project);
     return result;
   }
@@ -129,23 +133,32 @@ public abstract class BaseConfigurationTestCase extends JavaProjectTestCase {
     return getModule(2);
   }
 
-  protected PsiClass findClass(Module module, String qualifiedName) {
+  protected PsiClass findClass(@NotNull Module module, String qualifiedName) {
     return findClass(qualifiedName, GlobalSearchScope.moduleScope(module));
   }
 
-  protected PsiClass findClass(String qualifiedName, GlobalSearchScope scope) {
+  protected PsiClass findClass(@NotNull String qualifiedName, @NotNull GlobalSearchScope scope) {
     return JavaPsiFacade.getInstance(myProject).findClass(qualifiedName, scope);
   }
 
   protected JUnitConfiguration createJUnitConfiguration(@NotNull PsiElement psiElement,
-                                                        @NotNull Class<? extends AbstractJavaTestConfigurationProducer> producerClass,
+                                                        @NotNull Class<? extends AbstractJavaTestConfigurationProducer<?>> producerClass,
                                                         @NotNull MapDataContext dataContext) {
     ConfigurationContext context = createContext(psiElement, dataContext);
-    RunConfigurationProducer producer = RunConfigurationProducer.getInstance(producerClass);
-    assert producer != null;
+    RunConfigurationProducer<?> producer = RunConfigurationProducer.getInstance(producerClass);
     ConfigurationFromContext fromContext = producer.createConfigurationFromContext(context);
     assertNotNull(fromContext);
     return (JUnitConfiguration)fromContext.getConfiguration();
+  }
+
+  protected TestNGConfiguration createTestNGConfiguration(@NotNull PsiElement psiElement,
+                                                          @NotNull Class<? extends AbstractJavaTestConfigurationProducer<?>> producerClass,
+                                                          @NotNull MapDataContext dataContext) {
+    ConfigurationContext context = createContext(psiElement, dataContext);
+    RunConfigurationProducer<?> producer = RunConfigurationProducer.getInstance(producerClass);
+    ConfigurationFromContext fromContext = producer.createConfigurationFromContext(context);
+    assertThat(fromContext).isNotNull();
+    return (TestNGConfiguration)fromContext.getConfiguration();
   }
 
   protected final <T extends RunConfiguration> T createConfiguration(@NotNull PsiElement psiElement) {

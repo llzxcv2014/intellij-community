@@ -17,12 +17,11 @@ package org.jetbrains.uast
 
 import com.intellij.lang.Language
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Key
 import com.intellij.psi.*
-import com.intellij.reference.SoftReference
-
-internal val CACHED_UELEMENT_KEY: Key<SoftReference<UElement>> = Key.create<SoftReference<UElement>>("org.jetbrains.uast.cachedElement")
-
+import com.intellij.util.containers.map2Array
+import org.jetbrains.uast.util.ClassSet
+import org.jetbrains.uast.util.ClassSetsWrapper
+import org.jetbrains.uast.util.emptyClassSet
 
 @Deprecated("use UastFacade or UastLanguagePlugin instead", ReplaceWith("UastFacade"))
 class UastContext(val project: Project) : UastLanguagePlugin by UastFacade {
@@ -59,11 +58,6 @@ object UastFacade : UastLanguagePlugin {
   override fun isFileSupported(fileName: String): Boolean = languagePlugins.any { it.isFileSupported(fileName) }
 
   override fun convertElement(element: PsiElement, parent: UElement?, requiredType: Class<out UElement>?): UElement? {
-    val cachedElement = element.getUserData(CACHED_UELEMENT_KEY)?.get()
-    if (cachedElement != null) {
-      return if (requiredType == null || requiredType.isInstance(cachedElement)) cachedElement else null
-    }
-
     return findPlugin(element)?.convertElement(element, parent, requiredType)
   }
 
@@ -71,12 +65,6 @@ object UastFacade : UastLanguagePlugin {
     if (element is PsiWhiteSpace) {
       return null
     }
-
-    val cachedElement = element.getUserData(CACHED_UELEMENT_KEY)?.get()
-    if (cachedElement != null) {
-      return if (requiredType == null || requiredType.isInstance(cachedElement)) cachedElement else null
-    }
-
     return findPlugin(element)?.convertElementWithParent(element, requiredType)
   }
 
@@ -111,6 +99,9 @@ object UastFacade : UastLanguagePlugin {
 
   override fun <T : UElement> convertToAlternatives(element: PsiElement, requiredTypes: Array<out Class<out T>>): Sequence<T> =
     findPlugin(element)?.convertToAlternatives(element, requiredTypes) ?: emptySequence()
+
+  override fun getPossiblePsiSourceTypes(vararg uastTypes: Class<out UElement>): ClassSet<PsiElement> =
+    ClassSetsWrapper(languagePlugins.map2Array { it.getPossiblePsiSourceTypes(*uastTypes) })
 }
 
 
@@ -127,6 +118,7 @@ fun PsiElement?.toUElement(): UElement? = this?.let { UastFacade.convertElementW
 fun <T : UElement> PsiElement?.toUElement(cls: Class<out T>): T? = this?.let { UastFacade.convertElementWithParent(this, cls) as T? }
 
 @Suppress("UNCHECKED_CAST")
+@SafeVarargs
 fun <T : UElement> PsiElement?.toUElementOfExpectedTypes(vararg clss: Class<out T>): T? =
   this?.let {
     UastFacade.convertElementWithParent(this, if (clss.isNotEmpty()) clss else DEFAULT_TYPES_LIST) as T?
@@ -166,3 +158,18 @@ val DEFAULT_TYPES_LIST: Array<Class<out UElement>> = arrayOf(UElement::class.jav
 
 @JvmField
 val DEFAULT_EXPRESSION_TYPES_LIST: Array<Class<out UExpression>> = arrayOf(UExpression::class.java)
+
+/**
+ * @return types of possible source PSI elements of [language], which instances in principle
+ *         can be converted to at least one of the specified [uastTypes]
+ *         (or to [UElement] if no type was specified)
+ */
+fun getPossiblePsiSourceTypes(language: Language, vararg uastTypes: Class<out UElement>): ClassSet<PsiElement> =
+  UastLanguagePlugin.byLanguage(language)?.getPossiblePsiSourceTypes(*uastTypes) ?: emptyClassSet()
+
+/**
+ * @return types of possible source PSI elements of [language], which instances in principle
+ *         can be converted to the specified `U` type
+ */
+inline fun <reified U : UElement> getPossiblePsiSourceTypesFor(language: Language): ClassSet<PsiElement> =
+  UastLanguagePlugin.byLanguage(language)?.getPossiblePsiSourceTypes(U::class.java) ?: emptyClassSet()

@@ -1,13 +1,15 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.wm;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupManager;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.util.messages.MessageBus;
 import com.intellij.util.messages.Topic;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -20,31 +22,35 @@ import java.awt.*;
  * Displays {@link Info#set(String, Project) status text} and
  * a number of {@link StandardWidgets builtin} and custom {@link StatusBarWidget widgets}.
  *
- * @see StatusBarWidgetProvider
+ * @see StatusBarWidgetFactory
  */
 public interface StatusBar extends StatusBarInfo, Disposable {
-  @SuppressWarnings({"AbstractClassNeverImplemented"})
-  abstract class Info implements StatusBarInfo {
-    public static final Topic<StatusBarInfo> TOPIC = Topic.create("IdeStatusBar.Text", StatusBarInfo.class);
+  @SuppressWarnings("AbstractClassNeverImplemented")
+  final class Info {
+    public static final Topic<StatusBarInfo> TOPIC = new Topic<>("IdeStatusBar.Text", StatusBarInfo.class);
 
     private Info() {
     }
 
-    public static void set(@Nullable final String text, @Nullable final Project project) {
+    public static void set(@NlsContexts.StatusBarText @Nullable final String text, @Nullable final Project project) {
       set(text, project, null);
     }
 
-    public static void set(@Nullable final String text, @Nullable final Project project, @Nullable final String requestor) {
+    public static void set(@NlsContexts.StatusBarText @Nullable final String text, @Nullable final Project project,
+                           @NonNls @Nullable final String requestor) {
       if (project != null) {
-        if (project.isDisposed()) return;
+        if (project.isDisposed()) {
+          return;
+        }
         if (!project.isInitialized()) {
-          StartupManager.getInstance(project).runWhenProjectIsInitialized(
-            () -> project.getMessageBus().syncPublisher(TOPIC).setInfo(text, requestor));
+          StartupManager.getInstance(project).runWhenProjectIsInitialized(() -> {
+            project.getMessageBus().syncPublisher(TOPIC).setInfo(text, requestor);
+          });
           return;
         }
       }
 
-      final MessageBus bus = project == null ? ApplicationManager.getApplication().getMessageBus() : project.getMessageBus();
+      MessageBus bus = project == null ? ApplicationManager.getApplication().getMessageBus() : project.getMessageBus();
       bus.syncPublisher(TOPIC).setInfo(text, requestor);
     }
   }
@@ -52,7 +58,7 @@ public interface StatusBar extends StatusBarInfo, Disposable {
   /**
    * Adds the given widget on the right.
    *
-   * @deprecated Use {@link StatusBarWidgetProvider}
+   * @deprecated Use {@link StatusBarWidgetFactory}
    */
   @Deprecated
   @ApiStatus.ScheduledForRemoval
@@ -61,51 +67,52 @@ public interface StatusBar extends StatusBarInfo, Disposable {
   /**
    * Adds the given widget positioned according to given anchor (see {@link Anchors}).
    *
-   * @deprecated Use {@link StatusBarWidgetProvider}
+   * @deprecated Use {@link StatusBarWidgetFactory}
    */
   @Deprecated
   @ApiStatus.ScheduledForRemoval
-  void addWidget(@NotNull StatusBarWidget widget, @NotNull String anchor);
+  void addWidget(@NotNull StatusBarWidget widget, @NonNls @NotNull String anchor);
 
   /**
-   * @deprecated Use {@link StatusBarWidgetProvider}
+   * Adds the given widget on the right.
+   * <p>
+   * For external usages use {@link StatusBarWidgetFactory}.
    */
-  @Deprecated
-  @ApiStatus.ScheduledForRemoval
+  @ApiStatus.Internal
   void addWidget(@NotNull StatusBarWidget widget, @NotNull Disposable parentDisposable);
 
   /**
-   * @deprecated Use {@link StatusBarWidgetProvider}
+   * Adds the given widget positioned according to given anchor (see {@link Anchors}).
+   * <p>
+   * For external usages use {@link StatusBarWidgetFactory}.
    */
-  @Deprecated
-  @ApiStatus.ScheduledForRemoval
-  void addWidget(@NotNull StatusBarWidget widget, @NotNull String anchor, @NotNull Disposable parentDisposable);
+  @ApiStatus.Internal
+  void addWidget(@NotNull StatusBarWidget widget, @NonNls @NotNull String anchor, @NotNull Disposable parentDisposable);
 
   /**
-   * @deprecated Use {@link StatusBarWidgetProvider}
+   * @deprecated Use {@link StatusBarWidgetFactory}
    */
   @Deprecated
   @ApiStatus.ScheduledForRemoval
   void addCustomIndicationComponent(@NotNull JComponent c);
 
   /**
-   * @deprecated Use {@link StatusBarWidgetProvider}
+   * @deprecated Use {@link StatusBarWidgetFactory}
    */
   @Deprecated
   @ApiStatus.ScheduledForRemoval
   void removeCustomIndicationComponent(@NotNull JComponent c);
 
   /**
-   * @deprecated Use {@link StatusBarWidgetProvider}
+   * For external usages use {@link StatusBarWidgetFactory}.
    */
-  @Deprecated
-  @ApiStatus.ScheduledForRemoval
-  void removeWidget(@NotNull String id);
+  @ApiStatus.Internal
+  void removeWidget(@NonNls @NotNull String id);
 
-  void updateWidget(@NotNull String id);
+  void updateWidget(@NonNls @NotNull String id);
 
   @Nullable
-  StatusBarWidget getWidget(String id);
+  StatusBarWidget getWidget(@NonNls String id);
 
   void fireNotificationPopup(@NotNull JComponent content, Color backgroundColor);
 
@@ -155,5 +162,6 @@ public interface StatusBar extends StatusBarInfo, Disposable {
     public static final String COLUMN_SELECTION_MODE_PANEL = "InsertOverwrite"; // Keep the old ID for backwards compatibility
     public static final String READONLY_ATTRIBUTE_PANEL = "ReadOnlyAttribute";
     public static final String POSITION_PANEL = "Position";
+    public static final String LINE_SEPARATOR_PANEL = "LineSeparator";
   }
 }

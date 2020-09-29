@@ -1,8 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
-/*
- * @author max
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.fileTypes;
 
 import com.intellij.openapi.project.Project;
@@ -39,9 +35,8 @@ public class MockFileTypeManager extends FileTypeManager {
     return MockLanguageFileType.INSTANCE;
   }
 
-  @NotNull
   @Override
-  public FileType[] getRegisteredFileTypes() {
+  public FileType @NotNull [] getRegisteredFileTypes() {
     return new FileType[] {MockLanguageFileType.INSTANCE};
   }
 
@@ -55,9 +50,8 @@ public class MockFileTypeManager extends FileTypeManager {
     return false;
   }
 
-  @NotNull
   @Override
-  public String[] getAssociatedExtensions(@NotNull FileType type) {
+  public String @NotNull [] getAssociatedExtensions(@NotNull FileType type) {
     return ArrayUtilRt.EMPTY_STRING_ARRAY;
   }
 
@@ -102,11 +96,6 @@ public class MockFileTypeManager extends FileTypeManager {
   @Override
   public FileType getStdFileType(@NotNull @NonNls String fileTypeName) {
     return MockLanguageFileType.INSTANCE;
-  }
-
-  @Override
-  public boolean isFileOfType(@NotNull VirtualFile file, @NotNull FileType type) {
-    return false;
   }
 
   @Nullable

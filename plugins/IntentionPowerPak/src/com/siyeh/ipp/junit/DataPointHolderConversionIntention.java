@@ -15,6 +15,7 @@ import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 import com.intellij.psi.codeStyle.VariableKind;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.siyeh.IntentionPowerPackBundle;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -24,8 +25,6 @@ public class DataPointHolderConversionIntention extends PsiElementBaseIntentionA
   private static final String THEORIES_PACKAGE = "org.junit.experimental.theories";
   private static final String DATA_POINT_FQN = THEORIES_PACKAGE + ".DataPoint";
   private static final String DATA_POINTS_FQN = THEORIES_PACKAGE + ".DataPoints";
-
-  private static final String REPLACE_BY_TEMPLATE = "Replace by @%s %s";
 
   @Override
   public void invoke(@NotNull final Project project, final Editor editor, @NotNull final PsiElement element) {
@@ -90,9 +89,8 @@ public class DataPointHolderConversionIntention extends PsiElementBaseIntentionA
   public boolean isAvailable(@NotNull final Project project, final Editor editor, @NotNull final PsiElement element) {
     final Pair<PsiMember, PsiAnnotation> dataPointsHolder = extractDataPointsHolder(element);
     if (dataPointsHolder != null && isConvertible(dataPointsHolder.getFirst())) {
-      final String replaceType = dataPointsHolder.getFirst() instanceof PsiMethod ? "field" : "method";
       final String annotation = StringUtil.getShortName(dataPointsHolder.getSecond().getQualifiedName());
-      setText(String.format(REPLACE_BY_TEMPLATE, annotation, replaceType));
+      setText(IntentionPowerPackBundle.message("intention.name.replace.field.or.method", annotation, dataPointsHolder.getFirst() instanceof PsiMethod ? 0 : 1));
       return true;
     }
     return false;
@@ -139,6 +137,6 @@ public class DataPointHolderConversionIntention extends PsiElementBaseIntentionA
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Convert @DataPoint(s) annotation holder";
+    return IntentionPowerPackBundle.message("convert.datapoints.fix.family.name");
   }
 }

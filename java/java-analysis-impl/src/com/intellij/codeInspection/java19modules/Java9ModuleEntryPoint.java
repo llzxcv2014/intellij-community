@@ -4,6 +4,7 @@ package com.intellij.codeInspection.java19modules;
 import com.intellij.codeInsight.daemon.impl.analysis.JavaModuleGraphUtil;
 import com.intellij.codeInspection.reference.*;
 import com.intellij.codeInspection.visibility.EntryPointWithVisibilityLevel;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
 import com.intellij.psi.*;
@@ -38,12 +39,12 @@ public class Java9ModuleEntryPoint extends EntryPointWithVisibilityLevel {
   @NotNull
   @Override
   public String getDisplayName() {
-    return "<html>Classes exposed with <code>module-info</code></html>";
+    return JavaAnalysisBundle.message("html.classes.exposed.with.code.module.info.code.html");
   }
 
   @Override
   public String getTitle() {
-    return "Suggest package-private visibility level for classes in exported packages (Java 9+)";
+    return JavaAnalysisBundle.message("suggest.package.private.visibility.level.for.classes.in.exported.packages.java.9");
   }
 
   @Override

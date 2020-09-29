@@ -6,7 +6,9 @@ import com.intellij.diff.DiffManagerEx
 import com.intellij.diff.DiffRequestFactory
 import com.intellij.diff.chains.DiffRequestProducerException
 import com.intellij.diff.merge.*
+import com.intellij.diff.util.DiffUserDataKeysEx
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.diff.DiffBundle
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.progress.ProgressIndicator
@@ -17,19 +19,21 @@ import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.UserDataHolder
 import com.intellij.openapi.vcs.impl.BackgroundableActionLock
 import com.intellij.openapi.vcs.merge.MergeDialogCustomizer
+import com.intellij.openapi.vcs.merge.MergeUtils
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.EditorNotificationPanel
 import com.intellij.ui.EditorNotifications
 import com.intellij.ui.LightColors
 import com.intellij.util.Consumer
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.UIUtil
-import org.jetbrains.annotations.CalledInAwt
+import git4idea.i18n.GitBundle
 import javax.swing.JFrame
 
 object MergeConflictResolveUtil {
   private val ACTIVE_MERGE_WINDOW = Key.create<WindowWrapper>("ResolveConflictsWindow")
 
-  @CalledInAwt
+  @RequiresEdt
   fun showMergeWindow(project: Project,
                       file: VirtualFile?,
                       lock: BackgroundableActionLock,
@@ -39,7 +43,7 @@ object MergeConflictResolveUtil {
     if (lock.isLocked) return
     lock.lock()
 
-    val title = if (file != null) MergeDialogCustomizer().getMergeWindowTitle(file) else "Merge"
+    val title = if (file != null) MergeDialogCustomizer().getMergeWindowTitle(file) else DiffBundle.message("merge.files.dialog.title")
 
     val windowHandler = Consumer<WindowWrapper> { wrapper ->
       UIUtil.runWhenWindowClosed(wrapper.window) { lock.unlock() }
@@ -66,7 +70,11 @@ object MergeConflictResolveUtil {
 
         val request = DiffRequestFactory.getInstance().createMergeRequest(project, resolver.virtualFile, byteContents,
                                                                           resolver.windowTitle, resolver.contentTitles)
-        MergeUtil.putRevisionInfos(request, mergeData)
+        resolver.titleCustomizerList.run {
+          request.putUserData(DiffUserDataKeysEx.EDITORS_TITLE_CUSTOMIZER,
+                              listOf(leftTitleCustomizer, centerTitleCustomizer, rightTitleCustomizer))
+        }
+        MergeUtils.putRevisionInfos(request, mergeData)
         MergeCallback.register(request, MyMergeCallback(resolver))
         return request
       }
@@ -107,7 +115,7 @@ object MergeConflictResolveUtil {
       MergeUtil.reportProjectFileChangeIfNeeded(project, file)
 
       if (result != MergeResult.CANCEL) {
-        runBackgroundableTask("Finishing Conflict Resolve", project, false) {
+        runBackgroundableTask(GitBundle.message("progress.finishing.conflict.resolve"), project, false) {
           resolver.onConflictResolved(result)
         }
       }
@@ -131,9 +139,9 @@ object MergeConflictResolveUtil {
     override fun createNotificationPanel(file: VirtualFile, fileEditor: FileEditor, project: Project): EditorNotificationPanel? {
       val wrapper = file.getUserData(ACTIVE_MERGE_WINDOW) ?: return null
       val panel = EditorNotificationPanel(LightColors.SLIGHTLY_GREEN)
-      panel.setText("Merge conflicts resolve in progress.")
-      panel.createActionLabel("Focus Window") { UIUtil.toFront(wrapper.window) }
-      panel.createActionLabel("Cancel Resolve") { wrapper.close() }
+      panel.setText(GitBundle.message("link.label.editor.notification.merge.conflicts.resolve.in.progress"))
+      panel.createActionLabel(GitBundle.message("link.label.merge.conflicts.resolve.in.progress.focus.window")) { UIUtil.toFront(wrapper.window) }
+      panel.createActionLabel(GitBundle.message("link.label.merge.conflicts.resolve.in.progress.cancel.resolve")) { wrapper.close() }
       return panel
     }
   }

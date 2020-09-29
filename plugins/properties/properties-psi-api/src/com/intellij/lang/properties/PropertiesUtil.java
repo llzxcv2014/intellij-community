@@ -4,7 +4,6 @@ package com.intellij.lang.properties;
 import com.intellij.lang.properties.psi.PropertiesFile;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.openapi.util.text.StringUtil;
@@ -17,6 +16,7 @@ import com.intellij.reference.SoftLazyValue;
 import com.intellij.util.Function;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -25,9 +25,6 @@ import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * @author cdr
- */
 public class PropertiesUtil {
   private static final Pattern LOCALE_PATTERN = Pattern.compile("(_[a-zA-Z]{2,8}(_[a-zA-Z]{2}|[0-9]{3})?(_[\\w\\-]+)?)\\.[^_]+$");
   public static final Set<Character> BASE_NAME_BORDER_CHAR = ContainerUtil.newHashSet('-', '_', '.');
@@ -226,15 +223,15 @@ public class PropertiesUtil {
   }
 
   @NotNull
-  public static String getPresentableLocale(@NotNull Locale locale) {
+  public static @Nls String getPresentableLocale(@NotNull Locale locale) {
     List<String> names = new ArrayList<>();
-    if (!Comparing.strEqual(locale.getDisplayLanguage(), null)) {
+    if (locale.getDisplayLanguage() != null) {
       names.add(locale.getDisplayLanguage());
     }
-    if (!Comparing.strEqual(locale.getDisplayCountry(), null)) {
+    if (locale.getDisplayCountry() != null) {
       names.add(locale.getDisplayCountry());
     }
-    if (!Comparing.strEqual(locale.getDisplayVariant(), null)) {
+    if (locale.getDisplayVariant() != null) {
       names.add(locale.getDisplayVariant());
     }
     return names.isEmpty() ? "" : " (" + StringUtil.join(names, "/") + ")";

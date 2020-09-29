@@ -1,6 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection;
 
+import com.intellij.codeInspection.util.InspectionMessage;
 import com.intellij.lang.annotation.ProblemGroup;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -34,8 +35,8 @@ public class ProblemDescriptorBase extends CommonProblemDescriptorImpl implement
 
   public ProblemDescriptorBase(@NotNull PsiElement startElement,
                                @NotNull PsiElement endElement,
-                               @NotNull String descriptionTemplate,
-                               @Nullable LocalQuickFix[] fixes,
+                               @NotNull @InspectionMessage String descriptionTemplate,
+                               LocalQuickFix @Nullable [] fixes,
                                @NotNull ProblemHighlightType highlightType,
                                boolean isAfterEndOfLine,
                                @Nullable TextRange rangeInElement,
@@ -87,6 +88,10 @@ public class ProblemDescriptorBase extends CommonProblemDescriptorImpl implement
     myAfterEndOfLine = isAfterEndOfLine;
     myTextRangeInElement = rangeInElement;
     myCreationTrace = onTheFly ? null : ThrowableInterner.intern(new Throwable());
+  }
+
+  public boolean isOnTheFly() {
+    return myCreationTrace == null;
   }
 
   @Nullable
@@ -268,5 +273,10 @@ public class ProblemDescriptorBase extends CommonProblemDescriptorImpl implement
   public String toString() {
     PsiElement element = getPsiElement();
     return ProblemDescriptorUtil.renderDescriptionMessage(this, element);
+  }
+
+  @Override
+  public LocalQuickFix @Nullable [] getFixes() {
+    return (LocalQuickFix[])super.getFixes();
   }
 }

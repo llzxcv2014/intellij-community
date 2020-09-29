@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.checkin
 
 import com.intellij.openapi.util.Key
@@ -13,10 +13,11 @@ import com.intellij.openapi.vcs.ui.RefreshableOnComponent
 import com.intellij.ui.NonFocusableCheckBox
 import com.intellij.util.ui.JBUI
 import com.intellij.vcs.commit.commitProperty
-import git4idea.GitUtil.getRepositoriesFromRoots
 import git4idea.GitUtil.getRepositoryManager
 import git4idea.GitVcs
+import git4idea.i18n.GitBundle
 import git4idea.repo.GitRepository
+import git4idea.repo.GitRepositoryManager
 import java.awt.event.KeyEvent
 import javax.swing.JComponent
 
@@ -24,8 +25,11 @@ private val IS_SKIP_HOOKS_KEY = Key.create<Boolean>("Git.Commit.IsSkipHooks")
 internal var CommitContext.isSkipHooks: Boolean by commitProperty(IS_SKIP_HOOKS_KEY)
 
 class GitSkipHooksCommitHandlerFactory : CheckinHandlerFactory() {
-  override fun createHandler(panel: CheckinProjectPanel, commitContext: CommitContext): CheckinHandler =
-    GitSkipHooksCommitHandler(panel, commitContext)
+  override fun createHandler(panel: CheckinProjectPanel, commitContext: CommitContext): CheckinHandler {
+    if (!panel.vcsIsAffected(GitVcs.NAME)) return CheckinHandler.DUMMY
+
+    return GitSkipHooksCommitHandler(panel, commitContext)
+  }
 }
 
 private class GitSkipHooksCommitHandler(
@@ -43,18 +47,19 @@ private class GitSkipHooksConfigurationPanel(
     CheckinChangeListSpecificComponent {
 
   private val vcs = GitVcs.getInstance(panel.project)
-  private val runHooks = NonFocusableCheckBox("Run Git hooks").apply {
+  private val runHooks = NonFocusableCheckBox(GitBundle.message("checkbox.run.git.hooks")).apply {
     mnemonic = KeyEvent.VK_H
-    toolTipText = "<html>If unchecked, Git hook will be skipped with the '--no-verify' parameter</html>"
+    toolTipText = GitBundle.message("tooltip.run.git.hooks")
   }
   private var selectedState = true
 
   override fun getComponent(): JComponent = JBUI.Panels.simplePanel(runHooks)
 
-  override fun onChangeListSelected(list: LocalChangeList?) {
+  override fun onChangeListSelected(list: LocalChangeList) {
     if (runHooks.isEnabled) selectedState = runHooks.isSelected
     val affectedGitRoots = panel.roots.intersect(setOf(*ProjectLevelVcsManager.getInstance(panel.project).getRootsUnderVcs(vcs)))
-    runHooks.isEnabled = getRepositoriesFromRoots(getRepositoryManager(panel.project), affectedGitRoots).any { it.hasCommitHooks() }
+    val repositoryManager = GitRepositoryManager.getInstance(panel.project)
+    runHooks.isEnabled = affectedGitRoots.any { repositoryManager.getRepositoryForRootQuick(it)?.hasCommitHooks() == true }
     runHooks.isSelected = if (runHooks.isEnabled) selectedState else false
   }
 

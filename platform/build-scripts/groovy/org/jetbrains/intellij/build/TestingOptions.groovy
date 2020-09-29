@@ -4,9 +4,6 @@ package org.jetbrains.intellij.build
 import com.intellij.util.SystemProperties
 import groovy.transform.CompileStatic
 
-/**
- * @author nik
- */
 @CompileStatic
 class TestingOptions {
   /**
@@ -32,6 +29,11 @@ class TestingOptions {
    * Specifies components from which product will be used to run tests, by default IDEA Ultimate will be used.
    */
   String platformPrefix = System.getProperty("intellij.build.test.platform.prefix", OLD_PLATFORM_PREFIX)
+
+  /**
+   * Enables debug for testing process
+   */
+  boolean debugEnabled = SystemProperties.getBooleanProperty("intellij.build.test.debug.enabled", true)
 
   /**
    * Specifies port on which the testing process will listen for connections, by default a random port will be used.
@@ -87,14 +89,30 @@ class TestingOptions {
    */
   String testDiscoveryExcludePatterns = System.getProperty("intellij.build.test.discovery.exclude.class.patterns")
 
+  /**
+   * If {@code true} causal profiler agent will be attached to the testing process.
+   */
+  boolean enableCausalProfiling = SystemProperties.getBooleanProperty("intellij.build.test.enable.causal.profiling", false)
+
+  /**
+   * Pattern to match tests in {@link #mainModule} or default main module tests compilation outputs.
+   * Tests from each matched class will be executed in a fresh JVM.
+   *
+   * E.g. "com/intellij/util/ui/standalone/**Test.class"
+   */
+  String batchTestIncludes = System.getProperty("intellij.build.test.batchTest.includes")
+
+  boolean performanceTestsOnly = SystemProperties.getBooleanProperty(PERFORMANCE_TESTS_ONLY_FLAG, false)
+
   public static final String ALL_EXCLUDE_DEFINED_GROUP = "ALL_EXCLUDE_DEFINED"
   private static final String OLD_TEST_GROUP = System.getProperty("idea.test.group", ALL_EXCLUDE_DEFINED_GROUP)
   private static final String OLD_TEST_PATTERNS = System.getProperty("idea.test.patterns")
   private static final String OLD_PLATFORM_PREFIX = System.getProperty("idea.platform.prefix")
-  private static final int OLD_DEBUG_PORT = SystemProperties.getIntProperty("debug.port", -1)
+  private static final int OLD_DEBUG_PORT = SystemProperties.getIntProperty("debug.port", 0) // 0 means any random port, same as in case of missing 'address' parameter
   private static final boolean OLD_SUSPEND_DEBUG_PROCESS = System.getProperty("debug.suspend", "n") == "y"
   private static final String OLD_JVM_MEMORY_OPTIONS = System.getProperty("test.jvm.memory")
   private static final String OLD_MAIN_MODULE = System.getProperty("module.to.make")
 
   public static final String BOOTSTRAP_SUITE_DEFAULT = "com.intellij.tests.BootstrapTests"
+  public static final String PERFORMANCE_TESTS_ONLY_FLAG = "idea.performance.tests"
 }

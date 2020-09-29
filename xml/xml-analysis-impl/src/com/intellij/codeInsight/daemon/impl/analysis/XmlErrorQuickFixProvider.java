@@ -15,7 +15,6 @@
  */
 package com.intellij.codeInsight.daemon.impl.analysis;
 
-import com.intellij.codeInsight.daemon.XmlErrorMessages;
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.codeInsight.daemon.impl.quickfix.QuickFixAction;
 import com.intellij.codeInsight.intention.IntentionAction;
@@ -28,6 +27,8 @@ import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.xml.XmlTag;
+import com.intellij.xml.analysis.XmlAnalysisBundle;
+import com.intellij.xml.psi.XmlPsiBundle;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
@@ -43,12 +44,12 @@ public class XmlErrorQuickFixProvider implements ErrorQuickFixProvider {
 
   private static void registerXmlErrorQuickFix(final PsiErrorElement element, final HighlightInfo highlightInfo) {
     final String text = element.getErrorDescription();
-    if (text.startsWith(XmlErrorMessages.message("unescaped.ampersand"))) {
+    if (text.equals(XmlPsiBundle.message("xml.parsing.unescaped.ampersand.or.nonterminated.character.entity.reference"))) {
       QuickFixAction.registerQuickFixAction(highlightInfo, new IntentionAction() {
         @Override
         @NotNull
         public String getText() {
-          return XmlErrorMessages.message("escape.ampersand.quickfix");
+          return XmlAnalysisBundle.message("xml.quickfix.escape.ampersand");
         }
 
         @Override

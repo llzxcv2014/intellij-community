@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.changes.patch;
 
 import com.intellij.diff.chains.DiffRequestProducer;
@@ -15,6 +15,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.UserDataHolder;
 import com.intellij.openapi.vcs.FilePath;
+import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vcs.changes.ContentRevision;
 import com.intellij.openapi.vcs.changes.SimpleContentRevision;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -24,28 +25,31 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.util.Collection;
 
-public class TextFilePatchInProgress extends AbstractFilePatchInProgress<TextFilePatch> {
+import static com.intellij.util.ObjectUtils.chooseNotNull;
 
-  protected TextFilePatchInProgress(TextFilePatch patch,
-                                    Collection<VirtualFile> autoBases,
-                                    VirtualFile baseDir) {
+public final class TextFilePatchInProgress extends AbstractFilePatchInProgress<TextFilePatch> {
+  TextFilePatchInProgress(TextFilePatch patch, Collection<VirtualFile> autoBases, VirtualFile baseDir) {
     super(patch.pathsOnlyCopy(), autoBases, baseDir);
   }
 
   @Override
   public ContentRevision getNewContentRevision() {
-    if (FilePatchStatus.DELETED.equals(myStatus)) return null;
+    if (FilePatchStatus.DELETED.equals(myStatus)) {
+      return null;
+    }
 
     if (myNewContentRevision == null) {
       myConflicts = null;
       if (FilePatchStatus.ADDED.equals(myStatus)) {
         final FilePath newFilePath = VcsUtil.getFilePath(myIoCurrentBase, false);
         final String content = myPatch.getSingleHunkPatchText();
-        myNewContentRevision = new SimpleContentRevision(content, newFilePath, myPatch.getAfterVersionId());
+        myNewContentRevision = new SimpleContentRevision(content, newFilePath, chooseNotNull(myPatch.getAfterVersionId(), VcsBundle
+          .message("patch.apply.conflict.patched.version")));
       }
       else {
         final FilePath newFilePath = detectNewFilePathForMovedOrModified();
-        myNewContentRevision = new LazyPatchContentRevision(myCurrentBase, newFilePath, myPatch.getAfterVersionId(), myPatch);
+        myNewContentRevision = new LazyPatchContentRevision(myCurrentBase, newFilePath, chooseNotNull(myPatch.getAfterVersionId(), VcsBundle
+          .message("patch.apply.conflict.patched.version")), myPatch);
       }
     }
     return myNewContentRevision;
@@ -54,9 +58,9 @@ public class TextFilePatchInProgress extends AbstractFilePatchInProgress<TextFil
   @NotNull
   @Override
   public DiffRequestProducer getDiffRequestProducers(final Project project, final PatchReader patchReader) {
-    final PatchChange change = getChange();
-    final FilePatch patch = getPatch();
-    final String path = patch.getBeforeName() == null ? patch.getAfterName() : patch.getBeforeName();
+    PatchChange change = getChange();
+    FilePatch patch = getPatch();
+    String path = patch.getBeforeName() == null ? patch.getAfterName() : patch.getBeforeName();
     return new DiffRequestProducer() {
       @NotNull
       @Override
@@ -74,7 +78,7 @@ public class TextFilePatchInProgress extends AbstractFilePatchInProgress<TextFil
               .create(project, file, VcsUtil.getFilePath(file), getPatch(), patchReader.getBaseRevision(project, path));
 
           String afterTitle = getPatch().getAfterVersionId();
-          if (afterTitle == null) afterTitle = "Patched Version";
+          if (afterTitle == null) afterTitle = VcsBundle.message("patch.apply.conflict.patched.version");
           return PatchDiffRequestFactory.createConflictDiffRequest(project, file, getPatch(), afterTitle, texts, getName());
         }
         else {

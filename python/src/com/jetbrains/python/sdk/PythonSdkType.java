@@ -1,7 +1,6 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.sdk;
 
-import com.google.common.collect.Lists;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
@@ -13,6 +12,7 @@ import com.intellij.notification.Notifications;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.application.impl.ApplicationInfoImpl;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
@@ -24,39 +24,32 @@ import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.text.HtmlBuilder;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.reference.SoftReference;
-import com.intellij.remote.*;
-import com.intellij.remote.ext.CredentialsCase;
+import com.intellij.remote.ExceptionFix;
+import com.intellij.remote.VagrantNotStartedException;
 import com.intellij.remote.ext.LanguageCaseCollector;
 import com.intellij.util.Consumer;
 import com.intellij.util.ExceptionUtil;
 import com.intellij.util.containers.ContainerUtil;
-import com.jetbrains.python.PyBundle;
-import com.jetbrains.python.PyNames;
-import com.jetbrains.python.PythonFileType;
-import com.jetbrains.python.PythonHelper;
+import com.jetbrains.python.*;
 import com.jetbrains.python.psi.LanguageLevel;
 import com.jetbrains.python.psi.impl.PyBuiltinCache;
 import com.jetbrains.python.remote.PyCredentialsContribution;
 import com.jetbrains.python.remote.PyRemoteInterpreterUtil;
 import com.jetbrains.python.remote.PyRemoteSdkAdditionalDataBase;
 import com.jetbrains.python.remote.PythonRemoteInterpreterManager;
-import com.jetbrains.python.run.PyVirtualEnvReader;
 import com.jetbrains.python.sdk.add.PyAddSdkDialog;
 import com.jetbrains.python.sdk.flavors.CPythonSdkFlavor;
 import com.jetbrains.python.sdk.flavors.PythonSdkFlavor;
-import com.jetbrains.python.sdk.pipenv.PyPipEnvSdkAdditionalData;
 import icons.PythonIcons;
 import one.util.streamex.StreamEx;
 import org.jdom.Element;
-import org.jetbrains.annotations.ApiStatus;
-import org.jetbrains.annotations.NonNls;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.*;
 
 import javax.swing.*;
 import java.awt.*;
@@ -64,6 +57,7 @@ import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Class should be final and singleton since some code checks its instance by ref.
@@ -78,7 +72,11 @@ public final class PythonSdkType extends SdkType {
 
   private static final Key<WeakReference<Component>> SDK_CREATOR_COMPONENT_KEY = Key.create("#com.jetbrains.python.sdk.creatorComponent");
 
-  private static final Key<Map<String, String>> ENVIRONMENT_KEY = Key.create("ENVIRONMENT_KEY");
+  /**
+   * Note that <i>\w+.*</i> pattern is not sufficient because we need also the
+   * hyphen sign (<i>-</i>) for <i>docker-compose:</i> scheme.
+   */
+  private static final Pattern CUSTOM_PYTHON_SDK_HOME_PATH_PATTERN = Pattern.compile("[-a-zA-Z_0-9]{2,}:.*");
 
   public static PythonSdkType getInstance() {
     return SdkType.findInstance(PythonSdkType.class);
@@ -118,27 +116,25 @@ public final class PythonSdkType extends SdkType {
   @NonNls
   @Nullable
   public String suggestHomePath() {
-    final Sdk[] existingSdks = ProjectJdkTable.getInstance().getAllJdks();
+    return null;
+  }
+
+  @NotNull
+  @Override
+  public Collection<String> suggestHomePaths() {
+    final Sdk[] existingSdks = ReadAction.compute(() -> ProjectJdkTable.getInstance().getAllJdks());
     final List<PyDetectedSdk> sdks = PySdkExtKt.detectSystemWideSdks(null, Arrays.asList(existingSdks));
+    //return all detected items after PY-41218 is fixed
     final PyDetectedSdk latest = StreamEx.of(sdks).findFirst().orElse(null);
     if (latest != null) {
-      return latest.getHomePath();
+      return Collections.singleton(latest.getHomePath());
     }
-    return null;
+    return Collections.emptyList();
   }
 
   @Override
   public boolean isValidSdkHome(@Nullable final String path) {
     return PythonSdkFlavor.getFlavor(path) != null;
-  }
-
-  public static boolean isVagrant(@Nullable Sdk sdk) {
-    if (sdk != null && sdk.getSdkAdditionalData() instanceof PyRemoteSdkAdditionalDataBase) {
-      PyRemoteSdkAdditionalDataBase data = (PyRemoteSdkAdditionalDataBase)sdk.getSdkAdditionalData();
-
-      return data.connectionCredentials().getRemoteConnectionType() == CredentialsType.VAGRANT;
-    }
-    return false;
   }
 
   @NotNull
@@ -147,10 +143,10 @@ public final class PythonSdkType extends SdkType {
     final boolean isWindows = SystemInfo.isWindows;
     return new FileChooserDescriptor(true, false, false, false, false, false) {
       @Override
-      public void validateSelectedFiles(@NotNull VirtualFile[] files) throws Exception {
+      public void validateSelectedFiles(VirtualFile @NotNull [] files) throws Exception {
         if (files.length != 0) {
           if (!isValidSdkHome(files[0].getPath())) {
-            throw new Exception(PyBundle.message("sdk.error.invalid.interpreter.name.$0", files[0].getName()));
+            throw new Exception(PyBundle.message("python.sdk.error.invalid.interpreter.name", files[0].getName()));
           }
         }
       }
@@ -184,7 +180,7 @@ public final class PythonSdkType extends SdkType {
   @Override
   public void showCustomCreateUI(@NotNull SdkModel sdkModel,
                                  @NotNull final JComponent parentComponent,
-                                 @NotNull final Consumer<Sdk> sdkCreatedCallback) {
+                                 final @NotNull Consumer<? super Sdk> sdkCreatedCallback) {
     Project project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(parentComponent));
     PyAddSdkDialog.show(project, null, Arrays.asList(sdkModel.getSdks()), sdk -> {
       if (sdk != null) {
@@ -219,11 +215,21 @@ public final class PythonSdkType extends SdkType {
    * @param commandLine what to patch
    * @param sdk         SDK we're using
    */
-  public static void patchCommandLineForVirtualenv(@NotNull GeneralCommandLine commandLine, @NotNull Sdk sdk) {
+  public static void patchCommandLineForVirtualenv(@NotNull GeneralCommandLine commandLine,
+                                                   @NotNull Sdk sdk) {
+    patchEnvironmentVariablesForVirtualenv(commandLine.getEnvironment(), sdk);
+  }
+
+  /**
+   * Alters PATH so that a virtualenv is activated, if present.
+   *
+   * @param environment the environment to patch
+   * @param sdk         SDK we're using
+   */
+  public static void patchEnvironmentVariablesForVirtualenv(@NotNull Map<String, String> environment,
+                                                            @NotNull Sdk sdk) {
     final Map<String, String> virtualEnv = activateVirtualEnv(sdk);
     if (!virtualEnv.isEmpty()) {
-      final Map<String, String> environment = commandLine.getEnvironment();
-
       for (Map.Entry<String, String> entry : virtualEnv.entrySet()) {
         final String key = entry.getKey();
         final String value = entry.getValue();
@@ -277,18 +283,31 @@ public final class PythonSdkType extends SdkType {
 
   @Override
   public SdkAdditionalData loadAdditionalData(@NotNull final Sdk currentSdk, @NotNull final Element additional) {
-    if (RemoteSdkCredentialsHolder.isRemoteSdk(currentSdk.getHomePath())) {
+    String homePath = currentSdk.getHomePath();
+    if (homePath != null && isCustomPythonSdkHomePath(homePath)) {
       PythonRemoteInterpreterManager manager = PythonRemoteInterpreterManager.getInstance();
       if (manager != null) {
         return manager.loadRemoteSdkData(currentSdk, additional);
       }
+      // TODO we should have "remote" SDK data with unknown credentials anyway!
     }
-    // TODO: Extract loading additional SDK data into a Python SDK provider
-    final PyPipEnvSdkAdditionalData pipEnvData = PyPipEnvSdkAdditionalData.load(additional);
-    if (pipEnvData != null) {
-      return pipEnvData;
-    }
-    return PythonSdkAdditionalData.load(currentSdk, additional);
+    return PySdkProvider.EP_NAME.extensions()
+      .map(ext -> ext.loadAdditionalDataForSdk(additional))
+      .filter(data -> data != null)
+      .findFirst()
+      .orElseGet(() -> PythonSdkAdditionalData.load(currentSdk, additional));
+  }
+
+  /**
+   * Returns whether provided Python interpreter path corresponds to custom
+   * Python SDK.
+   *
+   * @param homePath SDK home path
+   * @return whether provided Python interpreter path corresponds to custom Python SDK
+   */
+  @Contract(pure = true)
+  static boolean isCustomPythonSdkHomePath(@NotNull String homePath) {
+    return CUSTOM_PYTHON_SDK_HOME_PATH_PATTERN.matcher(homePath).matches();
   }
 
   public static boolean isSkeletonsPath(String path) {
@@ -355,7 +374,10 @@ public final class PythonSdkType extends SdkType {
             restartAction.run();
           }
         };
-      notificationMessage = e.getMessage() + "\n<a href=\"#\">Launch vagrant and refresh skeletons</a>";
+      notificationMessage = new HtmlBuilder()
+        .append(e.getMessage())
+        .appendLink("#", PyBundle.message("python.vagrant.refresh.skeletons"))
+        .toString();
     }
     else if (ExceptionUtil.causedBy(e, ExceptionFix.class)) {
       final ExceptionFix fix = ExceptionUtil.findCause(e, ExceptionFix.class);
@@ -375,7 +397,7 @@ public final class PythonSdkType extends SdkType {
 
     Notifications.Bus.notify(
       new Notification(
-        SKELETONS_TOPIC, "Couldn't refresh skeletons for remote interpreter",
+        SKELETONS_TOPIC, PyBundle.message("sdk.gen.failed.notification.title"),
         notificationMessage,
         NotificationType.WARNING,
         notificationListener
@@ -402,13 +424,18 @@ public final class PythonSdkType extends SdkType {
   /**
    * Returns skeletons location on the local machine. Independent of SDK credentials type (e.g. ssh, Vagrant, Docker or else).
    */
+  @NotNull
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2020.3")
   public static String getSkeletonsPath(String basePath, String sdkHome) {
-    String sep = File.separator;
-    return getSkeletonsRootPath(basePath) + sep + FileUtil.toSystemIndependentName(sdkHome).hashCode() + sep;
+    return PythonSdkUtil.getSkeletonsPath(basePath, sdkHome);
   }
 
+  @NotNull
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2020.3")
   public static String getSkeletonsRootPath(String basePath) {
-    return basePath + File.separator + PythonSdkUtil.SKELETON_DIR_NAME;
+    return PythonSdkUtil.getSkeletonsRootPath(basePath);
   }
 
   @NotNull
@@ -430,13 +457,12 @@ public final class PythonSdkType extends SdkType {
     // to handle the situation when PYTHONPATH contains ., we need to run the syspath script in the
     // directory of the script itself - otherwise the dir in which we run the script (e.g. /usr/bin) will be added to SDK path
     final String binaryPath = sdk.getHomePath();
-    GeneralCommandLine cmd = PythonHelper.SYSPATH.newCommandLine(binaryPath, Lists.newArrayList());
+    GeneralCommandLine cmd = PythonHelper.SYSPATH.newCommandLine(binaryPath, new ArrayList<String>());
     final ProcessOutput runResult = PySdkUtil.getProcessOutput(cmd, new File(binaryPath).getParent(),
                                                                activateVirtualEnv(sdk), MINUTE);
     if (!runResult.checkSuccess(LOG)) {
-      throw new InvalidSdkException(String.format("Failed to determine Python's sys.path value:\nSTDOUT: %s\nSTDERR: %s",
-                                                  runResult.getStdout(),
-                                                  runResult.getStderr()));
+      throw new InvalidSdkException(PySdkBundle.message("python.sdk.failed.to.determine.sys.path",
+                                                        runResult.getStdout(), runResult.getStderr()));
     }
     return runResult.getStdoutLines();
   }
@@ -513,15 +539,7 @@ public final class PythonSdkType extends SdkType {
           protected void processLanguageContribution(PyCredentialsContribution languageContribution, Object credentials) {
             result.set(!languageContribution.isValid(credentials));
           }
-        }.collectCases(
-          PyCredentialsContribution.class,
-          new CredentialsCase.Vagrant() {
-            @Override
-            public void process(VagrantBasedCredentialsHolder cred) {
-              result.set(StringUtil.isEmpty(cred.getVagrantFolder()));
-            }
-          }
-        ));
+        }.collectCases(PyCredentialsContribution.class));
       return result.get();
     }
     return false;
@@ -545,31 +563,17 @@ public final class PythonSdkType extends SdkType {
   }
 
   @NotNull
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2020.3")
   public static Map<String, String> activateVirtualEnv(@NotNull Sdk sdk) {
-    final Map<String, String> cached = sdk.getUserData(ENVIRONMENT_KEY);
-    if (cached != null) return cached;
-
-    final String sdkHome = sdk.getHomePath();
-    if (sdkHome == null) return Collections.emptyMap();
-
-    final Map<String, String> environment = activateVirtualEnv(sdkHome);
-    sdk.putUserData(ENVIRONMENT_KEY, environment);
-    return environment;
+    return PySdkUtil.activateVirtualEnv(sdk);
   }
 
   @NotNull
+  @Deprecated
+  @ApiStatus.ScheduledForRemoval(inVersion = "2020.3")
   public static Map<String, String> activateVirtualEnv(@NotNull String sdkHome) {
-    PyVirtualEnvReader reader = new PyVirtualEnvReader(sdkHome);
-    if (reader.getActivate() != null) {
-      try {
-        return Collections.unmodifiableMap(PyVirtualEnvReader.Companion.filterVirtualEnvVars(reader.readPythonEnv()));
-      }
-      catch (Exception e) {
-        LOG.error("Couldn't read virtualenv variables", e);
-      }
-    }
-
-    return Collections.emptyMap();
+    return PySdkUtil.activateVirtualEnv(sdkHome);
   }
 
   @Nullable

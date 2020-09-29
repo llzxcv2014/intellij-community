@@ -2,10 +2,10 @@
 package com.intellij.java.psi.formatter.java
 
 import com.intellij.application.options.CodeStyle
+import com.intellij.ide.highlighter.JavaFileType
 import com.intellij.lang.java.JavaLanguage
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.fileTypes.StdFileTypes
 import com.intellij.openapi.roots.LanguageLevelProjectExtension
 import com.intellij.openapi.util.TextRange
 import com.intellij.pom.java.LanguageLevel
@@ -13,6 +13,8 @@ import com.intellij.psi.JavaCodeFragmentFactory
 import com.intellij.psi.PsiElement
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings
+import com.intellij.testFramework.LightProjectDescriptor
+import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
 import com.intellij.util.IncorrectOperationException
 
 /**
@@ -20,6 +22,10 @@ import com.intellij.util.IncorrectOperationException
  * java formatting test classes.
  */
 class JavaFormatterTest : AbstractJavaFormatterTest() {
+  override fun getProjectDescriptor(): LightProjectDescriptor {
+    return LightJavaCodeInsightFixtureTestCase.JAVA_15
+  }
+
   fun testPaymentManager() {
     settings.KEEP_LINE_BREAKS = false
     doTest("paymentManager.java", "paymentManager_after.java")
@@ -153,7 +159,7 @@ class JavaFormatterTest : AbstractJavaFormatterTest() {
 
   fun testMethodCallInAssignment() {
     val settings = settings
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).CONTINUATION_INDENT_SIZE = 8
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).CONTINUATION_INDENT_SIZE = 8
     doTest()
   }
 
@@ -929,7 +935,7 @@ class Test {
 
   fun testLabel() {
     val settings = settings
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).LABEL_INDENT_ABSOLUTE = true
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).LABEL_INDENT_ABSOLUTE = true
     settings.SPECIAL_ELSE_IF_TREATMENT = true
     settings.FOR_BRACE_FORCE = CommonCodeStyleSettings.FORCE_BRACES_ALWAYS
     myTextRange = TextRange(59, 121)
@@ -1068,7 +1074,7 @@ class Test {
     settings.ASSERT_STATEMENT_WRAP = CommonCodeStyleSettings.WRAP_AS_NEEDED
     settings.RIGHT_MARGIN = 37
 
-    val options = settings.rootSettings.getIndentOptions(StdFileTypes.JAVA)
+    val options = settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE)
     options.INDENT_SIZE = 2
     options.CONTINUATION_INDENT_SIZE = 2
 
@@ -1107,8 +1113,8 @@ class Test {
   }
 
   fun test() {
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).INDENT_SIZE = 2
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).CONTINUATION_INDENT_SIZE = 2
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).INDENT_SIZE = 2
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).CONTINUATION_INDENT_SIZE = 2
     settings.RIGHT_MARGIN = 37
     settings.ALIGN_MULTILINE_EXTENDS_LIST = true
 
@@ -1293,9 +1299,9 @@ class Test {
   }
 
   fun testJavaDocIndentation() {
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).INDENT_SIZE = 2
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).CONTINUATION_INDENT_SIZE = 2
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).TAB_SIZE = 4
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).INDENT_SIZE = 2
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).CONTINUATION_INDENT_SIZE = 2
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).TAB_SIZE = 4
 
     javaSettings.ENABLE_JAVADOC_FORMATTING = false
 
@@ -1531,6 +1537,9 @@ class Test {
 
     doTextTest("/**\n" + " *\n" + " */\n" + "class Foo\n extends B\n{\n" + "}",
                "/**\n" + " *\n" + " */\n" + "class Foo\n        extends B\n" + "{\n" + "}")
+
+    doTextTest("/**\n" + " *\n" + " */\n" + "class Foo\n permits B\n{\n" + "}",
+               "/**\n" + " *\n" + " */\n" + "class Foo\n        permits B\n" + "{\n" + "}")
 
   }
 
@@ -2062,8 +2071,8 @@ enum Foo {
 
   fun testSCR548() {
     val settings = settings
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).INDENT_SIZE = 4
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).CONTINUATION_INDENT_SIZE = 2
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).INDENT_SIZE = 4
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).CONTINUATION_INDENT_SIZE = 2
     doTest()
   }
 
@@ -2148,7 +2157,7 @@ enum Foo {
 
   fun testSCR11799() {
     val settings = settings
-    settings.rootSettings.getIndentOptions(StdFileTypes.JAVA).CONTINUATION_INDENT_SIZE = 4
+    settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE).CONTINUATION_INDENT_SIZE = 4
     settings.CLASS_BRACE_STYLE = CommonCodeStyleSettings.NEXT_LINE
     settings.METHOD_BRACE_STYLE = CommonCodeStyleSettings.NEXT_LINE
     doTest()
@@ -2787,7 +2796,7 @@ enum Foo {
   }
 
   fun testSCR3115() {
-    val indentOptions = settings.rootSettings.getIndentOptions(StdFileTypes.JAVA)
+    val indentOptions = settings.rootSettings.getIndentOptions(JavaFileType.INSTANCE)
     indentOptions.USE_TAB_CHARACTER = true
     indentOptions.SMART_TABS = true
 
@@ -2912,7 +2921,7 @@ enum Foo {
   }
   /*
   public void testIDEADEV_26871() throws IncorrectOperationException {
-    getSettings().getIndentOptions(StdFileTypes.JAVA).CONTINUATION_INDENT_SIZE = 4;
+    getSettings().getIndentOptions(JavaFileType.INSTANCE).CONTINUATION_INDENT_SIZE = 4;
     doTextTest("class Foo {\n" +
                "public void foo() {\n" +
                "    BigDecimal1.ONE1\n" +
@@ -2949,7 +2958,7 @@ enum Foo {
 
   /*
   public void testIDEADEV_26871_2() throws IncorrectOperationException {
-    getSettings().getIndentOptions(StdFileTypes.JAVA).CONTINUATION_INDENT_SIZE = 4;
+    getSettings().getIndentOptions(JavaFileType.INSTANCE).CONTINUATION_INDENT_SIZE = 4;
     doTextTest("class Foo {\n" +
                "public void foo() {\n" +
                "    BigDecimal1\n" +
@@ -3876,5 +3885,182 @@ public enum LevelCode {
       }
       """.trimIndent()
     )
+  }
+
+  fun testRecordHeaderLparenOnNewLine() {
+    javaSettings.apply {
+      NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER = true
+    }
+    doTextTest("""
+      record A(String s
+        ) {}
+    """.trimIndent(), """
+      record A(
+              String s
+      ) {
+      }
+    """.trimIndent())
+  }
+
+  fun testRecordHeaderLparenNotOnNewLine() {
+    javaSettings.apply {
+      NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER = false
+    }
+    settings.KEEP_LINE_BREAKS = false
+    doTextTest("""
+      record A(String s
+        ) {}
+    """.trimIndent(), """
+      record A(String s) {
+      }
+    """.trimIndent())
+  }
+
+  fun testRecordHeaderRparenOnNewLine() {
+    javaSettings.apply {
+      RPAREN_ON_NEW_LINE_IN_RECORD_HEADER = true
+    }
+    doTextTest("""
+      record A(String s,
+            String a) {}
+    """.trimIndent(), """
+      record A(String s,
+               String a
+      ) {
+      }
+    """.trimIndent())
+  }
+
+  fun testRecordHeaderRparenNotOnNewLine() {
+    javaSettings.apply {
+      RPAREN_ON_NEW_LINE_IN_RECORD_HEADER = false
+    }
+    settings.KEEP_LINE_BREAKS = false
+    doTextTest("""
+      record A(
+            String s,
+            String a
+      ) {
+      }
+    """.trimIndent(), """
+        record A(String s, String a) {
+        }
+    """.trimIndent())
+  }
+
+  fun testRecordHeaderMultilineAlign() {
+    javaSettings.apply {
+      NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER = false
+      ALIGN_MULTILINE_RECORDS = true
+    }
+    doTextTest("""
+      record A(String s,
+        String a
+      ) {}
+    """.trimIndent(), """
+      record A(String s,
+               String a
+      ) {
+      }
+    """.trimIndent())
+  }
+
+  fun testRecordHeaderNotMultilineAlign() {
+    javaSettings.apply {
+      NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER = false
+      ALIGN_MULTILINE_RECORDS = false
+    }
+    doTextTest("""
+      record A(String s,
+        String a
+      ) {}
+    """.trimIndent(), """
+      record A(String s,
+              String a
+      ) {
+      }
+    """.trimIndent())
+  }
+
+  fun testInstanceofPatternWithGeneric() {
+
+    doTextTest("""
+      class A{
+       void foo(Object x) {
+        if (x instanceof List<String> a) {}
+       }
+      }
+    """.trimIndent(), """
+      class A {
+          void foo(Object x) {
+              if (x instanceof List<String> a) {
+              }
+          }
+      }
+    """.trimIndent())
+  }
+
+  fun testIdea154076() {
+    doTextTest("""
+    public class Test {
+    @SuppressWarnings("any")
+      String suppressed = null;
+      @SuppressWarnings("any") // comment
+       String commented = null;
+
+      void f() {
+      @SuppressWarnings("any")
+      String suppressed = null;
+    @SuppressWarnings("any") // comment
+            String commented = null;
+     }
+    }""".trimIndent(), """
+    public class Test {
+        @SuppressWarnings("any")
+        String suppressed = null;
+        @SuppressWarnings("any") // comment
+        String commented = null;
+
+        void f() {
+            @SuppressWarnings("any")
+            String suppressed = null;
+            @SuppressWarnings("any") // comment
+            String commented = null;
+        }
+    }""".trimIndent()
+    )
+  }
+
+  fun testPermitsList() {
+    settings.ALIGN_MULTILINE_EXTENDS_LIST = true
+    doTextTest("sealed class A permits B, \n" + "C {}", "sealed class A permits B,\n" + "                       C {\n}")
+  }
+
+  fun testWrapPermitsList() {
+    settings.RIGHT_MARGIN = 50
+    settings.EXTENDS_LIST_WRAP = CommonCodeStyleSettings.WRAP_ON_EVERY_ITEM
+    settings.EXTENDS_KEYWORD_WRAP = CommonCodeStyleSettings.WRAP_AS_NEEDED
+
+    doTextTest("sealed class ColtreDataProvider permits Provider, AgentEventListener, ParameterDataEventListener {\n}",
+               "sealed class ColtreDataProvider permits Provider,\n" +
+               "        AgentEventListener,\n" +
+               "        ParameterDataEventListener {\n}")
+  }
+
+
+  fun testPermitsListWithPrecedingGeneric() {
+    doTextTest("""
+      sealed class Simple permits B {
+      }
+
+      final class B extends Simple {
+      }
+    """.trimIndent(), """
+      sealed class Simple permits B {
+      }
+
+      final class B extends Simple {
+      }
+    """.trimIndent())
   }
 }

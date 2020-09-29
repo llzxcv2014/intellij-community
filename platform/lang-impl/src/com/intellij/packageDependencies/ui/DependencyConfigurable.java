@@ -1,13 +1,14 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.packageDependencies.ui;
 
-import com.intellij.analysis.AnalysisScopeBundle;
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
 import com.intellij.ide.util.scopeChooser.PackageSetChooserCombo;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.packageDependencies.DependencyRule;
 import com.intellij.packageDependencies.DependencyValidationManager;
 import com.intellij.psi.search.scope.packageSet.CustomScopesProviderEx;
@@ -34,10 +35,10 @@ public class DependencyConfigurable implements Configurable {
   private TableView<DependencyRule> myDenyTable;
   private TableView<DependencyRule> myAllowTable;
 
-  private final ColumnInfo<DependencyRule, NamedScope> DENY_USAGES_OF = new LeftColumn(AnalysisScopeBundle.message("dependency.configurable.deny.table.column1"));
-  private final ColumnInfo<DependencyRule, NamedScope> DENY_USAGES_IN = new RightColumn(AnalysisScopeBundle.message("dependency.configurable.deny.table.column2"));
-  private final ColumnInfo<DependencyRule, NamedScope> ALLOW_USAGES_OF = new LeftColumn(AnalysisScopeBundle.message("dependency.configurable.allow.table.column1"));
-  private final ColumnInfo<DependencyRule, NamedScope> ALLOW_USAGES_ONLY_IN = new RightColumn(AnalysisScopeBundle.message("dependency.configurable.allow.table.column2"));
+  private final ColumnInfo<DependencyRule, NamedScope> DENY_USAGES_OF = new LeftColumn(CodeInsightBundle.message("dependency.configurable.deny.table.column1"));
+  private final ColumnInfo<DependencyRule, NamedScope> DENY_USAGES_IN = new RightColumn(CodeInsightBundle.message("dependency.configurable.deny.table.column2"));
+  private final ColumnInfo<DependencyRule, NamedScope> ALLOW_USAGES_OF = new LeftColumn(CodeInsightBundle.message("dependency.configurable.allow.table.column1"));
+  private final ColumnInfo<DependencyRule, NamedScope> ALLOW_USAGES_ONLY_IN = new RightColumn(CodeInsightBundle.message("dependency.configurable.allow.table.column2"));
 
   private JPanel myWholePanel;
   private JPanel myDenyPanel;
@@ -51,7 +52,7 @@ public class DependencyConfigurable implements Configurable {
 
   @Override
   public String getDisplayName() {
-    return AnalysisScopeBundle.message("dependency.configurable.display.name");
+    return CodeInsightBundle.message("dependency.configurable.display.name");
   }
 
   @Override
@@ -165,13 +166,13 @@ public class DependencyConfigurable implements Configurable {
                                                      int row,
                                                      int column) {
         super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-        setText(value == null ? "" : ((NamedScope)value).getName());
+        setText(value == null ? "" : ((NamedScope)value).getPresentableName());
         return this;
       }
     };
 
   public abstract class MyColumnInfo extends ColumnInfo<DependencyRule, NamedScope> {
-    protected MyColumnInfo(String name) {
+    protected MyColumnInfo(@NlsContexts.ColumnName String name) {
       super(name);
     }
 
@@ -197,7 +198,7 @@ public class DependencyConfigurable implements Configurable {
 
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
-          myCombo = new PackageSetChooserCombo(myProject, value == null ? null : ((NamedScope)value).getName());
+          myCombo = new PackageSetChooserCombo(myProject, value == null ? null : ((NamedScope)value).getScopeId());
           return new CellEditorComponentWithBrowseButton<>(myCombo, this);
         }
       };
@@ -209,7 +210,7 @@ public class DependencyConfigurable implements Configurable {
 
 
   private class RightColumn extends MyColumnInfo {
-    RightColumn(final String name) {
+    RightColumn(final @NlsContexts.ColumnName String name) {
       super(name);
     }
 
@@ -225,7 +226,7 @@ public class DependencyConfigurable implements Configurable {
   }
 
   private class LeftColumn extends MyColumnInfo {
-    LeftColumn(final String name) {
+    LeftColumn(final @NlsContexts.ColumnName String name) {
       super(name);
     }
 

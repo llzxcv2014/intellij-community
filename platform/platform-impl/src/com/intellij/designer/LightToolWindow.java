@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.designer;
 
 import com.intellij.icons.AllIcons;
@@ -25,17 +25,19 @@ import com.intellij.ui.tabs.TabsUtil;
 import com.intellij.util.ui.EmptyIcon;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.List;
 
 /**
  * @author Alexander Lobas
  */
-public class LightToolWindow extends JPanel {
+public final class LightToolWindow extends JPanel {
   static final String LEFT_MIN_KEY = "left";
   static final String RIGHT_MIN_KEY = "right";
   static final int MINIMIZE_WIDTH = 25;
@@ -67,7 +69,7 @@ public class LightToolWindow extends JPanel {
   };
 
   public LightToolWindow(@NotNull LightToolWindowContent content,
-                         @NotNull String title,
+                         @NotNull @Nls(capitalization = Nls.Capitalization.Title) String title,
                          @NotNull Icon icon,
                          @NotNull JComponent component,
                          @NotNull JComponent focusedComponent,
@@ -77,7 +79,7 @@ public class LightToolWindow extends JPanel {
                          @NotNull Project project,
                          @NotNull String key,
                          int defaultWidth,
-                         @Nullable AnAction[] actions) {
+                         @Nullable List<AnAction> actions) {
     super(new BorderLayout());
     myContent = content;
     myFocusedComponent = focusedComponent;
@@ -312,7 +314,7 @@ public class LightToolWindow extends JPanel {
     if (component != null) {
       return true;
     }
-    Component owner = fm.getLastFocusedFor(WindowManager.getInstance().getIdeFrame(myProject));
+    Component owner = fm.getLastFocusedFor(WindowManager.getInstance().getFrame(myProject));
     return owner != null && SwingUtilities.isDescendingFrom(owner, this);
   }
 
@@ -326,7 +328,7 @@ public class LightToolWindow extends JPanel {
     group.add(myManager.createGearActions());
     if (myManager.getAnchor() == null) {
       group.addSeparator();
-      DefaultActionGroup viewModeGroup = new DefaultActionGroup(ActionsBundle.groupText("ViewMode"), true);
+      DefaultActionGroup viewModeGroup = DefaultActionGroup.createPopupGroup(() -> ActionsBundle.groupText("TW.ViewModeGroup"));
       for (ToolWindowViewModeAction.ViewMode viewMode : ToolWindowViewModeAction.ViewMode.values()) {
         viewModeGroup.add(new MyViewModeAction(viewMode));
       }
@@ -365,7 +367,7 @@ public class LightToolWindow extends JPanel {
   private class HideAction extends AnAction {
     HideAction() {
       Presentation presentation = getTemplatePresentation();
-      presentation.setText(UIBundle.message("tool.window.hide.action.name"));
+      presentation.setText(UIBundle.messagePointer("tool.window.hide.action.name"));
       presentation.setIcon(AllIcons.General.HideToolWindow);
     }
 
@@ -375,7 +377,7 @@ public class LightToolWindow extends JPanel {
     }
   }
 
-  private class MyViewModeAction extends ToolWindowViewModeAction {
+  private final class MyViewModeAction extends ToolWindowViewModeAction {
     private MyViewModeAction(@NotNull ViewMode mode) {
       super(mode);
       ActionUtil.copyFrom(this, mode.getActionID());

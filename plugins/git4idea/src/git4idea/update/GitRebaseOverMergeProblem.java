@@ -1,64 +1,47 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.update;
 
-import com.intellij.CommonBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
 import git4idea.DialogManager;
 import git4idea.GitCommit;
 import git4idea.history.GitHistoryUtils;
+import git4idea.i18n.GitBundle;
 import one.util.streamex.StreamEx;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.PropertyKey;
 
 import java.util.List;
+import java.util.Objects;
 
 public class GitRebaseOverMergeProblem {
   private static final Logger LOG = Logger.getInstance(GitRebaseOverMergeProblem.class);
-  public static final String DESCRIPTION =
-    "You are about to rebase a merge commit with conflicts.\n\n" +
-    "Choose 'Merge' if you don't want to resolve conflicts again, " +
-    "or you still can rebase if you want to linearize the history.";
 
   public enum Decision {
-    MERGE_INSTEAD("Merge"),
-    REBASE_ANYWAY("Rebase"),
-    CANCEL_OPERATION(CommonBundle.getCancelButtonText());
+    MERGE_INSTEAD("rebasing.merge.commits.button.merge"),
+    REBASE_ANYWAY("rebasing.merge.commits.button.rebase"),
+    CANCEL_OPERATION("rebasing.merge.commits.button.cancel");
 
-    private final String myButtonText;
+    private final String myButtonTextKey;
 
-    Decision(@NotNull String buttonText) {
-      myButtonText = buttonText;
+    Decision(@NotNull @PropertyKey(resourceBundle = GitBundle.BUNDLE) String buttonTextKey) {
+      myButtonTextKey = buttonTextKey;
     }
 
-    @NotNull
-    private static String[] getButtonTitles() {
-      return ContainerUtil.map2Array(values(), String.class, decision -> decision.myButtonText);
+    private static @NlsContexts.Button String @NotNull [] getButtonTitles() {
+      return ContainerUtil.map2Array(values(), String.class, decision -> GitBundle.message(decision.myButtonTextKey));
     }
 
     @NotNull
     public static Decision getOption(final int index) {
-      return ObjectUtils.assertNotNull(ContainerUtil.find(values(), decision -> decision.ordinal() == index));
+      return Objects.requireNonNull(ContainerUtil.find(values(), decision -> decision.ordinal() == index));
     }
 
     private static int getDefaultButtonIndex() {
@@ -94,9 +77,11 @@ public class GitRebaseOverMergeProblem {
 
   @NotNull
   private static Decision doShowDialog() {
-    int decision = DialogManager.showMessage(DESCRIPTION, "Rebasing Merge Commits", Decision.getButtonTitles(),
-                                             Decision.getDefaultButtonIndex(),
-                                             Decision.getFocusedButtonIndex(), Messages.getWarningIcon(), null);
+    int decision =
+      DialogManager.showMessage(GitBundle.message("dialog.message.rebasing.merge.commits"),
+                                GitBundle.message("dialog.title.rebasing.merge.commits"), Decision.getButtonTitles(),
+                                Decision.getDefaultButtonIndex(),
+                                Decision.getFocusedButtonIndex(), Messages.getWarningIcon(), null);
     return Decision.getOption(decision);
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger;
 
 import com.intellij.JavaTestUtil;
@@ -7,14 +7,17 @@ import com.intellij.debugger.engine.DebugProcessImpl;
 import com.intellij.debugger.engine.JavaDebugProcess;
 import com.intellij.debugger.engine.RemoteStateState;
 import com.intellij.debugger.engine.SuspendContextImpl;
+import com.intellij.debugger.engine.evaluation.CodeFragmentKind;
 import com.intellij.debugger.engine.evaluation.EvaluateException;
 import com.intellij.debugger.engine.evaluation.EvaluationContextImpl;
+import com.intellij.debugger.engine.evaluation.TextWithImportsImpl;
 import com.intellij.debugger.engine.events.DebuggerCommandImpl;
 import com.intellij.debugger.impl.*;
 import com.intellij.debugger.jdi.StackFrameProxyImpl;
 import com.intellij.debugger.settings.DebuggerSettings;
 import com.intellij.debugger.settings.NodeRendererSettings;
 import com.intellij.debugger.ui.breakpoints.BreakpointManager;
+import com.intellij.debugger.ui.impl.watch.WatchItemDescriptor;
 import com.intellij.debugger.ui.tree.render.NodeRenderer;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.Executor;
@@ -26,6 +29,9 @@ import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.process.ProcessOutputTypes;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.runners.ExecutionEnvironmentBuilder;
+import com.intellij.execution.target.TargetEnvironmentConfiguration;
+import com.intellij.execution.target.TargetEnvironmentRequest;
+import com.intellij.execution.target.TargetedCommandLineBuilder;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
@@ -36,27 +42,30 @@ import com.intellij.openapi.module.Module;
 import com.intellij.openapi.options.SettingsEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.testFramework.EdtTestUtil;
 import com.intellij.util.ThrowableRunnable;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.xdebugger.*;
 import com.sun.jdi.Location;
+import com.sun.jdi.Value;
+import com.sun.jdi.VirtualMachine;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.StringTokenizer;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCase {
   protected static final int DEFAULT_ADDRESS = 3456;
+  protected static final String TEST_JDK_NAME = "JDK";
   protected DebuggerSession myDebuggerSession;
   private final AtomicInteger myRestart = new AtomicInteger();
   private static final int MAX_RESTARTS = 3;
@@ -67,10 +76,11 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
   @Override
   protected void tearDown() throws Exception {
     try {
-      FileEditorManagerEx.getInstanceEx(getProject()).closeAllFiles();
+      EdtTestUtil.runInEdtAndWait(() -> FileEditorManagerEx.getInstanceEx(getProject()).closeAllFiles());
       if (myDebugProcess != null) {
         myDebugProcess.stop(true);
         myDebugProcess.waitFor();
+        myDebugProcess.dispose();
       }
       myTearDownRunnables.forEach(Runnable::run);
       myTearDownRunnables.clear();
@@ -92,7 +102,7 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
   @Override
   protected void initApplication() throws Exception {
     super.initApplication();
-    JavaTestUtil.setupTestJDK(getTestRootDisposable());
+    JavaTestUtil.setupInternalJdkAsTestJDK(getTestRootDisposable(), TEST_JDK_NAME);
     DebuggerSettings.getInstance().setTransport(DebuggerSettings.SOCKET_TRANSPORT);
     DebuggerSettings.getInstance().SKIP_CONSTRUCTORS = false;
     DebuggerSettings.getInstance().SKIP_GETTERS      = false;
@@ -100,8 +110,8 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
   }
 
   @Override
-  protected void runTest() throws Throwable {
-    super.runTest();
+  protected void runTestRunnable(@NotNull ThrowableRunnable<Throwable> testRunnable) throws Throwable {
+    super.runTestRunnable(testRunnable);
     if(getDebugProcess() != null) {
       getDebugProcess().getProcessHandler().startNotify();
       waitProcess(getDebugProcess().getProcessHandler());
@@ -180,9 +190,12 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
         return javaParameters;
       }
 
+      @NotNull
       @Override
-      protected GeneralCommandLine createCommandLine() throws ExecutionException {
-        return getJavaParameters().toCommandLine();
+      protected TargetedCommandLineBuilder createTargetedCommandLine(@NotNull TargetEnvironmentRequest request,
+                                                                     @Nullable TargetEnvironmentConfiguration configuration)
+        throws ExecutionException {
+        return getJavaParameters().toCommandLine(request, configuration);
       }
     };
 
@@ -220,6 +233,9 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
     return myDebuggerSession;
   }
 
+  protected int getTraceMode() {
+    return VirtualMachine.TRACE_NONE;
+  }
 
   protected DebuggerSession createLocalProcess(int transport, final JavaParameters javaParameters) throws ExecutionException {
     createBreakpoints(javaParameters.getMainClass());
@@ -241,9 +257,12 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
         return javaParameters;
       }
 
+      @NotNull
       @Override
-      protected GeneralCommandLine createCommandLine() throws ExecutionException {
-        return getJavaParameters().toCommandLine();
+      protected TargetedCommandLineBuilder createTargetedCommandLine(@NotNull TargetEnvironmentRequest request,
+                                                                     @Nullable TargetEnvironmentConfiguration configuration)
+        throws ExecutionException {
+        return getJavaParameters().toCommandLine(request, configuration);
       }
     };
 
@@ -253,7 +272,9 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
     final DebuggerSession[] debuggerSession = {null};
     UIUtil.invokeAndWaitIfNeeded((Runnable)() -> {
       try {
-        debuggerSession[0] = attachVirtualMachine(javaCommandLineState, javaCommandLineState.getEnvironment(), debugParameters, false);
+        ExecutionEnvironment env = javaCommandLineState.getEnvironment();
+        env.putUserData(DefaultDebugEnvironment.DEBUGGER_TRACE_MODE, getTraceMode());
+        debuggerSession[0] = attachVirtualMachine(javaCommandLineState, env, debugParameters, false);
       }
       catch (ExecutionException e) {
         fail(e.getMessage());
@@ -274,43 +295,22 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
     return debuggerSession[0];
   }
 
-  private static String generateShmemAddress() {
-    return "javadebug_" + (int)(Math.random() * 1000);
-  }
-
   protected DebuggerSession createRemoteProcess(final int transport, final boolean serverMode, JavaParameters javaParameters)
           throws ExecutionException {
-    boolean useSockets = transport == DebuggerSettings.SOCKET_TRANSPORT;
-
-    RemoteConnection remoteConnection = new RemoteConnection(
-      useSockets,
-      "127.0.0.1",
-      useSockets ? String.valueOf(DEFAULT_ADDRESS) : generateShmemAddress(),
-      serverMode);
-
-    String launchCommandLine = remoteConnection.getLaunchCommandLine();
-
-    launchCommandLine = StringUtil.replace(launchCommandLine,  RemoteConnection.ONTHROW, "");
-    launchCommandLine = StringUtil.replace(launchCommandLine,  RemoteConnection.ONUNCAUGHT, "");
-
-    launchCommandLine = StringUtil.replace(launchCommandLine, "suspend=n", "suspend=y");
-
-    //println(launchCommandLine, ProcessOutputTypes.SYSTEM);
-
-    for(StringTokenizer tokenizer = new StringTokenizer(launchCommandLine);tokenizer.hasMoreTokens();) {
-      String token = tokenizer.nextToken();
-      javaParameters.getVMParametersList().add(token);
-    }
+    RemoteConnection remoteConnection =
+      new RemoteConnectionBuilder(serverMode, transport, null)
+        .suspend(true)
+        .create(javaParameters);
 
     GeneralCommandLine commandLine = javaParameters.toCommandLine();
 
-
     DebuggerSession debuggerSession;
 
-    if(serverMode) {
+    if (serverMode) {
       debuggerSession = attachVM(remoteConnection, false);
       commandLine.createProcess();
-    } else {
+    }
+    else {
       commandLine.createProcess();
       debuggerSession = attachVM(remoteConnection, true);
     }
@@ -354,6 +354,20 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
     });
 
     createBreakpoints(psiFile);
+  }
+
+  protected Value evaluate(CodeFragmentKind kind, String code, EvaluationContextImpl evaluationContext) throws EvaluateException {
+    WatchItemDescriptor watchItemDescriptor = new WatchItemDescriptor(myProject, new TextWithImportsImpl(kind, code));
+    watchItemDescriptor.setContext(evaluationContext);
+    EvaluateException exception = watchItemDescriptor.getEvaluateException();
+    if (exception != null) {
+      throw exception;
+    }
+    return watchItemDescriptor.getValue();
+  }
+
+  protected Value evaluate(CodeFragmentKind kind, String code, SuspendContextImpl suspendContext) throws EvaluateException {
+    return evaluate(kind, code, createEvaluationContext(suspendContext));
   }
 
   protected EvaluationContextImpl createEvaluationContext(final SuspendContextImpl suspendContext) {
@@ -495,8 +509,7 @@ public abstract class DebuggerTestCase extends ExecutionWithDebuggerToolsTestCas
 
   public class MockConfiguration implements ModuleRunConfiguration {
     @Override
-    @NotNull
-    public Module[] getModules() {
+    public Module @NotNull [] getModules() {
       return myModule == null ? Module.EMPTY_ARRAY : new Module[]{myModule};
     }
 

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.testframework.sm.runner.ui;
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
@@ -11,6 +11,7 @@ import com.intellij.execution.process.ProcessOutputTypes;
 import com.intellij.execution.testframework.*;
 import com.intellij.execution.testframework.actions.ScrollToTestSourceAction;
 import com.intellij.execution.testframework.export.TestResultsXmlFormatter;
+import com.intellij.execution.testframework.sm.SmRunnerBundle;
 import com.intellij.execution.testframework.sm.TestHistoryConfiguration;
 import com.intellij.execution.testframework.sm.runner.*;
 import com.intellij.execution.testframework.sm.runner.history.ImportedTestConsoleProperties;
@@ -50,6 +51,7 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.text.DateFormatUtil;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.update.Update;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -69,6 +71,8 @@ import java.io.FileWriter;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
+
+import static com.intellij.rt.execution.TestListenerProtocol.CLASS_CONFIGURATION;
 
 /**
  * @author: Roman Chernyatchik
@@ -104,11 +108,11 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
   private String myCurrentCustomProgressCategory;
   private final Set<String> myMentionedCategories = new LinkedHashSet<>();
   private volatile boolean myTestsRunning = true;
-  private AbstractTestProxy myLastSelected;
+  private volatile AbstractTestProxy myLastSelected;
   private volatile boolean myDisposed = false;
   private SMTestProxy myLastFailed;
   private final Set<Update> myRequests = Collections.synchronizedSet(new HashSet<>());
-  private final Alarm myUpdateTreeRequests = new Alarm(Alarm.ThreadToUse.POOLED_THREAD, this); 
+  private final Alarm myUpdateTreeRequests = new Alarm(Alarm.ThreadToUse.POOLED_THREAD, this);
 
   public SMTestRunnerResultsForm(@NotNull final JComponent console,
                                  final TestConsoleProperties consoleProperties) {
@@ -124,7 +128,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
     myProject = consoleProperties.getProject();
 
     //Create tests common suite root
-    myTestsRootNode = new SMTestProxy.SMRootTestProxy(consoleProperties.isPreservePresentableName());
+    myTestsRootNode = new SMTestProxy.SMRootTestProxy(consoleProperties.isPreservePresentableName(), console);
     //todo myTestsRootNode.setOutputFilePath(runConfiguration.getOutputFilePath());
 
     // Fire selection changed and move focus on SHIFT+ENTER
@@ -162,27 +166,11 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
 
     TrackRunningTestUtil.installStopListeners(myTreeView, myProperties, testProxy -> {
       if (testProxy == null) return;
-      final AbstractTestProxy selectedProxy = testProxy;
-      //drill to the first leaf
-      while (!testProxy.isLeaf()) {
-        final List<? extends AbstractTestProxy> children = testProxy.getChildren();
-        if (!children.isEmpty()) {
-          final AbstractTestProxy firstChild = children.get(0);
-          if (firstChild != null) {
-            testProxy = firstChild;
-            continue;
-          }
-        }
-        break;
-      }
-
-      //pretend the selection on the first leaf
-      //so if test would be run, tracking would be restarted
-      myLastSelected = testProxy;
+      setLastSelected(testProxy);
 
       //ensure scroll to source on explicit selection only
-      if (ScrollToTestSourceAction.isScrollEnabled(SMTestRunnerResultsForm.this)) {
-        final Navigatable descriptor = TestsUIUtil.getOpenFileDescriptor(selectedProxy, SMTestRunnerResultsForm.this);
+      if (ScrollToTestSourceAction.isScrollEnabled(this)) {
+        final Navigatable descriptor = TestsUIUtil.getOpenFileDescriptor(testProxy, this);
         if (descriptor != null) {
           OpenSourceUtil.navigate(false, descriptor);
         }
@@ -213,7 +201,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
     myIgnoredTestCount = 0;
     myTestsRunning = true;
     myLastFailed = null;
-    myLastSelected = null;
+    setLastSelected(null);
     myMentionedCategories.clear();
 
     if (myEndTime != 0) { // no need to reset when running for the first time
@@ -274,19 +262,13 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
 
     LvcsHelper.addLabel(this);
 
-
-    final Runnable onDone = () -> {
-      myTestsRunning = false;
-      final boolean sortByDuration = TestConsoleProperties.SORT_BY_DURATION.value(myProperties);
-      if (sortByDuration) {
-        myTreeBuilder.setTestsComparator(this);
-      }
-    };
     if (myLastSelected == null) {
-      selectAndNotify(myTestsRootNode, onDone);
+      selectAndNotify(myTestsRootNode);
     }
-    else {
-      onDone.run();
+
+    myTestsRunning = false;
+    if (TestConsoleProperties.SORT_BY_DURATION.value(myProperties)) {
+      myTreeBuilder.setTestsComparator(this);
     }
 
     fireOnTestingFinished();
@@ -310,7 +292,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
       TestsUIUtil.notifyByBalloon(myProperties.getProject(), testsRoot, myProperties, presentation);
       addToHistory(testsRoot, myProperties, this);
     });
-    
+
   }
 
   private void addToHistory(final SMTestProxy.SMRootTestProxy root,
@@ -344,7 +326,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
    */
   @Override
   public void onTestStarted(@NotNull final SMTestProxy testProxy) {
-    if (!testProxy.isConfig()) {
+    if (!testProxy.isConfig() && !CLASS_CONFIGURATION.equals(testProxy.getName())) {
       updateOnTestStarted(false);
     }
     _addTestOrSuite(testProxy);
@@ -446,7 +428,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
   }
 
   @Override
-  public void setFilter(final Filter filter) {
+  public void setFilter(@NotNull final Filter filter) {
     // is used by Test Runner actions, e.g. hide passed, etc
     final SMTRunnerTreeStructure treeStructure = myTreeBuilder.getTreeStructure();
     treeStructure.setFilter(filter);
@@ -591,11 +573,20 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
     }
 
     if (TestConsoleProperties.TRACK_RUNNING_TEST.value(myProperties)) {
-      if (myLastSelected == null || myLastSelected == newTestOrSuite) {
-        myLastSelected = null;
+      if (myLastSelected == null || myLastSelected == newTestOrSuite || isFiltered(myLastSelected)) {
+        setLastSelected(null);
         selectAndNotify(newTestOrSuite);
       }
     }
+  }
+
+  private boolean isFiltered(AbstractTestProxy proxy) {
+    return proxy instanceof SMTestProxy && 
+           !getTreeBuilder().getTreeStructure().getFilter().shouldAccept((SMTestProxy)proxy);
+  }
+
+  private void setLastSelected(AbstractTestProxy proxy) {
+    myLastSelected = proxy;
   }
 
   private void fireOnTestNodeAdded(@NotNull SMTestProxy test) {
@@ -753,6 +744,11 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
     return isCustomMessage != (myCurrentCustomProgressCategory == null);
   }
 
+  @ApiStatus.Internal
+  public void setIncompleteIndexUsed() {
+    myStatusLine.setWarning(SmRunnerBundle.message("suffix.incomplete.index.was.used"));
+  }
+
   private static class MySaveHistoryTask extends Task.Backgroundable {
 
     private final TestConsoleProperties myConsoleProperties;
@@ -761,7 +757,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
     private File myOutputFile;
 
     MySaveHistoryTask(TestConsoleProperties consoleProperties, SMTestProxy.SMRootTestProxy root, RunConfiguration configuration) {
-      super(consoleProperties.getProject(), "Save Test Results", true);
+      super(consoleProperties.getProject(), SmRunnerBundle.message("sm.test.runner.results.form.save.test.results.title"), true);
       myConsoleProperties = consoleProperties;
       myRoot = root;
       myConfiguration = configuration;

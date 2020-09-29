@@ -1,9 +1,10 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.fileEditor.impl;
 
 import com.intellij.openapi.fileEditor.UniqueVFilePathBuilder;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
@@ -11,9 +12,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 
-public class EditorTabPresentationUtil {
+public final class EditorTabPresentationUtil {
   @NotNull
-  public static String getEditorTabTitle(@NotNull Project project, @NotNull VirtualFile file, @Nullable EditorWindow editorWindow) {
+  public static @NlsContexts.TabTitle String getEditorTabTitle(@NotNull Project project, @NotNull VirtualFile file, @Nullable EditorWindow editorWindow) {
     for (EditorTabTitleProvider provider : DumbService.getDumbAwareExtensions(project, EditorTabTitleProvider.EP_NAME)) {
       String result = provider.getEditorTabTitle(project, file, editorWindow);
       if (StringUtil.isNotEmpty(result)) {

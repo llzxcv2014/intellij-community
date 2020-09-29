@@ -1,26 +1,12 @@
-/*
- * Copyright 2000-2019 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.util;
 
-import com.intellij.codeInspection.dataFlow.StringExpressionHelper;
+import com.intellij.codeInsight.AnnotationUtil;
 import com.intellij.openapi.module.Module;
+import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
@@ -29,19 +15,24 @@ import com.intellij.psi.search.GlobalSearchScopesCore;
 import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.ui.components.JBList;
+import com.intellij.util.ObjectUtils;
+import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
+import org.jetbrains.uast.*;
 
 import java.io.File;
+import java.util.List;
 
 /**
  * @author Konstantin Bulenkov
  */
-public class PsiUtil {
+public final class PsiUtil {
   private static final Key<Boolean> IDEA_PROJECT = Key.create("idea.internal.inspections.enabled");
-  private static final String IDE_PROJECT_MARKER_CLASS = JBList.class.getName();
-  private static final String[] IDEA_PROJECT_MARKER_FILES = {
+  private static final @NonNls String IDE_PROJECT_MARKER_CLASS = JBList.class.getName();
+  private static final @NonNls String[] IDEA_PROJECT_MARKER_FILES = {
     "idea.iml", "community-main.iml", "intellij.idea.community.main.iml", "intellij.idea.ultimate.main.iml"
   };
 
@@ -74,71 +65,6 @@ public class PsiUtil {
   }
 
   @Nullable
-  public static String getReturnedLiteral(PsiMethod method, PsiClass cls) {
-    PsiExpression value = getReturnedExpression(method);
-    if (value instanceof PsiLiteralExpression) {
-      Object str = ((PsiLiteralExpression)value).getValue();
-      return str == null ? null : str.toString();
-    }
-    else if (value instanceof PsiMethodCallExpression) {
-      if (isSimpleClassNameExpression((PsiMethodCallExpression)value)) {
-        return cls.getName();
-      }
-    }
-    else if (value != null) {
-      Pair<PsiElement, String> evaluateResult = StringExpressionHelper.evaluateConstantExpression(value);
-      if (evaluateResult != null && value.equals(evaluateResult.first)) {
-        return evaluateResult.second;
-      }
-    }
-    return null;
-  }
-
-  private static boolean isSimpleClassNameExpression(PsiMethodCallExpression expr) {
-    String text = expr.getText();
-    if (text == null) return false;
-    if (!StringUtil.contains(text, "getSimpleName")) return false;
-    
-    text = text.replaceAll(" ", "")
-      .replaceAll("\n", "")
-      .replaceAll("\t", "")
-      .replaceAll("\r", "");
-    return "getClass().getSimpleName()".equals(text) || "this.getClass().getSimpleName()".equals(text);
-  }
-
-  @Nullable
-  public static PsiExpression getReturnedExpression(PsiMethod method) {
-    PsiCodeBlock body = method.getBody();
-    if (body != null) {
-      PsiStatement[] statements = body.getStatements();
-      if (statements.length != 1) return null;
-
-      PsiStatement statement = statements[0];
-      if (statement instanceof PsiReturnStatement) {
-        PsiExpression value = ((PsiReturnStatement)statement).getReturnValue();
-        if (value instanceof PsiReferenceExpression) {
-          PsiElement element = ((PsiReferenceExpression)value).resolve();
-          if (element instanceof PsiField) {
-            PsiField field = (PsiField)element;
-            if (field.hasModifierProperty(PsiModifier.FINAL)) {
-              return field.getInitializer();
-            }
-          }
-        }
-        else if (value instanceof PsiMethodCallExpression && 
-                 !isSimpleClassNameExpression((PsiMethodCallExpression)value)) {
-          final PsiMethod calledMethod = ((PsiMethodCallExpression)value).resolveMethod();
-          return calledMethod != null ? getReturnedExpression(calledMethod) : null;
-        }
-
-        return value;
-      }
-    }
-
-    return null;
-  }
-
-  @Nullable
   public static PsiMethod findNearestMethod(String name, @Nullable PsiClass cls) {
     if (cls == null) return null;
     for (PsiMethod method : cls.findMethodsByName(name, false)) {
@@ -160,6 +86,19 @@ public class PsiUtil {
     return null;
   }
 
+  @Nullable
+  public static String getAnnotationStringAttribute(final PsiAnnotation annotation,
+                                                    final String name,
+                                                    String defaultValueIfEmpty) {
+    final String value = AnnotationUtil.getDeclaredStringAttributeValue(annotation, name);
+    return StringUtil.defaultIfEmpty(value, defaultValueIfEmpty);
+  }
+
+  public static boolean getAnnotationBooleanAttribute(final PsiAnnotation annotation,
+                                                      final String name) {
+    return ObjectUtils.notNull(AnnotationUtil.getBooleanAttributeValue(annotation, name), Boolean.FALSE);
+  }
+
   public static boolean isIdeaProject(@Nullable Project project) {
     if (project == null) return false;
 
@@ -170,6 +109,42 @@ public class PsiUtil {
     }
 
     return flag;
+  }
+
+  @Nullable
+  public static UExpression getReturnedExpression(PsiMethod method) {
+    UMethod uMethod = UastContextKt.toUElement(method, UMethod.class);
+    if (uMethod == null) return null;
+
+    final UExpression uBody = uMethod.getUastBody();
+    if (!(uBody instanceof UBlockExpression)) return null;
+    final List<UExpression> expressions = ((UBlockExpression)uBody).getExpressions();
+    final UExpression singleExpression = ContainerUtil.getOnlyItem(expressions);
+    if (singleExpression == null) return null;
+
+    if (!(singleExpression instanceof UReturnExpression)) return null;
+    UReturnExpression uReturnExpression = (UReturnExpression)singleExpression;
+    final UExpression returnValue = uReturnExpression.getReturnExpression();
+    if (returnValue == null) return null;
+
+    if (returnValue instanceof UReferenceExpression) {
+      UReferenceExpression referenceExpression = (UReferenceExpression)returnValue;
+      final UElement uElement = UResolvableKt.resolveToUElement(referenceExpression);
+      final UField uField = ObjectUtils.tryCast(uElement, UField.class);
+      if (uField != null && uField.isFinal()) {
+        return uField.getUastInitializer();
+      }
+
+      return ObjectUtils.tryCast(uElement, UExpression.class);
+    }
+    else if (returnValue instanceof UCallExpression) {
+      UCallExpression uCallExpression = (UCallExpression)returnValue;
+      final PsiMethod psiMethod = uCallExpression.resolve();
+      if (psiMethod == null) return null;
+      return getReturnedExpression(psiMethod);
+    }
+
+    return returnValue;
   }
 
   public static boolean isPluginProject(@NotNull final Project project) {
@@ -219,13 +194,10 @@ public class PsiUtil {
       return false;
     }
 
-    GlobalSearchScope scope = GlobalSearchScopesCore.projectProductionScope(project);
-    return JavaPsiFacade.getInstance(project).findClass(IDE_PROJECT_MARKER_CLASS, scope) != null;
-  }
-
-  @NotNull
-  public static <E extends PsiElement> SmartPsiElementPointer<E> createPointer(@NotNull E e) {
-    return SmartPointerManager.getInstance(e.getProject()).createSmartPsiElementPointer(e);
+    return DumbService.getInstance(project).computeWithAlternativeResolveEnabled(() -> {
+      GlobalSearchScope scope = GlobalSearchScopesCore.projectProductionScope(project);
+      return JavaPsiFacade.getInstance(project).findClass(IDE_PROJECT_MARKER_CLASS, scope) != null;
+    });
   }
 
   public static boolean isPluginXmlPsiElement(@NotNull PsiElement element) {

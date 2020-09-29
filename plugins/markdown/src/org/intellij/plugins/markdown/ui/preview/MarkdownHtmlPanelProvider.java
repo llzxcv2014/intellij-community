@@ -13,10 +13,7 @@
 // limitations under the License.
 package org.intellij.plugins.markdown.ui.preview;
 
-import com.intellij.CommonBundle;
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.ExtensionPointName;
-import com.intellij.openapi.ui.Messages;
 import com.intellij.util.xmlb.annotations.Attribute;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,8 +25,6 @@ public abstract class MarkdownHtmlPanelProvider {
   public static final ExtensionPointName<MarkdownHtmlPanelProvider> EP_NAME =
     ExtensionPointName.create("org.intellij.markdown.html.panel.provider");
 
-  private static MarkdownHtmlPanelProvider[] ourProviders = null;
-
   @NotNull
   public abstract MarkdownHtmlPanel createHtmlPanel();
 
@@ -39,28 +34,18 @@ public abstract class MarkdownHtmlPanelProvider {
   @NotNull
   public abstract ProviderInfo getProviderInfo();
 
-  @NotNull
-  public static MarkdownHtmlPanelProvider[] getProviders() {
-    if (ourProviders == null) {
-      ourProviders = EP_NAME.getExtensions();
-    }
-    return ourProviders;
+  public static MarkdownHtmlPanelProvider @NotNull [] getProviders() {
+    return EP_NAME.getExtensions();
   }
 
   @NotNull
   public static MarkdownHtmlPanelProvider createFromInfo(@NotNull ProviderInfo providerInfo) {
-    try {
-      return ((MarkdownHtmlPanelProvider)Class.forName(providerInfo.getClassName()).newInstance());
+    for (MarkdownHtmlPanelProvider provider : getProviders()) {
+      if (provider.getProviderInfo().getClassName().equals(providerInfo.getClassName())) {
+        return provider;
+      }
     }
-    catch (Exception e) {
-      Messages.showMessageDialog(
-        "Cannot set preview panel provider (" + providerInfo.getName() + "):\n" + e.getMessage(),
-        CommonBundle.getErrorTitle(),
-        Messages.getErrorIcon()
-      );
-      Logger.getInstance(MarkdownHtmlPanelProvider.class).error(e);
-      return getProviders()[0];
-    }
+    return getProviders()[0];
   }
 
   public static boolean hasAvailableProviders() {

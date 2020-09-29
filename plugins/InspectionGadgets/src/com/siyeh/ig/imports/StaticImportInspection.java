@@ -52,9 +52,8 @@ public class StaticImportInspection extends BaseInspection {
   public boolean ignoreInTestCode = false; // keep for compatibility
   @SuppressWarnings("PublicField") public OrderedSet<String> allowedClasses = new OrderedSet<>();
 
-  @NotNull
   @Override
-  protected InspectionGadgetsFix[] buildFixes(Object... infos) {
+  protected InspectionGadgetsFix @NotNull [] buildFixes(Object... infos) {
     final List<InspectionGadgetsFix> result = new SmartList<>();
     final PsiImportStaticStatement importStaticStatement = (PsiImportStaticStatement)infos[0];
     final SuppressForTestsScopeFix fix = SuppressForTestsScopeFix.build(this, importStaticStatement);
@@ -62,7 +61,7 @@ public class StaticImportInspection extends BaseInspection {
     final PsiClass aClass = importStaticStatement.resolveTargetClass();
     if (aClass != null) {
       final String name = aClass.getQualifiedName();
-      result.add(new IgnoreClassFix(name, allowedClasses, "Allow static imports for class '" + name + "'"));
+      result.add(new IgnoreClassFix(name, allowedClasses, InspectionGadgetsBundle.message("static.import.fix.ignore.class", name)));
     }
     result.add(buildFix(infos));
     return result.toArray(InspectionGadgetsFix.EMPTY_ARRAY);
@@ -78,7 +77,8 @@ public class StaticImportInspection extends BaseInspection {
     constraints.weighty = 1.0;
     constraints.fill = GridBagConstraints.BOTH;
     final JPanel chooserList =
-      UiUtils.createTreeClassChooserList(allowedClasses, "Statically importable Classes", "Choose statically importable class");
+      UiUtils.createTreeClassChooserList(allowedClasses, InspectionGadgetsBundle.message("static.import.options.border.title"),
+                                         InspectionGadgetsBundle.message("static.import.options.chooserTitle"));
     panel.add(chooserList, constraints);
 
     constraints.gridy = 1;
@@ -93,12 +93,6 @@ public class StaticImportInspection extends BaseInspection {
     panel.add(checkBox2, constraints);
 
     return panel;
-  }
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("static.import.display.name");
   }
 
   @Override
@@ -194,7 +188,7 @@ public class StaticImportInspection extends BaseInspection {
       private final boolean onDemand;
       private final List<PsiJavaCodeReferenceElement> references = new ArrayList<>();
 
-      StaticImportReferenceCollector(@NotNull JavaResolveResult[] importTargets, boolean onDemand) {
+      StaticImportReferenceCollector(JavaResolveResult @NotNull [] importTargets, boolean onDemand) {
         this.importTargets = importTargets;
         this.onDemand = onDemand;
       }

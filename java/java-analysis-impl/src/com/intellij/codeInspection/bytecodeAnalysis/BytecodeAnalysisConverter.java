@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.bytecodeAnalysis;
 
+import com.intellij.codeInspection.dataFlow.MutationSignature;
 import com.intellij.psi.*;
 import com.intellij.psi.util.TypeConversionUtil;
 import org.jetbrains.annotations.NotNull;
@@ -17,7 +18,7 @@ import static com.intellij.codeInspection.bytecodeAnalysis.ProjectBytecodeAnalys
 /**
  * @author lambdamix
  */
-public class BytecodeAnalysisConverter {
+public final class BytecodeAnalysisConverter {
 
   /**
    * Creates a stable non-negated EKey for given PsiMethod and direction
@@ -27,7 +28,7 @@ public class BytecodeAnalysisConverter {
   public static EKey psiKey(@NotNull PsiMember psiMethod, @NotNull Direction direction) {
     PsiClass psiClass = psiMethod.getContainingClass();
     if (psiClass != null) {
-      String className = descriptor(psiClass, 0, false);
+      String className = getJvmClassName(psiClass);
       String name = psiMethod.getName();
       String sig;
       if (psiMethod instanceof PsiMethod) {
@@ -53,7 +54,7 @@ public class BytecodeAnalysisConverter {
     if (psiMethod.isConstructor() && !psiClass.hasModifierProperty(PsiModifier.STATIC)) {
       PsiClass outerClass = psiClass.getContainingClass();
       if (outerClass != null) {
-        String desc = descriptor(outerClass, 0, true);
+        String desc = descriptor(outerClass, 0);
         if (desc == null) return null;
         sb.append(desc);
       }
@@ -81,7 +82,14 @@ public class BytecodeAnalysisConverter {
   }
 
   @Nullable
-  private static String descriptor(@NotNull PsiClass psiClass, int dimensions, boolean full) {
+  private static String descriptor(@NotNull PsiClass psiClass, int dimensions) {
+    String fqn = getJvmClassName(psiClass);
+    if (fqn == null) return null;
+    return "[".repeat(dimensions) + 'L' + fqn + ';';
+  }
+
+  @Nullable
+  private static String getJvmClassName(@NotNull PsiClass psiClass) {
     PsiFile containingFile = psiClass.getContainingFile();
     if (!(containingFile instanceof PsiClassOwner)) {
       LOG.debug("containingFile was not resolved for " + psiClass.getQualifiedName());
@@ -93,29 +101,21 @@ public class BytecodeAnalysisConverter {
     if (qname == null) {
       return null;
     }
-    String className;
-    if (packageName.length() > 0) {
-      className = qname.substring(packageName.length() + 1).replace('.', '$');
+    if (packageName.isEmpty()) {
+      return qname.replace('.', '$');
     }
-    else {
-      className = qname.replace('.', '$');
+    if (qname.length() < packageName.length() + 1 || !qname.startsWith(packageName)) {
+      LOG.error("Invalid qname/packageName; qname = " +
+                qname +
+                "; packageName = " +
+                packageName +
+                "; getClass = " +
+                psiClass.getClass().getName() +
+                "; top-level: " + (psiClass.getContainingClass() == null));
+      return null;
     }
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < dimensions; i++) {
-      sb.append('[');
-    }
-    if (full) {
-      sb.append('L');
-    }
-    if (packageName.length() > 0) {
-      sb.append(packageName.replace('.', '/'));
-      sb.append('/');
-    }
-    sb.append(className);
-    if (full) {
-      sb.append(';');
-    }
-    return sb.toString();
+    String className = qname.substring(packageName.length() + 1).replace('.', '$');
+    return packageName.replace('.', '/') + '/' + className;
   }
 
   @Nullable
@@ -131,46 +131,15 @@ public class BytecodeAnalysisConverter {
     if (psiType instanceof PsiClassType) {
       PsiClass psiClass = ((PsiClassType)psiType).resolve();
       if (psiClass != null) {
-        return descriptor(psiClass, dimensions, true);
+        return descriptor(psiClass, dimensions);
       }
       else {
         LOG.debug("resolve was null for " + psiType.getCanonicalText());
         return null;
       }
     }
-    else if (psiType instanceof PsiPrimitiveType) {
-      StringBuilder sb = new StringBuilder();
-      for (int i = 0; i < dimensions; i++) {
-        sb.append('[');
-      }
-      if (PsiType.VOID.equals(psiType)) {
-        sb.append('V');
-      }
-      else if (PsiType.BOOLEAN.equals(psiType)) {
-        sb.append('Z');
-      }
-      else if (PsiType.CHAR.equals(psiType)) {
-        sb.append('C');
-      }
-      else if (PsiType.BYTE.equals(psiType)) {
-        sb.append('B');
-      }
-      else if (PsiType.SHORT.equals(psiType)) {
-        sb.append('S');
-      }
-      else if (PsiType.INT.equals(psiType)) {
-        sb.append('I');
-      }
-      else if (PsiType.FLOAT.equals(psiType)) {
-        sb.append('F');
-      }
-      else if (PsiType.LONG.equals(psiType)) {
-        sb.append('J');
-      }
-      else if (PsiType.DOUBLE.equals(psiType)) {
-        sb.append('D');
-      }
-      return sb.toString();
+    else if (TypeConversionUtil.isPrimitiveAndNotNull(psiType)) {
+      return "[".repeat(dimensions) + ((PsiPrimitiveType)psiType).getKind().getBinaryName();
     }
     return null;
   }
@@ -217,10 +186,25 @@ public class BytecodeAnalysisConverter {
       }
       result.returnValue = entry.getValue().returnValue;
       Set<EffectQuantum> effects = entry.getValue().effects;
-      if (effects.isEmpty() || (constructor && effects.size() == 1 && effects.contains(EffectQuantum.ThisChangeQuantum))) {
-        // Pure constructor is allowed to change "this" object as this is a new object anyways
-        result.pures.add(methodKey);
+
+      MutationSignature sig = MutationSignature.pure();
+      for (EffectQuantum effect : effects) {
+        if (effect.equals(EffectQuantum.ThisChangeQuantum)) {
+          // Pure constructor is allowed to change "this" object as this is a new object anyways
+          if (!constructor) {
+            sig = sig.alsoMutatesThis();
+          }
+        }
+        else if (effect instanceof EffectQuantum.ParamChangeQuantum) {
+          int paramN = ((EffectQuantum.ParamChangeQuantum)effect).n;
+          sig = sig.alsoMutatesArg(paramN);
+        }
+        else {
+          sig = MutationSignature.unknown();
+          break;
+        }
       }
+      result.mutates.put(methodKey, sig);
     }
   }
 }

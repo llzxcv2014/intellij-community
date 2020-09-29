@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.roots.impl;
 
 import com.intellij.openapi.Disposable;
@@ -12,18 +12,15 @@ import com.intellij.openapi.vfs.pointers.VirtualFilePointerManager;
 import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.ConcurrencyUtil;
 import com.intellij.util.ObjectUtils;
-import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-/**
- * @author nik
- */
 @ApiStatus.Internal
 public class OrderRootsCache {
   private final AtomicReference<ConcurrentMap<CacheKey, VirtualFilePointerContainer>> myRoots = new AtomicReference<>();
@@ -40,7 +37,7 @@ public class OrderRootsCache {
     if (myRootsDisposable != null) {
       Disposer.dispose(myRootsDisposable);
     }
-    if (!Disposer.isDisposing(myParentDisposable)) {
+    if (!Disposer.isDisposed(myParentDisposable)) {
       Disposer.register(myParentDisposable, myRootsDisposable = Disposer.newDisposable());
     }
   }
@@ -67,27 +64,25 @@ public class OrderRootsCache {
     CacheKey key = new CacheKey(rootType, flags);
     VirtualFilePointerContainer cached = map == null ? null : map.get(key);
     if (cached == null) {
-      map = ConcurrencyUtil.cacheOrGet(myRoots, ContainerUtil.newConcurrentMap());
+      map = ConcurrencyUtil.cacheOrGet(myRoots, new ConcurrentHashMap<CacheKey, VirtualFilePointerContainer>());
       cached = map.computeIfAbsent(key, __ -> createContainer(rootUrlsComputer.get()));
     }
     return cached == EMPTY ? null : cached;
   }
 
-  @NotNull
-  VirtualFile[] getOrComputeRoots(@NotNull OrderRootType rootType, int flags, @NotNull Supplier<? extends Collection<String>> computer) {
+  VirtualFile @NotNull [] getOrComputeRoots(@NotNull OrderRootType rootType, int flags, @NotNull Supplier<? extends Collection<String>> computer) {
     VirtualFilePointerContainer container = getOrComputeContainer(rootType, flags, computer);
     return container == null ? VirtualFile.EMPTY_ARRAY : container.getFiles();
   }
 
-  @NotNull
-  String[] getOrComputeUrls(@NotNull OrderRootType rootType, int flags, @NotNull Supplier<? extends Collection<String>> computer) {
+  String @NotNull [] getOrComputeUrls(@NotNull OrderRootType rootType, int flags, @NotNull Supplier<? extends Collection<String>> computer) {
     VirtualFilePointerContainer container = getOrComputeContainer(rootType, flags, computer);
     return container == null ? ArrayUtilRt.EMPTY_STRING_ARRAY : container.getUrls();
   }
 
   @ApiStatus.Internal
   public void clearCache() {
-    ApplicationManager.getApplication().assertIsDispatchThread();
+    ApplicationManager.getApplication().assertIsWriteThread();
     disposePointers();
     myRoots.set(null);
   }

@@ -43,29 +43,6 @@ import javax.swing.SwingUtilities
  */
 fun isNewTestsModeEnabled(): Boolean = Registry.`is`("python.tests.enableUniversalTests", true)
 
-private class PyTestLegacyInteropInitializer : ApplicationInitializedListener {
-  override fun componentsInitialized() {
-    ApplicationManager.getApplication().messageBus.connect().subscribe(RunManagerListener.TOPIC, object : RunManagerListener {
-      override fun stateLoaded(runManager: RunManager, isFirstLoadState: Boolean) {
-        if (!isFirstLoadState) {
-          return
-        }
-
-        fun migrate(configuration: RunConfiguration) {
-          (configuration as? PyAbstractTestConfiguration ?: return).legacyConfigurationAdapter.copyFromLegacyIfNeeded()
-        }
-
-        for (factory in pythonFactories) {
-          migrate(runManager.getConfigurationTemplate(factory).configuration)
-        }
-        for (it in runManager.allSettings) {
-          migrate(it.configuration)
-        }
-      }
-    })
-  }
-}
-
 private fun getVirtualFileByPath(path: String): VirtualFile? {
   return LocalFileSystem.getInstance().findFileByPath(path) ?: return null
 }
@@ -107,7 +84,7 @@ class PyTestLegacyConfigurationAdapter<in T : PyAbstractTestConfiguration>(newCo
    *
    * Null means "false" and used here to prevent saving useless "false" value in .xml for new configurations.
    */
-  @ConfigField
+  @ConfigField("runcfg.pytest.config.parameters") // Fake i18n, which will be deleted soon along with outdated code
   var legacyInformationCopiedToNew: Boolean? = null
 
   init {

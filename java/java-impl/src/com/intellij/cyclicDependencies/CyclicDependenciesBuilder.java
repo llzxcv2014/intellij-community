@@ -16,7 +16,7 @@
 package com.intellij.cyclicDependencies;
 
 import com.intellij.analysis.AnalysisScope;
-import com.intellij.analysis.AnalysisScopeBundle;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.util.ProgressIndicatorUtils;
@@ -27,6 +27,7 @@ import com.intellij.packageDependencies.DependenciesBuilder;
 import com.intellij.packageDependencies.ForwardDependenciesBuilder;
 import com.intellij.psi.*;
 import com.intellij.util.graph.*;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -44,7 +45,7 @@ public class CyclicDependenciesBuilder{
   private int myFileCount;
   private final ForwardDependenciesBuilder myForwardBuilder;
 
-  private String myRootNodeNameInUsageView;
+  private @Nls String myRootNodeNameInUsageView;
 
   public CyclicDependenciesBuilder(@NotNull Project project, @NotNull AnalysisScope scope) {
     myProject = project;
@@ -57,17 +58,17 @@ public class CyclicDependenciesBuilder{
 
       @Override
       public String getInitialUsagesPosition() {
-        return AnalysisScopeBundle.message("cyclic.dependencies.usage.view.initial.text");
+        return JavaBundle.message("cyclic.dependencies.usage.view.initial.text");
       }
     };
   }
 
   @NotNull
-  private String getRootNodeNameInUsageView() {
+  private @Nls String getRootNodeNameInUsageView() {
     return myRootNodeNameInUsageView;
   }
 
-  public void setRootNodeNameInUsageView(@NotNull String rootNodeNameInUsageView) {
+  public void setRootNodeNameInUsageView(@NotNull @Nls String rootNodeNameInUsageView) {
     myRootNodeNameInUsageView = rootNodeNameInUsageView;
   }
 
@@ -89,7 +90,7 @@ public class CyclicDependenciesBuilder{
   public void analyze() {
     final ProjectFileIndex projectFileIndex = ProjectRootManager.getInstance(getProject()).getFileIndex();
     getScope().accept(new PsiRecursiveElementVisitor() {
-      @Override public void visitFile(PsiFile file) {
+      @Override public void visitFile(@NotNull PsiFile file) {
         if (file instanceof PsiJavaFile) {
           PsiJavaFile psiJavaFile = (PsiJavaFile)file;
           if (getScope().contains(psiJavaFile)) {
@@ -137,7 +138,7 @@ public class CyclicDependenciesBuilder{
     ProgressIndicator indicator = ProgressManager.getInstance().getProgressIndicator();
     if (indicator != null) {
       ProgressIndicatorUtils.checkCancelledEvenWithPCEDisabled(indicator);
-      indicator.setText(AnalysisScopeBundle.message("cyclic.dependencies.progress.text"));
+      indicator.setText(JavaBundle.message("cyclic.dependencies.progress.text"));
       indicator.setText2("");
       indicator.setIndeterminate(true);
     }
@@ -217,7 +218,7 @@ public class CyclicDependenciesBuilder{
     if (myPackages.isEmpty()) {
       final PsiManager psiManager = PsiManager.getInstance(getProject());
       getScope().accept(new PsiRecursiveElementVisitor() {
-        @Override public void visitFile(PsiFile file) {
+        @Override public void visitFile(@NotNull PsiFile file) {
           if (file instanceof PsiJavaFile) {
             PsiJavaFile psiJavaFile = (PsiJavaFile)file;
             final PsiPackage aPackage = JavaPsiFacade.getInstance(psiManager.getProject()).findPackage(psiJavaFile.getPackageName());
@@ -232,7 +233,7 @@ public class CyclicDependenciesBuilder{
   }
 
   private Graph<PsiPackage> buildGraph() {
-    return GraphGenerator.generate(CachingSemiGraph.cache(new InboundSemiGraph<PsiPackage>() {
+    return GraphGenerator.generate(CachingSemiGraph.cache(new InboundSemiGraph<>() {
       @Override
       @NotNull
       public Collection<PsiPackage> getNodes() {

@@ -3,6 +3,7 @@ package com.intellij.ide.actions.bigPopup;
 
 import com.intellij.execution.runners.ExecutionUtil;
 import com.intellij.icons.AllIcons;
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.util.ElementsChooser;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -14,6 +15,7 @@ import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.JBPopupListener;
 import com.intellij.openapi.ui.popup.LightweightWindowEvent;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -27,7 +29,8 @@ public abstract class ShowFilterAction extends ToggleAction implements DumbAware
   private JBPopup myFilterPopup;
 
   public ShowFilterAction() {
-    super("Filter", "Show filters popup", AllIcons.General.Filter);
+    super(IdeBundle.messagePointer("action.ToggleAction.show.filter.text.filter"),
+          IdeBundle.messagePointer("action.ToggleAction.show.filter.description.show.filters.popup"), AllIcons.General.Filter);
   }
 
   @Override
@@ -94,6 +97,7 @@ public abstract class ShowFilterAction extends ToggleAction implements DumbAware
   }
 
   @NotNull
+  @NonNls
   public String getDimensionServiceKey() {
     return "ShowFilterAction_Filter_Popup";
   }
@@ -105,7 +109,7 @@ public abstract class ShowFilterAction extends ToggleAction implements DumbAware
     panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
     panel.add(chooser);
     JPanel buttons = new JPanel();
-    JButton all = new JButton("All");
+    JButton all = new JButton(IdeBundle.message("big.popup.filter.button.all"));
     all.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(final ActionEvent e) {
@@ -113,7 +117,7 @@ public abstract class ShowFilterAction extends ToggleAction implements DumbAware
       }
     });
     buttons.add(all);
-    JButton none = new JButton("None");
+    JButton none = new JButton(IdeBundle.message("big.popup.filter.button.none"));
     none.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(final ActionEvent e) {
@@ -121,7 +125,7 @@ public abstract class ShowFilterAction extends ToggleAction implements DumbAware
       }
     });
     buttons.add(none);
-    JButton invert = new JButton("Invert");
+    JButton invert = new JButton(IdeBundle.message("big.popup.filter.button.invert"));
     invert.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(final ActionEvent e) {

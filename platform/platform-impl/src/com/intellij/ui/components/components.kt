@@ -11,6 +11,9 @@ import com.intellij.openapi.ui.*
 import com.intellij.openapi.ui.ComponentWithBrowseButton.BrowseFolderActionListener
 import com.intellij.openapi.ui.DialogWrapper.IdeModalityType
 import com.intellij.openapi.ui.ex.MultiLineLabel
+import com.intellij.openapi.util.NlsContexts.*
+import com.intellij.openapi.util.NlsContexts.Checkbox
+import com.intellij.openapi.util.NlsContexts.Label
 import com.intellij.openapi.vcs.changes.issueLinks.LinkMouseListenerBase
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.*
@@ -34,7 +37,7 @@ import javax.swing.text.Segment
 private val LINK_TEXT_ATTRIBUTES: SimpleTextAttributes
   get() = SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, JBUI.CurrentTheme.Link.linkColor())
 
-fun Label(text: String, style: UIUtil.ComponentStyle? = null, fontColor: UIUtil.FontColor? = null, bold: Boolean = false): JLabel {
+fun Label(@Label text: String, style: UIUtil.ComponentStyle? = null, fontColor: UIUtil.FontColor? = null, bold: Boolean = false): JLabel {
   val finalText = BundleBase.replaceMnemonicAmpersand(text)
   val label: JLabel
   if (fontColor == null) {
@@ -56,14 +59,14 @@ fun Label(text: String, style: UIUtil.ComponentStyle? = null, fontColor: UIUtil.
   return label
 }
 
-fun Link(text: String, style: UIUtil.ComponentStyle? = null, action: () -> Unit): JComponent {
+fun Link(@Label text: String, style: UIUtil.ComponentStyle? = null, action: () -> Unit): JComponent {
   val result = LinkLabel.create(text, action)
   style?.let { UIUtil.applyStyle(it, result) }
   return result
 }
 
 @JvmOverloads
-fun noteComponent(note: String, linkHandler: ((url: String) -> Unit)? = null): JComponent {
+fun noteComponent(@Label note: String, linkHandler: ((url: String) -> Unit)? = null): JComponent {
   val matcher = URLUtil.HREF_PATTERN.matcher(note)
   if (!matcher.find()) {
     return Label(note)
@@ -93,7 +96,7 @@ fun noteComponent(note: String, linkHandler: ((url: String) -> Unit)? = null): J
 }
 
 @JvmOverloads
-fun htmlComponent(text: String = "",
+fun htmlComponent(@DetailedDescription text: String = "",
                   font: Font? = null,
                   background: Color? = null,
                   foreground: Color? = null,
@@ -109,32 +112,32 @@ fun htmlComponent(text: String = "",
   return pane
 }
 
-fun RadioButton(text: String): JRadioButton = JRadioButton(BundleBase.replaceMnemonicAmpersand(text))
+fun RadioButton(@RadioButton text: String): JRadioButton = JRadioButton(BundleBase.replaceMnemonicAmpersand(text))
 
-fun CheckBox(text: String, selected: Boolean = false, toolTip: String? = null): JCheckBox {
+fun CheckBox(@Checkbox text: String, selected: Boolean = false, toolTip: String? = null): JCheckBox {
   val component = JCheckBox(BundleBase.replaceMnemonicAmpersand(text), selected)
   toolTip?.let { component.toolTipText = it }
   return component
 }
 
 @JvmOverloads
-fun Panel(title: String? = null, layout: LayoutManager2? = BorderLayout()): JPanel {
+fun Panel(@BorderTitle title: String? = null, layout: LayoutManager2? = BorderLayout()): JPanel {
   return Panel(title, false, layout)
 }
 
-fun Panel(title: String? = null, hasSeparator: Boolean = true, layout: LayoutManager2? = BorderLayout()): JPanel {
+fun Panel(@BorderTitle title: String? = null, hasSeparator: Boolean = true, layout: LayoutManager2? = BorderLayout()): JPanel {
   val panel = JPanel(layout)
   title?.let { setTitledBorder(it, panel, hasSeparator) }
   return panel
 }
 
-fun DialogPanel(title: String? = null, layout: LayoutManager2? = BorderLayout()): DialogPanel {
+fun DialogPanel(@BorderTitle title: String? = null, layout: LayoutManager2? = BorderLayout()): DialogPanel {
   val panel = DialogPanel(layout)
-  title?.let { setTitledBorder(it, panel, true) }
+  title?.let { setTitledBorder(it, panel, hasSeparator = true) }
   return panel
 }
 
-private fun setTitledBorder(title: String, panel: JPanel, hasSeparator: Boolean) {
+private fun setTitledBorder(@BorderTitle title: String, panel: JPanel, hasSeparator: Boolean) {
   val border = when {
     hasSeparator -> IdeBorderFactory.createTitledBorder(title, false)
     else -> IdeBorderFactory.createTitledBorder(title, false, JBUI.insetsTop(8)).setShowLine(false)
@@ -147,14 +150,14 @@ private fun setTitledBorder(title: String, panel: JPanel, hasSeparator: Boolean)
  * Consider using [UI DSL](http://www.jetbrains.org/intellij/sdk/docs/user_interface_components/kotlin_ui_dsl.html).
  */
 @JvmOverloads
-fun dialog(title: String,
+fun dialog(@DialogTitle title: String,
            panel: JComponent,
            resizable: Boolean = false,
            focusedComponent: JComponent? = null,
            okActionEnabled: Boolean = true,
            project: Project? = null,
            parent: Component? = null,
-           errorText: String? = null,
+           @DialogMessage errorText: String? = null,
            modality: IdeModalityType = IdeModalityType.IDE,
            createActions: ((DialogManager) -> List<Action>)? = null,
            ok: (() -> List<ValidationInfo>?)? = null): DialogWrapper {
@@ -236,7 +239,7 @@ private abstract class MyDialogWrapper(project: Project?,
 fun <T : JComponent> installFileCompletionAndBrowseDialog(project: Project?,
                                                           component: ComponentWithBrowseButton<T>,
                                                           textField: JTextField,
-                                                          @Nls(capitalization = Nls.Capitalization.Title) browseDialogTitle: String?,
+                                                          @DialogTitle browseDialogTitle: String?,
                                                           fileChooserDescriptor: FileChooserDescriptor,
                                                           textComponentAccessor: TextComponentAccessor<T>,
                                                           fileChosen: ((chosenFile: VirtualFile) -> String)? = null) {
@@ -256,12 +259,13 @@ fun <T : JComponent> installFileCompletionAndBrowseDialog(project: Project?,
         }
       }
     })
-  FileChooserFactory.getInstance().installFileCompletion(textField, fileChooserDescriptor, true, project)
+  FileChooserFactory.getInstance().installFileCompletion(textField, fileChooserDescriptor, true,
+                                                         null /* infer disposable from UI context */)
 }
 
 @JvmOverloads
 fun textFieldWithHistoryWithBrowseButton(project: Project?,
-                                         browseDialogTitle: String,
+                                         @DialogTitle browseDialogTitle: String,
                                          fileChooserDescriptor: FileChooserDescriptor,
                                          historyProvider: (() -> List<String>)? = null,
                                          fileChosen: ((chosenFile: VirtualFile) -> String)? = null): TextFieldWithHistoryWithBrowseButton {
@@ -286,7 +290,7 @@ fun textFieldWithHistoryWithBrowseButton(project: Project?,
 
 @JvmOverloads
 fun textFieldWithBrowseButton(project: Project?,
-                              browseDialogTitle: String?,
+                              @DialogTitle browseDialogTitle: String?,
                               fileChooserDescriptor: FileChooserDescriptor,
                               fileChosen: ((chosenFile: VirtualFile) -> String)? = null): TextFieldWithBrowseButton {
   val component = TextFieldWithBrowseButton()
@@ -304,7 +308,7 @@ fun textFieldWithBrowseButton(project: Project?,
 
 @JvmOverloads
 fun textFieldWithBrowseButton(project: Project?,
-                              browseDialogTitle: String,
+                              @DialogTitle browseDialogTitle: String,
                               textField: JTextField,
                               fileChooserDescriptor: FileChooserDescriptor,
                               fileChosen: ((chosenFile: VirtualFile) -> String)? = null): TextFieldWithBrowseButton {

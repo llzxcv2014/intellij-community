@@ -1,15 +1,14 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.buildout.config;
 
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.PsiBuilder;
 import com.intellij.lang.PsiParser;
+import com.intellij.openapi.util.NlsContexts.ParsingError;
 import com.intellij.psi.tree.IElementType;
+import com.jetbrains.python.PyBundle;
 import org.jetbrains.annotations.NotNull;
 
-/**
- * @author traff
- */
 public class BuildoutCfgParser implements PsiParser, BuildoutCfgElementTypes, BuildoutCfgTokenTypes {
   @Override
   @NotNull
@@ -42,7 +41,7 @@ public class BuildoutCfgParser implements PsiParser, BuildoutCfgElementTypes, Bu
         sectionHeader.done(SECTION_HEADER);
       }
       else {
-        error("Section name expected.");
+        error(PyBundle.message("python.buildout.parsing.error.section.name.expected"));
         sectionHeader.drop();
         res = false;
       }
@@ -55,7 +54,7 @@ public class BuildoutCfgParser implements PsiParser, BuildoutCfgElementTypes, Bu
 
       if (is(VALUE_CHARACTERS)) {
         advance();
-        error("Key expected.");
+        error(PyBundle.message("python.buildout.parsing.error.key.expected"));
       }
       while (is(VALUE_CHARACTERS)) {
         skipLine();
@@ -73,7 +72,7 @@ public class BuildoutCfgParser implements PsiParser, BuildoutCfgElementTypes, Bu
         advance();
       }
       else {
-        error(": or = expected.");
+        error(PyBundle.message("python.buildout.parsing.error.or.expected"));
       }
 
       PsiBuilder.Marker value = mark();
@@ -107,7 +106,7 @@ public class BuildoutCfgParser implements PsiParser, BuildoutCfgElementTypes, Bu
           advance();
         }
         else {
-          error("] expected.");
+          error(PyBundle.message("python.buildout.parsing.error.bracket.expected"));
           skipLine();
         }
 
@@ -120,7 +119,7 @@ public class BuildoutCfgParser implements PsiParser, BuildoutCfgElementTypes, Bu
       return myBuilder.getTokenType() == type;
     }
 
-    private void error(@NotNull String message) {
+    private void error(@NotNull @ParsingError String message) {
       myBuilder.error(message);
     }
 

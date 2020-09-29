@@ -24,6 +24,7 @@ import com.jetbrains.python.PyTokenTypes;
 import com.jetbrains.python.highlighting.PyHighlighter;
 import com.jetbrains.python.psi.*;
 import com.jetbrains.python.psi.impl.PyBuiltinCache;
+import org.jetbrains.annotations.NotNull;
 
 import static com.jetbrains.python.psi.PyUtil.as;
 
@@ -35,7 +36,7 @@ public class HighlightingAnnotator extends PyAnnotator {
                                                                                           HighlightSeverity.INFORMATION.myVal - 3);
 
   @Override
-  public void visitPyParameter(PyParameter node) {
+  public void visitPyParameter(@NotNull PyParameter node) {
     final PyFunction function = PsiTreeUtil.getParentOfType(node, PyFunction.class);
     if (function != null) {
       final TextAttributesKey attrKey = node.isSelf() ? PyHighlighter.PY_SELF_PARAMETER : PyHighlighter.PY_PARAMETER;
@@ -58,7 +59,7 @@ public class HighlightingAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyReferenceExpression(PyReferenceExpression node) {
+  public void visitPyReferenceExpression(@NotNull PyReferenceExpression node) {
     final String referencedName = node.getReferencedName();
     if (!node.isQualified() && referencedName != null) {
       final PyFunction function = PsiTreeUtil.getParentOfType(node, PyFunction.class);
@@ -73,7 +74,7 @@ public class HighlightingAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyKeywordArgument(PyKeywordArgument node) {
+  public void visitPyKeywordArgument(@NotNull PyKeywordArgument node) {
     final ASTNode keywordNode = node.getKeywordNode();
     if (keywordNode != null) {
       addHighlightingAnnotation(keywordNode, PyHighlighter.PY_KEYWORD_ARGUMENT);
@@ -81,7 +82,8 @@ public class HighlightingAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyCallExpression(PyCallExpression node) {
+  public void visitPyCallExpression(@NotNull PyCallExpression node) {
+    if (node.getParent() instanceof PyDecorator) return; //if it's in decorator, then we've already highlighted it as a decorator
     final PyReferenceExpression callee = as(node.getCallee(), PyReferenceExpression.class);
     if (callee != null) {
       if (!callee.isQualified() && PyBuiltinCache.isInBuiltins(callee)) {
@@ -96,7 +98,7 @@ public class HighlightingAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitPyAnnotation(PyAnnotation node) {
+  public void visitPyAnnotation(@NotNull PyAnnotation node) {
     final PyExpression value = node.getValue();
     if (value != null) {
       addHighlightingAnnotation(value, PyHighlighter.PY_ANNOTATION, LOW_PRIORITY_HIGHLIGHTING);
@@ -104,7 +106,7 @@ public class HighlightingAnnotator extends PyAnnotator {
   }
 
   @Override
-  public void visitElement(PsiElement element) {
+  public void visitElement(@NotNull PsiElement element) {
     // Highlight None, True and False as keywords once again inside annotations after PyHighlighter
     // to keep their original color
     if (PyTokenTypes.EXPRESSION_KEYWORDS.contains(element.getNode().getElementType()) &&

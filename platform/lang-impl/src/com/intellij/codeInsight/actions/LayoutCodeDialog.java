@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.actions;
 
 import com.intellij.codeInsight.CodeInsightBundle;
@@ -6,17 +6,16 @@ import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.lang.LanguageImportStatements;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.codeStyle.arrangement.Rearranger;
 import com.intellij.testFramework.LightVirtualFile;
-import com.intellij.vcsUtil.VcsUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
 public class LayoutCodeDialog extends DialogWrapper {
-  private final Project myProject;
   private final PsiFile myFile;
   private final boolean myTextSelected;
   private final String myHelpId;
@@ -37,7 +36,6 @@ public class LayoutCodeDialog extends DialogWrapper {
   public LayoutCodeDialog(@NotNull Project project, @NotNull PsiFile file, boolean textSelected, String helpId) {
     super(project, true);
     myFile = file;
-    myProject = project;
     myTextSelected = textSelected;
     myHelpId = helpId;
 
@@ -45,7 +43,7 @@ public class LayoutCodeDialog extends DialogWrapper {
     myRunOptions = createOptionsBundledOnDialog();
 
     setOKButtonText(CodeInsightBundle.message("reformat.code.accept.button.text"));
-    setTitle("Reformat File: " + file.getName());
+    setTitle(CodeInsightBundle.message("dialog.title.reformat.file.0", file.getName()));
 
     init();
   }
@@ -62,10 +60,10 @@ public class LayoutCodeDialog extends DialogWrapper {
   private void setUpTextRangeMode() {
     mySelectedTextRadioButton.setEnabled(myTextSelected);
     if (!myTextSelected) {
-      mySelectedTextRadioButton.setToolTipText("No text selected in editor");
+      mySelectedTextRadioButton.setToolTipText(CodeInsightBundle.message("tooltip.no.text.selected.in.editor"));
     }
 
-    final boolean fileHasChanges = FormatChangedTextUtil.hasChanges(myFile);
+    final boolean fileHasChanges = VcsFacade.getInstance().hasChanges(myFile);
     if (myFile.getVirtualFile() instanceof LightVirtualFile) {
       myOnlyVCSChangedTextRb.setVisible(false);
     }
@@ -112,12 +110,12 @@ public class LayoutCodeDialog extends DialogWrapper {
   }
 
   @Nullable
-  private String getChangesNotAvailableHint() {
-    if (!VcsUtil.isFileUnderVcs(myProject, VcsUtil.getFilePath(myFile.getVirtualFile()))) {
-      return "File not under VCS root";
+  private @NlsContexts.Tooltip String getChangesNotAvailableHint() {
+    if (!VcsFacade.getInstance().isFileUnderVcs(myFile)) {
+      return CodeInsightBundle.message("tooltip.file.not.under.vcs.root");
     }
-    else if (!FormatChangedTextUtil.hasChanges(myFile)) {
-      return "File was not changed since last revision";
+    else if (!VcsFacade.getInstance().hasChanges(myFile)) {
+      return CodeInsightBundle.message("tooltip.file.was.not.changed.since.last.revision");
     }
     return null;
   }

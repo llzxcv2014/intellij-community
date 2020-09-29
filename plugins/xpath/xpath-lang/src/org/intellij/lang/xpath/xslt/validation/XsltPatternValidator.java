@@ -16,6 +16,7 @@
 package org.intellij.lang.xpath.xslt.validation;
 
 import com.intellij.lang.annotation.AnnotationHolder;
+import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -23,10 +24,12 @@ import org.intellij.lang.xpath.XPathFile;
 import org.intellij.lang.xpath.XPathTokenTypes;
 import org.intellij.lang.xpath.psi.*;
 import org.intellij.lang.xpath.xslt.context.Xslt2ContextProvider;
+import org.intellij.plugins.xpathView.XPathBundle;
 
 // TODO: more detailed error descriptions
 
 @SuppressWarnings({"SimplifiableIfStatement"})
+final
 class XsltPatternValidator {
   private XsltPatternValidator() {
   }
@@ -35,10 +38,10 @@ class XsltPatternValidator {
     final XPathExpression expression = ((XPathFile)file).getExpression();
     if (expression != null) {
       if (!checkPattern(expression)) {
-        annotationHolder.createErrorAnnotation(expression, "Bad pattern");
+        annotationHolder.newAnnotation(HighlightSeverity.ERROR, XPathBundle.message("annotator.error.bad.pattern")).range(expression).create();
       }
     } else {
-      annotationHolder.createErrorAnnotation(TextRange.from(0, 1), "Missing pattern");
+      annotationHolder.newAnnotation(HighlightSeverity.ERROR, XPathBundle.message("annotator.error.missing.pattern")).range(TextRange.from(0, 1)).create();
     }
   }
 

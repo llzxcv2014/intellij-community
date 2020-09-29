@@ -18,17 +18,15 @@ package com.intellij.util.xml.tree.actions;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.application.ApplicationBundle;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.treeStructure.SimpleNode;
-import com.intellij.util.xml.DomElement;
-import com.intellij.util.xml.DomFileElement;
-import com.intellij.util.xml.DomUtil;
-import com.intellij.util.xml.ElementPresentation;
+import com.intellij.util.xml.*;
 import com.intellij.util.xml.tree.BaseDomElementNode;
 import com.intellij.util.xml.tree.DomFileElementNode;
 import com.intellij.util.xml.tree.DomModelTreeView;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.PropertyKey;
 
 public class DeleteDomElement extends BaseDomTreeAction {
 
@@ -52,8 +50,8 @@ public class DeleteDomElement extends BaseDomTreeAction {
       
       final DomElement domElement = ((BaseDomElementNode)selectedNode).getDomElement();
 
-      final int ret = Messages.showOkCancelDialog(getPresentationText(selectedNode, "Remove") + "?", "Remove",
-                                                  Messages.getQuestionIcon());
+      final int ret = Messages.showOkCancelDialog(getPresentationText(selectedNode, "dom.dialog.message.remove.elements"),
+                                                  XmlDomBundle.message("dom.tree.remove.xml.element.dialog.title"), Messages.getQuestionIcon());
       if (ret == Messages.OK) {
         WriteCommandAction.writeCommandAction(domElement.getManager().getProject(), DomUtil.getFile(domElement)).run(() -> domElement.undefine());
       }
@@ -81,19 +79,20 @@ public class DeleteDomElement extends BaseDomTreeAction {
 
 
     if (enabled) {
-      e.getPresentation().setText(getPresentationText(selectedNode, ApplicationBundle.message("action.remove")));
+      e.getPresentation().setText(getPresentationText(selectedNode, "dom.action.remove.elements"));
     }
     else {
-      e.getPresentation().setText(ApplicationBundle.message("action.remove"));
+      e.getPresentation().setText(XmlDomBundle.messagePointer("dom.action.remove"));
     }
 
     e.getPresentation().setIcon(AllIcons.General.Remove);
   }
 
-  private static String getPresentationText(final SimpleNode selectedNode, String removeString) {
+
+  private static @Nls String getPresentationText(final SimpleNode selectedNode,
+                                                 @PropertyKey (resourceBundle = XmlDomBundle.BUNDLE) String messageKey) {
     final ElementPresentation presentation = ((BaseDomElementNode)selectedNode).getDomElement().getPresentation();
-    removeString += " " + presentation.getTypeName() +
-                                (presentation.getElementName() == null || presentation.getElementName().trim().length() == 0? "" : ": " + presentation.getElementName());
-    return removeString;
+    return XmlDomBundle.message(messageKey, presentation.getTypeName() +
+                                            (presentation.getElementName() == null || presentation.getElementName().trim().length() == 0? "" : ": " + presentation.getElementName()));
   }
 }

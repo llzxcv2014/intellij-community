@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.psi.util;
 
 import com.intellij.lang.ASTNode;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
@@ -21,13 +22,16 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrStatement;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.blocks.GrClosableBlock;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpression;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrReferenceExpression;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.*;
+import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrLiteral;
+import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrRegex;
+import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrString;
+import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrStringInjection;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.literals.GrLiteralImpl;
 
 /**
  * @author Maxim.Medvedev
  */
-public class GrStringUtil {
+public final class GrStringUtil {
   private static final Logger LOG = Logger.getInstance(GrStringUtil.class);
 
   public static final String TRIPLE_QUOTES = "'''";
@@ -41,9 +45,9 @@ public class GrStringUtil {
   private GrStringUtil() {
   }
 
-  public static String unescapeString(String s) {
+  public static @NlsSafe String unescapeString(String s) {
     final int length = s.length();
-    StringBuilder buffer = new StringBuilder(length);
+    @NlsSafe StringBuilder buffer = new StringBuilder(length);
     boolean escaped = false;
     for (int idx = 0; idx < length; idx++) {
       char ch = s.charAt(idx);
@@ -128,10 +132,10 @@ public class GrStringUtil {
     return unescapeRegex(s, false);
   }
 
-  private static String unescapeRegex(String s, boolean unescapeSlash) {
+  private static @NlsSafe String unescapeRegex(String s, boolean unescapeSlash) {
     final int length = s.length();
-    StringBuilder buffer = new StringBuilder(length);
-    
+    @NlsSafe StringBuilder buffer = new StringBuilder(length);
+
     boolean escaped = false;
     for (int idx = 0; idx < length; idx++) {
       char ch = s.charAt(idx);
@@ -185,7 +189,7 @@ public class GrStringUtil {
     escapeSymbolsForSlashyStrings(buffer, str);
     return buffer.toString();
   }
-  
+
   public static void escapeSymbolsForSlashyStrings(StringBuilder buffer, String str) {
     final int length = str.length();
     for (int idx = 0; idx < length; idx++) {
@@ -251,7 +255,7 @@ public class GrStringUtil {
     }
   }
 
-  private static void appendUnicode(StringBuilder buffer, char ch) {
+  private static void appendUnicode(@NlsSafe StringBuilder buffer, char ch) {
     String hexCode = StringUtil.toUpperCase(Integer.toHexString(ch));
     buffer.append("\\u");
     int paddingCount = 4 - hexCode.length();
@@ -490,7 +494,7 @@ public class GrStringUtil {
     if (literalText.contains("\n")) {
       wrapGStringInto(grString, TRIPLE_DOUBLE_QUOTES);
     }
-    
+
     final GrExpression expression = factory.createExpressionFromText("\"\"\"${}" + literalText + "\"\"\"");
 
     expression.getFirstChild().delete();//quote
@@ -627,7 +631,7 @@ public class GrStringUtil {
 
   public static boolean parseRegexCharacters(@NotNull String chars,
                                              @NotNull StringBuilder outChars,
-                                             @Nullable int[] sourceOffsets,
+                                             int @Nullable [] sourceOffsets,
                                              boolean escapeSlash) {
     assert sourceOffsets == null || sourceOffsets.length == chars.length() + 1;
     if (chars.indexOf('\\') < 0) {
@@ -715,7 +719,7 @@ public class GrStringUtil {
   /**
    * @see com.intellij.psi.impl.source.tree.java.PsiLiteralExpressionImpl#parseStringCharacters(String, StringBuilder, int[])
    */
-  public static boolean parseStringCharacters(@NotNull String chars, @NotNull StringBuilder outChars, @Nullable int[] sourceOffsets) {
+  public static boolean parseStringCharacters(@NotNull String chars, @NotNull StringBuilder outChars, int @Nullable [] sourceOffsets) {
     assert sourceOffsets == null || sourceOffsets.length == chars.length()+1;
     if (chars.indexOf('\\') < 0) {
       outChars.append(chars);
@@ -837,7 +841,7 @@ public class GrStringUtil {
     }
     return true;
   }
-  
+
   public static GrLiteral createStringFromRegex(@NotNull GrLiteral regex) {
     final GroovyPsiElementFactory factory = GroovyPsiElementFactory.getInstance(regex.getProject());
 

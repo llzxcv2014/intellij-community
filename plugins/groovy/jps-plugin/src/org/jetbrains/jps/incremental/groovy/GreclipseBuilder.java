@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.jps.incremental.groovy;
 
 import com.intellij.openapi.application.PathManager;
@@ -8,13 +8,13 @@ import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.ArrayUtilRt;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.execution.ParametersListUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.groovy.compiler.rt.GroovyRtConstants;
+import org.jetbrains.groovy.compiler.rt.OutputItem;
 import org.jetbrains.jps.ModuleChunk;
 import org.jetbrains.jps.ProjectPaths;
 import org.jetbrains.jps.builders.DirtyFilesHolder;
@@ -77,7 +77,7 @@ public class GreclipseBuilder extends ModuleLevelBuilder {
     try {
       URL[] urls = {
         new File(jar).toURI().toURL(),
-        new File(ObjectUtils.assertNotNull(PathManager.getJarPathForClass(GreclipseMain.class))).toURI().toURL()
+        new File(Objects.requireNonNull(PathManager.getJarPathForClass(GreclipseMain.class))).toURI().toURL()
       };
       ClassLoader loader = new URLClassLoader(urls, StandardJavaFileManager.class.getClassLoader());
       Class.forName("org.eclipse.jdt.internal.compiler.batch.Main", false, loader);
@@ -92,6 +92,7 @@ public class GreclipseBuilder extends ModuleLevelBuilder {
   }
 
 
+  @NotNull
   @Override
   public List<String> getCompilableFileExtensions() {
     return Arrays.asList("groovy", "java");
@@ -118,7 +119,7 @@ public class GreclipseBuilder extends ModuleLevelBuilder {
       JpsProject project = context.getProjectDescriptor().getProject();
       GreclipseSettings greclipseSettings = GreclipseJpsCompilerSettings.getSettings(project);
       if (greclipseSettings == null) {
-        String message = "Compiler settings component not initialized for " + project;
+        String message = GroovyJpsBundle.message("greclipse.not.initialized.for.project.0", project);
         LOG.error(message);
         context.processMessage(new CompilerMessage(getPresentableName(), BuildMessage.Kind.ERROR, message));
         return ExitCode.ABORT;
@@ -127,8 +128,9 @@ public class GreclipseBuilder extends ModuleLevelBuilder {
       ClassLoader loader = createGreclipseLoader(greclipseSettings.greclipsePath);
       if (loader == null) {
         context.processMessage(new CompilerMessage(
-          getPresentableName(), BuildMessage.Kind.ERROR, "Invalid jar path in the compiler settings: '" + greclipseSettings.greclipsePath + "'")
-        );
+          getPresentableName(), BuildMessage.Kind.ERROR,
+          GroovyJpsBundle.message("greclipse.invalid.jar.path.0", greclipseSettings.greclipsePath)
+        ));
         return ExitCode.ABORT;
       }
 
@@ -156,11 +158,11 @@ public class GreclipseBuilder extends ModuleLevelBuilder {
 
       Boolean notified = COMPILER_VERSION_INFO.get(context);
       if (notified != Boolean.TRUE) {
-        context.processMessage(new CompilerMessage("", BuildMessage.Kind.INFO, "Using Groovy-Eclipse to compile Java & Groovy sources"));
+        context.processMessage(new CompilerMessage("", BuildMessage.Kind.INFO, GroovyJpsBundle.message("greclipse.info")));
         COMPILER_VERSION_INFO.set(context, Boolean.TRUE);
       }
 
-      context.processMessage(new ProgressMessage("Compiling java & groovy [" + chunk.getPresentableShortName() + "]"));
+      context.processMessage(new ProgressMessage(GroovyJpsBundle.message("greclipse.compiling.chunk.0", chunk.getPresentableShortName())));
 
       StringWriter out = new StringWriter();
       StringWriter err = new StringWriter();
@@ -168,14 +170,14 @@ public class GreclipseBuilder extends ModuleLevelBuilder {
 
       boolean success = performCompilation(args, out, err, outputMap, context, chunk);
 
-      List<GroovycOutputParser.OutputItem> items = new ArrayList<>();
+      List<OutputItem> items = new ArrayList<>();
       for (String src : outputMap.keySet()) {
         for (String classFile : outputMap.get(src)) {
-          items.add(new GroovycOutputParser.OutputItem(FileUtil.toSystemIndependentName(mainOutputDir + classFile),
-                                                           FileUtil.toSystemIndependentName(src)));
+          items.add(new OutputItem(FileUtil.toSystemIndependentName(mainOutputDir + classFile),
+                                   FileUtil.toSystemIndependentName(src)));
         }
       }
-      MultiMap<ModuleBuildTarget, GroovycOutputParser.OutputItem> successfullyCompiled =
+      MultiMap<ModuleBuildTarget, OutputItem> successfullyCompiled =
         myHelper.processCompiledFiles(context, chunk, outputDirs, mainOutputDir, items);
 
       EclipseOutputParser parser = new EclipseOutputParser(getPresentableName(), chunk);
@@ -189,7 +191,10 @@ public class GreclipseBuilder extends ModuleLevelBuilder {
       }
 
       if (!success && !hasError) {
-        context.processMessage(new CompilerMessage(getPresentableName(), BuildMessage.Kind.ERROR, "Compilation failed"));
+        context.processMessage(new CompilerMessage(
+          getPresentableName(), BuildMessage.Kind.ERROR,
+          GroovyJpsBundle.message("greclipse.compilation.failed")
+        ));
       }
 
       myHelper.updateDependencies(context, toCompile, successfullyCompiled, new DefaultOutputConsumer(outputConsumer), this);
@@ -203,7 +208,7 @@ public class GreclipseBuilder extends ModuleLevelBuilder {
 
   static boolean useGreclipse(CompileContext context) {
     JpsProject project = context.getProjectDescriptor().getProject();
-    return ID.equals(JpsJavaExtensionService.getInstance().getOrCreateCompilerConfiguration(project).getJavaCompilerId());
+    return ID.equals(JpsJavaExtensionService.getInstance().getCompilerConfiguration(project).getJavaCompilerId());
   }
 
   private boolean performCompilation(List<String> args, StringWriter out, StringWriter err, Map<String, List<String>> outputs, CompileContext context, ModuleChunk chunk) {
@@ -318,7 +323,7 @@ public class GreclipseBuilder extends ModuleLevelBuilder {
   @NotNull
   @Override
   public String getPresentableName() {
-    return ID;
+    return GroovyJpsBundle.message("compiler.name.greclipse");
   }
 
   @Override

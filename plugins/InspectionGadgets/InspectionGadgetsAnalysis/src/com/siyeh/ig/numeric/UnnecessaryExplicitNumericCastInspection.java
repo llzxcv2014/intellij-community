@@ -17,6 +17,7 @@ package com.siyeh.ig.numeric;
 
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ProblemHighlightType;
+import com.intellij.lang.java.parser.ExpressionParser;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.tree.IElementType;
@@ -27,7 +28,6 @@ import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
 import com.siyeh.ig.psiutils.*;
 import gnu.trove.THashSet;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
@@ -51,13 +51,6 @@ public class UnnecessaryExplicitNumericCastInspection extends BaseInspection {
     binaryPromotionOperators.add(JavaTokenType.AND);
     binaryPromotionOperators.add(JavaTokenType.XOR);
     binaryPromotionOperators.add(JavaTokenType.OR);
-  }
-
-  @Nls
-  @NotNull
-  @Override
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("unnecessary.explicit.numeric.cast.display.name");
   }
 
   @NotNull
@@ -185,7 +178,7 @@ public class UnnecessaryExplicitNumericCastInspection extends BaseInspection {
           }
         }
       }
-      else if (JavaTokenType.GTGT.equals(tokenType) || JavaTokenType.GTGTGT.equals(tokenType) || JavaTokenType.LTLT.equals(tokenType)) {
+      else if (ExpressionParser.SHIFT_OPS.contains(tokenType)) {
         final PsiExpression firstOperand = polyadicExpression.getOperands()[0];
         if (!PsiTreeUtil.isAncestor(firstOperand, expression, false)) {
           return true;

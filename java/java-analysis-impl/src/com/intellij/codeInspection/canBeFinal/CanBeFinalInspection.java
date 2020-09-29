@@ -1,25 +1,12 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInspection.canBeFinal;
 
 import com.intellij.analysis.AnalysisScope;
-import com.intellij.codeInsight.daemon.GroupNames;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.reference.*;
+import com.intellij.codeInspection.util.IntentionFamilyName;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
@@ -40,11 +27,9 @@ public class CanBeFinalInspection extends GlobalJavaBatchInspectionTool {
   public boolean REPORT_CLASSES;
   public boolean REPORT_METHODS;
   public boolean REPORT_FIELDS = true;
-  public static final String DISPLAY_NAME = InspectionsBundle.message("inspection.can.be.final.display.name");
   @NonNls public static final String SHORT_NAME = "CanBeFinal";
-  @NonNls private static final String QUICK_FIX_NAME = InspectionsBundle.message("inspection.can.be.final.accept.quickfix");
 
-  private class OptionsPanel extends JPanel {
+  private final class OptionsPanel extends JPanel {
     private final JCheckBox myReportClassesCheckbox;
     private final JCheckBox myReportMethodsCheckbox;
     private final JCheckBox myReportFieldsCheckbox;
@@ -59,19 +44,19 @@ public class CanBeFinalInspection extends GlobalJavaBatchInspectionTool {
       gc.anchor = GridBagConstraints.NORTHWEST;
 
 
-      myReportClassesCheckbox = new JCheckBox(InspectionsBundle.message("inspection.can.be.final.option"));
+      myReportClassesCheckbox = new JCheckBox(JavaAnalysisBundle.message("inspection.can.be.final.option"));
       myReportClassesCheckbox.setSelected(REPORT_CLASSES);
       myReportClassesCheckbox.getModel().addItemListener(e -> REPORT_CLASSES = myReportClassesCheckbox.isSelected());
       gc.gridy = 0;
       add(myReportClassesCheckbox, gc);
 
-      myReportMethodsCheckbox = new JCheckBox(InspectionsBundle.message("inspection.can.be.final.option1"));
+      myReportMethodsCheckbox = new JCheckBox(JavaAnalysisBundle.message("inspection.can.be.final.option1"));
       myReportMethodsCheckbox.setSelected(REPORT_METHODS);
       myReportMethodsCheckbox.getModel().addItemListener(e -> REPORT_METHODS = myReportMethodsCheckbox.isSelected());
       gc.gridy++;
       add(myReportMethodsCheckbox, gc);
 
-      myReportFieldsCheckbox = new JCheckBox(InspectionsBundle.message("inspection.can.be.final.option2"));
+      myReportFieldsCheckbox = new JCheckBox(JavaAnalysisBundle.message("inspection.can.be.final.option2"));
       myReportFieldsCheckbox.setSelected(REPORT_FIELDS);
       myReportFieldsCheckbox.getModel().addItemListener(e -> REPORT_FIELDS = myReportFieldsCheckbox.isSelected());
 
@@ -106,12 +91,11 @@ public class CanBeFinalInspection extends GlobalJavaBatchInspectionTool {
 
 
   @Override
-  @Nullable
-  public CommonProblemDescriptor[] checkElement(@NotNull final RefEntity refEntity,
-                                                @NotNull final AnalysisScope scope,
-                                                @NotNull final InspectionManager manager,
-                                                @NotNull final GlobalInspectionContext globalContext,
-                                                @NotNull final ProblemDescriptionsProcessor processor) {
+  public CommonProblemDescriptor @Nullable [] checkElement(@NotNull final RefEntity refEntity,
+                                                           @NotNull final AnalysisScope scope,
+                                                           @NotNull final InspectionManager manager,
+                                                           @NotNull final GlobalInspectionContext globalContext,
+                                                           @NotNull final ProblemDescriptionsProcessor processor) {
     if (refEntity instanceof RefJavaElement) {
       final RefJavaElement refElement = (RefJavaElement)refEntity;
       if (refElement instanceof RefParameter) return null;
@@ -146,7 +130,7 @@ public class CanBeFinalInspection extends GlobalJavaBatchInspectionTool {
 
 
       if (psiIdentifier != null) {
-        return new ProblemDescriptor[]{manager.createProblemDescriptor(psiIdentifier, InspectionsBundle.message(
+        return new ProblemDescriptor[]{manager.createProblemDescriptor(psiIdentifier, JavaAnalysisBundle.message(
           "inspection.export.results.can.be.final.description"), new AcceptSuggested(globalContext.getRefManager()),
                                                                  ProblemHighlightType.GENERIC_ERROR_OR_WARNING, false)};
       }
@@ -218,14 +202,8 @@ public class CanBeFinalInspection extends GlobalJavaBatchInspectionTool {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return DISPLAY_NAME;
-  }
-
-  @Override
-  @NotNull
   public String getGroupDisplayName() {
-    return GroupNames.DECLARATION_REDUNDANCY;
+    return InspectionsBundle.message("group.names.declaration.redundancy");
   }
 
   @Override
@@ -244,7 +222,7 @@ public class CanBeFinalInspection extends GlobalJavaBatchInspectionTool {
     @Override
     @NotNull
     public String getFamilyName() {
-      return QUICK_FIX_NAME;
+      return getQuickFixName();
     }
 
     @Override
@@ -273,4 +251,7 @@ public class CanBeFinalInspection extends GlobalJavaBatchInspectionTool {
     }
   }
 
+  private static @IntentionFamilyName String getQuickFixName() {
+    return JavaAnalysisBundle.message("inspection.can.be.final.accept.quickfix");
+  }
 }

@@ -1,6 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.builtInHelp.settings;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.browsers.WebBrowser;
 import com.intellij.ide.browsers.WebBrowserManager;
 import com.intellij.openapi.options.Configurable;
@@ -22,12 +23,11 @@ public class SettingsPage implements Configurable {
   public static final SettingKey USE_BROWSER = SettingKey.simple("bundled.help.use.specific.web.browser");
   public static final SettingKey OPEN_HELP_BASE_URL = SettingKey.simple("bundled.help.open.web.site.base.url");
 
-
   private final SettingsPageUI ui = new SettingsPageUI();
 
   @Override
   public String getDisplayName() {
-    return "Bundled Web Help";
+    return IdeBundle.message("configurable.SettingsPage.display.name");
   }
 
   @Override
@@ -91,6 +91,7 @@ public class SettingsPage implements Configurable {
     JCheckBox openWebSite;
     JTextField baseUrl;
     JComboBox<String> webBrowserList;
+
     DocumentListener textChangeListener = new DocumentListener() {
       @Override
       public void insertUpdate(DocumentEvent e) {

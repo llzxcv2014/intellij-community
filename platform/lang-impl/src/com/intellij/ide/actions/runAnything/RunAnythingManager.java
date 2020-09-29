@@ -63,13 +63,13 @@ public class RunAnythingManager {
       .setRequestFocus(true)
       .setCancelKeyEnabled(false)
       .setCancelCallback(() -> {
-        if (!Objects.equals(myRunAnythingUI.getUserInputText(), searchText)) {
+        if (isShown() && !Objects.equals(myRunAnythingUI.getUserInputText(), searchText)) {
           saveSearchText();
         }
 
         return true;
       })
-      .addUserData("SIMPLE_WINDOW")
+      .addUserData("SIMPLE_WINDOW") // NON-NLS
       .setResizable(true)
       .setMovable(true)
       .setDimensionServiceKey(myProject, LOCATION_SETTINGS_KEY, true)
@@ -110,10 +110,6 @@ public class RunAnythingManager {
   }
 
   private void saveSearchText() {
-    if (!isShown()) {
-      return;
-    }
-
     mySelectedText = myRunAnythingUI.getUserInputText();
   }
 

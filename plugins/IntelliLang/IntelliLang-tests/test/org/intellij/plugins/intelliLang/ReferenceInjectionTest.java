@@ -1,11 +1,14 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.intellij.plugins.intelliLang;
 
 import com.intellij.lang.Language;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.command.undo.UndoManager;
+import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider;
-import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.TestDialog;
+import com.intellij.openapi.ui.TestDialogManager;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.resolve.reference.impl.providers.FileReference;
 import com.intellij.psi.injection.Injectable;
@@ -90,6 +93,32 @@ public class ReferenceInjectionTest extends AbstractLanguageInjectionTestCase {
     assertNull(getInjectedReferences());
   }
 
+  public void testInjectionDoesntSurviveLiteralReplacement() {
+    myFixture.configureByText("Survive.java", "class Survive {\n" +
+                                          "    String bar() {\n" +
+                                          "        return \"ba<caret>r.xml\";\n" +
+                                          "    }    \n" +
+                                          "}");
+    assertNull(getInjectedReferences());
+
+    InjectLanguageAction.invokeImpl(getProject(), myFixture.getEditor(), myFixture.getFile(), new FileReferenceInjector());
+    PsiReference[] references = getInjectedReferences();
+    PsiReference reference = assertOneElement(references);
+    assertTrue(reference instanceof FileReference);
+
+    String textToReplace = "\"bar.xml\"";
+
+    WriteCommandAction.runWriteCommandAction(getProject(), () -> {
+      PsiDocumentManager manager = PsiDocumentManager.getInstance(getProject());
+      Document document = manager.getDocument(getFile());
+      int start = document.getText().indexOf(textToReplace);
+      document.replaceString(start, start + textToReplace.length(), "null");
+      manager.commitDocument(document);
+    });
+
+    assertNull(getInjectedReferences());
+  }
+
   public void testUndoLanguageInjection() {
     myFixture.configureByText("Foo.java", "class Foo {\n" +
                                           "    String bar() {\n" +
@@ -114,14 +143,14 @@ public class ReferenceInjectionTest extends AbstractLanguageInjectionTestCase {
 
   private void undo() {
     UIUtil.invokeAndWaitIfNeeded((Runnable)() -> {
-      final TestDialog oldTestDialog = Messages.setTestDialog(TestDialog.OK);
+      final TestDialog oldTestDialog = TestDialogManager.setTestDialog(TestDialog.OK);
       try {
         UndoManager undoManager = UndoManager.getInstance(getProject());
         TextEditor textEditor = TextEditorProvider.getInstance().getTextEditor(getEditor());
         undoManager.undo(textEditor);
       }
       finally {
-        Messages.setTestDialog(oldTestDialog);
+        TestDialogManager.setTestDialog(oldTestDialog);
       }
     });
   }

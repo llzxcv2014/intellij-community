@@ -1,7 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.testDiscovery.actions;
 
-import com.intellij.codeInsight.actions.FormatChangedTextUtil;
+import com.intellij.codeInsight.actions.VcsFacadeImpl;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.Executor;
 import com.intellij.execution.JavaTestConfigurationWithDiscoverySupport;
@@ -25,6 +25,7 @@ import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.impl.ActionButton;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.compiler.JavaCompilerBundle;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
@@ -37,9 +38,9 @@ import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.PopupChooserBuilder;
 import com.intellij.openapi.util.Couple;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.registry.Registry;
-import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.VcsDataKeys;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vcs.changes.ContentRevision;
@@ -84,7 +85,6 @@ import static com.intellij.openapi.actionSystem.CommonDataKeys.*;
 import static com.intellij.openapi.util.Pair.pair;
 
 public class ShowAffectedTestsAction extends AnAction {
-  private static final String RUN_ALL_ACTION_TEXT = "Run All Affected Tests";
 
   @Override
   public void update(@NotNull AnActionEvent e) {
@@ -195,7 +195,7 @@ public class ShowAffectedTestsAction extends AnAction {
   }
 
   public static void showDiscoveredTestsByChanges(@NotNull Project project,
-                                                  @NotNull Change[] changes,
+                                                  Change @NotNull [] changes,
                                                   @NotNull String title,
                                                   @NotNull DataContext dataContext) {
     DiscoveredTestsTree tree = showTree(project, dataContext, title);
@@ -208,12 +208,11 @@ public class ShowAffectedTestsAction extends AnAction {
     });
   }
 
-  @NotNull
-  public static PsiMethod[] findMethods(@NotNull Project project, @NotNull Change... changes) {
+  public static PsiMethod @NotNull [] findMethods(@NotNull Project project, Change @NotNull ... changes) {
     UastMetaLanguage jvmLanguage = Language.findInstance(UastMetaLanguage.class);
 
     return PsiDocumentManager.getInstance(project).commitAndRunReadAction(
-      () -> FormatChangedTextUtil.getInstance().getChangedElements(project, changes, file -> {
+      () -> VcsFacadeImpl.getVcsInstance().getChangedElements(project, changes, file -> {
         if (DumbService.isDumb(project) || project.isDisposed() || !file.isValid()) return null;
         ProjectFileIndex index = ProjectFileIndex.getInstance(project);
         if (!index.isInSource(file)) return null;
@@ -225,7 +224,7 @@ public class ShowAffectedTestsAction extends AnAction {
         List<PsiElement> physicalMethods = new SmartList<>();
         psiFile.accept(new PsiRecursiveElementWalkingVisitor() {
           @Override
-          public void visitElement(PsiElement element) {
+          public void visitElement(@NotNull PsiElement element) {
             UMethod method = UastContextKt.toUElement(element, UMethod.class);
             if (method != null) {
               ContainerUtil.addAllNotNull(physicalMethods, method.getSourcePsi());
@@ -258,7 +257,7 @@ public class ShowAffectedTestsAction extends AnAction {
     }
     return virtualFiles == null
            ? Collections.emptyList()
-           : Arrays.stream(virtualFiles).filter(v -> v.isInLocalFileSystem()).collect(Collectors.toList());
+           : ContainerUtil.filter(virtualFiles, v -> v.isInLocalFileSystem());
   }
 
   @Nullable
@@ -292,25 +291,25 @@ public class ShowAffectedTestsAction extends AnAction {
                                               @NotNull DataContext dataContext,
                                               @NotNull String title) {
     DiscoveredTestsTree tree = new DiscoveredTestsTree(title);
-    String initTitle = "Tests for " + title;
+    String initTitle = JavaCompilerBundle.message("test.discovery.tests.tab.title", title);
 
     Ref<JBPopup> ref = new Ref<>();
 
     ConfigurationContext context = ConfigurationContext.getFromContext(dataContext);
 
     ActiveComponent runButton =
-      createButton(RUN_ALL_ACTION_TEXT, AllIcons.Actions.Execute, () -> runAllDiscoveredTests(project, tree, ref, context, initTitle), tree);
+      createButton(JavaCompilerBundle.message("action.run.all.affected.tests.text"), AllIcons.Actions.Execute, () -> runAllDiscoveredTests(project, tree, ref, context, initTitle), tree);
 
     Runnable pinActionListener = () -> {
       UsageView view = FindUtil.showInUsageView(null, tree.getTestMethods(), param -> param, initTitle, p -> {
         p.setCodeUsages(false); // don't show r/w, imports filtering actions
-        p.setUsagesWord("test");
+        p.setUsagesWord(JavaCompilerBundle.message("affected.tests.test.usage.word"));
         p.setMergeDupLinesAvailable(false);
         p.setUsageTypeFilteringAvailable(false);
         p.setExcludeAvailable(false);
       }, project);
       if (view != null) {
-        view.addButtonToLowerPane(new AbstractAction(RUN_ALL_ACTION_TEXT, AllIcons.Actions.Execute) {
+        view.addButtonToLowerPane(new AbstractAction(JavaCompilerBundle.message("action.run.all.affected.tests.text"), AllIcons.Actions.Execute) {
           @Override
           public void actionPerformed(ActionEvent e) {
             runAllDiscoveredTests(project, tree, ref, context, initTitle);
@@ -329,7 +328,7 @@ public class ShowAffectedTestsAction extends AnAction {
       (findUsageKeyStroke == null ? "" : " " + KeymapUtil.getKeystrokeText(findUsageKeyStroke));
     ActiveComponent pinButton = createButton(pinTooltip, AllIcons.General.Pin_tab, pinActionListener, tree);
 
-    PopupChooserBuilder builder =
+    PopupChooserBuilder<?> builder =
       new PopupChooserBuilder(tree)
         .setTitle(initTitle)
         .setMovable(true)
@@ -352,11 +351,7 @@ public class ShowAffectedTestsAction extends AnAction {
       protected void process(@NotNull TreeModelEvent event, @NotNull EventType type) {
         int testsCount = tree.getTestCount();
         int classesCount = tree.getTestClassesCount();
-        popup.setCaption("Found " + testsCount + " " +
-                         StringUtil.pluralize("Test", testsCount) +
-                         " in " + classesCount + " " +
-                         StringUtil.pluralize("Class", classesCount) +
-                         " for " + title);
+        popup.setCaption(JavaCompilerBundle.message("popup.title.affected.tests.counts", testsCount, testsCount == 1 ? 0 : 1, classesCount, classesCount == 1 ? 0 : 1, title));
       }
     });
 
@@ -365,7 +360,7 @@ public class ShowAffectedTestsAction extends AnAction {
   }
 
   public static void processMethodsAsync(@NotNull Project project,
-                                         @NotNull PsiMethod[] methods,
+                                         PsiMethod @NotNull [] methods,
                                          @NotNull List<String> filePaths,
                                          @NotNull TestDiscoveryProducer.PsiTestProcessor processor,
                                          @Nullable Runnable doWhenDone) {
@@ -379,7 +374,7 @@ public class ShowAffectedTestsAction extends AnAction {
   }
 
   public static void processMethods(@NotNull Project project,
-                                    @NotNull PsiMethod[] methods,
+                                    PsiMethod @NotNull [] methods,
                                     @NotNull List<String> filePaths,
                                     @NotNull TestDiscoveryProducer.PsiTestProcessor processor) {
     List<Couple<String>> classesAndMethods =
@@ -416,7 +411,7 @@ public class ShowAffectedTestsAction extends AnAction {
   }
 
   @NotNull
-  private static ActiveComponent createButton(@NotNull String text,
+  private static ActiveComponent createButton(@NotNull @NlsActions.ActionText String text,
                                               @NotNull Icon icon,
                                               @NotNull Runnable listener,
                                               @NotNull DiscoveredTestsTree tree) {

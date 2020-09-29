@@ -153,6 +153,13 @@ public enum GitVersionSpecialty {
     }
   },
 
+  CAN_USE_SCHANNEL {
+    @Override
+    public boolean existsIn(@NotNull GitVersion version) {
+      return version.isLaterOrEqual(new GitVersion(2, 14, 0, 0)) && version.getType().equals(GitVersion.Type.MSYS);
+    }
+  },
+
   FULL_HISTORY_SIMPLIFY_MERGES_WORKS_CORRECTLY { // for some reason, even with "simplify-merges", it used to show a lot of merges in history
 
     @Override
@@ -254,6 +261,27 @@ public enum GitVersionSpecialty {
     @Override
     public boolean existsIn(@NotNull GitVersion version) {
       return version.isLaterOrEqual(new GitVersion(2, 22, 0, 0));
+    }
+  },
+
+  STATUS_SUPPORTS_IGNORED_MODES {
+    @Override
+    public boolean existsIn(@NotNull GitVersion version) {
+      return version.isLaterOrEqual(new GitVersion(2, 16, 0, 0));
+    }
+  },
+
+  STATUS_SUPPORTS_NO_RENAMES {
+    @Override
+    public boolean existsIn (@NotNull GitVersion version) {
+      return version.isLaterOrEqual(new GitVersion(2, 18, 0, 0));
+    }
+  },
+
+  NO_VERIFY_SUPPORTED {
+    @Override
+    public boolean existsIn(@NotNull GitVersion version) {
+      return version.isLaterOrEqual(new GitVersion(2, 24, 0, 0));
     }
   };
 

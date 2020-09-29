@@ -26,7 +26,10 @@ import com.intellij.util.indexing.impl.IndexStorage;
 import com.intellij.util.indexing.impl.MapReduceIndex;
 import com.intellij.util.indexing.impl.forward.KeyCollectionForwardIndexAccessor;
 import com.intellij.util.indexing.impl.forward.PersistentMapBasedForwardIndex;
-import com.intellij.util.io.*;
+import com.intellij.util.io.DataExternalizer;
+import com.intellij.util.io.DataInputOutputUtil;
+import com.intellij.util.io.EnumeratorStringDescriptor;
+import com.intellij.util.io.KeyDescriptor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.Assert;
@@ -49,7 +52,7 @@ public class StringIndex {
                      boolean failOnRebuildRequest)
     throws IOException {
     IndexId<String, String> id = IndexId.create(testName + "string_index");
-    IndexExtension<String, String, PathContentPair> extension = new IndexExtension<String, String, PathContentPair>() {
+    IndexExtension<String, String, PathContentPair> extension = new IndexExtension<>() {
       @NotNull
       @Override
       public IndexId<String, String> getName() {
@@ -80,7 +83,7 @@ public class StringIndex {
       }
     };
 
-    DataExternalizer<Collection<String>> anotherStringExternalizer = new DataExternalizer<Collection<String>>() {
+    DataExternalizer<Collection<String>> anotherStringExternalizer = new DataExternalizer<>() {
       @Override
       public void save(@NotNull DataOutput out, Collection<String> value)
         throws IOException {
@@ -101,10 +104,10 @@ public class StringIndex {
         return list;
       }
     };
-    myIndex = new MapReduceIndex<String, String, PathContentPair>(extension,
-                                                                  storage,
-                                                                  new PersistentMapBasedForwardIndex(forwardIndexFile),
-                                                                  new KeyCollectionForwardIndexAccessor<>(anotherStringExternalizer)) {
+    myIndex = new MapReduceIndex<>(extension,
+                                   storage,
+                                   new PersistentMapBasedForwardIndex(forwardIndexFile.toPath(), false),
+                                   new KeyCollectionForwardIndexAccessor<>(anotherStringExternalizer)) {
       @Override
       public void checkCanceled() {
         ProgressManager.checkCanceled();
@@ -113,12 +116,13 @@ public class StringIndex {
       @Override
       public void requestRebuild(@NotNull Throwable ex) {
         if (failOnRebuildRequest) {
-          Assert.fail();
-        } else {
+          ex.printStackTrace();
+          Assert.fail("Rebuild is not expected in this test");
+        }
+        else {
           myRebuildThrowable = ex;
         }
       }
-
     };
   }
 
@@ -126,8 +130,10 @@ public class StringIndex {
     return ContainerUtil.collect(myIndex.getData(word).getValueIterator());
   }
   
-  public boolean update(final String path, @Nullable String content, @Nullable String oldContent) {
-    return myIndex.update(MathUtil.nonNegativeAbs(path.hashCode()), toInput(path, content)).compute();
+  public boolean update(@NotNull String path, @Nullable String content) {
+    int inputId = MathUtil.nonNegativeAbs(path.hashCode());
+    PathContentPair contentPair = toInput(path, content);
+    return myIndex.mapInputAndPrepareUpdate(inputId, contentPair).compute();
   }
 
   public long getModificationStamp() {
@@ -143,7 +149,7 @@ public class StringIndex {
   }
 
   @Nullable
-  private PathContentPair toInput(@NotNull String path, @Nullable String content) {
+  private static PathContentPair toInput(@NotNull String path, @Nullable String content) {
     return content != null ? new PathContentPair(path, content) : null;
   }
 

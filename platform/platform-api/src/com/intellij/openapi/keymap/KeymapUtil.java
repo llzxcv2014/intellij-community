@@ -1,12 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.keymap;
 
 import com.intellij.openapi.actionSystem.*;
-import com.intellij.openapi.application.Application;
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.util.Disposer;
-import com.intellij.openapi.util.InvalidDataException;
-import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.registry.RegistryValue;
 import com.intellij.openapi.util.registry.RegistryValueListener;
@@ -27,7 +23,10 @@ import java.util.List;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class KeymapUtil {
+import static java.awt.event.InputEvent.ALT_DOWN_MASK;
+import static java.awt.event.InputEvent.CTRL_DOWN_MASK;
+
+public final class KeymapUtil {
 
   @NonNls private static final String CANCEL_KEY_TEXT = "Cancel";
   @NonNls private static final String BREAK_KEY_TEXT = "Break";
@@ -47,14 +46,14 @@ public class KeymapUtil {
   }
 
   @NotNull
-  public static String getShortcutText(@NotNull String actionId) {
+  public static String getShortcutText(@NotNull @NonNls String actionId) {
     KeyboardShortcut shortcut = ActionManager.getInstance().getKeyboardShortcut(actionId);
     if (shortcut == null) return "<no shortcut>";
     return getShortcutText(shortcut);
   }
 
   @NotNull
-  public static String getShortcutText(@NotNull Shortcut shortcut) {
+  public static @NlsSafe String getShortcutText(@NotNull Shortcut shortcut) {
     String s = "";
 
     if (shortcut instanceof KeyboardShortcut) {
@@ -139,9 +138,9 @@ public class KeymapUtil {
   }
 
   @NotNull
-  public static String getKeystrokeText(KeyStroke accelerator) {
+  public static @NlsSafe String getKeystrokeText(KeyStroke accelerator) {
     if (accelerator == null) return "";
-    if (SystemInfo.isMac) {
+    if (isNativeMacShortcuts()) {
       return MacKeymapUtil.getKeyStrokeText(accelerator);
     }
     String acceleratorText = "";
@@ -150,7 +149,8 @@ public class KeymapUtil {
       acceleratorText = getModifiersText(modifiers);
     }
 
-    acceleratorText += getKeyText(accelerator.getKeyCode());
+    int code = accelerator.getKeyCode();
+    acceleratorText += isSimplifiedMacShortcuts() ? getSimplifiedMacKeyText(code) : getKeyText(code);
     return acceleratorText.trim();
   }
 
@@ -169,14 +169,22 @@ public class KeymapUtil {
       case KeyEvent.VK_EQUALS:         return "=";
     }
 
-    String result = SystemInfo.isMac ? MacKeymapUtil.getKeyText(code) : KeyEvent.getKeyText(code);
+    String result = isNativeMacShortcuts() ? MacKeymapUtil.getKeyText(code) : KeyEvent.getKeyText(code);
     // [vova] this is dirty fix for bug #35092
     return CANCEL_KEY_TEXT.equals(result) ? BREAK_KEY_TEXT : result;
   }
 
+  private static boolean isNativeMacShortcuts() {
+    return SystemInfo.isMac && !isSimplifiedMacShortcuts();
+  }
+  
+  private static boolean isSimplifiedMacShortcuts() {
+    return SystemInfo.isMac && Registry.is("ide.macos.disable.native.shortcut.symbols", false);
+  }
+
   @NotNull
   private static String getModifiersText(@JdkConstants.InputEventMask int modifiers) {
-    if (SystemInfo.isMac) {
+    if (isNativeMacShortcuts()) {
       //try {
       //  Class appleLaf = Class.forName(APPLE_LAF_AQUA_LOOK_AND_FEEL_CLASS_NAME);
       //  Method getModifiers = appleLaf.getMethod(GET_KEY_MODIFIERS_TEXT_METHOD, int.class, boolean.class);
@@ -192,55 +200,168 @@ public class KeymapUtil {
       return MacKeymapUtil.getModifiersText(modifiers);
     }
 
-    final String keyModifiersText = KeyEvent.getKeyModifiersText(modifiers);
+    final String keyModifiersText = isSimplifiedMacShortcuts() ? getSimplifiedMacKeyModifiersText(modifiers)
+                                                               : KeyEvent.getKeyModifiersText(modifiers);
+
     return keyModifiersText.isEmpty() ? keyModifiersText : keyModifiersText + "+";
   }
 
+  private static String getSimplifiedMacKeyModifiersText(int modifiers) {
+    StringBuilder buf = new StringBuilder();
+
+    if ((modifiers & InputEvent.META_MASK) != 0)      buf.append("Cmd+");
+    if ((modifiers & InputEvent.CTRL_MASK) != 0)      buf.append("Ctrl+");
+    if ((modifiers & InputEvent.ALT_MASK) != 0)       buf.append("Opt+");
+    if ((modifiers & InputEvent.SHIFT_MASK) != 0)     buf.append("Shift+");
+    if ((modifiers & InputEvent.ALT_GRAPH_MASK) != 0) buf.append("Alt Graph+");
+    if ((modifiers & InputEvent.BUTTON1_MASK) != 0)   buf.append("Button1+");
+
+    if (buf.length() > 0) buf.setLength(buf.length() - 1);
+
+    return buf.toString();
+  }
+
   @NotNull
-  public static ShortcutSet getActiveKeymapShortcuts(@Nullable String actionId) {
-    Application application = ApplicationManager.getApplication();
-    KeymapManager keymapManager = application == null ? null : application.getComponent(KeymapManager.class);
+  public static ShortcutSet getActiveKeymapShortcuts(@Nullable @NonNls String actionId) {
+    KeymapManager keymapManager = KeymapManager.getInstance();
     if (keymapManager == null || actionId == null) {
       return new CustomShortcutSet(Shortcut.EMPTY_ARRAY);
     }
     return new CustomShortcutSet(keymapManager.getActiveKeymap().getShortcuts(actionId));
   }
 
-  @NotNull
-  public static String getFirstKeyboardShortcutText(@NotNull String actionId) {
-    Shortcut[] shortcuts = getActiveKeymapShortcuts(actionId).getShortcuts();
-    KeyboardShortcut shortcut = ContainerUtil.findInstance(shortcuts, KeyboardShortcut.class);
-    return shortcut == null? "" : getShortcutText(shortcut);
+  private static String getSimplifiedMacKeyText(int code) {
+    switch(code) {
+      case KeyEvent.VK_ENTER: return "Enter";
+      case KeyEvent.VK_BACK_SPACE: return "Backspace";
+      case KeyEvent.VK_TAB: return "Tab";
+      case KeyEvent.VK_CANCEL: return "Cancel";
+      case KeyEvent.VK_CLEAR: return "Clear";
+      case KeyEvent.VK_COMPOSE: return "Compose";
+      case KeyEvent.VK_PAUSE: return "Pause";
+      case KeyEvent.VK_CAPS_LOCK: return "Caps Lock";
+      case KeyEvent.VK_ESCAPE: return "Escape";
+      case KeyEvent.VK_SPACE: return "Space";
+      case KeyEvent.VK_PAGE_UP: return "Page Up";
+      case KeyEvent.VK_PAGE_DOWN: return "Page Down";
+      case KeyEvent.VK_END: return "End";
+      case KeyEvent.VK_HOME: return "Home";
+      case KeyEvent.VK_LEFT: return "Left";
+      case KeyEvent.VK_UP: return "Up";
+      case KeyEvent.VK_RIGHT: return "Right";
+      case KeyEvent.VK_DOWN: return "Down";
+      case KeyEvent.VK_BEGIN: return "Begin";
+
+      // modifiers
+      case KeyEvent.VK_SHIFT: return "Shift";
+      case KeyEvent.VK_CONTROL: return "Control";
+      case KeyEvent.VK_ALT: return "Alt";
+      case KeyEvent.VK_META: return "Meta";
+      case KeyEvent.VK_ALT_GRAPH: return "Alt Graph";
+
+      // numpad numeric keys handled below
+      case KeyEvent.VK_MULTIPLY: return "NumPad *";
+      case KeyEvent.VK_ADD: return "NumPad +";
+      case KeyEvent.VK_SEPARATOR: return "NumPad ,";
+      case KeyEvent.VK_SUBTRACT: return "NumPad -";
+      case KeyEvent.VK_DECIMAL: return "NumPad .";
+      case KeyEvent.VK_DIVIDE: return "NumPad /";
+      case KeyEvent.VK_DELETE: return "Delete";
+      case KeyEvent.VK_NUM_LOCK: return "Num Lock";
+      case KeyEvent.VK_SCROLL_LOCK: return "Scroll Lock";
+
+      case KeyEvent.VK_WINDOWS: return "Windows";
+      case KeyEvent.VK_CONTEXT_MENU: return "Context Menu";
+
+      case KeyEvent.VK_F1: return "F1";
+      case KeyEvent.VK_F2: return "F2";
+      case KeyEvent.VK_F3: return "F3";
+      case KeyEvent.VK_F4: return "F4";
+      case KeyEvent.VK_F5: return "F5";
+      case KeyEvent.VK_F6: return "F6";
+      case KeyEvent.VK_F7: return "F7";
+      case KeyEvent.VK_F8: return "F8";
+      case KeyEvent.VK_F9: return "F9";
+      case KeyEvent.VK_F10: return "F10";
+      case KeyEvent.VK_F11: return "F11";
+      case KeyEvent.VK_F12: return "F12";
+      case KeyEvent.VK_F13: return "F13";
+      case KeyEvent.VK_F14: return "F14";
+      case KeyEvent.VK_F15: return "F15";
+      case KeyEvent.VK_F16: return "F16";
+      case KeyEvent.VK_F17: return "F17";
+      case KeyEvent.VK_F18: return "F18";
+      case KeyEvent.VK_F19: return "F19";
+      case KeyEvent.VK_F20: return "F20";
+      case KeyEvent.VK_F21: return "F21";
+      case KeyEvent.VK_F22: return "F22";
+      case KeyEvent.VK_F23: return "F23";
+      case KeyEvent.VK_F24: return "F24";
+
+      case KeyEvent.VK_PRINTSCREEN: return "Print Screen";
+      case KeyEvent.VK_INSERT: return "Insert";
+      case KeyEvent.VK_HELP: return "Help";
+
+      case KeyEvent.VK_KP_UP: return "Up";
+      case KeyEvent.VK_KP_DOWN: return "Down";
+      case KeyEvent.VK_KP_LEFT: return "Left";
+      case KeyEvent.VK_KP_RIGHT: return "Right";
+    }
+
+    return getKeyText(code);
   }
 
-  public static boolean isEventForAction(@NotNull KeyEvent keyEvent, @NotNull String actionId) {
-    for (KeyboardShortcut shortcut : ContainerUtil.findAll(getActiveKeymapShortcuts(actionId).getShortcuts(), KeyboardShortcut.class)) {
-      if (AWTKeyStroke.getAWTKeyStrokeForEvent(keyEvent) == shortcut.getFirstKeyStroke()) return true;
+  /**
+   * @param actionId action to find the shortcut for
+   * @return first keyboard shortcut that activates given action in active keymap; null if not found
+   */
+  @Nullable
+  public static Shortcut getPrimaryShortcut(@Nullable @NonNls String actionId) {
+    KeymapManager keymapManager = KeymapManager.getInstance();
+    if (keymapManager == null || actionId == null) return null;
+    return ArrayUtil.getFirstElement(keymapManager.getActiveKeymap().getShortcuts(actionId));
+  }
+
+  @NotNull
+  public static @NlsSafe String getFirstKeyboardShortcutText(@NotNull @NonNls String actionId) {
+    for (Shortcut shortcut : getActiveKeymapShortcuts(actionId).getShortcuts()) {
+      if (shortcut instanceof KeyboardShortcut) {
+        return getShortcutText(shortcut);
+      }
+    }
+    return "";
+  }
+
+  public static boolean isEventForAction(@NotNull KeyEvent keyEvent, @NotNull @NonNls String actionId) {
+    for (Shortcut shortcut : getActiveKeymapShortcuts(actionId).getShortcuts()) {
+      if (shortcut instanceof KeyboardShortcut && AWTKeyStroke.getAWTKeyStrokeForEvent(keyEvent) == ((KeyboardShortcut)shortcut).getFirstKeyStroke()) {
+        return true;
+      }
     }
     return false;
   }
 
   @NotNull
-  public static String getFirstKeyboardShortcutText(@NotNull AnAction action) {
+  public static @NlsSafe String getFirstKeyboardShortcutText(@NotNull AnAction action) {
     return getFirstKeyboardShortcutText(action.getShortcutSet());
   }
 
   @NotNull
-  public static String getFirstKeyboardShortcutText(@NotNull ShortcutSet set) {
+  public static @NlsSafe String getFirstKeyboardShortcutText(@NotNull ShortcutSet set) {
     Shortcut[] shortcuts = set.getShortcuts();
     KeyboardShortcut shortcut = ContainerUtil.findInstance(shortcuts, KeyboardShortcut.class);
     return shortcut == null ? "" : getShortcutText(shortcut);
   }
 
   @NotNull
-  public static String getPreferredShortcutText(@NotNull Shortcut[] shortcuts) {
+  public static @NlsSafe String getPreferredShortcutText(Shortcut @NotNull [] shortcuts) {
     KeyboardShortcut shortcut = ContainerUtil.findInstance(shortcuts, KeyboardShortcut.class);
     return shortcut != null ? getShortcutText(shortcut) :
            shortcuts.length > 0 ? getShortcutText(shortcuts[0]) : "";
   }
 
   @NotNull
-  public static String getShortcutsText(@NotNull Shortcut[] shortcuts) {
+  public static @NlsSafe String getShortcutsText(Shortcut @NotNull [] shortcuts) {
     if (shortcuts.length == 0) {
       return "";
     }
@@ -256,7 +377,7 @@ public class KeymapUtil {
    */
   @NotNull
   public static MouseShortcut parseMouseShortcut(@NotNull String keystrokeString) throws InvalidDataException {
-    if (Registry.is("ide.mac.forceTouch") && keystrokeString.startsWith("Force touch")) {
+    if (keystrokeString.startsWith("Force touch")) {
       return new PressureShortcut(2);
     }
 
@@ -304,7 +425,7 @@ public class KeymapUtil {
    */
   @NotNull
   public static String getMouseShortcutString(@NotNull MouseShortcut shortcut) {
-    if (Registry.is("ide.mac.forceTouch") && shortcut instanceof PressureShortcut) {
+    if (shortcut instanceof PressureShortcut) {
       return "Force touch";
     }
 
@@ -369,7 +490,7 @@ public class KeymapUtil {
   public static boolean isTooltipRequest(@NotNull KeyEvent keyEvent) {
     if (ourTooltipKeysProperty == null) {
       ourTooltipKeysProperty = Registry.get("ide.forcedShowTooltip");
-      ourTooltipKeysProperty.addListener(new RegistryValueListener.Adapter() {
+      ourTooltipKeysProperty.addListener(new RegistryValueListener() {
         @Override
         public void afterValueChanged(@NotNull RegistryValue value) {
           updateTooltipRequestKey(value);
@@ -460,13 +581,13 @@ public class KeymapUtil {
   }
 
   @NotNull
-  public static String createTooltipText(@NotNull String name, @NotNull String actionId) {
+  public static @NlsContexts.Tooltip String createTooltipText(@NotNull @NlsContexts.Tooltip String name, @NotNull @NonNls String actionId) {
     String text = getFirstKeyboardShortcutText(actionId);
     return text.isEmpty() ? name : name + " (" + text + ")";
   }
 
   @NotNull
-  public static String createTooltipText(@Nullable String name, @NotNull AnAction action) {
+  public static @NlsSafe String createTooltipText(@Nullable String name, @NotNull AnAction action) {
     String toolTipText = name == null ? "" : name;
     while (StringUtil.endsWithChar(toolTipText, '.')) {
       toolTipText = toolTipText.substring(0, toolTipText.length() - 1);
@@ -483,7 +604,7 @@ public class KeymapUtil {
    */
   public static boolean matchActionMouseShortcutsModifiers(@NotNull Keymap activeKeymap,
                                                            @JdkConstants.InputEventMask int modifiers,
-                                                           @NotNull String actionId) {
+                                                           @NotNull @NonNls String actionId) {
     final MouseShortcut syntheticShortcut = new MouseShortcut(MouseEvent.BUTTON1, modifiers, 1);
     for (Shortcut shortcut : activeKeymap.getShortcuts(actionId)) {
       if (shortcut instanceof MouseShortcut) {
@@ -595,6 +716,27 @@ public class KeymapUtil {
       }
     }
     return filtered.isEmpty() ? null : new CustomShortcutSet(filtered.toArray(Shortcut.EMPTY_ARRAY));
+  }
+
+  @Nullable
+  public static CustomShortcutSet getMnemonicAsShortcut(int mnemonic) {
+    mnemonic = KeyEvent.getExtendedKeyCodeForChar(mnemonic);
+    if (mnemonic != KeyEvent.VK_UNDEFINED) {
+      KeyboardShortcut ctrlAltShortcut = new KeyboardShortcut(KeyStroke.getKeyStroke(mnemonic, ALT_DOWN_MASK | CTRL_DOWN_MASK), null);
+      KeyboardShortcut altShortcut = new KeyboardShortcut(KeyStroke.getKeyStroke(mnemonic, ALT_DOWN_MASK), null);
+      CustomShortcutSet shortcutSet;
+      if (SystemInfo.isMac) {
+        if (Registry.is("ide.mac.alt.mnemonic.without.ctrl")) {
+          shortcutSet = new CustomShortcutSet(ctrlAltShortcut, altShortcut);
+        } else {
+          shortcutSet = new CustomShortcutSet(ctrlAltShortcut);
+        }
+      } else {
+        shortcutSet = new CustomShortcutSet(altShortcut);
+      }
+      return shortcutSet;
+    }
+    return null;
   }
 
   /**

@@ -1,13 +1,15 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.migration;
 
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
-import com.intellij.refactoring.RefactoringBundle;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.ui.*;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -28,7 +30,7 @@ public class EditMigrationDialog extends DialogWrapper{
     myProject = project;
     myMigrationMap = migrationMap;
     setHorizontalStretch(1.2f);
-    setTitle(RefactoringBundle.message("edit.migration.map.title"));
+    setTitle(JavaRefactoringBundle.message("edit.migration.map.title"));
     init();
     validateOKButton();
   }
@@ -48,12 +50,14 @@ public class EditMigrationDialog extends DialogWrapper{
     setOKActionEnabled(isEnabled);
   }
 
-  public String getName() {
-    return myNameField.getText();
+  public @Nls String getName() {
+    @NlsSafe String text = myNameField.getText();
+    return text;
   }
 
-  public String getDescription() {
-    return myDescriptionTextArea.getText();
+  public @Nls String getDescription() {
+    @NlsSafe String text = myDescriptionTextArea.getText();
+    return text;
   }
 
   @Override
@@ -80,8 +84,8 @@ public class EditMigrationDialog extends DialogWrapper{
     scrollPane.setBorder(myNameField.getBorder());
 
     return FormBuilder.createFormBuilder()
-      .addLabeledComponent(new JLabel(RefactoringBundle.message("migration.map.name.prompt")), myNameField)
-      .addLabeledComponent(new JLabel(RefactoringBundle.message("migration.map.description.label")), scrollPane)
+      .addLabeledComponent(new JLabel(JavaRefactoringBundle.message("migration.map.name.prompt")), myNameField)
+      .addLabeledComponent(new JLabel(JavaRefactoringBundle.message("migration.map.description.label")), scrollPane)
       .addVerticalGap(UIUtil.LARGE_VGAP).getPanel();
   }
 
@@ -190,9 +194,9 @@ public class EditMigrationDialog extends DialogWrapper{
 
   private JBTable createTable() {
     final String[] names = {
-      RefactoringBundle.message("migration.type.column.header"),
-      RefactoringBundle.message("migration.old.name.column.header"),
-      RefactoringBundle.message("migration.new.name.column.header")};
+      JavaRefactoringBundle.message("migration.type.column.header"),
+      JavaRefactoringBundle.message("migration.old.name.column.header"),
+      JavaRefactoringBundle.message("migration.new.name.column.header")};
 
     // Create a model of the data.
     TableModel dataModel = new AbstractTableModel() {
@@ -211,13 +215,13 @@ public class EditMigrationDialog extends DialogWrapper{
         MigrationMapEntry entry = myMigrationMap.getEntryAt(row);
         if (col == 0){
           if (entry.getType() == MigrationMapEntry.PACKAGE && entry.isRecursive()){
-            return RefactoringBundle.message("migration.package.with.subpackages");
+            return JavaRefactoringBundle.message("migration.package.with.subpackages");
           }
           else if (entry.getType() == MigrationMapEntry.PACKAGE && !entry.isRecursive()){
-            return RefactoringBundle.message("migration.package");
+            return JavaRefactoringBundle.message("migration.package");
           }
           else{
-            return RefactoringBundle.message("migration.class");
+            return JavaRefactoringBundle.message("migration.class");
           }
         }
 
@@ -254,7 +258,7 @@ public class EditMigrationDialog extends DialogWrapper{
     myTable = new JBTable(dataModel);
     myTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-    myTable.setPreferredScrollableViewportSize(new Dimension(300, myTable.getRowHeight() * 10));
+    myTable.setVisibleRowCount(10);
 
     return myTable;
   }

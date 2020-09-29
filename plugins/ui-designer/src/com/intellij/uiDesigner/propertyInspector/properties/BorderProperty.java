@@ -2,6 +2,7 @@
 package com.intellij.uiDesigner.propertyInspector.properties;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.NotNullLazyValue;
 import com.intellij.uiDesigner.StringDescriptorManager;
 import com.intellij.uiDesigner.UIDesignerBundle;
@@ -42,7 +43,8 @@ public final class BorderProperty extends Property<RadContainer, BorderType> {
       return new LabelPropertyRenderer<BorderType>() {
         @Override
         protected void customize(@NotNull final BorderType value) {
-          setText(value.getName());
+          @NlsSafe String name = value.getName();
+          setText(name);
         }
       };
     }
@@ -65,8 +67,7 @@ public final class BorderProperty extends Property<RadContainer, BorderType> {
   }
 
   @Override
-  @NotNull
-  public Property[] getChildren(final RadComponent component) {
+  public Property @NotNull [] getChildren(final RadComponent component) {
     if (!(component instanceof RadContainer)) return Property.EMPTY_ARRAY;
     BorderType borderType = ((RadContainer)component).getBorderType();
     if (borderType.equals(BorderType.EMPTY)) {

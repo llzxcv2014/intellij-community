@@ -1,6 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.template.impl;
 
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.template.TemplateManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -9,6 +10,7 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsActions.ActionText;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.ReadonlyStatusHandler;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -48,7 +50,7 @@ public class InvokeTemplateAction extends AnAction {
     myCallback = afterInvocationCallback;
   }
 
-  public static String extractMnemonic(String caption, Set<? super Character> usedMnemonics) {
+  public static @ActionText String extractMnemonic(@ActionText String caption, Set<? super Character> usedMnemonics) {
     if (StringUtil.isEmpty(caption)) return "";
 
     for (int i = 0; i < caption.length(); i++) {
@@ -103,6 +105,6 @@ public class InvokeTemplateAction extends AnAction {
       if (myCallback != null) {
         myCallback.run();
       }
-    }, "Wrap with template", "Wrap with template " + myTemplate.getKey());
+    }, CodeInsightBundle.message("command.wrap.with.template"), "Wrap with template " + myTemplate.getKey());
   }
 }

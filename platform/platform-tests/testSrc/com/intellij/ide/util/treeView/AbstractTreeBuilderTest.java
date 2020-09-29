@@ -1,10 +1,11 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.util.treeView;
 
 import com.intellij.ide.projectView.PresentationData;
 import com.intellij.openapi.util.AsyncResult;
 import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.ui.SimpleTextAttributes;
+import com.intellij.ui.tree.TreeTestUtil;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.WaitFor;
 import org.jetbrains.annotations.NotNull;
@@ -16,8 +17,6 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import java.util.*;
-
-import static com.intellij.testFramework.PlatformTestUtil.notNull;
 
 abstract class AbstractTreeBuilderTest extends BaseTreeTestCase<BaseTreeTestCase.NodeElement> {
   protected MyStructure myStructure;
@@ -41,7 +40,7 @@ abstract class AbstractTreeBuilderTest extends BaseTreeTestCase<BaseTreeTestCase
 
   Map<String, Integer> mySortedParent = new TreeMap<>();
 
-  NodeDescriptor.NodeComparator.Delegate<NodeDescriptor> myComparator;
+  NodeDescriptor.NodeComparator.Delegate<NodeDescriptor<?>> myComparator;
   Node myIntellij;
 
   protected final Set<NodeElement> myChanges = new HashSet<>();
@@ -58,9 +57,9 @@ abstract class AbstractTreeBuilderTest extends BaseTreeTestCase<BaseTreeTestCase
   protected void setUp() throws Exception {
     super.setUp();
 
-    myComparator = new NodeDescriptor.NodeComparator.Delegate<>(new NodeDescriptor.NodeComparator<NodeDescriptor>() {
+    myComparator = new NodeDescriptor.NodeComparator.Delegate<>(new NodeDescriptor.NodeComparator<NodeDescriptor<?>>() {
       @Override
-      public int compare(NodeDescriptor o1, NodeDescriptor o2) {
+      public int compare(NodeDescriptor<?> o1, NodeDescriptor<?> o2) {
         return AlphaComparator.INSTANCE.compare(o1, o2);
       }
     });
@@ -92,6 +91,7 @@ abstract class AbstractTreeBuilderTest extends BaseTreeTestCase<BaseTreeTestCase
 
 
     myTree = new Tree(myTreeModel);
+    TreeTestUtil.assertTreeUI(myTree);
     myStructure = new MyStructure();
     myRoot = new Node(null, "/");
 
@@ -491,16 +491,12 @@ abstract class AbstractTreeBuilderTest extends BaseTreeTestCase<BaseTreeTestCase
     AsyncResult<Object> revalidate(@NotNull NodeElement element);
   }
 
-  class MyBuilder extends BaseTreeBuilder {
-
+  final class MyBuilder extends BaseTreeBuilder {
     MyBuilder() {
-      super(AbstractTreeBuilderTest.this.myTree, AbstractTreeBuilderTest.this.myTreeModel, AbstractTreeBuilderTest.this.myStructure, myComparator,
-            false);
+      super(AbstractTreeBuilderTest.this.myTree, AbstractTreeBuilderTest.this.myTreeModel, AbstractTreeBuilderTest.this.myStructure, myComparator, false);
 
       initRootNode();
-
     }
-
 
     @Override
     protected void sortChildren(Comparator<? super TreeNode> nodeComparator, DefaultMutableTreeNode node, List<? extends TreeNode> children) {
@@ -526,7 +522,7 @@ abstract class AbstractTreeBuilderTest extends BaseTreeTestCase<BaseTreeTestCase
     void onElementAction(String action, Object element);
   }
 
-  private class ElementEntry {
+  private final class ElementEntry {
     NodeElement myElement;
 
     int myUpdateCount;
@@ -561,8 +557,8 @@ abstract class AbstractTreeBuilderTest extends BaseTreeTestCase<BaseTreeTestCase
     }
   }
 
- 
-  
+
+
   MyBuilder getMyBuilder() {
     return (MyBuilder)getBuilder();
   }
@@ -572,6 +568,6 @@ abstract class AbstractTreeBuilderTest extends BaseTreeTestCase<BaseTreeTestCase
   }
 
   TreePath getPath(String s) {
-    return new TreePath(notNull(findNode(s, false)).getPath());
+    return new TreePath(Objects.requireNonNull(findNode(s, false)).getPath());
   }
 }

@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.builtInWebServer
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.common.base.Function
-import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
 import com.google.common.cache.CacheLoader
 import com.intellij.ProjectTopics
@@ -21,10 +22,10 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.util.SmartList
-import com.intellij.util.containers.computeIfAny
 import com.intellij.util.io.exists
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
+import kotlin.streams.asSequence
 
 private const val cacheSize: Long = 4096 * 4
 
@@ -32,7 +33,7 @@ private const val cacheSize: Long = 4096 * 4
  * Implement [WebServerRootsProvider] to add your provider
  */
 class WebServerPathToFileManager(private val project: Project) {
-  val pathToInfoCache: Cache<String, PathInfo> = CacheBuilder.newBuilder().maximumSize(cacheSize).expireAfterAccess(10, TimeUnit.MINUTES).build<String, PathInfo>()!!
+  val pathToInfoCache: Cache<String, PathInfo> = Caffeine.newBuilder().maximumSize(cacheSize).expireAfterAccess(10, TimeUnit.MINUTES).build<String, PathInfo>()
   // time to expire should be greater than pathToFileCache
   private val virtualFileToPathInfo = CacheBuilder.newBuilder().maximumSize(cacheSize).expireAfterAccess(11, TimeUnit.MINUTES).build<VirtualFile, PathInfo>()
 
@@ -138,7 +139,7 @@ class WebServerPathToFileManager(private val project: Project) {
   fun getPathInfo(child: VirtualFile): PathInfo? {
     var result = virtualFileToPathInfo.getIfPresent(child)
     if (result == null) {
-      result = WebServerRootsProvider.EP_NAME.extensions.computeIfAny { it.getPathInfo(child, project) }
+      result = WebServerRootsProvider.EP_NAME.extensions().asSequence().map { it.getPathInfo(child, project) }.find { it != null }
       if (result != null) {
         virtualFileToPathInfo.put(child, result)
       }
@@ -147,7 +148,7 @@ class WebServerPathToFileManager(private val project: Project) {
   }
 
   internal fun doFindByRelativePath(path: String, pathQuery: PathQuery): PathInfo? {
-    val result = WebServerRootsProvider.EP_NAME.extensions.computeIfAny { it.resolve(path, project, pathQuery) } ?: return null
+    val result = WebServerRootsProvider.EP_NAME.extensionList.asSequence().map { it.resolve(path, project, pathQuery) }.find { it != null } ?: return null
     result.file?.let {
       virtualFileToPathInfo.put(it, result)
     }

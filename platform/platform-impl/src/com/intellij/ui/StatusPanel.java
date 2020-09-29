@@ -1,14 +1,16 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBPanel;
 import com.intellij.util.ui.AsyncProcessIcon;
-import com.intellij.xml.util.XmlStringUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,12 +20,9 @@ import java.awt.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
-/**
- * @author traff
- */
 public class StatusPanel extends JBPanel {
   private final ReentrantLock myLock = new ReentrantLock();
-  @Nullable private String myError;
+  @Nullable private @Nls String myError;
   /**
    * Guarded by {@link #myLock}.
    */
@@ -129,15 +128,17 @@ public class StatusPanel extends JBPanel {
   /**
    * <b>NB!</b> Must be called within EDT.
    */
-  private void showMessage(@NotNull String message, @NotNull JBColor color, @Nullable Icon statusIcon) {
+  private void showMessage(@NlsContexts.DialogMessage @NotNull String message, @NotNull JBColor color, @Nullable Icon statusIcon) {
     removeAll();
 
     setVisible(true);
 
     JBLabel label = new JBLabel(message);
     label
-      .setText(XmlStringUtil
-                 .wrapInHtml("<font color='#" + ColorUtil.toHex(color) + "'><left>" + message + "</left></b></font>"));
+      .setText(HtmlChunk.tag("font").attr("color", "#" + ColorUtil.toHex(color))
+               .child(HtmlChunk.tag("left").addRaw(message))
+               .wrapWith("html")
+               .toString());
     label.setIcon(statusIcon);
     label.setBorder(new EmptyBorder(4, 10, 0, 2));
 
@@ -151,7 +152,7 @@ public class StatusPanel extends JBPanel {
   }
 
   @Nullable
-  public String getError() {
+  public @NlsContexts.DialogMessage String getError() {
     return myError;
   }
 
@@ -192,15 +193,15 @@ public class StatusPanel extends JBPanel {
       }
     }
 
-    public void doneWithResult(@NotNull String message) {
+    public void doneWithResult(@NotNull @NlsContexts.DialogMessage String message) {
       showMessageOnce(message, false);
     }
 
-    public void failed(@Nullable String message) {
+    public void failed(@Nullable @NlsContexts.DialogMessage String message) {
       showMessageOnce(message, true);
     }
 
-    private void showMessageOnce(@Nullable String message, boolean isError) {
+    private void showMessageOnce(@Nullable @NlsContexts.DialogMessage String message, boolean isError) {
       if (checkIsInProgressAndComplete()) {
         invokeLater(() -> {
           myLock.lock();

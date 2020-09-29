@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.configurations;
 
 import com.intellij.execution.BeforeRunTask;
@@ -6,7 +6,11 @@ import com.intellij.execution.RunManager;
 import com.intellij.openapi.components.BaseState;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
+import com.intellij.util.DeprecatedMethodException;
 import com.intellij.util.IconUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,7 +40,7 @@ public abstract class ConfigurationFactory {
    * @return the new run configuration.
    */
   @NotNull
-  public RunConfiguration createConfiguration(@Nullable String name, @NotNull RunConfiguration template) {
+  public RunConfiguration createConfiguration(@NlsSafe @Nullable String name, @NotNull RunConfiguration template) {
     RunConfiguration newConfiguration = template.clone();
     newConfiguration.setName(name);
     return newConfiguration;
@@ -67,13 +71,16 @@ public abstract class ConfigurationFactory {
   }
 
   /**
-   * Returns the id of the run configuration that is used for serialization.
-   * For compatibility reason the default implementation calls
-   * the method <code>getName</code> instead of <code>myType.getId()</code>.
-   * New implementations need to call <code>myType.getId()</code> by default.
+   * Returns the id of the run configuration that is used for serialization. For compatibility reason the default implementation calls
+   * the method {@link #getName()} and this may cause problems if {@link #getName} returns localized value. So the default implementation
+   * <strong>must be overriden</strong> in all inheritors. In existing implementations you need to use the same value which is returned
+   * by {@link #getName()} for compatibility but store it directly in the code instead of taking from a message bundle. For new configurations
+   * you may use any unique ID; if a new {@link ConfigurationType} has a single {@link ConfigurationFactory}, use {@link SimpleConfigurationType} instead.
    */
-  @NotNull
+  @NotNull @NonNls
   public String getId() {
+    DeprecatedMethodException.reportDefaultImplementation(getClass(), "getId",
+      "The default implementation delegates to 'getName' which may be localized but return value of this method must not depend on current localization.");
     return getName();
   }
 

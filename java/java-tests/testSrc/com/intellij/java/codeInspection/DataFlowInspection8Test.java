@@ -42,6 +42,7 @@ public class DataFlowInspection8Test extends DataFlowInspectionTestCase {
   public void testOptionalOfNullable() { doTest(); }
   public void testPrimitiveOptional() { doTest(); }
   public void testOptionalOrElse() { doTest(); }
+  public void testOptionalIntSwitch() { doTest(); }
   public void testOptionalIsPresent() {
     myFixture.addClass("package org.junit;" +
                        "public class Assert {" +
@@ -155,6 +156,14 @@ public class DataFlowInspection8Test extends DataFlowInspectionTestCase {
   public void testCapturedWildcardNotNull() { doTest(); }
   public void testVarargNotNull() { doTestWithCustomAnnotations(); }
   public void testIgnoreNullabilityOnPrimitiveCast() { doTestWithCustomAnnotations();}
+  public void testTypeUseLambdaReturn() {
+    setupTypeUseAnnotations("ambiguous", myFixture);
+    doTest();
+  }
+  public void testTypeUseInferenceInsideRequireNotNull() {
+    setupTypeUseAnnotations("typeUse", myFixture);
+    doTest();
+  }
 
   public void testArrayComponentAndMethodAnnotationConflict() {
     setupAmbiguousAnnotations("withTypeUse", myFixture);
@@ -165,6 +174,10 @@ public class DataFlowInspection8Test extends DataFlowInspectionTestCase {
     setupCustomAnnotations(pkg, "{ElementType.METHOD, ElementType.TYPE_USE}", fixture);
   }
 
+  public void testTypeUseAmbiguousArrayReturn() {
+    setupAmbiguousAnnotations("ambiguous", myFixture);
+    doTest();
+  }
   public void testLambdaInlining() { doTest(); }
 
   public void testOptionalInlining() {
@@ -172,8 +185,13 @@ public class DataFlowInspection8Test extends DataFlowInspectionTestCase {
     doTest();
   }
   public void testStreamInlining() { doTest(); }
+  public void testStreamCollectInlining() {
+    setupTypeUseAnnotations("foo", myFixture);
+    doTest(); 
+  }
   public void testStreamCollectorInlining() { doTest(); }
   public void testStreamToMapInlining() { doTest(); }
+  public void testStreamToMapInlining2() { doTest(); }
   public void testStreamToCollectionInlining() { doTest(); }
   public void testStreamComparatorInlining() { doTest(); }
   public void testStreamKnownSource() { doTest(); }
@@ -183,8 +201,9 @@ public class DataFlowInspection8Test extends DataFlowInspectionTestCase {
   }
   public void testStreamAnyMatchIsNull() { doTest(); }
   public void testStreamCustomSumMethod() { doTest(); }
+  public void testStreamReduceLogicalAnd() { doTest(); }
   
-  public void testMapGetWithNotNullKeys() { doTestWithCustomAnnotations(); }
+  public void testMapGetWithValueNullability() { doTestWithCustomAnnotations(); }
   public void testInferNestedForeachNullability() { doTestWithCustomAnnotations(); }
 
   public void testMethodVsExpressionTypeAnnotationConflict() {
@@ -210,6 +229,7 @@ public class DataFlowInspection8Test extends DataFlowInspectionTestCase {
 
   public void testMethodReferenceBoundToNullable() { doTestWithCustomAnnotations(); }
   public void testEscapeAnalysis() { doTest(); }
+  public void testEscapeAnalysisLambdaInConstructor() { doTest(); }
   public void testThisAsVariable() { doTest(); }
   public void testQueuePeek() { doTest(); }
   public void testForeachCollectionElement() { doTest(); }
@@ -253,12 +273,30 @@ public class DataFlowInspection8Test extends DataFlowInspectionTestCase {
   public void testManyNestedOptionals() { doTest(); }
   public void testGetClass() { doTest(); }
   public void testParamContract() { doTest(); }
+  public void testParamContractBoolean() { doTest(); }
   public void testTypeUseVarArg() {
     setupTypeUseAnnotations("typeUse", myFixture);
     doTest();
   }
   public void testLambdaReturnFromTypeUse() {
     setupTypeUseAnnotations("typeUse", myFixture);
+    doTest();
+  }
+  public void testInlineLambdaFromLocal() { doTest(); }
+  public void testAllowRequireNonNullInCtor() { doTest(); }
+  public void testNullableNotNullAssignmentInReturn() { doTest(); }
+  public void testTransformMethod() { doTest(); }
+  public void testTernaryExpressionNumericType() { doTest(); }
+  public void testEclipseDefaultTypeUse() {
+    myFixture.addClass("package org.eclipse.jdt.annotation;public @interface NonNullByDefault {}");
+    doTest();
+  }
+  public void testClassInsideLambda() { doTest(); }
+  public void testMultiDimensionalArrays() {
+    setupTypeUseAnnotations("typeUse", myFixture);
+    doTest();
+  }
+  public void testImplicitUnboxingInMethodReference() {
     doTest();
   }
 }

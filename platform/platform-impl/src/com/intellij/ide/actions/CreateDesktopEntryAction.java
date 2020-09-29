@@ -1,10 +1,11 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actions;
 
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
+import com.intellij.ide.IdeBundle;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
@@ -19,6 +20,7 @@ import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.updateSettings.impl.ExternalUpdateManager;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.AppUIUtil;
@@ -63,7 +65,7 @@ public class CreateDesktopEntryAction extends DumbAwareAction {
     }
 
     boolean globalEntry = dialog.myGlobalEntryCheckBox.isSelected();
-    new Task.Backgroundable(project, ApplicationBundle.message("desktop.entry.title")) {
+    new Task.Backgroundable(project, ApplicationBundle.message("desktop.entry.progress")) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         try {
@@ -71,7 +73,7 @@ public class CreateDesktopEntryAction extends DumbAwareAction {
 
           String message = ApplicationBundle.message("desktop.entry.success", ApplicationNamesInfo.getInstance().getProductName());
           Notifications.Bus.notify(
-            new Notification(Notifications.SYSTEM_MESSAGES_GROUP_ID, "Desktop entry created", message, NotificationType.INFORMATION),
+            new Notification(Notifications.SYSTEM_MESSAGES_GROUP_ID, IdeBundle.message("notification.title.desktop.entry.created"), message, NotificationType.INFORMATION),
             getProject());
         }
         catch (Exception e) {
@@ -99,9 +101,9 @@ public class CreateDesktopEntryAction extends DumbAwareAction {
 
   public static void reportFailure(@NotNull Exception e, @Nullable final Project project) {
     LOG.warn(e);
-    final String message = ExceptionUtil.getNonEmptyMessage(e, "Internal error");
+    final String message = ExceptionUtil.getNonEmptyMessage(e, IdeBundle.message("notification.content.internal error"));
     Notifications.Bus.notify(
-      new Notification(Notifications.SYSTEM_MESSAGES_GROUP_ID, "Desktop entry creation failed", message, NotificationType.ERROR),
+      new Notification(Notifications.SYSTEM_MESSAGES_GROUP_ID, IdeBundle.message("notification.title.desktop.entry.creation.failed"), message, NotificationType.ERROR),
       project);
   }
 
@@ -128,7 +130,7 @@ public class CreateDesktopEntryAction extends DumbAwareAction {
     ApplicationNamesInfo names = ApplicationNamesInfo.getInstance();
 
     String name = names.getFullProductNameWithEdition();
-    String comment = names.getMotto();
+    String comment = StringUtil.notNullize(names.getMotto(), name);
     String wmClass = AppUIUtil.getFrameClass();
     Map<String, String> vars = newHashMap(pair("$NAME$", name),
                                           pair("$SCRIPT$", execPath),
@@ -173,6 +175,7 @@ public class CreateDesktopEntryAction extends DumbAwareAction {
   }
 
   public static class CreateDesktopEntryDialog extends DialogWrapper {
+    private static final @NlsSafe String APP_NAME_PLACEHOLDER = "$APP_NAME$";
     private JPanel myContentPane;
     private JLabel myLabel;
     private JCheckBox myGlobalEntryCheckBox;
@@ -181,7 +184,7 @@ public class CreateDesktopEntryAction extends DumbAwareAction {
       super(project);
       init();
       setTitle(ApplicationBundle.message("desktop.entry.title"));
-      myLabel.setText(myLabel.getText().replace("$APP_NAME$", ApplicationNamesInfo.getInstance().getProductName()));
+      myLabel.setText(myLabel.getText().replace(APP_NAME_PLACEHOLDER, ApplicationNamesInfo.getInstance().getProductName()));
     }
 
     @Override

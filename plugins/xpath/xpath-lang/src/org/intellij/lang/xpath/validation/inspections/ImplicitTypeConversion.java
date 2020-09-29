@@ -30,6 +30,7 @@ import org.intellij.lang.xpath.psi.XPathFunctionCall;
 import org.intellij.lang.xpath.psi.XPathType;
 import org.intellij.lang.xpath.validation.ExpectedTypeUtil;
 import org.intellij.lang.xpath.validation.inspections.quickfix.XPathQuickFixFactory;
+import org.intellij.plugins.xpathView.XPathBundle;
 import org.jdom.Element;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -62,13 +63,7 @@ public class ImplicitTypeConversion extends XPathInspection {
         }
     }
 
-    @Override
-    @NotNull
-    public String getDisplayName() {
-        return "Implicit Type Conversion";
-    }
-
-    @Override
+  @Override
     @NotNull
     @NonNls
     public String getShortName() {
@@ -151,9 +146,10 @@ public class ImplicitTypeConversion extends XPathInspection {
                     fixes = null;
                 }
 
-                addProblem(myManager.createProblemDescriptor(expression,
-                        "Expression should be of type '" + type.getName() + "'", myOnTheFly, fixes,
-                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING));
+                addProblem(
+                  myManager.createProblemDescriptor(expression,
+                                                    XPathBundle.message("inspection.message.expression.should.be.type", type.getName()),
+                                                    myOnTheFly, fixes, ProblemHighlightType.GENERIC_ERROR_OR_WARNING));
             }
         }
 

@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actions;
 
 import com.intellij.CommonBundle;
@@ -20,6 +6,7 @@ import com.intellij.history.LocalHistory;
 import com.intellij.history.LocalHistoryAction;
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.util.DirectoryUtil;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.fileTypes.FileType;
@@ -28,6 +15,7 @@ import com.intellij.openapi.fileTypes.UnknownFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.InputValidatorEx;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VfsUtil;
@@ -51,7 +39,7 @@ public class CreateDirectoryOrPackageHandler implements InputValidatorEx {
   @Nullable private PsiFileSystemItem myCreatedElement = null;
   @NotNull private final String myDelimiters;
   @Nullable private final Component myDialogParent;
-  private String myErrorText;
+  private @NlsContexts.DetailedDescription String myErrorText;
 
   public CreateDirectoryOrPackageHandler(@Nullable Project project,
                                          @NotNull PsiDirectory directory,
@@ -80,34 +68,35 @@ public class CreateDirectoryOrPackageHandler implements InputValidatorEx {
     while (tokenizer.hasMoreTokens()) {
       final String token = tokenizer.nextToken();
       if (!tokenizer.hasMoreTokens() && (token.equals(".") || token.equals(".."))) {
-        myErrorText = "Can't create a directory with name '" + token + "'";
+        myErrorText = IdeBundle.message("error.invalid.directory.name", token);
         return false;
       }
       if (vFile != null) {
         if (firstToken && "~".equals(token)) {
           final VirtualFile userHomeDir = VfsUtil.getUserHomeDir();
           if (userHomeDir == null) {
-            myErrorText = "User home directory not found";
+            myErrorText = IdeBundle.message("error.user.home.directory.not.found");
             return false;
           }
           vFile = userHomeDir;
         }
         else if ("..".equals(token)) {
-          vFile = vFile.getParent();
-          if (vFile == null) {
-            myErrorText = "Not a valid directory";
+          final VirtualFile parent = vFile.getParent();
+          if (parent == null) {
+            myErrorText = IdeBundle.message("error.invalid.directory", vFile.getPresentableUrl() + File.separatorChar + "..");
             return false;
           }
+          vFile = parent;
         }
         else if (!".".equals(token)){
           final VirtualFile child = vFile.findChild(token);
           if (child != null) {
             if (!child.isDirectory()) {
-              myErrorText = "A file with name '" + token + "' already exists";
+              myErrorText = IdeBundle.message("error.file.with.name.already.exists", token);
               return false;
             }
             else if (!tokenizer.hasMoreTokens()) {
-              myErrorText = "A directory with name '" + token + "' already exists";
+              myErrorText = IdeBundle.message("error.directory.with.name.already.exists", token);
               return false;
             }
           }
@@ -115,12 +104,12 @@ public class CreateDirectoryOrPackageHandler implements InputValidatorEx {
         }
       }
       if (FileTypeManager.getInstance().isFileIgnored(token)) {
-        myErrorText = "Trying to create a " + (myIsDirectory ? "directory" : "package") +
-                      " with an ignored name, the result will not be visible";
+        myErrorText = myIsDirectory ? IdeBundle.message("warning.create.directory.with.ignored.name", token)
+                                    : IdeBundle.message("warning.create.package.with.ignored.name", token);
         return true;
       }
       if (!myIsDirectory && token.length() > 0 && !PsiDirectoryFactory.getInstance(myProject).isValidPackageName(token)) {
-        myErrorText = "Not a valid package name, it will not be possible to create a Java class inside";
+        myErrorText = IdeBundle.message("error.invalid.java.package.name");
         return true;
       }
       firstToken = false;
@@ -169,11 +158,13 @@ public class CreateDirectoryOrPackageHandler implements InputValidatorEx {
     if (StringUtil.countChars(subDirName, '.') == 1 && Registry.is("ide.suggest.file.when.creating.filename.like.directory")) {
       FileType fileType = findFileTypeBoundToName(subDirName);
       if (fileType != null) {
-        String message = "The name you entered looks like a file name. Do you want to create a file named " + subDirName + " instead?";
+        String message = LangBundle.message("dialog.message.name.you.entered", subDirName);
         int ec = Messages.showYesNoCancelDialog(myProject, message,
-                                                "File Name Detected",
-                                                "&Yes, create file",
-                                                "&No, create " + (myIsDirectory ? "directory" : "packages"),
+                                                LangBundle.message("dialog.title.file.name.detected"),
+                                                LangBundle.message("button.yes.create.file"),
+                                                LangBundle.message("button.no.create", myIsDirectory ?
+                                                                                       LangBundle.message("button.no.create.directory") :
+                                                                                       LangBundle.message("button.no.create.package")),
                                                 CommonBundle.getCancelButtonText(),
                                                 fileType.getIcon());
         if (ec == Messages.CANCEL) {
@@ -222,7 +213,7 @@ public class CreateDirectoryOrPackageHandler implements InputValidatorEx {
                                                                       : IdeBundle.message("command.create.package"), null);
   }
 
-  private void showErrorDialog(String message) {
+  private void showErrorDialog(@NlsContexts.DialogMessage String message) {
     String title = CommonBundle.getErrorTitle();
     Icon icon = Messages.getErrorIcon();
     if (myDialogParent != null) {

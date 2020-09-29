@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.build;
 
 import com.intellij.build.events.Failure;
@@ -13,6 +13,7 @@ import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.DataProvider;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.IJSwingUtilities;
 import com.intellij.util.ObjectUtils;
@@ -34,12 +35,12 @@ import static com.intellij.openapi.util.text.StringUtil.stripHtml;
 /**
  * @author Vladislav.Soroka
  */
-public class BuildConsoleUtils {
+public final class BuildConsoleUtils {
   private static final Logger LOG = Logger.getInstance(BuildConsoleUtils.class);
   private static final Pattern TAG_PATTERN = Pattern.compile("<[^>]*>");
   private static final Pattern A_PATTERN = Pattern.compile("<a ([^>]* )?href=[\"']([^>]*)[\"'][^>]*>");
   private static final String A_CLOSING = "</a>";
-  private static final Set<String> NEW_LINES = ContainerUtil.set("<br>", "</br>", "<br/>", "<p>", "</p>", "<p/>", "<pre>", "</pre>");
+  private static final Set<@NlsSafe String> NEW_LINES = ContainerUtil.set("<br>", "</br>", "<br/>", "<p>", "</p>", "<p/>", "<pre>", "</pre>");
 
   public static void printDetails(@NotNull ConsoleView consoleView, @Nullable Failure failure, @Nullable String details) {
     String text = failure == null ? details : ObjectUtils.chooseNotNull(failure.getDescription(), failure.getMessage());

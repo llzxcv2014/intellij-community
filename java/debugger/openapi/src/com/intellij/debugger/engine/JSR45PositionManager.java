@@ -3,7 +3,7 @@
  */
 package com.intellij.debugger.engine;
 
-import com.intellij.debugger.DebuggerBundle;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.NoDataException;
 import com.intellij.debugger.PositionManager;
 import com.intellij.debugger.SourcePosition;
@@ -21,7 +21,10 @@ import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -144,23 +147,23 @@ public abstract class JSR45PositionManager<Scope> implements PositionManager {
   private List<Location> locationsOfClassAt(final ReferenceType type, final SourcePosition position) throws NoDataException {
     checkSourcePositionFileType(position);
 
-    return ApplicationManager.getApplication().runReadAction(new Computable<List<Location>>() {
+    return ApplicationManager.getApplication().runReadAction(new Computable<>() {
       @Override
       public List<Location> compute() {
         try {
           final List<String> relativePaths = getRelativeSourePathsByType(type);
           for (String relativePath : relativePaths) {
             final PsiFile file = mySourcesFinder.findSourceFile(relativePath, myDebugProcess.getProject(), myScope);
-            if(file != null && file.equals(position.getFile())) {
+            if (file != null && file.equals(position.getFile())) {
               return getLocationsOfLine(type, getSourceName(file.getName(), type), relativePath, position.getLine() + 1);
             }
           }
         }
-        catch(ObjectCollectedException | ClassNotPreparedException | AbsentInformationException ignored) {
+        catch (ObjectCollectedException | ClassNotPreparedException | AbsentInformationException ignored) {
         }
         catch (InternalError ignored) {
           myDebugProcess.printToConsole(
-            DebuggerBundle.message("internal.error.locations.of.line", type.name()));
+            JavaDebuggerBundle.message("internal.error.locations.of.line", type.name()));
         }
         return null;
       }

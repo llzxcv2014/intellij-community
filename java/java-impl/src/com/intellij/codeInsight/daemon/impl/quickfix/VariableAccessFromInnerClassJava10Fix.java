@@ -4,6 +4,7 @@ package com.intellij.codeInsight.daemon.impl.quickfix;
 import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInsight.daemon.QuickFixBundle;
 import com.intellij.codeInsight.intention.impl.BaseIntentionAction;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
@@ -18,6 +19,7 @@ import com.intellij.util.SmartList;
 import com.siyeh.ig.psiutils.ExpressionUtils;
 import com.siyeh.ig.psiutils.TypeUtils;
 import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,7 +32,7 @@ import static com.intellij.util.ObjectUtils.tryCast;
 import static java.util.Collections.emptyList;
 
 public class VariableAccessFromInnerClassJava10Fix extends BaseIntentionAction {
-  private final static String[] NAMES = {
+  @NonNls private final static String[] NAMES = {
     "ref",
     "lambdaContext",
     "context",
@@ -47,7 +49,7 @@ public class VariableAccessFromInnerClassJava10Fix extends BaseIntentionAction {
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Variable accessFromInnerClass";
+    return JavaBundle.message("intention.family.variable.access.from.inner.class");
   }
 
   @Override

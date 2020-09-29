@@ -34,17 +34,9 @@ import org.jetbrains.annotations.*;
 public class UnnecessaryToStringCallInspection extends BaseInspection implements CleanupLocalInspectionTool {
 
   @Override
-  @Nls
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("unnecessary.tostring.call.display.name");
-  }
-
-  @Override
   @NotNull
   protected String buildErrorString(Object... infos) {
-    final String text = (String)infos[0];
-    return InspectionGadgetsBundle.message("unnecessary.tostring.call.problem.descriptor", text);
+    return InspectionGadgetsBundle.message("unnecessary.tostring.call.problem.descriptor");
   }
 
   @Override
@@ -54,17 +46,19 @@ public class UnnecessaryToStringCallInspection extends BaseInspection implements
     return new UnnecessaryToStringCallFix(text);
   }
 
-  private static class UnnecessaryToStringCallFix extends InspectionGadgetsFix {
+  private static final class UnnecessaryToStringCallFix extends InspectionGadgetsFix {
+    private final @Nullable String replacementText;
 
-    private final String replacementText;
-
-    private UnnecessaryToStringCallFix(String replacementText) {
+    private UnnecessaryToStringCallFix(@Nullable String replacementText) {
       this.replacementText = replacementText;
     }
 
     @Override
     @NotNull
     public String getName() {
+      if (replacementText == null) {
+        return InspectionGadgetsBundle.message("inspection.redundant.string.remove.fix.name", "toString");
+      }
       return CommonQuickFixBundle.message("fix.replace.with.x", replacementText);
     }
 
@@ -85,7 +79,7 @@ public class UnnecessaryToStringCallInspection extends BaseInspection implements
         // Should not happen normally as toString() should always resolve to the innermost class
         // Probably may happen only if SDK is broken (e.g. no java.lang.Object found)
         return;
-      } 
+      }
       new CommentTracker().replaceAndRestoreComments(call, qualifier);
     }
   }
@@ -105,7 +99,7 @@ public class UnnecessaryToStringCallInspection extends BaseInspection implements
       if (referenceNameElement == null) return;
       PsiExpression qualifier = ExpressionUtils.getEffectiveQualifier(methodExpression);
       if (qualifier == null) return;
-      registerError(referenceNameElement, ProblemHighlightType.LIKE_UNUSED_SYMBOL, qualifier.getText());
+      registerError(referenceNameElement, ProblemHighlightType.LIKE_UNUSED_SYMBOL, qualifier.isPhysical() ? null : qualifier.getText());
     }
   }
 

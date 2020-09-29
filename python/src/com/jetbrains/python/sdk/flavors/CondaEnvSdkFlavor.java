@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.sdk.flavors;
 
 import com.intellij.execution.ExecutionException;
@@ -23,6 +9,7 @@ import com.intellij.openapi.util.UserDataHolder;
 import com.intellij.openapi.vfs.StandardFileSystems;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.jetbrains.python.sdk.PythonSdkUtil;
+import com.jetbrains.python.sdk.conda.PyCondaSdkCustomizer;
 import icons.PythonIcons;
 import one.util.streamex.StreamEx;
 import org.jetbrains.annotations.NotNull;
@@ -37,14 +24,18 @@ import java.util.List;
 
 import static com.jetbrains.python.sdk.flavors.VirtualEnvSdkFlavor.findInRootDirectory;
 
-public class CondaEnvSdkFlavor extends CPythonSdkFlavor {
+public final class CondaEnvSdkFlavor extends CPythonSdkFlavor {
   private CondaEnvSdkFlavor() {
   }
 
-  public final static String[] CONDA_DEFAULT_ROOTS = new String[]{"anaconda", "anaconda2", "anaconda3", "miniconda", "miniconda2",
-    "miniconda3", "Anaconda", "Anaconda2", "Anaconda3", "Miniconda", "Miniconda2", "Miniconda3"};
+  public static CondaEnvSdkFlavor getInstance() {
+    return PythonSdkFlavor.EP_NAME.findExtension(CondaEnvSdkFlavor.class);
+  }
 
-  public static final CondaEnvSdkFlavor INSTANCE = new CondaEnvSdkFlavor();
+  @Override
+  public boolean isPlatformIndependent() {
+    return true;
+  }
 
   @NotNull
   @Override
@@ -56,9 +47,13 @@ public class CondaEnvSdkFlavor extends CPythonSdkFlavor {
       for (String environment : environments) {
         results.addAll(ReadAction.compute(() -> {
           final VirtualFile root = StandardFileSystems.local().findFileByPath(environment);
-          return StreamEx.of(findInRootDirectory(root))
-            .filter(s -> getCondaEnvRoot(s) != null)
-            .toList();
+          final Collection<String> found = findInRootDirectory(root);
+          if (PyCondaSdkCustomizer.Companion.getInstance().getDetectEnvironmentsOutsideEnvsFolder()) {
+            return found;
+          }
+          else {
+            return StreamEx.of(found).filter(s -> getCondaEnvRoot(s) != null).toList();
+          }
         }));
       }
     }

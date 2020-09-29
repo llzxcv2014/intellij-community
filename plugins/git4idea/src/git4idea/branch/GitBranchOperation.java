@@ -21,6 +21,8 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.BranchChangeListener;
@@ -31,18 +33,20 @@ import com.intellij.openapi.vcs.changes.ChangesUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
+import com.intellij.util.ui.UIUtil;
 import git4idea.GitUtil;
 import git4idea.changes.GitChangeUtils;
 import git4idea.commands.Git;
 import git4idea.commands.GitMessageWithFilesDetector;
 import git4idea.config.GitVcsSettings;
+import git4idea.i18n.GitBundle;
 import git4idea.repo.GitRepository;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-import static com.intellij.openapi.util.text.StringUtil.pluralize;
 import static com.intellij.util.ObjectUtils.chooseNotNull;
 import static git4idea.GitUtil.getRepositoryManager;
 import static java.util.stream.Collectors.toList;
@@ -87,9 +91,10 @@ abstract class GitBranchOperation {
   protected abstract void rollback();
 
   @NotNull
-  public abstract String getSuccessMessage();
+  public abstract @NlsContexts.NotificationContent String getSuccessMessage();
 
   @NotNull
+  @Nls(capitalization = Nls.Capitalization.Sentence)
   protected abstract String getRollbackProposal();
 
   /**
@@ -98,6 +103,7 @@ abstract class GitBranchOperation {
    * Some operations (like checkout new branch) can be not mentioned in these dialogs, so their operation names would be not used.
    */
   @NotNull
+  @Nls
   protected abstract String getOperationName();
 
   /**
@@ -157,7 +163,7 @@ abstract class GitBranchOperation {
   }
 
   @NotNull
-  protected String successfulRepositoriesJoined() {
+  protected @NlsSafe String successfulRepositoriesJoined() {
     return GitUtil.joinToHtml(mySuccessfulRepositories);
   }
   
@@ -167,19 +173,14 @@ abstract class GitBranchOperation {
   }
 
   @NotNull
-  protected Collection<GitRepository> getRemainingRepositories() {
-    return myRemainingRepositories;
-  }
-
-  @NotNull
   protected List<GitRepository> getRemainingRepositoriesExceptGiven(@NotNull final GitRepository currentRepository) {
     List<GitRepository> repositories = new ArrayList<>(myRemainingRepositories);
     repositories.remove(currentRepository);
     return repositories;
   }
 
-  protected void notifySuccess(@NotNull String message) {
-    VcsNotifier.getInstance(myProject).notifySuccess(message);
+  protected void notifySuccess(@NotNull @NlsContexts.NotificationContent String message) {
+    VcsNotifier.getInstance(myProject).notifySuccess("git.branch.operation.success", "", message);
   }
 
   protected void notifySuccess() {
@@ -193,7 +194,7 @@ abstract class GitBranchOperation {
   /**
    * Show fatal error as a notification or as a dialog with rollback proposal.
    */
-  protected void fatalError(@NotNull String title, @NotNull String message) {
+  protected void fatalError(@NotNull @NlsContexts.NotificationTitle String title, @NotNull @NlsContexts.NotificationContent String message) {
     if (wereSuccessful())  {
       showFatalErrorDialogWithRollback(title, message);
     }
@@ -202,19 +203,20 @@ abstract class GitBranchOperation {
     }
   }
 
-  protected void showFatalErrorDialogWithRollback(@NotNull final String title, @NotNull final String message) {
+  protected void showFatalErrorDialogWithRollback(@NotNull @NlsContexts.DialogTitle String title,
+                                                  @NotNull @NlsContexts.DialogMessage String message) {
     boolean rollback = myUiHandler.notifyErrorWithRollbackProposal(title, message, getRollbackProposal());
     if (rollback) {
       rollback();
     }
   }
 
-  protected void showFatalNotification(@NotNull String title, @NotNull String message) {
+  protected void showFatalNotification(@NotNull @NlsContexts.NotificationTitle String title, @NotNull @NlsContexts.NotificationContent String message) {
     notifyError(title, message);
   }
 
-  protected void notifyError(@NotNull String title, @NotNull String message) {
-    VcsNotifier.getInstance(myProject).notifyError(title, message);
+  protected void notifyError(@NotNull @NlsContexts.NotificationTitle String title, @NotNull @NlsContexts.NotificationContent String message) {
+    VcsNotifier.getInstance(myProject).notifyError("git.branch.operation.error", title, message);
   }
 
   @NotNull
@@ -233,11 +235,6 @@ abstract class GitBranchOperation {
     else {
       showUnmergedFilesNotification();
     }
-  }
-
-  @NotNull
-  protected String repositories() {
-    return pluralize("repository", getSuccessfulRepositories().size());
   }
 
   /**
@@ -316,7 +313,7 @@ abstract class GitBranchOperation {
   }
 
   protected void fatalLocalChangesError(@NotNull String reference) {
-    String title = String.format("Couldn't %s %s", getOperationName(), reference);
+    String title = GitBundle.message("branch.operation.could.not.0.operation.name.1.reference", getOperationName(), reference);
     if (wereSuccessful()) {
       showFatalErrorDialogWithRollback(title, "");
     }
@@ -371,7 +368,7 @@ abstract class GitBranchOperation {
 
   /**
    * When checkout or merge operation on a repository fails with the error "local changes would be overwritten by...",
-   * affected local files are captured by the {@link git4idea.commands.GitMessageWithFilesDetector detector}.
+   * affected local files are captured by the {@link GitMessageWithFilesDetector detector}.
    * Then all remaining (non successful repositories) are searched if they are about to fail with the same problem.
    * All collected local changes which prevent the operation, together with these repositories, are returned.
    * @param currentRepository          The first repository which failed the operation.
@@ -412,8 +409,8 @@ abstract class GitBranchOperation {
     }
     return StringUtil.join(grouped.entrySet(), entry -> {
       String roots = StringUtil.join(entry.getValue(), file -> file.getName(), ", ");
-      return entry.getKey() + " (in " + roots + ")";
-    }, "<br/>");
+      return GitBundle.message("branch.operation.in", entry.getKey(), roots);
+    }, UIUtil.BR);
   }
 
   @NotNull

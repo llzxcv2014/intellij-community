@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.sh.rename;
 
 import com.intellij.codeInsight.highlighting.HighlightManager;
@@ -20,16 +20,18 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
+import com.intellij.sh.ShBundle;
 import com.intellij.sh.statistics.ShFeatureUsagesCollector;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-class ShTextRenameRefactoring {
-  private static final String FEATURE_ACTION_ID = "RenamingActionUsed";
-  private static final String PRIMARY_VARIABLE_NAME = "PrimaryVariable";
-  private static final String OTHER_VARIABLE_NAME = "OtherVariable";
+final class ShTextRenameRefactoring {
+  @NonNls private static final String FEATURE_ACTION_ID = "RenamingActionUsed";
+  @NonNls private static final String PRIMARY_VARIABLE_NAME = "PrimaryVariable";
+  @NonNls private static final String OTHER_VARIABLE_NAME = "OtherVariable";
 
   private final Editor myEditor;
   private final Project myProject;
@@ -78,7 +80,7 @@ class ShTextRenameRefactoring {
       }
     }
     createCaretRangeMarker();
-    WriteCommandAction.writeCommandAction(myProject).withName("Rename " + myOccurrenceText).run(() -> startTemplate(builder));
+    WriteCommandAction.writeCommandAction(myProject).withName(ShBundle.message("sh.rename.occurence", myOccurrenceText)).run(() -> startTemplate(builder));
     ShFeatureUsagesCollector.logFeatureUsage(FEATURE_ACTION_ID);
   }
 
@@ -181,7 +183,7 @@ class ShTextRenameRefactoring {
     return myCaretRangeMarker.isValid() ? myCaretRangeMarker.getEndOffset() : offset;
   }
 
-  private static class MyExpression extends Expression {
+  private static final class MyExpression extends Expression {
     private final String myInitialText;
 
     private MyExpression(@NotNull String initialText) {
@@ -199,11 +201,6 @@ class ShTextRenameRefactoring {
         }
       }
       return new TextResult(myInitialText);
-    }
-
-    @Override
-    public Result calculateQuickResult(ExpressionContext context) {
-      return calculateResult(context);
     }
 
     @Override

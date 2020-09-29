@@ -1,11 +1,11 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.readOnlyHandler;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.util.registry.Registry;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vfs.ReadonlyStatusHandler;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.CollectionComboBoxModel;
@@ -21,7 +21,6 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -42,7 +41,7 @@ public class ReadOnlyStatusDialog extends OptionsDialog {
 
   public ReadOnlyStatusDialog(Project project, @NotNull List<? extends FileInfo> files) {
     super(project);
-    setTitle(VcsBundle.message("dialog.title.clear.read.only.file.status"));
+    setTitle(IdeBundle.message("dialog.title.clear.read.only.file.status"));
     myFiles = files;
     myFileList.setPreferredSize(getDialogPreferredSize());
     initFileList();
@@ -61,11 +60,6 @@ public class ReadOnlyStatusDialog extends OptionsDialog {
     myFileList.setCellRenderer(new FileListRenderer());
 
     init();
-  }
-
-  @Override
-  public long getTypeAheadTimeoutMs() {
-    return Registry.intValue("actionSystem.typeAheadTimeBeforeDialog");
   }
 
   private void initFileList() {
@@ -92,7 +86,7 @@ public class ReadOnlyStatusDialog extends OptionsDialog {
 
         myChangelist.setRenderer(new ColoredListCellRenderer<String>() {
           @Override
-          protected void customizeCellRenderer(@NotNull JList<? extends String> list, String value, int index, boolean selected, boolean hasFocus) {
+          protected void customizeCellRenderer(@NotNull JList<? extends String> list, @NlsSafe String value, int index, boolean selected, boolean hasFocus) {
             if (value == null) return;
             String trimmed = StringUtil.first(value, 50, true);
             if (value.equals(defaultChangelist)) {
@@ -161,8 +155,8 @@ public class ReadOnlyStatusDialog extends OptionsDialog {
     }
     else {
       String list = StringUtil.join(files, info -> info.getFile().getPresentableUrl(), "<br>");
-      String message = VcsBundle.message("handle.ro.file.status.failed", list);
-      Messages.showErrorDialog(getRootPane(), message, VcsBundle.message("dialog.title.clear.read.only.file.status"));
+      String message = IdeBundle.message("handle.ro.file.status.failed", list);
+      Messages.showErrorDialog(getRootPane(), message, IdeBundle.message("dialog.title.clear.read.only.file.status"));
       myFiles = files;
       initFileList();
     }
@@ -176,19 +170,5 @@ public class ReadOnlyStatusDialog extends OptionsDialog {
 
   public static Dimension getDialogPreferredSize() {
     return new Dimension(500, 400);
-  }
-
-  @NotNull
-  public static String getTheseFilesMessage(Collection<? extends VirtualFile> files) {
-    boolean dirsOnly = true;
-    for (VirtualFile each : files) {
-      if (!each.isDirectory()) {
-        dirsOnly = false;
-        break;
-      }
-    }
-
-    int size = files.size();
-    return StringUtil.pluralize("this", size) + " " + StringUtil.pluralize((dirsOnly ? "directory" : "file"), size);
   }
 }

@@ -35,7 +35,7 @@ import javax.swing.*;
 /**
  * @author Robert F. Beeger (robert@beeger.net)
  */
-public class ManifestFileType extends LanguageFileType {
+public final class ManifestFileType extends LanguageFileType {
   public static final ManifestFileType INSTANCE = new ManifestFileType();
 
   private ManifestFileType() {
@@ -52,7 +52,7 @@ public class ManifestFileType extends LanguageFileType {
   @NotNull
   @Override
   public String getDescription() {
-    return "Manifest";
+    return ManifestBundle.message("file.type.description");
   }
 
   @NotNull

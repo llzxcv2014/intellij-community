@@ -1,11 +1,13 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.introduceField;
 
 import com.intellij.codeInsight.completion.JavaCompletionUtil;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 import com.intellij.psi.codeStyle.SuggestedNameInfo;
@@ -21,6 +23,7 @@ import com.intellij.util.ArrayUtil;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.update.Activatable;
 import com.intellij.util.ui.update.UiNotifyConnector;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
@@ -44,7 +47,6 @@ class IntroduceFieldDialog extends DialogWrapper {
 
   private TypeSelector myTypeSelector;
   private NameSuggestionsManager myNameSuggestionsManager;
-  private static final String REFACTORING_NAME = RefactoringBundle.message("introduce.field.title");
 
   IntroduceFieldDialog(Project project,
                               PsiClass parentClass,
@@ -68,7 +70,7 @@ class IntroduceFieldDialog extends DialogWrapper {
 
     myTypeSelectorManager = typeSelectorManager;
 
-    setTitle(REFACTORING_NAME);
+    setTitle(getRefactoringName());
     init();
 
     myCentralPanel.initializeControls(initializerExpression, ourLastInitializerPlace);
@@ -159,7 +161,7 @@ class IntroduceFieldDialog extends DialogWrapper {
 
     // We delay initialization of name field till dialog is shown, so that it will be executed in a different command and won't
     // be tied to any document changes performed in current command (and won't prevent undo for them later)
-    new UiNotifyConnector.Once(panel, new Activatable.Adapter() {
+    new UiNotifyConnector.Once(panel, new Activatable() {
       @Override
       public void showNotify() {
         myNameSuggestionsManager = new NameSuggestionsManager(myTypeSelector, myNameField,
@@ -182,10 +184,10 @@ class IntroduceFieldDialog extends DialogWrapper {
     setOKActionEnabled(PsiNameHelper.getInstance(myProject).isIdentifier(getEnteredName()));
   }
 
-  private String getTypeLabel() {
+  private @Nls String getTypeLabel() {
     return myWillBeDeclaredStatic ?
-           RefactoringBundle.message("introduce.field.static.field.of.type") :
-           RefactoringBundle.message("introduce.field.field.of.type");
+           JavaRefactoringBundle.message("introduce.field.static.field.of.type") :
+           JavaRefactoringBundle.message("introduce.field.field.of.type");
   }
 
   @Override
@@ -237,10 +239,10 @@ class IntroduceFieldDialog extends DialogWrapper {
     }
     if (errorString != null) {
       CommonRefactoringUtil.showErrorMessage(
-              IntroduceFieldHandler.REFACTORING_NAME,
-              errorString,
-              HelpID.INTRODUCE_FIELD,
-              myProject
+	IntroduceFieldHandler.getRefactoringNameText(),
+	errorString,
+	HelpID.INTRODUCE_FIELD,
+	myProject
       );
       return;
     }
@@ -248,11 +250,11 @@ class IntroduceFieldDialog extends DialogWrapper {
     PsiField oldField = myParentClass.findFieldByName(fieldName, true);
     if (oldField != null) {
       int answer = Messages.showYesNoDialog(
-              myProject,
-              RefactoringBundle.message("field.exists", fieldName,
+	myProject,
+	RefactoringBundle.message("field.exists", fieldName,
                                    oldField.getContainingClass().getQualifiedName()),
-              IntroduceFieldHandler.REFACTORING_NAME,
-              Messages.getWarningIcon()
+	IntroduceFieldHandler.getRefactoringNameText(),
+	Messages.getWarningIcon()
       );
       if (answer != Messages.YES) {
         return;
@@ -271,5 +273,9 @@ class IntroduceFieldDialog extends DialogWrapper {
   @Override
   public JComponent getPreferredFocusedComponent() {
     return myNameField.getFocusableComponent();
+  }
+
+  private static @NlsContexts.DialogTitle String getRefactoringName() {
+    return RefactoringBundle.message("introduce.field.title");
   }
 }

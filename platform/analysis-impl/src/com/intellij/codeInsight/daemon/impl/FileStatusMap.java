@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInsight.daemon.impl;
 
 import com.intellij.codeHighlighting.DirtyScopeTrackingHighlightingPassFactory;
@@ -79,7 +79,7 @@ public final class FileStatusMap implements Disposable {
     }
   }
 
-  private static class FileStatus {
+  private static final class FileStatus {
     private boolean defensivelyMarked; // file marked dirty without knowledge of specific dirty region. Subsequent markScopeDirty can refine dirty scope, not extend it
     private boolean wolfPassFinished;
     // if contains the special value "WHOLE_FILE_MARKER" then the corresponding range is (0, document length)
@@ -108,7 +108,7 @@ public final class FileStatusMap implements Disposable {
       return true;
     }
 
-    private void combineScopesWith(@NotNull final TextRange scope, final int fileLength, @NotNull final Document document) {
+    private void combineScopesWith(@NotNull TextRange scope, int fileLength, @NotNull Document document) {
       dirtyScopes.transformValues(oldScope -> {
         RangeMarker newScope = combineScopes(oldScope, scope, fileLength, document);
         if (newScope != oldScope && oldScope != null) {
@@ -120,7 +120,7 @@ public final class FileStatusMap implements Disposable {
 
     @Override
     public String toString() {
-      @NonNls final StringBuilder s = new StringBuilder();
+      @NonNls StringBuilder s = new StringBuilder();
       s.append("defensivelyMarked = ").append(defensivelyMarked);
       s.append("; wolfPassFinfished = ").append(wolfPassFinished);
       s.append("; errorFound = ").append(errorFound);
@@ -179,9 +179,10 @@ public final class FileStatusMap implements Disposable {
    */
   @Nullable
   public TextRange getFileDirtyScope(@NotNull Document document, int passId) {
+    PsiFile file = PsiDocumentManager.getInstance(myProject).getPsiFile(document);
+    if (!ProblemHighlightFilter.shouldHighlightFile(file)) return null;
+
     synchronized(myDocumentToStatusMap){
-      PsiFile file = PsiDocumentManager.getInstance(myProject).getPsiFile(document);
-      if (!ProblemHighlightFilter.shouldHighlightFile(file)) return null;
       FileStatus status = myDocumentToStatusMap.get(document);
       if (status == null){
         return file == null ? null : file.getTextRange();
@@ -243,10 +244,10 @@ public final class FileStatusMap implements Disposable {
   }
 
   boolean allDirtyScopesAreNull(@NotNull Document document) {
-    synchronized (myDocumentToStatusMap) {
-      PsiFile file = PsiDocumentManager.getInstance(myProject).getPsiFile(document);
-      if (!ProblemHighlightFilter.shouldHighlightFile(file)) return true;
+    PsiFile file = PsiDocumentManager.getInstance(myProject).getPsiFile(document);
+    if (!ProblemHighlightFilter.shouldHighlightFile(file)) return true;
 
+    synchronized (myDocumentToStatusMap) {
       FileStatus status = myDocumentToStatusMap.get(document);
       return status != null && !status.defensivelyMarked && status.wolfPassFinished && status.allDirtyScopesAreNull();
     }
@@ -323,7 +324,7 @@ public final class FileStatusMap implements Disposable {
     }
 
     @Override
-    public String toString() {
+    public @NonNls String toString() {
       return "WHOLE_FILE";
     }
   };
@@ -333,7 +334,7 @@ public final class FileStatusMap implements Disposable {
   private static int getThreadNum() {
     return ConcurrencyUtil.cacheOrGet(threads, Thread.currentThread(), threads.size());
   }
-  public static void log(@NonNls @NotNull Object... info) {
+  public static void log(@NonNls Object @NotNull ... info) {
     if (LOG.isDebugEnabled()) {
       StringJoiner joiner = new StringJoiner(", ", StringUtil.repeatSymbol(' ', getThreadNum() * 4) + "[", "]\n");
       for (Object o : info) {

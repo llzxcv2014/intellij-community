@@ -126,10 +126,12 @@ public class LighthouseRepository extends BaseRepositoryImpl {
     if (id == null) {
       return null;
     }
+    //noinspection HardCodedStringLiteral
     final String summary = element.getChildText("title");
     if (summary == null) {
       return null;
     }
+    //noinspection HardCodedStringLiteral
     final String description = element.getChildText("original-body");
     final boolean isClosed = "true".equals(element.getChildText("closed"));
     final Ref<Date> updated = new Ref<>();
@@ -169,9 +171,8 @@ public class LighthouseRepository extends BaseRepositoryImpl {
         return description;
       }
 
-      @NotNull
       @Override
-      public Comment[] getComments() {
+      public Comment @NotNull [] getComments() {
         return Comment.EMPTY_ARRAY;
       }
 
@@ -209,7 +210,7 @@ public class LighthouseRepository extends BaseRepositoryImpl {
 
       @Override
       public String getPresentableName() {
-        return getId() + ": " + getSummary();
+        return getId() + ": " + getSummary(); //NON-NLS
       }
     };
   }

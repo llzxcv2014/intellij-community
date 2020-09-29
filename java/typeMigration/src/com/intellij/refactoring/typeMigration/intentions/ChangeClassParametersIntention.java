@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 package com.intellij.refactoring.typeMigration.intentions;
 
-import com.intellij.codeInsight.daemon.JavaErrorMessages;
+import com.intellij.codeInsight.daemon.JavaErrorBundle;
 import com.intellij.codeInsight.hint.HintManager;
 import com.intellij.codeInsight.intention.PsiElementBaseIntentionAction;
 import com.intellij.codeInsight.intention.impl.TypeExpression;
@@ -18,10 +18,12 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.*;
 import com.intellij.psi.search.LocalSearchScope;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.refactoring.typeMigration.TypeMigrationBundle;
 import com.intellij.refactoring.typeMigration.TypeMigrationProcessor;
 import com.intellij.refactoring.typeMigration.TypeMigrationRules;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.IncorrectOperationException;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -40,7 +42,7 @@ public class ChangeClassParametersIntention extends PsiElementBaseIntentionActio
   @NotNull
   @Override
   public String getFamilyName() {
-    return "Change class type parameter";
+    return TypeMigrationBundle.message("change.class.type.parameter.family.name");
   }
 
   @Override
@@ -79,7 +81,7 @@ public class ChangeClassParametersIntention extends PsiElementBaseIntentionActio
         final TemplateBuilderImpl templateBuilder = (TemplateBuilderImpl)TemplateBuilderFactory.getInstance().createTemplateBuilder(aClass);
 
         final String oldTypeText = typeElement.getText();
-        final String varName = "param";
+        final @NonNls String varName = "param";
         templateBuilder.replaceElement(typeElement, varName, new TypeExpression(project, new PsiType[]{typeElement.getType()}), true);
 
         final Template template = templateBuilder.buildInlineTemplate();
@@ -108,14 +110,14 @@ public class ChangeClassParametersIntention extends PsiElementBaseIntentionActio
                 final PsiType targetParam = elementFactory.createTypeFromText(myNewType, aClass);
                 if (!(targetParam instanceof PsiClassType)) {
                   HintManager.getInstance().showErrorHint(editor,
-                                                          JavaErrorMessages.message("generics.type.argument.cannot.be.of.primitive.type"));
+                                                          JavaErrorBundle.message("generics.type.argument.cannot.be.of.primitive.type"));
                   return;
                 }
                 final PsiClassType classType = (PsiClassType)targetParam;
                 final PsiClass target = classType.resolve();
                 if (target == null) {
-                  HintManager.getInstance().showErrorHint(editor, JavaErrorMessages.message("cannot.resolve.symbol",
-                                                                                            classType.getPresentableText()));
+                  HintManager.getInstance().showErrorHint(editor, JavaErrorBundle.message("cannot.resolve.symbol",
+                                                                                          classType.getPresentableText()));
                   return;
                 }
                 final TypeMigrationRules myRules = new TypeMigrationRules(project);
@@ -126,7 +128,7 @@ public class ChangeClassParametersIntention extends PsiElementBaseIntentionActio
                                                                     ((PsiAnonymousClass)aClass).getBaseClassReference().getParameterList(), targetClassType);
               }
               catch (IncorrectOperationException e) {
-                HintManager.getInstance().showErrorHint(editor, "Incorrect type");
+                HintManager.getInstance().showErrorHint(editor, TypeMigrationBundle.message("change.class.parameter.incorrect.type.error.hint"));
               }
             }
           }

@@ -1,9 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.editor;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.editor.event.BulkAwareDocumentListener;
 import com.intellij.openapi.editor.event.DocumentListener;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.UserDataHolder;
 import com.intellij.util.text.CharArrayUtil;
@@ -40,13 +41,13 @@ public interface Document extends UserDataHolder {
    */
   @NotNull
   @Contract(pure = true)
-  default String getText() {
+  default @NlsSafe String getText() {
     return getImmutableCharSequence().toString();
   }
 
   @NotNull
   @Contract(pure = true)
-  default String getText(@NotNull TextRange range) {
+  default @NlsSafe String getText(@NotNull TextRange range) {
     return range.substring(getText());
   }
 
@@ -61,7 +62,7 @@ public interface Document extends UserDataHolder {
    */
   @Contract(pure = true)
   @NotNull
-  default CharSequence getCharsSequence() {
+  default @NlsSafe CharSequence getCharsSequence() {
     return getImmutableCharSequence();
   }
 
@@ -71,14 +72,13 @@ public interface Document extends UserDataHolder {
    */
   @NotNull
   @Contract(pure = true)
-  CharSequence getImmutableCharSequence();
+  @NlsSafe CharSequence getImmutableCharSequence();
 
   /**
    * @deprecated Use {@link #getCharsSequence()} or {@link #getText()} instead.
    */
-  @NotNull
   @Deprecated
-  default char[] getChars() {
+  default char @NotNull [] getChars() {
     return CharArrayUtil.fromSequence(getImmutableCharSequence());
   }
 
@@ -104,8 +104,8 @@ public interface Document extends UserDataHolder {
   /**
    * Returns the line number (0-based) corresponding to the specified offset in the document.
    *
-   * @param offset the offset to get the line number for (must be in the range from 0 to
-   *               getTextLength()-1)
+   * @param offset the offset to get the line number for (must be in the range from 0 (inclusive)
+   *               to {@link #getTextLength()} (inclusive)).
    * @return the line number corresponding to the offset.
    */
   @Contract(pure = true)
@@ -145,7 +145,7 @@ public interface Document extends UserDataHolder {
    * @throws ReadOnlyModificationException         if the document is read-only.
    * @throws ReadOnlyFragmentModificationException if the fragment to be modified is covered by a guarded block.
    */
-  void insertString(int offset, @NotNull CharSequence s);
+  void insertString(int offset, @NonNls @NotNull CharSequence s);
 
   /**
    * Deletes the specified range of text from the document.
@@ -167,7 +167,7 @@ public interface Document extends UserDataHolder {
    * @throws ReadOnlyModificationException         if the document is read-only.
    * @throws ReadOnlyFragmentModificationException if the fragment to be modified is covered by a guarded block.
    */
-  void replaceString(int startOffset, int endOffset, @NotNull CharSequence s);
+  void replaceString(int startOffset, int endOffset, @NlsSafe @NotNull CharSequence s);
 
   /**
    * Checks if the document text is read-only.

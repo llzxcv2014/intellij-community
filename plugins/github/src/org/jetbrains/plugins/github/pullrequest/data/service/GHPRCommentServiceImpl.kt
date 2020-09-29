@@ -1,33 +1,49 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.github.pullrequest.data.service
 
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
-import com.intellij.util.messages.MessageBus
+import org.jetbrains.plugins.github.api.GHGQLRequests
 import org.jetbrains.plugins.github.api.GHRepositoryCoordinates
 import org.jetbrains.plugins.github.api.GithubApiRequestExecutor
 import org.jetbrains.plugins.github.api.GithubApiRequests
-import org.jetbrains.plugins.github.api.data.GHRepositoryPermissionLevel
 import org.jetbrains.plugins.github.api.data.GithubIssueCommentWithHtml
-import org.jetbrains.plugins.github.pullrequest.data.GHPullRequestsDataContext
+import org.jetbrains.plugins.github.pullrequest.data.GHPRIdentifier
+import org.jetbrains.plugins.github.pullrequest.data.service.GHServiceUtil.logError
 import org.jetbrains.plugins.github.util.submitIOTask
 import java.util.concurrent.CompletableFuture
 
 class GHPRCommentServiceImpl(private val progressManager: ProgressManager,
-                             private val messageBus: MessageBus,
-                             private val securityService: GithubPullRequestsSecurityService,
                              private val requestExecutor: GithubApiRequestExecutor,
                              private val repository: GHRepositoryCoordinates) : GHPRCommentService {
-  override fun canComment() = securityService.currentUserHasPermissionLevel(GHRepositoryPermissionLevel.TRIAGE)
 
   override fun addComment(progressIndicator: ProgressIndicator,
-                          pullRequest: Long,
+                          pullRequestId: GHPRIdentifier,
                           body: String): CompletableFuture<GithubIssueCommentWithHtml> {
     return progressManager.submitIOTask(progressIndicator) {
       val comment = requestExecutor.execute(
-        GithubApiRequests.Repos.Issues.Comments.create(repository, pullRequest, body))
-      messageBus.syncPublisher(GHPullRequestsDataContext.PULL_REQUEST_EDITED_TOPIC).onPullRequestCommentsEdited(pullRequest)
+        GithubApiRequests.Repos.Issues.Comments.create(repository, pullRequestId.number, body))
       comment
-    }
+    }.logError(LOG, "Error occurred while adding PR comment")
+  }
+
+  override fun getCommentMarkdownBody(progressIndicator: ProgressIndicator, commentId: String): CompletableFuture<String> =
+    progressManager.submitIOTask(progressIndicator) {
+      requestExecutor.execute(GHGQLRequests.Comment.getCommentBody(repository.serverPath, commentId))
+    }.logError(LOG, "Error occurred while loading comment source")
+
+  override fun updateComment(progressIndicator: ProgressIndicator, commentId: String, text: String) =
+    progressManager.submitIOTask(progressIndicator) {
+      requestExecutor.execute(GHGQLRequests.Comment.updateComment(repository.serverPath, commentId, text))
+    }.logError(LOG, "Error occurred while updating comment")
+
+  override fun deleteComment(progressIndicator: ProgressIndicator, commentId: String) =
+    progressManager.submitIOTask(progressIndicator) {
+      requestExecutor.execute(GHGQLRequests.Comment.deleteComment(repository.serverPath, commentId))
+    }.logError(LOG, "Error occurred while deleting comment")
+
+  companion object {
+    private val LOG = logger<GHPRCommentService>()
   }
 }

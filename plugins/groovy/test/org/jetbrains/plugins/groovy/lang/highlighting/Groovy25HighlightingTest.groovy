@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.highlighting
 
 import com.intellij.testFramework.LightProjectDescriptor
@@ -6,6 +6,7 @@ import groovy.transform.CompileStatic
 import org.jetbrains.plugins.groovy.GroovyProjectDescriptors
 import org.jetbrains.plugins.groovy.LightGroovyTestCase
 import org.jetbrains.plugins.groovy.codeInspection.GroovyUnusedDeclarationInspection
+import org.jetbrains.plugins.groovy.codeInspection.bugs.GroovyConstructorNamedArgumentsInspection
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrField
 import org.jetbrains.plugins.groovy.util.HighlightingTest
 import org.jetbrains.plugins.groovy.util.TestUtils
@@ -16,30 +17,30 @@ class Groovy25HighlightingTest extends LightGroovyTestCase implements Highlighti
   final LightProjectDescriptor projectDescriptor = GroovyProjectDescriptors.GROOVY_2_5
   final String basePath = TestUtils.testDataPath + 'highlighting/v25/'
 
-  void 'test duplicating named params'() { highlightingTest() }
-  void 'test duplicating named params with setter'() { highlightingTest() }
-  void 'test two identical named delegates'() { highlightingTest() }
-  void 'test duplicating named delegates with usual parameter'() { highlightingTest() }
+  void 'test duplicating named params'() { fileHighlightingTest() }
+  void 'test duplicating named params with setter'() { fileHighlightingTest() }
+  void 'test two identical named delegates'() { fileHighlightingTest() }
+  void 'test duplicating named delegates with usual parameter'() { fileHighlightingTest() }
 
-  void 'test named params type check'() { highlightingTest() }
-  void 'test named params type check with setter'() { highlightingTest() }
+  void 'test named params type check'() { fileHighlightingTest() }
+  void 'test named params type check with setter'() { fileHighlightingTest() }
 
   void 'test named params unused check'() {
     fixture.enableInspections(new GroovyUnusedDeclarationInspection())
-    highlightingTest()
+    fileHighlightingTest()
   }
 
-  void 'test named params required'() { highlightingTest() }
+  void 'test named params required'() { fileHighlightingTest() }
 
-  void 'test several absent required named params'() { highlightingTest() }
+  void 'test several absent required named params'() { fileHighlightingTest() }
 
-  void 'test required named param in named variant'() { highlightingTest() }
+  void 'test required named param in named variant'() { fileHighlightingTest() }
 
-  void 'test named delegate without properties'() { highlightingTest() }
+  void 'test named delegate without properties'() { fileHighlightingTest() }
 
-  void 'test immutable fields'() { highlightingTest() }
+  void 'test immutable fields'() { fileHighlightingTest() }
 
-  void 'test immutable options absent field'() { highlightingTest() }
+  void 'test immutable options absent field'() { fileHighlightingTest() }
 
   void 'test immutable constructor'() {
     highlightingTest '''
@@ -131,5 +132,74 @@ def m() {
 
 m()
 '''
+  }
+
+  void 'test @MapConstructor from raw map'() {
+    highlightingTest '''
+@groovy.transform.MapConstructor
+class Rr {
+    String actionType
+}
+
+
+static void main(String[] args) {
+    def x = [actionType: "kik"] as Rr
+    println x.actionType
+}
+''', GroovyConstructorNamedArgumentsInspection
+  }
+
+  void 'test @NamedVariant'() {
+    highlightingTest """
+class Rr {
+    @groovy.transform.NamedVariant
+    Rr(String s1, Integer s2) {
+        
+    }
+}
+
+@groovy.transform.CompileStatic
+def foo() {
+    new Rr(s1: "a", s2: 10)
+}
+"""
+  }
+
+  void 'test @NamedVariant with autodelegate'() {
+    highlightingTest """
+class Foo {
+    int aaa
+    boolean bbb
+}
+
+@groovy.transform.NamedVariant(autoDelegate = true)
+static def bar(Foo a) {}
+
+@groovy.transform.CompileStatic
+static def foo() {
+    bar(aaa: 10, bbb: true)
+}"""
+  }
+
+  void 'test visibility options for @NamedVariant'() {
+    fixture.addFileToProject 'other.groovy', """
+import groovy.transform.options.Visibility
+
+@groovy.transform.CompileStatic
+class Cde {
+    @groovy.transform.NamedVariant
+    @groovy.transform.VisibilityOptions(method = Visibility.PUBLIC)
+    private static def foo(String s) {}
+}"""
+    highlightingTest """
+class X {
+
+    @groovy.transform.CompileStatic
+    static void main(String[] args) {
+        Cde.foo(s : "")
+        Cde.<error>foo</error>("")
+    }
+
+}"""
   }
 }

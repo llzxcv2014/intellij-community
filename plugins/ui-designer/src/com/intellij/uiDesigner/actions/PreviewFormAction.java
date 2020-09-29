@@ -29,7 +29,6 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileTypes.FileTypeRegistry;
-import com.intellij.openapi.fileTypes.StdFileTypes;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtil;
 import com.intellij.openapi.project.Project;
@@ -43,6 +42,7 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.uiDesigner.FormEditingUtil;
+import com.intellij.uiDesigner.GuiFormFileType;
 import com.intellij.uiDesigner.UIDesignerBundle;
 import com.intellij.uiDesigner.compiler.AsmCodeGenerator;
 import com.intellij.uiDesigner.compiler.FormErrorInfo;
@@ -52,6 +52,7 @@ import com.intellij.uiDesigner.lw.*;
 import com.intellij.uiDesigner.make.PreviewNestedFormLoader;
 import com.intellij.util.PathsList;
 import com.jgoodies.forms.layout.CellConstraints;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -81,7 +82,7 @@ public final class PreviewFormAction extends AnAction{
   @NonNls public static final String PREVIEW_BINDING_FIELD = "myComponent";
 
   @NotNull
-  public static InstrumentationClassFinder createClassFinder(@Nullable URL[] platformUrls, @NotNull final String classPath) {
+  public static InstrumentationClassFinder createClassFinder(URL @Nullable [] platformUrls, @NotNull final String classPath) {
     final ArrayList<URL> urls = new ArrayList<>();
     for (StringTokenizer tokenizer = new StringTokenizer(classPath, File.pathSeparator); tokenizer.hasMoreTokens();) {
       final String s = tokenizer.nextToken();
@@ -116,7 +117,7 @@ public final class PreviewFormAction extends AnAction{
     final VirtualFile file = editor.getFile();
     e.getPresentation().setVisible(
       FileDocumentManager.getInstance().getDocument(file) != null &&
-      FileTypeRegistry.getInstance().isFileOfType(file, StdFileTypes.GUI_DESIGNER_FORM)
+      FileTypeRegistry.getInstance().isFileOfType(file, GuiFormFileType.INSTANCE)
     );
   }
 
@@ -338,9 +339,9 @@ public final class PreviewFormAction extends AnAction{
     private final Module myModule;
     private final JavaParameters myParams;
     private final String myTempPath;
-    private final String myStatusbarMessage;
+    private final @Nls String myStatusbarMessage;
 
-    MyRunProfile(final Module module, final JavaParameters params, final String tempPath, final String statusbarMessage) {
+    MyRunProfile(final Module module, final JavaParameters params, final String tempPath, final @Nls String statusbarMessage) {
       myModule = module;
       myParams = params;
       myTempPath = tempPath;
@@ -362,7 +363,7 @@ public final class PreviewFormAction extends AnAction{
 
         @Override
         @NotNull
-        public ExecutionResult execute(@NotNull final Executor executor, @NotNull final ProgramRunner runner) throws ExecutionException {
+        public ExecutionResult execute(@NotNull final Executor executor, @NotNull final ProgramRunner<?> runner) throws ExecutionException {
           try {
             ExecutionResult executionResult = super.execute(executor, runner);
             executionResult.getProcessHandler().addProcessListener(new ProcessAdapter() {
@@ -388,8 +389,7 @@ public final class PreviewFormAction extends AnAction{
     }
 
     @Override
-    @NotNull
-    public Module[] getModules() {
+    public Module @NotNull [] getModules() {
       return new Module[] {myModule};
     }
   }

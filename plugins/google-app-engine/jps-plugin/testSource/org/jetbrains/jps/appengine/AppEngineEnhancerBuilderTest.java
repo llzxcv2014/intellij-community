@@ -30,9 +30,6 @@ import org.jetbrains.jps.model.module.JpsModule;
 
 import java.io.File;
 
-/**
- * @author nik
- */
 public class AppEngineEnhancerBuilderTest extends JpsBuildTestCase {
   public void testChangeFile() {
     String file = createFile("src/A.java", "class A{}");
@@ -56,7 +53,7 @@ public class AppEngineEnhancerBuilderTest extends JpsBuildTestCase {
   }
 
   private void assertEnhanced(final String... paths) {
-    assertCompiled(AppEngineEnhancerBuilder.NAME, paths);
+    assertCompiled(AppEngineEnhancerBuilder.NAME_SUPPLIER.get(), paths);
   }
 
   private void addAppEngineModule(final String moduleName, final boolean runEnhancerOnMake, String srcRoot) {

@@ -15,6 +15,7 @@
  */
 package com.jetbrains.python.debugger;
 
+import com.intellij.openapi.util.NlsSafe;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,7 +47,7 @@ public class ArrayChunk {
                     String min,
                     String format,
                     String type,
-                    @Nullable Object[][] data, List<String> labels, List<ColHeader> headers) {
+                    Object[] @Nullable [] data, List<String> labels, List<ColHeader> headers) {
     myValue = value;
     mySlicePresentation = slicePresentation;
     myRows = rows;
@@ -121,6 +122,7 @@ public class ArrayChunk {
       myMin = min;
     }
 
+    @NlsSafe
     public String getLabel() {
       return myLabel;
     }

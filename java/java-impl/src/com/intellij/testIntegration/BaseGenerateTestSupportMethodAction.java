@@ -10,6 +10,7 @@ import com.intellij.codeInsight.generation.actions.BaseGenerateAction;
 import com.intellij.codeInsight.hint.HintManager;
 import com.intellij.ide.fileTemplates.FileTemplateDescriptor;
 import com.intellij.ide.fileTemplates.impl.AllFileTemplatesConfigurable;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -53,7 +54,7 @@ public class BaseGenerateTestSupportMethodAction extends BaseGenerateAction {
       final List<TestFramework> frameworks = TestIntegrationUtils.findSuitableFrameworks(targetClass);
       final TestIntegrationUtils.MethodKind methodKind = ((MyHandler)getHandler()).myMethodKind;
       if (!frameworks.isEmpty()) {
-        return new AnAction("Edit Template") {
+        return new AnAction(JavaBundle.message("action.text.edit.template")) {
           @Override
           public void actionPerformed(@NotNull AnActionEvent e) {
             chooseAndPerform(editor, frameworks, framework -> {
@@ -62,7 +63,10 @@ public class BaseGenerateTestSupportMethodAction extends BaseGenerateAction {
                 final String fileName = descriptor.getFileName();
                 AllFileTemplatesConfigurable.editCodeTemplate(FileUtilRt.getNameWithoutExtension(fileName), project);
               } else {
-                HintManager.getInstance().showErrorHint(editor, "No template found for " + framework.getName() + ":" + BaseGenerateTestSupportMethodAction.this.getTemplatePresentation().getText());
+                String message = JavaBundle.message(
+                  "generate.test.support.method.error.no.template.found.for.framework", framework.getName(),
+                  BaseGenerateTestSupportMethodAction.this.getTemplatePresentation().getText());
+                HintManager.getInstance().showErrorHint(editor, message);
               }
             });
           }
@@ -141,7 +145,7 @@ public class BaseGenerateTestSupportMethodAction extends BaseGenerateAction {
       .createPopupChooserBuilder(frameworks)
       .setRenderer(cellRenderer)
       .setNamerForFiltering(o -> o.getName())
-      .setTitle("Choose Framework")
+      .setTitle(JavaBundle.message("popup.title.choose.framework"))
       .setItemChosenCallback(consumer)
       .setMovable(true)
       .createPopup().showInBestPositionFor(editor);
@@ -189,7 +193,8 @@ public class BaseGenerateTestSupportMethodAction extends BaseGenerateAction {
 
         if (alreadyExist instanceof PsiMethod) {
           editor.getCaretModel().moveToOffset(alreadyExist.getNavigationElement().getTextOffset());
-          HintManager.getInstance().showErrorHint(editor, "Method " + ((PsiMethod)alreadyExist).getName() + " already exists");
+          String message = JavaBundle.message("generate.test.support.method.error.method.already.exists", ((PsiMethod)alreadyExist).getName());
+          HintManager.getInstance().showErrorHint(editor, message);
           return;
         }
       }
@@ -205,7 +210,8 @@ public class BaseGenerateTestSupportMethodAction extends BaseGenerateAction {
           TestIntegrationUtils.runTestMethodTemplate(myMethodKind, framework, editor, targetClass, method, "name", false, null);
         }
         catch (IncorrectOperationException e) {
-          HintManager.getInstance().showErrorHint(editor, "Cannot generate method: " + e.getMessage());
+          String message = JavaBundle.message("generate.test.support.method.error.cannot.generate.method", e.getMessage());
+          HintManager.getInstance().showErrorHint(editor, message);
           LOG.warn(e);
         }
       });

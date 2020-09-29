@@ -1,12 +1,14 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.unscramble;
 
+import com.intellij.CommonBundle;
 import com.intellij.codeInsight.highlighting.HighlightManager;
 import com.intellij.execution.ui.ConsoleView;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.DataManager;
 import com.intellij.ide.ExporterToTextFile;
 import com.intellij.ide.ui.UISettings;
+import com.intellij.java.JavaBundle;
 import com.intellij.notification.NotificationGroup;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.editor.Editor;
@@ -40,7 +42,6 @@ import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -50,14 +51,14 @@ import static com.intellij.icons.AllIcons.Debugger.ThreadStates.*;
  * @author Jeka
  * @author Konstantin Bulenkov
  */
-public class ThreadDumpPanel extends JPanel implements DataProvider {
+public final class ThreadDumpPanel extends JPanel implements DataProvider {
   private static final Icon PAUSE_ICON_DAEMON = new LayeredIcon(AllIcons.Actions.Pause, Daemon_sign);
   private static final Icon LOCKED_ICON_DAEMON = new LayeredIcon(AllIcons.Debugger.MuteBreakpoints, Daemon_sign);
   private static final Icon RUNNING_ICON_DAEMON = new LayeredIcon(AllIcons.Actions.Resume, Daemon_sign);
   private static final Icon SOCKET_ICON_DAEMON = new LayeredIcon(Socket, Daemon_sign);
   private static final Icon IDLE_ICON_DAEMON = new LayeredIcon(Idle, Daemon_sign);
   private static final Icon EDT_BUSY_ICON_DAEMON = new LayeredIcon(AllIcons.Actions.ProfileCPU, Daemon_sign);
-  private static final Icon IO_ICON_DAEMON = new LayeredIcon(AllIcons.Actions.Menu_saveall, Daemon_sign);
+  private static final Icon IO_ICON_DAEMON = new LayeredIcon(AllIcons.Actions.MenuSaveall, Daemon_sign);
   private final JBList myThreadList;
   private final List<ThreadState> myThreadDump;
   private final List<ThreadState> myMergedThreadDump;
@@ -95,7 +96,7 @@ public class ThreadDumpPanel extends JPanel implements DataProvider {
     });
 
     myFilterPanel = new JPanel(new BorderLayout());
-    myFilterPanel.add(new JLabel("Filter:"), BorderLayout.WEST);
+    myFilterPanel.add(new JLabel(CommonBundle.message("label.filter") + ":"), BorderLayout.WEST);
     myFilterPanel.add(myFilterField);
     myFilterPanel.setVisible(false);
 
@@ -126,7 +127,9 @@ public class ThreadDumpPanel extends JPanel implements DataProvider {
     toolbarActions.add(new SortThreadsAction());
     toolbarActions.add(ActionManager.getInstance().getAction(IdeActions.ACTION_EXPORT_TO_TEXT_FILE));
     toolbarActions.add(new MergeStacktracesAction());
-    add(ActionManager.getInstance().createActionToolbar("ThreadDump", toolbarActions, false).getComponent(), BorderLayout.WEST);
+    ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar("ThreadDump", toolbarActions, false);
+    toolbar.setTargetComponent(consoleView.getComponent());
+    add(toolbar.getComponent(), BorderLayout.WEST);
 
     JPanel leftPanel = new JPanel(new BorderLayout());
     leftPanel.add(myFilterPanel, BorderLayout.NORTH);
@@ -218,7 +221,7 @@ public class ThreadDumpPanel extends JPanel implements DataProvider {
       return daemon ? SOCKET_ICON_DAEMON : Socket;
     }
     if (threadState.getOperation() == ThreadOperation.IO) {
-      return daemon ? IO_ICON_DAEMON : AllIcons.Actions.Menu_saveall;
+      return daemon ? IO_ICON_DAEMON : AllIcons.Actions.MenuSaveall;
     }
     if (threadState.isEDT()) {
       if ("idle".equals(threadState.getThreadStateDetail())) {
@@ -293,29 +296,27 @@ public class ThreadDumpPanel extends JPanel implements DataProvider {
     myThreadList.setSelectedIndex(index);
   }
 
-  private class SortThreadsAction extends DumbAwareAction {
+  private final class SortThreadsAction extends DumbAwareAction {
     private final Comparator<ThreadState> BY_TYPE = (o1, o2) -> {
-      final int s1 = getThreadStateCode(o1).ordinal();
-      final int s2 = getThreadStateCode(o2).ordinal();
-      if (s1 == s2) {
+      int c = getThreadStateCode(o1).compareTo(getThreadStateCode(o2));
+      if (c == 0) {
         return o1.getName().compareToIgnoreCase(o2.getName());
       } else {
-        return s1 < s2 ? - 1 :  1;
+        return c;
       }
     };
 
     private final Comparator<ThreadState> BY_NAME = (o1, o2) -> o1.getName().compareToIgnoreCase(o2.getName());
     private Comparator<ThreadState> COMPARATOR = BY_TYPE;
-    private static final String TYPE_LABEL = "Sort threads by type";
-    private static final String NAME_LABEL = "Sort threads by name";
+
     private SortThreadsAction() {
-      super(TYPE_LABEL);
+      super(JavaBundle.message("sort.threads.by.type"));
     }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
-      Collections.sort(myThreadDump, COMPARATOR);
-      Collections.sort(myMergedThreadDump, COMPARATOR);
+      myThreadDump.sort(COMPARATOR);
+      myMergedThreadDump.sort(COMPARATOR);
       updateThreadList();
       COMPARATOR = COMPARATOR == BY_TYPE ? BY_NAME : BY_TYPE;
       update(e);
@@ -324,16 +325,17 @@ public class ThreadDumpPanel extends JPanel implements DataProvider {
     @Override
     public void update(@NotNull AnActionEvent e) {
       e.getPresentation().setIcon(COMPARATOR == BY_TYPE ? AllIcons.ObjectBrowser.SortByType : AllIcons.ObjectBrowser.Sorted);
-      e.getPresentation().setText(COMPARATOR == BY_TYPE ? TYPE_LABEL : NAME_LABEL);
+      e.getPresentation().setText(COMPARATOR == BY_TYPE ? JavaBundle.message("sort.threads.by.type") :
+                                  JavaBundle.message("sort.threads.by.name"));
     }
   }
-  private static class CopyToClipboardAction extends DumbAwareAction {
+  private static final class CopyToClipboardAction extends DumbAwareAction {
     private static final NotificationGroup GROUP = NotificationGroup.toolWindowGroup("Analyze thread dump", ToolWindowId.RUN, false);
     private final List<? extends ThreadState> myThreadDump;
     private final Project myProject;
 
     private CopyToClipboardAction(List<? extends ThreadState> threadDump, Project project) {
-      super("Copy to Clipboard", "Copy whole thread dump to clipboard", PlatformIcons.COPY_ICON);
+      super(JavaBundle.message("action.text.copy.to.clipboard"), JavaBundle.message("action.description.copy.whole.thread.dump.to.clipboard"), PlatformIcons.COPY_ICON);
       myThreadDump = threadDump;
       myProject = project;
     }
@@ -347,14 +349,15 @@ public class ThreadDumpPanel extends JPanel implements DataProvider {
       }
       CopyPasteManager.getInstance().setContents(new StringSelection(buf.toString()));
 
-      GROUP.createNotification("Full thread dump was successfully copied to clipboard", MessageType.INFO).notify(myProject);
+      GROUP.createNotification(JavaBundle.message("notification.text.full.thread.dump.was.successfully.copied.to.clipboard"), MessageType.INFO).notify(myProject);
     }
   }
 
-  private class FilterAction extends ToggleAction implements DumbAware {
+  private final class FilterAction extends ToggleAction implements DumbAware {
 
     private FilterAction() {
-      super("Filter", "Show only threads containing a specific string", AllIcons.General.Filter);
+      super(CommonBundle.messagePointer("action.text.filter"), JavaBundle.messagePointer(
+        "action.description.show.only.threads.containing.a.specific.string"), AllIcons.General.Filter);
     }
 
     @Override
@@ -373,9 +376,10 @@ public class ThreadDumpPanel extends JPanel implements DataProvider {
     }
   }
 
-  private class MergeStacktracesAction extends ToggleAction implements DumbAware {
+  private final class MergeStacktracesAction extends ToggleAction implements DumbAware {
     private MergeStacktracesAction() {
-      super("Merge Identical Stacktraces", "Group threads with identical stacktraces", AllIcons.General.CollapseAll);
+      super(JavaBundle.messagePointer("action.text.merge.identical.stacktraces"), JavaBundle.messagePointer(
+        "action.description.group.threads.with.identical.stacktraces"), AllIcons.Actions.Collapseall);
     }
 
     @Override
@@ -394,7 +398,7 @@ public class ThreadDumpPanel extends JPanel implements DataProvider {
     return new MyToFileExporter(project, threadStates);
   }
 
-  private static class MyToFileExporter implements ExporterToTextFile {
+  private static final class MyToFileExporter implements ExporterToTextFile {
     private final Project myProject;
     private final List<? extends ThreadState> myThreadStates;
 

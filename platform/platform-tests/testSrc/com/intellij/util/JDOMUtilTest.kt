@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util
 
 import com.intellij.openapi.util.JDOMUtil
@@ -13,11 +13,12 @@ import java.awt.Dimension
 import java.awt.Point
 import java.awt.Rectangle
 import java.io.File
+import java.nio.file.Paths
 
 internal class JDOMUtilTest {
   @Test
   fun testBadHost() {
-    JDOMUtil.loadDocument(File(PlatformTestUtil.getPlatformTestDataPath() + File.separator + "tools" + File.separator + "badHost.xml"))
+    JDOMUtil.load(Paths.get(PlatformTestUtil.getPlatformTestDataPath(), "tools/badHost.xml"))
   }
 
   @Test
@@ -80,6 +81,39 @@ internal class JDOMUtilTest {
           <module name="my-app" target="1.5" />
         </bytecodeTargetLevel>
       </component>""")
+  }
+
+  @Test
+  fun `test reduce children`() {
+    val element = JDOMUtil.load("""
+      |  <component name="CompilerConfiguration">
+      |    <bytecodeTargetLevel target="1.7">
+      |      <module name="module1" target="11" />
+      |    </bytecodeTargetLevel>
+      |    <bytecodeTargetLevel>
+      |      <module name="module2" target="13" />
+      |      <module name="module3" target="14" />
+      |    </bytecodeTargetLevel>
+      |  </component>""".trimMargin()
+    )
+    assertThat(JDOMUtil.reduceChildren("bytecodeTargetLevel", element))
+      .isEqualTo("""
+        |  <bytecodeTargetLevel target="1.7">
+        |    <module name="module1" target="11" />
+        |    <module name="module2" target="13" />
+        |    <module name="module3" target="14" />
+        |  </bytecodeTargetLevel>""".trimMargin()
+      )
+    assertThat(element)
+      .isEqualTo("""
+        |  <component name="CompilerConfiguration">
+        |    <bytecodeTargetLevel target="1.7">
+        |      <module name="module1" target="11" />
+        |      <module name="module2" target="13" />
+        |      <module name="module3" target="14" />
+        |    </bytecodeTargetLevel>
+        |  </component>""".trimMargin()
+      )
   }
 
   @Test
@@ -243,6 +277,39 @@ internal class JDOMUtilTest {
     assertElementText(element, """<state x="1" y="1" width="0" height="0" />""")
   }
 
+  @Test
+  fun `equals and hashCode`() {
+    fun generateElement(data: Int): Element {
+      val s = Integer.toBinaryString(data).padStart(7, '0')
+      val element = Element("e${s.substring(0, 1)}")
+      val attributeName = s.substring(1, 3)
+      val attributeValue = s.substring(3, 5)
+      if (attributeName != "00" || attributeValue != "00") {
+        element.setAttribute("a$attributeName", if (attributeValue == "00") "" else attributeValue)
+      }
+      val subTag = s.substring(5, 7)
+      if (subTag == "01") {
+        element.addContent(Element("subTag"))
+      }
+      else if (subTag != "00") {
+        element.addContent(Text(subTag))
+      }
+      return element
+    }
+    for (data1 in 0 .. 31) {
+      val element1 = generateElement(data1)
+      for (data2 in 0..31) {
+        val element2 = generateElement(data2)
+        if (data1 == data2) {
+          assertThat(element1).isEqualTo(element2)
+          assertThat(JDOMUtil.hashCode(element1, false)).isEqualTo(JDOMUtil.hashCode(element2, false))
+        }
+        else {
+          assertThat(JDOMUtil.areElementsEqual(element1, element2)).isFalse()
+        }
+      }
+    }
+  }
 
   private fun assertElementText(actual: Element, expected: String) {
     assertThat(JDOMUtil.createOutputter("").outputString(actual)).isEqualTo(expected)

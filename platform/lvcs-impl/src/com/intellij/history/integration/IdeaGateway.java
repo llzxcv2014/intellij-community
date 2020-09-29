@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.history.integration;
 
 import com.intellij.history.core.LocalHistoryFacade;
@@ -158,7 +158,7 @@ public class IdeaGateway {
 
   public boolean areContentChangesVersioned(@NotNull VirtualFile f) {
     return isVersioned(f) && !f.isDirectory() &&
-           (areContentChangesVersioned(f.getName()) || ScratchFileService.isInScratchRoot(f));
+           (areContentChangesVersioned(f.getName()) || ScratchFileService.findRootType(f) != null);
   }
 
   public boolean areContentChangesVersioned(@NotNull String fileName) {
@@ -447,7 +447,7 @@ public class IdeaGateway {
     return d.getText().getBytes(charset);
   }
 
-  public String stringFromBytes(@NotNull byte[] bytes, @NotNull String path) {
+  public String stringFromBytes(byte @NotNull [] bytes, @NotNull String path) {
     VirtualFile file = findVirtualFile(path);
     Charset charset = file != null ? file.getCharset() : EncodingRegistry.getInstance().getDefaultCharset();
     return CharsetToolkit.bytesToString(bytes, charset);
@@ -472,7 +472,7 @@ public class IdeaGateway {
     return FileTypeManager.getInstance().getFileTypeByFileName(fileName);
   }
 
-  private static class ContentAndTimestamps {
+  private static final class ContentAndTimestamps {
     long registeredTimestamp;
     StoredContent content;
     long documentModificationStamp;

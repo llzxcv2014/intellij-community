@@ -1,7 +1,9 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.annotator.checkers;
 
+import com.intellij.codeInspection.util.InspectionMessage;
 import com.intellij.lang.annotation.AnnotationHolder;
+import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.util.Pair;
 import com.intellij.psi.PsiAnnotationOwner;
 import com.intellij.psi.PsiClass;
@@ -15,7 +17,7 @@ import org.jetbrains.plugins.groovy.lang.psi.api.types.GrCodeReferenceElement;
 import org.jetbrains.plugins.groovy.lang.psi.impl.auxiliary.modifiers.GrAnnotationCollector;
 import org.jetbrains.plugins.groovy.lang.resolve.ResolveUtil;
 
-public class AnnotationChecker {
+public final class AnnotationChecker {
 
   public static void checkApplicability(@NotNull GrAnnotation annotation,
                                         @Nullable PsiAnnotationOwner owner,
@@ -31,7 +33,7 @@ public class AnnotationChecker {
     String qname = anno.getQualifiedName();
     if (!anno.isAnnotationType() && GrAnnotationCollector.findAnnotationCollector(anno) == null) {
       if (qname != null) {
-        holder.createErrorAnnotation(toHighlight, GroovyBundle.message("class.is.not.annotation", qname));
+        holder.newAnnotation(HighlightSeverity.ERROR, GroovyBundle.message("class.is.not.annotation", qname)).range(toHighlight).create();
       }
       return;
     }
@@ -42,21 +44,21 @@ public class AnnotationChecker {
 
     String description = CustomAnnotationChecker.checkAnnotationApplicable(annotation, owner);
     if (description != null) {
-      holder.createErrorAnnotation(toHighlight, description).registerFix(new GrRemoveAnnotationIntention());
+      holder.newAnnotation(HighlightSeverity.ERROR, description).range(toHighlight).withFix(new GrRemoveAnnotationIntention()).create();
     }
   }
 
-  public static Pair<PsiElement, String> checkAnnotationArgumentList(@NotNull GrAnnotation annotation,
-                                                                     AnnotationHolder holder, PsiElement toHighlight) {
+  public static @Nullable Pair<@Nullable PsiElement, @InspectionMessage @Nullable String> checkAnnotationArgumentList(@NotNull GrAnnotation annotation,
+                                                                                                                      @NotNull AnnotationHolder holder) {
     final PsiClass anno = ResolveUtil.resolveAnnotation(annotation);
     if (anno == null) return null;
 
     for (CustomAnnotationChecker checker : CustomAnnotationChecker.EP_NAME.getExtensions()) {
-      if (checker.checkArgumentList(holder, annotation)) return Pair.create(null,null);
+      if (checker.checkArgumentList(holder, annotation)) return Pair.create(null, null);
     }
 
     return CustomAnnotationChecker.checkAnnotationArguments(
-      anno, toHighlight, annotation.getParameterList().getAttributes(), true
+      anno, annotation.getParameterList().getAttributes(), true
     );
   }
 }

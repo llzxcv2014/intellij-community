@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.vcs.commit.message;
 
 import com.intellij.codeInspection.ex.InspectionToolWrapper;
@@ -10,25 +10,24 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vcs.VcsBundle;
 import com.intellij.openapi.vcs.VcsDataKeys;
 import com.intellij.openapi.vcs.ui.CommitMessage;
-import org.jetbrains.annotations.CalledWithWriteLock;
+import com.intellij.util.concurrency.annotations.RequiresWriteLock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
-import static com.intellij.util.ObjectUtils.notNull;
 import static com.intellij.util.ObjectUtils.tryCast;
 import static java.util.stream.Collectors.toList;
 
 public class ReformatCommitMessageAction extends DumbAwareAction {
 
-  public static final String NAME = "Reformat commit message";
-
   public ReformatCommitMessageAction() {
-    super(NAME);
+    super(VcsBundle.messagePointer("commit.message.intention.family.name.reformat.commit.message"));
     setEnabledInModalContext(true);
   }
 
@@ -44,14 +43,14 @@ public class ReformatCommitMessageAction extends DumbAwareAction {
 
   @Override
   public void actionPerformed(@NotNull AnActionEvent e) {
-    Project project = notNull(e.getProject());
-    Document document = notNull(getCommitMessage(e));
+    Project project = Objects.requireNonNull(e.getProject());
+    Document document = Objects.requireNonNull(getCommitMessage(e));
 
     CommandProcessor.getInstance().executeCommand(project, () ->
-      WriteAction.run(() -> reformat(project, document)), NAME, null);
+      WriteAction.run(() -> reformat(project, document)), VcsBundle.message("commit.message.intention.family.name.reformat.commit.message"), null);
   }
 
-  @CalledWithWriteLock
+  @RequiresWriteLock
   public static void reformat(@NotNull Project project, @NotNull Document document) {
     List<BaseCommitMessageInspection> inspections = getEnabledInspections(project).collect(toList());
 

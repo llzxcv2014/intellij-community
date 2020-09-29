@@ -22,9 +22,6 @@ import org.jetbrains.jps.model.JpsElement;
 import org.jetbrains.jps.model.module.JpsModuleType;
 import org.jetbrains.jps.model.serialization.JpsElementPropertiesSerializer;
 
-/**
- * @author nik
- */
 public abstract class JpsModulePropertiesSerializer<P extends JpsElement> extends JpsElementPropertiesSerializer<P, JpsModuleType<P>> {
   private final String myComponentName;
 
@@ -40,5 +37,10 @@ public abstract class JpsModulePropertiesSerializer<P extends JpsElement> extend
 
   public abstract P loadProperties(@Nullable Element componentElement);
 
-  public abstract void saveProperties(@NotNull P properties, @NotNull Element componentElement);
+  /**
+   * @deprecated the build process doesn't save project configuration so there is no need to implement this method, it isn't called by the platform
+   */
+  @Deprecated
+  public void saveProperties(@NotNull P properties, @NotNull Element componentElement) {
+  }
 }

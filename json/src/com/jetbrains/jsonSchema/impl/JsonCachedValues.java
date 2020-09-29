@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.jsonSchema.impl;
 
 import com.intellij.codeInsight.completion.CompletionUtil;
@@ -7,6 +7,7 @@ import com.intellij.json.navigation.JsonQualifiedNameProvider;
 import com.intellij.json.psi.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
@@ -29,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class JsonCachedValues {
+public final class JsonCachedValues {
   private static final Key<CachedValue<JsonSchemaObject>> JSON_OBJECT_CACHE_KEY = Key.create("JsonSchemaObjectCache");
 
   @Nullable
@@ -78,7 +79,7 @@ public class JsonCachedValues {
                                    @NotNull final Project project) {
     //skip content loading for generated schema files (IntellijConfigurationJsonSchemaProviderFactory)
     if (schemaFile instanceof LightVirtualFile) return null;
-    
+
     String value = JsonSchemaFileValuesIndex.getCachedValue(project, schemaFile, ID_CACHE_KEY);
     if (value != null && !JsonSchemaFileValuesIndex.NULL.equals(value)) return JsonPointerUtil.normalizeId(value);
     String obsoleteValue = JsonSchemaFileValuesIndex.getCachedValue(project, schemaFile, OBSOLETE_ID_CACHE_KEY);
@@ -175,7 +176,7 @@ public class JsonCachedValues {
   }
 
   @Nullable
-  private static String readStringValue(@Nullable JsonProperty property) {
+  private static @NlsSafe String readStringValue(@Nullable JsonProperty property) {
     if (property == null) return null;
     JsonValue urlValue = property.getValue();
     if (urlValue instanceof JsonStringLiteral) {
@@ -214,6 +215,7 @@ public class JsonCachedValues {
   }
 
   public static final Key<CachedValue<JsonSchemaObject>> OBJECT_FOR_FILE_KEY = new Key<>("JsonCachedValues.OBJ_KEY");
+
   @Nullable
   static JsonSchemaObject computeSchemaForFile(@NotNull PsiFile file, @NotNull JsonSchemaService service) {
     final PsiFile originalFile = CompletionUtil.getOriginalOrSelf(file);

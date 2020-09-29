@@ -19,22 +19,27 @@ import com.intellij.diff.DiffContext;
 import com.intellij.diff.DiffContextEx;
 import com.intellij.diff.FrameDiffTool;
 import com.intellij.diff.contents.DiffContent;
+import com.intellij.diff.contents.EmptyContent;
 import com.intellij.diff.contents.FileContent;
 import com.intellij.diff.requests.*;
 import com.intellij.diff.util.DiffUtil;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.diff.DiffBundle;
 import com.intellij.openapi.editor.colors.EditorColors;
 import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.editor.colors.EditorColorsScheme;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.fileTypes.FileTypes;
 import com.intellij.openapi.fileTypes.UnknownFileType;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vcs.changes.issueLinks.LinkMouseListenerBase;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.SimpleColoredComponent;
 import com.intellij.ui.SimpleTextAttributes;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -64,20 +69,21 @@ public class ErrorDiffTool implements FrameDiffTool {
   @NotNull
   @Override
   public String getName() {
-    return "Error viewer";
+    return DiffBundle.message("error.viewer");
   }
 
   private static class MyViewer implements DiffViewer {
     @NotNull private final DiffContext myContext;
     @NotNull private final DiffRequest myRequest;
 
-    @NotNull private final JPanel myPanel;
+    @NotNull private final JComponent myPanel;
 
     MyViewer(@NotNull DiffContext context, @NotNull DiffRequest request) {
       myContext = context;
       myRequest = request;
 
-      myPanel = JBUI.Panels.simplePanel(createComponent(request));
+      JComponent component = createComponent(request);
+      myPanel = ScrollPaneFactory.createScrollPane(component, true);
     }
 
     @NotNull
@@ -85,7 +91,7 @@ public class ErrorDiffTool implements FrameDiffTool {
       if (request instanceof ErrorDiffRequest) {
         // TODO: explain some of ErrorDiffRequest exceptions ?
         String message = ((ErrorDiffRequest)request).getMessage();
-        return createReloadMessagePanel(myContext, message, "Reload", null);
+        return createReloadMessagePanel(myContext, message, DiffBundle.message("button.reload.diff.request"), null);
       }
       if (request instanceof MessageDiffRequest) {
         String message = ((MessageDiffRequest)request).getMessage();
@@ -102,6 +108,10 @@ public class ErrorDiffTool implements FrameDiffTool {
             return UnknownFileTypeDiffRequest.createComponent(file.getName(), myContext);
           }
         }
+
+        if (ContainerUtil.all(contents, it -> it instanceof EmptyContent)) {
+          return DiffUtil.createMessagePanel(NoDiffRequest.INSTANCE.getMessage());
+        }
       }
 
       LOG.info("Can't show diff for " + request.getClass().getName());
@@ -112,7 +122,7 @@ public class ErrorDiffTool implements FrameDiffTool {
         }
       }
 
-      return DiffUtil.createMessagePanel("Can't show diff");
+      return DiffUtil.createMessagePanel(DiffBundle.message("error.message.cannot.show.diff"));
     }
 
     @NotNull
@@ -151,8 +161,8 @@ public class ErrorDiffTool implements FrameDiffTool {
   }
 
   @NotNull
-  public static JComponent createReloadMessagePanel(@Nullable DiffContext context, @NotNull String message,
-                                                    @NotNull String reloadMessage, @Nullable Runnable beforeReload) {
+  public static JComponent createReloadMessagePanel(@Nullable DiffContext context, @NotNull @NlsContexts.Label String message,
+                                                    @NotNull @NlsContexts.Label String reloadMessage, @Nullable Runnable beforeReload) {
     if (context instanceof DiffContextEx) {
       EditorColorsScheme scheme = EditorColorsManager.getInstance().getGlobalScheme();
       Color linkColor = chooseNotNull(scheme.getAttributes(EditorColors.REFERENCE_HYPERLINK_COLOR).getForegroundColor(),

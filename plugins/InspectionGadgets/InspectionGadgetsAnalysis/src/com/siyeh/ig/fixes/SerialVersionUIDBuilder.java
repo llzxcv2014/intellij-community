@@ -36,7 +36,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
-public class SerialVersionUIDBuilder extends JavaRecursiveElementVisitor {
+public final class SerialVersionUIDBuilder extends JavaRecursiveElementVisitor {
 
   @NonNls private static final String ACCESS_METHOD_NAME_PREFIX = "access$";
 
@@ -250,26 +250,22 @@ public class SerialVersionUIDBuilder extends JavaRecursiveElementVisitor {
     return cache;
   }
 
-  @NotNull
-  public MemberSignature[] getNonPrivateConstructors() {
+  public MemberSignature @NotNull [] getNonPrivateConstructors() {
     init();
     return nonPrivateConstructors.toArray(new MemberSignature[0]);
   }
 
-  @NotNull
-  public MemberSignature[] getNonPrivateFields() {
+  public MemberSignature @NotNull [] getNonPrivateFields() {
     init();
     return nonPrivateFields.toArray(new MemberSignature[0]);
   }
 
-  @NotNull
-  public MemberSignature[] getNonPrivateMethodSignatures() {
+  public MemberSignature @NotNull [] getNonPrivateMethodSignatures() {
     init();
     return nonPrivateMethods.toArray(new MemberSignature[0]);
   }
 
-  @NotNull
-  public MemberSignature[] getStaticInitializers() {
+  public MemberSignature @NotNull [] getStaticInitializers() {
     init();
     return staticInitializers.toArray(new MemberSignature[0]);
   }

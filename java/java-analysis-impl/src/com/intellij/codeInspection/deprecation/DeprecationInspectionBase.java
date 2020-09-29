@@ -1,14 +1,16 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.deprecation;
 
 import com.intellij.codeInsight.AnnotationUtil;
-import com.intellij.codeInsight.daemon.JavaErrorMessages;
+import com.intellij.codeInsight.daemon.JavaErrorBundle;
 import com.intellij.codeInsight.daemon.impl.analysis.HighlightMessageUtil;
 import com.intellij.codeInspection.LocalInspectionTool;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.ProblemsHolder;
 import com.intellij.codeInspection.ui.MultipleCheckboxOptionsPanel;
+import com.intellij.codeInspection.util.InspectionMessage;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.*;
@@ -70,8 +72,8 @@ public abstract class DeprecationInspectionBase extends LocalInspectionTool {
 
     if (ignoreImportStatements && isElementInsideImportStatement(elementToHighlight)) return;
 
-    String description = JavaErrorMessages.message(forRemoval ? "marked.for.removal.symbol" : "deprecated.symbol",
-                                                   getPresentableName(element));
+    String description = JavaErrorBundle.message(forRemoval ? "marked.for.removal.symbol" : "deprecated.symbol",
+                                                 getPresentableName(element));
 
     LocalQuickFix replacementQuickFix = getReplacementQuickFix(element, elementToHighlight);
 
@@ -144,16 +146,16 @@ public abstract class DeprecationInspectionBase extends LocalInspectionTool {
   private static boolean areElementsInSameOutermostClass(PsiElement refElement, PsiElement elementToHighlight) {
     PsiClass outermostClass = CachedValuesManager.getCachedValue(
       refElement,
-      () -> new CachedValueProvider.Result<>(PsiUtil.getTopLevelClass(refElement), PsiModificationTracker.JAVA_STRUCTURE_MODIFICATION_COUNT)
+      () -> new CachedValueProvider.Result<>(PsiUtil.getTopLevelClass(refElement), PsiModificationTracker.MODIFICATION_COUNT)
     );
     return outermostClass != null && outermostClass == PsiUtil.getTopLevelClass(elementToHighlight);
   }
 
   static void addSameOutermostClassCheckBox(MultipleCheckboxOptionsPanel panel) {
-    panel.addCheckbox("Ignore in the same outermost class", "IGNORE_IN_SAME_OUTERMOST_CLASS");
+    panel.addCheckbox(JavaAnalysisBundle.message("ignore.in.the.same.outermost.class"), "IGNORE_IN_SAME_OUTERMOST_CLASS");
   }
 
-  protected static String getDescription(@NotNull String description, boolean forRemoval, ProblemHighlightType highlightType) {
+  protected static @InspectionMessage String getDescription(@NotNull @InspectionMessage String description, boolean forRemoval, ProblemHighlightType highlightType) {
     if (ApplicationManager.getApplication().isUnitTestMode()) {
       ProblemHighlightType defaultType = forRemoval ? ProblemHighlightType.LIKE_MARKED_FOR_REMOVAL : ProblemHighlightType.LIKE_DEPRECATED;
       if (highlightType != defaultType) {
@@ -225,7 +227,7 @@ public abstract class DeprecationInspectionBase extends LocalInspectionTool {
 
     String qualifierText;
     if (isInitialStatic) {
-      qualifierText = ObjectUtils.notNull(suggestedReplacement.getContainingClass()).getQualifiedName() + ".";
+      qualifierText = Objects.requireNonNull(suggestedReplacement.getContainingClass()).getQualifiedName() + ".";
     }
     else {
       PsiExpression qualifierExpression = call.getMethodExpression().getQualifierExpression();

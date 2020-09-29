@@ -32,6 +32,8 @@ import com.intellij.psi.util.PsiUtilBase;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import static com.intellij.codeWithMe.ClientIdKt.isForeignClientOnServer;
+
 public class LookupTypedHandler extends TypedActionHandlerBase {
   private static final Logger LOG = Logger.getInstance(LookupTypedHandler.class);
 
@@ -44,7 +46,7 @@ public class LookupTypedHandler extends TypedActionHandlerBase {
     final Project project = CommonDataKeys.PROJECT.getData(dataContext);
     PsiFile file = project == null ? null : PsiUtilBase.getPsiFileInEditor(originalEditor, project);
 
-    if (file == null) {
+    if (file == null || isForeignClientOnServer()) {
       if (myOriginalHandler != null){
         myOriginalHandler.execute(originalEditor, charTyped, dataContext);
       }
@@ -113,9 +115,10 @@ public class LookupTypedHandler extends TypedActionHandlerBase {
         }
       }
 
-      AutoHardWrapHandler.getInstance().wrapLineIfNecessary(originalEditor,
-                                                            DataManager.getInstance().getDataContext(originalEditor.getContentComponent()),
-                                                            modificationStamp);
+      originalEditor.getCaretModel().runForEachCaret(caret -> {
+        DataContext context = DataManager.getInstance().getDataContext(originalEditor.getContentComponent());
+        AutoHardWrapHandler.getInstance().wrapLineIfNecessary(originalEditor, context, modificationStamp);
+      });
 
       final CompletionProgressIndicator completion = CompletionServiceImpl.getCurrentCompletionProgressIndicator();
       if (completion != null) {

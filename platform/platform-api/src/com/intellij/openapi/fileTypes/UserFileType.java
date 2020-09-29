@@ -3,25 +3,30 @@ package com.intellij.openapi.fileTypes;
 
 import com.intellij.openapi.options.SettingsEditor;
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.PlatformIcons;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 
-public abstract class UserFileType <T extends UserFileType> implements FileType, Cloneable {
+public abstract class UserFileType<T extends UserFileType<T>> implements FileType, Cloneable {
   @NotNull private String myName = "";
-  private String myDescription = "";
+  private @NlsContexts.Label String myDescription = "";
 
   private Icon myIcon;
   private String myIconPath;
 
+  protected UserFileType() {
+  }
+
   public abstract SettingsEditor<T> getEditor();
 
   @Override
-  public UserFileType clone() {
+  public UserFileType<T> clone() {
     try {
-      return (UserFileType)super.clone();
+      //noinspection unchecked
+      return (UserFileType<T>)super.clone();
     }
     catch (CloneNotSupportedException e) {
       return null; //Can't be
@@ -44,7 +49,7 @@ public abstract class UserFileType <T extends UserFileType> implements FileType,
     myName = name;
   }
 
-  public void setDescription(String description) {
+  public void setDescription(@NlsContexts.Label String description) {
     myDescription = description;
   }
 
@@ -77,11 +82,11 @@ public abstract class UserFileType <T extends UserFileType> implements FileType,
   }
 
   @Override
-  public String getCharset(@NotNull VirtualFile file, @NotNull final byte[] content) {
+  public String getCharset(@NotNull VirtualFile file, final byte @NotNull [] content) {
     return null;
   }
 
-  public void copyFrom(@NotNull UserFileType newType) {
+  public void copyFrom(@NotNull UserFileType<T> newType) {
     myName = newType.getName();
     myDescription = newType.getDescription();
   }

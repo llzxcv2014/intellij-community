@@ -1,6 +1,7 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.ui;
 
+import com.intellij.build.events.BuildEventsNls;
 import com.intellij.execution.DefaultExecutionResult;
 import com.intellij.execution.ExecutionResult;
 import com.intellij.execution.configurations.RunProfile;
@@ -11,6 +12,7 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.NlsContexts.TabTitle;
 import com.intellij.ui.content.Content;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -24,7 +26,7 @@ public class RunContentDescriptor implements Disposable {
   private ExecutionConsole myExecutionConsole;
   private ProcessHandler myProcessHandler;
   private JComponent myComponent;
-  private final String myDisplayName;
+  private final @TabTitle String myDisplayName;
   private final Icon myIcon;
   private final String myHelpId;
   private RunnerLayoutUi myRunnerLayoutUi = null;
@@ -39,8 +41,7 @@ public class RunContentDescriptor implements Disposable {
 
   private Content myContent;
   private String myContentToolWindowId;
-  @NotNull
-  private final AnAction[] myRestartActions;
+  private final AnAction @NotNull [] myRestartActions;
 
   @Nullable
   private final Runnable myActivationCallback;
@@ -48,7 +49,7 @@ public class RunContentDescriptor implements Disposable {
   public RunContentDescriptor(@Nullable ExecutionConsole executionConsole,
                               @Nullable ProcessHandler processHandler,
                               @NotNull JComponent component,
-                              String displayName,
+                              @TabTitle String displayName,
                               @Nullable Icon icon,
                               @Nullable Runnable activationCallback) {
     this(executionConsole, processHandler, component, displayName, icon, activationCallback, null);
@@ -57,10 +58,10 @@ public class RunContentDescriptor implements Disposable {
   public RunContentDescriptor(@Nullable ExecutionConsole executionConsole,
                               @Nullable ProcessHandler processHandler,
                               @NotNull JComponent component,
-                              String displayName,
+                              @TabTitle String displayName,
                               @Nullable Icon icon,
                               @Nullable Runnable activationCallback,
-                              @Nullable AnAction[] restartActions) {
+                              AnAction @Nullable [] restartActions) {
     myExecutionConsole = executionConsole;
     myProcessHandler = processHandler;
     myComponent = component;
@@ -78,7 +79,7 @@ public class RunContentDescriptor implements Disposable {
   public RunContentDescriptor(@Nullable ExecutionConsole executionConsole,
                               @Nullable ProcessHandler processHandler,
                               @NotNull JComponent component,
-                              String displayName,
+                              @TabTitle String displayName,
                               @Nullable Icon icon) {
     this(executionConsole, processHandler, component, displayName, icon, null, null);
   }
@@ -86,7 +87,7 @@ public class RunContentDescriptor implements Disposable {
   public RunContentDescriptor(@Nullable ExecutionConsole executionConsole,
                               @Nullable ProcessHandler processHandler,
                               @NotNull JComponent component,
-                              String displayName) {
+                              @TabTitle String displayName) {
     this(executionConsole, processHandler, component, displayName, null, null, null);
   }
 
@@ -101,15 +102,14 @@ public class RunContentDescriptor implements Disposable {
     myRunnerLayoutUi = ui;
   }
 
-  public Runnable getActivationCallback() {
+  public @Nullable Runnable getActivationCallback() {
     return myActivationCallback;
   }
 
   /**
    * @return actions to restart or rerun
    */
-  @NotNull
-  public AnAction[] getRestartActions() {
+  public AnAction @NotNull [] getRestartActions() {
     return myRestartActions.length == 0 ? AnAction.EMPTY_ARRAY : myRestartActions.clone();
   }
 
@@ -152,6 +152,7 @@ public class RunContentDescriptor implements Disposable {
     return myComponent;
   }
 
+  @BuildEventsNls.Title
   public String getDisplayName() {
     return myDisplayName;
   }

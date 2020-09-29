@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.extensions;
 
 import com.intellij.openapi.application.ApplicationManager;
@@ -23,7 +23,7 @@ import java.util.*;
 /**
  * @author Sergey Evdokimov
  */
-public class GroovyMethodInfo {
+public final class GroovyMethodInfo {
 
   private static volatile Map<String, Map<String, List<GroovyMethodInfo>>> METHOD_INFOS;
   private static Map<String, Map<String, List<GroovyMethodInfo>>> LIGHT_METHOD_INFOS;
@@ -44,6 +44,18 @@ public class GroovyMethodInfo {
   private final Map<String, NamedArgumentReference> myNamedArgReferenceProviders;
 
   private final GroovyMethodDescriptor myDescriptor;
+
+  static {
+    GroovyClassDescriptor.EP_NAME.addChangeListener(GroovyMethodInfo::dropCaches, null);
+    GroovyMethodDescriptorExtension.EP_NAME.addChangeListener(GroovyMethodInfo::dropCaches, null);
+  }
+
+  private static void dropCaches() {
+    synchronized (GroovyMethodInfo.class) {
+      METHOD_INFOS = null;
+      LIGHT_METHOD_INFOS = null;
+    }
+  }
 
   private static void ensureInit() {
     if (METHOD_INFOS != null) return;

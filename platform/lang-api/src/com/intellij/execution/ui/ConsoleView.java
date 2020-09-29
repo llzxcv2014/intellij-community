@@ -29,7 +29,9 @@ public interface ConsoleView extends ExecutionConsole {
 
   void scrollTo(int offset);
 
-  void attachToProcess(ProcessHandler processHandler);
+  void attachToProcess(@NotNull ProcessHandler processHandler);
+
+  default void requestScrollingToEnd() {}
 
   void setOutputPaused(boolean value);
 
@@ -49,8 +51,12 @@ public interface ConsoleView extends ExecutionConsole {
 
   boolean canPause();
 
-  @NotNull
-  AnAction[] createConsoleActions();
+  AnAction @NotNull [] createConsoleActions();
 
   void allowHeavyFilters();
+
+  @NotNull
+  default ConsoleViewPlace getPlace() {
+    return ConsoleViewPlace.UNKNOWN;
+  }
 }

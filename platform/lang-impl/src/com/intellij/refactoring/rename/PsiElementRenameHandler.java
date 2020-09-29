@@ -3,7 +3,8 @@
 package com.intellij.refactoring.rename;
 
 import com.intellij.featureStatistics.FeatureUsageTracker;
-import com.intellij.ide.scratch.ScratchFileType;
+import com.intellij.ide.scratch.ScratchUtil;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.DataKey;
@@ -17,6 +18,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Condition;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
@@ -65,7 +67,7 @@ public class PsiElementRenameHandler implements RenameHandler {
   }
 
   @Override
-  public void invoke(@NotNull Project project, @NotNull PsiElement[] elements, DataContext dataContext) {
+  public void invoke(@NotNull Project project, PsiElement @NotNull [] elements, DataContext dataContext) {
     PsiElement element = elements.length == 1 ? elements[0] : null;
     if (element == null) element = getElement(dataContext);
     LOG.assertTrue(element != null);
@@ -97,9 +99,9 @@ public class PsiElementRenameHandler implements RenameHandler {
 
     if (checkInProject && nameSuggestionContext != null &&
         nameSuggestionContext.isPhysical() &&
-        (contextFile == null || contextFile.getFileType() != ScratchFileType.INSTANCE) &&
+        (contextFile == null || !ScratchUtil.isScratch(contextFile)) &&
         !PsiManager.getInstance(project).isInProject(nameSuggestionContext)) {
-      final String message = "Selected element is used from non-project files. These usages won't be renamed. Proceed anyway?";
+      final String message = LangBundle.message("dialog.message.selected.element.used.from.non.project.files");
       if (ApplicationManager.getApplication().isUnitTestMode()) throw new CommonRefactoringUtil.RefactoringErrorHintException(message);
       if (Messages.showYesNoDialog(project, message,
                                    RefactoringBundle.getCannotRefactorMessage(null), Messages.getWarningIcon()) != Messages.YES) {
@@ -122,7 +124,7 @@ public class PsiElementRenameHandler implements RenameHandler {
   }
 
   @Nullable
-  private static String renameabilityStatus(@NotNull Project project, @NotNull PsiElement element) {
+  private static @NlsContexts.DialogMessage String renameabilityStatus(@NotNull Project project, @NotNull PsiElement element) {
     boolean hasRenameProcessor = RenamePsiElementProcessor.forElement(element) != RenamePsiElementProcessor.DEFAULT;
     boolean hasWritableMetaData = element instanceof PsiMetaOwner && ((PsiMetaOwner)element).getMetaData() instanceof PsiWritableMetaData;
 
@@ -152,7 +154,7 @@ public class PsiElementRenameHandler implements RenameHandler {
     return null;
   }
 
-  private static void showErrorMessage(@NotNull Project project, @Nullable Editor editor, @NotNull String message) {
+  private static void showErrorMessage(@NotNull Project project, @Nullable Editor editor, @NotNull @NlsContexts.DialogMessage String message) {
     CommonRefactoringUtil.showErrorHint(project, editor, message, RefactoringBundle.message("rename.title"), null);
   }
 

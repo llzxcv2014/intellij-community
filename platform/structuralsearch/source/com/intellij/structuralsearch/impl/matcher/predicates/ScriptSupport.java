@@ -1,9 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch.impl.matcher.predicates;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.psi.PsiElement;
 import com.intellij.structuralsearch.MatchOptions;
 import com.intellij.structuralsearch.MatchResult;
@@ -34,6 +35,7 @@ public class ScriptSupport {
    * We use a randomly generated uuid for this, so the chance of accidental collision with an existing variable name is extremely small.
    * This also enables to filter out this uuid from Groovy error messages, to clarify for which SSR variable the script failed.
    */
+  @NlsSafe
   public static final String UUID = "a3cd264774bf4efb9ab609b250c5165c";
 
   private final Script script;
@@ -89,9 +91,9 @@ public class ScriptSupport {
     return out;
   }
 
-  public String evaluate(MatchResult result, PsiElement context) {
+  public Object evaluate(MatchResult result, PsiElement context) {
     try {
-      final HashMap<String, Object> variableMap = new HashMap<>();
+      Map<String, Object> variableMap = new HashMap<>();
       myVariableNames.forEach(n -> variableMap.put(n, null));
       variableMap.put(ScriptLog.SCRIPT_LOG_VAR_NAME, myScriptLog);
       if (result != null) {
@@ -107,8 +109,7 @@ public class ScriptSupport {
 
       script.setBinding(new Binding(variableMap));
 
-      final Object o = script.run();
-      return String.valueOf(o);
+      return script.run();
     }
     catch (ThreadDeath | ProcessCanceledException t) {
       throw t;

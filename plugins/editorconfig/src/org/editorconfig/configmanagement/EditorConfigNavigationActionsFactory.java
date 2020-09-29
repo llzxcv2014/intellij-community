@@ -1,6 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.editorconfig.configmanagement;
 
+import com.intellij.application.options.codeStyle.cache.CodeStyleCachingService;
 import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -8,11 +9,14 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.UserDataHolder;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
 import org.editorconfig.Utils;
 import org.editorconfig.configmanagement.editor.EditorConfigPreviewManager;
 import org.editorconfig.language.messages.EditorConfigBundle;
 import org.editorconfig.language.util.EditorConfigPresentationUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -20,7 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class EditorConfigNavigationActionsFactory {
+public final class EditorConfigNavigationActionsFactory {
   private static final Key<EditorConfigNavigationActionsFactory> NAVIGATION_FACTORY_KEY = Key.create("editor.config.navigation.factory");
 
   private final List<String> myEditorConfigFilePaths = new ArrayList<>();
@@ -63,24 +67,31 @@ public class EditorConfigNavigationActionsFactory {
   }
 
   @NotNull
+  @Nls
   private static String getActionName(@NotNull VirtualFile file, boolean withFolder) {
     final String fileName = EditorConfigPresentationUtil.getFileName(file, withFolder);
     return !withFolder ? EditorConfigBundle.message("action.open.file") : fileName;
   }
 
-  @NotNull
-  public static EditorConfigNavigationActionsFactory getInstance(@NotNull VirtualFile file) {
+  @Nullable
+  public static EditorConfigNavigationActionsFactory getInstance(@NotNull PsiFile psiFile) {
+    final Project project = psiFile.getProject();
+    final VirtualFile file = psiFile.getVirtualFile();
     synchronized (INSTANCE_LOCK) {
-      EditorConfigNavigationActionsFactory instance = file.getUserData(NAVIGATION_FACTORY_KEY);
-      if (instance == null) {
-        instance = new EditorConfigNavigationActionsFactory();
-        file.putUserData(NAVIGATION_FACTORY_KEY, instance);
+      UserDataHolder dataHolder = CodeStyleCachingService.getInstance(project).getDataHolder(file);
+      EditorConfigNavigationActionsFactory instance = null;
+      if (dataHolder !=null) {
+        instance = dataHolder.getUserData(NAVIGATION_FACTORY_KEY);
+        if (instance == null) {
+          instance = new EditorConfigNavigationActionsFactory();
+          dataHolder.putUserData(NAVIGATION_FACTORY_KEY, instance);
+        }
       }
       return instance;
     }
   }
 
-  private static class NavigationActionGroup extends ActionGroup {
+  private static final class NavigationActionGroup extends ActionGroup {
     private final AnAction[] myChildActions;
 
     private NavigationActionGroup(AnAction[] actions) {
@@ -88,9 +99,8 @@ public class EditorConfigNavigationActionsFactory {
       myChildActions = actions;
     }
 
-    @NotNull
     @Override
-    public AnAction[] getChildren(@Nullable AnActionEvent e) {
+    public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e) {
       return myChildActions;
     }
   }

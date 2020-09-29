@@ -1,24 +1,11 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.util.duplicates;
 
 import com.intellij.CommonBundle;
 import com.intellij.codeInsight.folding.CodeFoldingManager;
 import com.intellij.codeInsight.highlighting.HighlightManager;
 import com.intellij.find.FindManager;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.command.WriteCommandAction;
@@ -28,9 +15,7 @@ import com.intellij.openapi.editor.FoldRegion;
 import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.editor.ScrollType;
 import com.intellij.openapi.editor.colors.EditorColors;
-import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.editor.markup.RangeHighlighter;
-import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
@@ -53,7 +38,7 @@ import java.util.List;
 /**
  * @author dsl
  */
-public class DuplicatesImpl {
+public final class DuplicatesImpl {
   private static final Logger LOG = Logger.getInstance(DuplicatesImpl.class);
 
   private DuplicatesImpl() {}
@@ -128,8 +113,8 @@ public class DuplicatesImpl {
           final boolean allChosen = promptDialog.getExitCode() == FindManager.PromptResult.ALL;
           showAll.set(allChosen);
           if (allChosen && confirmDuplicatePrompt != null && prompt == null) {
-            if (Messages.showOkCancelDialog(project, "In order to replace all occurrences method signature will be changed. Proceed?",
-                                            "Change Method Signature", CommonBundle.getContinueButtonText(), CommonBundle.getCancelButtonText(), Messages.getWarningIcon()) !=
+            if (Messages.showOkCancelDialog(project, JavaRefactoringBundle.message("process.duplicates.change.signature.promt"),
+                                            JavaRefactoringBundle.message("change.method.signature.action.name"), CommonBundle.getContinueButtonText(), CommonBundle.getCancelButtonText(), Messages.getWarningIcon()) !=
                 Messages.OK) return true;
           }
           if (promptDialog.getExitCode() == FindManager.PromptResult.SKIP) return false;
@@ -144,8 +129,8 @@ public class DuplicatesImpl {
     // call change signature when needed
     provider.prepareSignature(match);
 
-    WriteCommandAction.writeCommandAction(project).withName(MethodDuplicatesHandler.REFACTORING_NAME)
-                      .withGroupId(MethodDuplicatesHandler.REFACTORING_NAME).run(() -> {
+    WriteCommandAction.writeCommandAction(project).withName(MethodDuplicatesHandler.getRefactoringName())
+                      .withGroupId(MethodDuplicatesHandler.getRefactoringName()).run(() -> {
       try {
         provider.processMatch(match);
       }
@@ -188,10 +173,8 @@ public class DuplicatesImpl {
   }
 
   public static void highlightMatch(final Project project, Editor editor, final Match match, final ArrayList<? super RangeHighlighter> highlighters) {
-    EditorColorsManager colorsManager = EditorColorsManager.getInstance();
-    TextAttributes attributes = colorsManager.getGlobalScheme().getAttributes(EditorColors.SEARCH_RESULT_ATTRIBUTES);
     HighlightManager.getInstance(project).addRangeHighlight(editor, match.getTextRange().getStartOffset(), match.getTextRange().getEndOffset(),
-                                                            attributes, true, highlighters);
+                                                            EditorColors.SEARCH_RESULT_ATTRIBUTES, true, highlighters);
   }
 
   public static void processDuplicates(@NotNull MatchProvider provider, @NotNull Project project, @NotNull Editor editor) {
@@ -203,9 +186,11 @@ public class DuplicatesImpl {
         highlighters = previewMatch(project, duplicates.get(0), editor);
       }
       final int answer = ApplicationManager.getApplication().isUnitTestMode() || hasDuplicates == null ? Messages.YES : Messages.showYesNoDialog(project,
-        RefactoringBundle.message("0.has.detected.1.code.fragments.in.this.file.that.can.be.replaced.with.a.call.to.extracted.method",
+                                                                                                                                                 RefactoringBundle.message("0.has.detected.1.code.fragments.in.this.file.that.can.be.replaced.with.a.call.to.extracted.method",
         ApplicationNamesInfo.getInstance().getProductName(), duplicates.size()),
-        "Process Duplicates", Messages.getQuestionIcon());
+                                                                                                                                                 JavaRefactoringBundle
+                                                                                                                                                   .message(
+                                                                                                                                                     "process.duplicates.title"), Messages.getQuestionIcon());
       if (answer == Messages.YES) {
         PsiDocumentManager.getInstance(project).commitAllDocuments();
         invoke(project, editor, provider, hasDuplicates != null);

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.streamMigration;
 
 
@@ -519,15 +519,16 @@ public class JoiningMigration extends BaseStreamApiMigration {
         if (qualifier instanceof PsiMethodCallExpression) {
           call = (PsiMethodCallExpression)qualifier;
         }
+        else if (ExpressionUtils.isReferenceTo(qualifier, target)) {
+          return new AppendChain(call, topCall);
+        }
         else {
-          if (ExpressionUtils.isReferenceTo(qualifier, target)) {
-            return new AppendChain(call, topCall);
-          }
+          return null;
         }
       }
     }
 
-    private static class AppendChain {
+    private static final class AppendChain {
       final @NotNull PsiMethodCallExpression first;
       final @NotNull PsiMethodCallExpression outermost;
 

@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.diff.tools.util.base;
 
 import com.intellij.diff.requests.DiffRequest;
@@ -23,20 +9,20 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.Pair;
-import org.jetbrains.annotations.CalledInAwt;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.util.List;
 
-public class InitialScrollPositionSupport {
+public final class InitialScrollPositionSupport {
   public abstract static class InitialScrollHelperBase {
     protected boolean myShouldScroll = true;
 
     @Nullable protected ScrollToPolicy myScrollToChange;
     @Nullable protected EditorsVisiblePositions myEditorsPosition;
-    @Nullable protected LogicalPosition[] myCaretPosition;
+    protected LogicalPosition @Nullable [] myCaretPosition;
 
     public void processContext(@NotNull DiffRequest request) {
       myScrollToChange = request.getUserData(DiffUserDataKeysEx.SCROLL_TO_CHANGE);
@@ -53,17 +39,15 @@ public class InitialScrollPositionSupport {
       request.putUserData(DiffUserDataKeysEx.EDITORS_CARET_POSITION, carets);
     }
 
-    @Nullable
-    protected abstract LogicalPosition[] getCaretPositions();
+    protected abstract LogicalPosition @Nullable [] getCaretPositions();
 
     @Nullable
     protected abstract EditorsVisiblePositions getVisiblePositions();
   }
 
   private static abstract class SideInitialScrollHelper extends InitialScrollHelperBase {
-    @Nullable
     @Override
-    protected LogicalPosition[] getCaretPositions() {
+    protected LogicalPosition @Nullable [] getCaretPositions() {
       return doGetCaretPositions(getEditors());
     }
 
@@ -73,7 +57,7 @@ public class InitialScrollPositionSupport {
       return doGetVisiblePositions(getEditors());
     }
 
-    @CalledInAwt
+    @RequiresEdt
     protected boolean doScrollToPosition() {
       List<? extends Editor> editors = getEditors();
       if (myCaretPosition == null || myCaretPosition.length != editors.size()) return false;
@@ -120,7 +104,7 @@ public class InitialScrollPositionSupport {
       request.putUserData(DiffUserDataKeysEx.NAVIGATION_CONTEXT, null);
     }
 
-    @CalledInAwt
+    @RequiresEdt
     public void onSlowRediff() {
       if (wasScrolled(getEditors())) myShouldScroll = false;
       if (myScrollToChange != null) return;
@@ -129,7 +113,7 @@ public class InitialScrollPositionSupport {
       if (myShouldScroll) myShouldScroll = !doScrollToPosition();
     }
 
-    @CalledInAwt
+    @RequiresEdt
     public void onRediff() {
       if (wasScrolled(getEditors())) myShouldScroll = false;
       if (myShouldScroll) myShouldScroll = !doScrollToChange();
@@ -140,16 +124,16 @@ public class InitialScrollPositionSupport {
       myShouldScroll = false;
     }
 
-    @CalledInAwt
+    @RequiresEdt
     protected abstract boolean doScrollToChange();
 
-    @CalledInAwt
+    @RequiresEdt
     protected abstract boolean doScrollToFirstChange();
 
-    @CalledInAwt
+    @RequiresEdt
     protected abstract boolean doScrollToContext();
 
-    @CalledInAwt
+    @RequiresEdt
     protected abstract boolean doScrollToLine();
   }
 
@@ -184,18 +168,17 @@ public class InitialScrollPositionSupport {
       myShouldScroll = false;
     }
 
-    @CalledInAwt
+    @RequiresEdt
     protected abstract boolean doScrollToChange();
 
-    @CalledInAwt
+    @RequiresEdt
     protected abstract boolean doScrollToFirstChange();
 
-    @CalledInAwt
+    @RequiresEdt
     protected abstract boolean doScrollToLine();
   }
 
-  @NotNull
-  public static Point[] doGetScrollingPositions(@NotNull List<? extends Editor> editors) {
+  public static Point @NotNull [] doGetScrollingPositions(@NotNull List<? extends Editor> editors) {
     Point[] carets = new Point[editors.size()];
     for (int i = 0; i < editors.size(); i++) {
       carets[i] = DiffUtil.getScrollingPosition(editors.get(i));
@@ -203,8 +186,7 @@ public class InitialScrollPositionSupport {
     return carets;
   }
 
-  @NotNull
-  public static LogicalPosition[] doGetCaretPositions(@NotNull List<? extends Editor> editors) {
+  public static LogicalPosition @NotNull [] doGetCaretPositions(@NotNull List<? extends Editor> editors) {
     LogicalPosition[] carets = new LogicalPosition[editors.size()];
     for (int i = 0; i < editors.size(); i++) {
       carets[i] = DiffUtil.getCaretPosition(editors.get(i));
@@ -219,7 +201,7 @@ public class InitialScrollPositionSupport {
     return new EditorsVisiblePositions(carets, points);
   }
 
-  public static void doMoveCaretsToPositions(@NotNull LogicalPosition[] positions, @NotNull List<? extends Editor> editors) {
+  public static void doMoveCaretsToPositions(LogicalPosition @NotNull [] positions, @NotNull List<? extends Editor> editors) {
     for (int i = 0; i < editors.size(); i++) {
       Editor editor = editors.get(i);
       if (editor != null) editor.getCaretModel().moveToLogicalPosition(positions[i]);
@@ -254,19 +236,19 @@ public class InitialScrollPositionSupport {
   public static class EditorsVisiblePositions {
     public static final Key<EditorsVisiblePositions> KEY = Key.create("Diff.EditorsVisiblePositions");
 
-    @NotNull public final LogicalPosition[] myCaretPosition;
-    @NotNull public final Point[] myPoints;
+    public final LogicalPosition @NotNull [] myCaretPosition;
+    public final Point @NotNull [] myPoints;
 
     public EditorsVisiblePositions(@NotNull LogicalPosition caretPosition, @NotNull Point points) {
       this(new LogicalPosition[]{caretPosition}, new Point[]{points});
     }
 
-    public EditorsVisiblePositions(@NotNull LogicalPosition[] caretPosition, @NotNull Point[] points) {
+    public EditorsVisiblePositions(LogicalPosition @NotNull [] caretPosition, Point @NotNull [] points) {
       myCaretPosition = caretPosition;
       myPoints = points;
     }
 
-    public boolean isSame(@Nullable LogicalPosition... caretPosition) {
+    public boolean isSame(LogicalPosition @Nullable ... caretPosition) {
       // TODO: allow small fluctuations ?
       if (caretPosition == null) return true;
       if (myCaretPosition.length != caretPosition.length) return false;

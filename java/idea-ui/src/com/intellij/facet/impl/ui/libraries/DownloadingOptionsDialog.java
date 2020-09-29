@@ -18,15 +18,16 @@ package com.intellij.facet.impl.ui.libraries;
 import com.intellij.framework.library.DownloadableLibraryFileDescription;
 import com.intellij.framework.library.DownloadableLibraryType;
 import com.intellij.framework.library.FrameworkLibraryVersion;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
-import com.intellij.openapi.project.ProjectBundle;
 import com.intellij.openapi.roots.ui.configuration.libraryEditor.LibraryNameAndLevelPanel;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.LibrariesContainer;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.ui.CheckBoxList;
 import com.intellij.ui.CheckBoxListListener;
@@ -69,7 +70,7 @@ public class DownloadingOptionsDialog extends DialogWrapper {
   public DownloadingOptionsDialog(@NotNull Component parent, @NotNull final LibraryDownloadSettings settings, @NotNull List<? extends FrameworkLibraryVersion> versions,
                                   final boolean showNameAndLevel) {
     super(parent, true);
-    setTitle("Downloading Options");
+    setTitle(JavaUiBundle.message("dialog.title.downloading.options"));
     myLibraryType = settings.getLibraryType();
     LOG.assertTrue(!versions.isEmpty());
 
@@ -82,7 +83,7 @@ public class DownloadingOptionsDialog extends DialogWrapper {
     myVersionComboBox.setRenderer(SimpleListCellRenderer.create("", FrameworkLibraryVersion::getDefaultLibraryName));
     myVersionComboBox.setSelectedItem(settings.getVersion());
     if (versions.size() > 1) {
-      builder.addLabeledComponent("&Version:", myVersionComboBox);
+      builder.addLabeledComponent(JavaUiBundle.message("label.downloading.options.dialog.version"), myVersionComboBox);
     }
 
     if (showNameAndLevel) {
@@ -103,8 +104,8 @@ public class DownloadingOptionsDialog extends DialogWrapper {
 
     myFilesList.setBorder(null);
     myFilesToDownloadLabel.setLabelFor(myFilesList);
-    myDirectoryField.addBrowseFolderListener(ProjectBundle.message("file.chooser.directory.for.downloaded.libraries.title"),
-                                             ProjectBundle.message("file.chooser.directory.for.downloaded.libraries.description"), null,
+    myDirectoryField.addBrowseFolderListener(JavaUiBundle.message("file.chooser.directory.for.downloaded.libraries.title"),
+                                             JavaUiBundle.message("file.chooser.directory.for.downloaded.libraries.description"), null,
                                              FileChooserDescriptorFactory.createSingleFolderDescriptor());
 
     myCopyDownloadedFilesToLabel.setLabelFor(myDirectoryField);
@@ -173,7 +174,8 @@ public class DownloadingOptionsDialog extends DialogWrapper {
       myFilesList.setModel(new CollectionListModel<>(
         ContainerUtil.map2Array(downloads, JCheckBox.class, (Function<DownloadableLibraryFileDescription, JCheckBox>)description -> {
           final boolean selected = selectedFiles != null ? selectedFiles.contains(description) : !description.isOptional();
-          return new JCheckBox(description.getPresentableFileName(), selected);
+          @NlsSafe final String name = description.getPresentableFileName();
+          return new JCheckBox(name, selected);
         })));
       if (myNameAndLevelPanel != null) {
         myNameAndLevelPanel.setDefaultName(version.getDefaultLibraryName());

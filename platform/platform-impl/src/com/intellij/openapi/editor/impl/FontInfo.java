@@ -1,9 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.editor.impl;
 
 import com.intellij.openapi.editor.impl.view.FontLayoutService;
 import com.intellij.openapi.util.SystemInfo;
-import gnu.trove.TIntHashSet;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import org.intellij.lang.annotations.JdkConstants;
 import org.jetbrains.annotations.NotNull;
 import sun.font.CompositeGlyphMapper;
@@ -14,17 +14,14 @@ import java.awt.font.FontRenderContext;
 import java.awt.font.TextAttribute;
 import java.util.Collections;
 
-/**
- * @author max
- */
-public class FontInfo {
+public final class FontInfo {
   private static final FontRenderContext DEFAULT_CONTEXT = new FontRenderContext(null, false, false);
   private static final Font DUMMY_FONT = new Font(null);
 
   private final Font myFont;
   private final int mySize;
   @JdkConstants.FontStyle private final int myStyle;
-  private final TIntHashSet mySafeCharacters = new TIntHashSet();
+  private final IntOpenHashSet mySafeCharacters = new IntOpenHashSet();
   private final FontRenderContext myContext;
   private FontMetrics myFontMetrics = null;
 

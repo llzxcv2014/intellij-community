@@ -1,21 +1,21 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.xmlb;
 
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.JDOMUtil;
 import com.intellij.util.ReflectionUtil;
-import gnu.trove.THashMap;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Please use {@link SkipDefaultsSerializationFilter} if state class doesn't implement "equals" (in Kotlin use {@link com.intellij.openapi.components.BaseState})
  */
 public class SkipDefaultValuesSerializationFilters extends SerializationFilterBase {
-  private final Map<Class<?>, Object> myDefaultBeans = new THashMap<>();
+  private final Map<Class<?>, Object> myDefaultBeans = new WeakHashMap<>();
 
   /**
    * @deprecated Use {@link com.intellij.configurationStore.XmlSerializer#serialize(Object)} instead of creating own filter.
@@ -46,8 +46,7 @@ public class SkipDefaultValuesSerializationFilters extends SerializationFilterBa
     return getDefaultValue(c);
   }
 
-  @NotNull
-  public Object getDefaultValue(Class<?> c) {
+  public @NotNull Object getDefaultValue(Class<?> c) {
     Object o = myDefaultBeans.get(c);
 
     if (o == null) {

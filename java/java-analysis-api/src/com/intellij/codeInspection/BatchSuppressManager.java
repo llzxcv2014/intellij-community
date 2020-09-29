@@ -1,4 +1,4 @@
-// Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection;
 
 import com.intellij.codeInsight.daemon.HighlightDisplayKey;
@@ -11,13 +11,12 @@ import org.jetbrains.annotations.Nullable;
 public interface BatchSuppressManager {
   String SUPPRESS_INSPECTIONS_ANNOTATION_NAME = "java.lang.SuppressWarnings";
 
-  class SERVICE {
+  final class SERVICE {
     public static BatchSuppressManager getInstance() {
       return ServiceManager.getService(BatchSuppressManager.class);
     }
   }
-  @NotNull
-  SuppressQuickFix[] createBatchSuppressActions(@NotNull HighlightDisplayKey key);
+  SuppressQuickFix @NotNull [] createBatchSuppressActions(@NotNull HighlightDisplayKey key);
 
   boolean isSuppressedFor(@NotNull PsiElement element, @NotNull String toolId);
 

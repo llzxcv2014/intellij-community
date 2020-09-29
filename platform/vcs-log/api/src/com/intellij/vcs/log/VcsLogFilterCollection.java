@@ -2,6 +2,7 @@
 package com.intellij.vcs.log;
 
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -72,11 +73,12 @@ public interface VcsLogFilterCollection {
       return Objects.hash(myName);
     }
 
-    public static <T extends VcsLogFilter> FilterKey<T> create(@NotNull String name) {
+    public static <T extends VcsLogFilter> FilterKey<T> create(@NonNls @NotNull String name) {
       return new FilterKey<>(name);
     }
 
     @Override
+    @NonNls
     public String toString() {
       return myName + " filter";
     }

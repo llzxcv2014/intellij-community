@@ -3,11 +3,9 @@ package com.intellij.uiDesigner.binding;
 
 import com.intellij.ide.highlighter.XmlFileType;
 import com.intellij.lang.properties.psi.PropertiesFile;
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.lang.properties.references.PropertyReferenceBase;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.Pair;
@@ -51,8 +49,16 @@ public class FormReferenceProvider extends PsiReferenceProvider {
   private static final Key<CachedValue<CachedFormData>> CACHED_DATA = Key.create("Cached form reference");
 
   @Override
-  @NotNull
-  public PsiReference[] getReferencesByElement(@NotNull final PsiElement element, @NotNull final ProcessingContext context) {
+  public boolean acceptsTarget(@NotNull PsiElement target) {
+    return target instanceof PsiClass ||
+           target instanceof PsiPackage ||
+           target instanceof PsiField ||
+           target instanceof PsiFile ||
+           PropertyReferenceBase.isPropertyPsi(target);
+  }
+
+  @Override
+  public PsiReference @NotNull [] getReferencesByElement(@NotNull final PsiElement element, @NotNull final ProcessingContext context) {
     if (element instanceof PsiPlainTextFile) {
       PsiPlainTextFile plainTextFile = (PsiPlainTextFile) element;
       if (plainTextFile.getFileType().equals(GuiFormFileType.INSTANCE)) {
@@ -144,8 +150,7 @@ public class FormReferenceProvider extends PsiReferenceProvider {
       classReference = referencesByString[referencesByString.length - 1];
     }
 
-    final PsiReference finalClassReference = classReference;
-    ApplicationManager.getApplication().runReadAction(() -> processReferences(rootTag, finalClassReference, file, processor));
+    processReferences(rootTag, classReference, file, processor);
   }
 
   private static TextRange getValueRange(final XmlAttribute classToBind) {
@@ -265,9 +270,7 @@ public class FormReferenceProvider extends PsiReferenceProvider {
     if (valueAttribute != null) {
       PsiReference reference = ReadAction.compute(() -> {
         final JavaPsiFacade psiFacade = JavaPsiFacade.getInstance(file.getProject());
-        final Module module = ModuleUtilCore.findModuleForPsiElement(file);
-        if (module == null) return null;
-        final GlobalSearchScope scope = module.getModuleWithDependenciesAndLibrariesScope(false);
+        GlobalSearchScope scope = file.getResolveScope();
         PsiClass psiClass = psiFacade.findClass(className, scope);
         if (psiClass != null) {
           PsiMethod getter = PropertyUtilBase.findPropertyGetter(psiClass, tag.getName(), false, true);

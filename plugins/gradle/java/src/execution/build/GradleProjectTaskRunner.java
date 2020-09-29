@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.execution.build;
 
 import com.intellij.build.BuildViewManager;
@@ -28,7 +28,6 @@ import com.intellij.packaging.artifacts.Artifact;
 import com.intellij.task.*;
 import com.intellij.task.impl.JpsProjectTaskRunner;
 import com.intellij.util.CommonProcessors;
-import com.intellij.util.PathUtil;
 import com.intellij.util.SmartList;
 import com.intellij.util.SystemProperties;
 import com.intellij.util.containers.ContainerUtil;
@@ -37,11 +36,14 @@ import com.intellij.util.containers.MultiMap;
 import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.concurrency.AsyncPromise;
+import org.jetbrains.concurrency.Promise;
 import org.jetbrains.plugins.gradle.service.project.GradleBuildSrcProjectsResolver;
 import org.jetbrains.plugins.gradle.service.project.GradleProjectResolverUtil;
 import org.jetbrains.plugins.gradle.service.task.GradleTaskManager;
 import org.jetbrains.plugins.gradle.settings.GradleProjectSettings;
 import org.jetbrains.plugins.gradle.settings.GradleSettings;
+import org.jetbrains.plugins.gradle.util.GradleBundle;
 import org.jetbrains.plugins.gradle.util.GradleConstants;
 
 import java.io.File;
@@ -64,6 +66,7 @@ import static org.jetbrains.plugins.gradle.execution.GradleRunnerUtil.resolvePro
  *
  * @author Vladislav.Soroka
  */
+@SuppressWarnings({"GrUnresolvedAccess", "GroovyAssignabilityCheck"}) // suppress warnings for injected Gradle/Groovy code
 public class GradleProjectTaskRunner extends ProjectTaskRunner {
   private static final Logger LOG = Logger.getInstance(GradleProjectTaskRunner.class);
 
@@ -78,7 +81,7 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
                                                                           "def effectiveTasks = []\n" +
                                                                           "gradle.taskGraph.addTaskExecutionListener(new TaskExecutionAdapter() {\n" +
                                                                           "    void afterExecute(Task task, TaskState state) {\n" +
-                                                                          "        if (state.didWork && task.outputs.hasOutput) {\n" +
+                                                                          "        if ((state.didWork || (state.skipped && state.skipMessage == 'FROM-CACHE')) && task.outputs.hasOutput) {\n" +
                                                                           "            effectiveTasks.add(task)\n" +
                                                                           "        }\n" +
                                                                           "    }\n" +
@@ -92,15 +95,15 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
                                                                           "})\n";
 
   @Override
-  public void run(@NotNull Project project,
-                  @NotNull ProjectTaskContext context,
-                  @Nullable ProjectTaskNotification callback,
-                  @NotNull Collection<? extends ProjectTask> tasks) {
+  public Promise<Result> run(@NotNull Project project,
+                             @NotNull ProjectTaskContext context,
+                             ProjectTask @NotNull ... tasks) {
+    AsyncPromise<Result> resultPromise = new AsyncPromise<>();
     MultiMap<String, String> buildTasksMap = MultiMap.createLinkedSet();
     MultiMap<String, String> cleanTasksMap = MultiMap.createLinkedSet();
     MultiMap<String, String> initScripts = MultiMap.createLinkedSet();
 
-    Map<Class<? extends ProjectTask>, List<ProjectTask>> taskMap = JpsProjectTaskRunner.groupBy(tasks);
+    Map<Class<? extends ProjectTask>, List<ProjectTask>> taskMap = JpsProjectTaskRunner.groupBy(Arrays.asList(tasks));
 
     List<Module> modulesToBuild = addModulesBuildTasks(taskMap.get(ModuleBuildTask.class), buildTasksMap, initScripts);
     List<Module> modulesOfResourcesToBuild = addModulesBuildTasks(taskMap.get(ModuleResourcesBuildTask.class), buildTasksMap, initScripts);
@@ -114,7 +117,7 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
     AtomicInteger errorCounter = new AtomicInteger();
 
     File outputPathsFile = createTempOutputPathsFileIfNeeded(context);
-    TaskCallback taskCallback = callback == null ? null : new TaskCallback() {
+    TaskCallback taskCallback = new TaskCallback() {
       @Override
       public void onSuccess() {
         handle(true);
@@ -148,7 +151,7 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
               }
             }
           }
-          callback.finished(new ProjectTaskResult(false, errors, 0));
+          resultPromise.setResult(errors > 0 ? TaskRunnerResults.FAILURE : TaskRunnerResults.SUCCESS);
         }
       }
     };
@@ -169,7 +172,7 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
       else {
         projectName = projectFile.getName();
       }
-      String executionName = "Build " + projectName;
+      String executionName = GradleBundle.message("gradle.execution.name.build.project.", projectName);
       settings.setExecutionName(executionName);
       settings.setExternalProjectPath(rootProjectPath);
       settings.setTaskNames(ContainerUtil.collect(ContainerUtil.concat(cleanTasks, buildTasks).iterator()));
@@ -182,7 +185,7 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
 
       Collection<String> scripts = initScripts.getModifiable(rootProjectPath);
       if (outputPathsFile != null && context.isCollectionOfGeneratedFilesEnabled()) {
-        scripts.add(String.format(COLLECT_OUTPUT_PATHS_INIT_SCRIPT_TEMPLATE, PathUtil.getCanonicalPath(outputPathsFile.getAbsolutePath())));
+        scripts.add(String.format(COLLECT_OUTPUT_PATHS_INIT_SCRIPT_TEMPLATE, FileUtil.toCanonicalPath(outputPathsFile.getAbsolutePath())));
       }
       userData.putUserData(GradleTaskManager.INIT_SCRIPT_KEY, join(scripts, SystemProperties.getLineSeparator()));
       userData.putUserData(GradleTaskManager.INIT_SCRIPT_PREFIX_KEY, executionName);
@@ -190,6 +193,7 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
       ExternalSystemUtil.runTask(settings, DefaultRunExecutor.EXECUTOR_ID, project, GradleConstants.SYSTEM_ID,
                                  taskCallback, ProgressExecutionMode.IN_BACKGROUND_ASYNC, false, userData);
     }
+    return resultPromise;
   }
 
   @Nullable
@@ -238,7 +242,7 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
       return isExternalSystemAwareModule(GradleConstants.SYSTEM_ID, module);
     }
     if (projectTask instanceof ProjectModelBuildTask) {
-      ProjectModelBuildTask buildTask = (ProjectModelBuildTask)projectTask;
+      ProjectModelBuildTask<?> buildTask = (ProjectModelBuildTask<?>)projectTask;
       if (buildTask.getBuildableElement() instanceof Artifact) {
         for (GradleBuildTasksProvider buildTasksProvider : GradleBuildTasksProvider.EP_NAME.getExtensions()) {
           if (buildTasksProvider.isApplicable(buildTask)) return true;
@@ -249,7 +253,7 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
     if (projectTask instanceof ExecuteRunConfigurationTask) {
       RunProfile runProfile = ((ExecuteRunConfigurationTask)projectTask).getRunProfile();
       if (runProfile instanceof ModuleBasedConfiguration) {
-        RunConfigurationModule module = ((ModuleBasedConfiguration)runProfile).getConfigurationModule();
+        RunConfigurationModule module = ((ModuleBasedConfiguration<?, ?>)runProfile).getConfigurationModule();
         if (!isExternalSystemAwareModule(GradleConstants.SYSTEM_ID, module.getModule()) ||
             !GradleProjectSettings.isDelegatedBuildEnabled(module.getModule())) {
           return false;
@@ -394,16 +398,16 @@ public class GradleProjectTaskRunner extends ProjectTaskRunner {
     for (ProjectTask projectTask : tasks) {
       if (!(projectTask instanceof ProjectModelBuildTask)) continue;
 
-      ProjectModelBuildTask projectModelBuildTask = (ProjectModelBuildTask)projectTask;
+      ProjectModelBuildTask<?> projectModelBuildTask = (ProjectModelBuildTask<?>)projectTask;
       for (GradleBuildTasksProvider buildTasksProvider : GradleBuildTasksProvider.EP_NAME.getExtensions()) {
         if (buildTasksProvider.isApplicable(projectModelBuildTask)) {
           buildTasksProvider.addBuildTasks(
             projectModelBuildTask,
-              task -> cleanTasksMap.putValue(task.getLinkedExternalProjectPath(), task.getName()),
-              task -> buildTasksMap.putValue(task.getLinkedExternalProjectPath(), task.getName())
-            );
-          }
+            task -> cleanTasksMap.putValue(task.getLinkedExternalProjectPath(), task.getName()),
+            task -> buildTasksMap.putValue(task.getLinkedExternalProjectPath(), task.getName())
+          );
         }
       }
+    }
   }
 }

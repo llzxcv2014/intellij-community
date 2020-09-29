@@ -49,8 +49,12 @@ public class PyHighlighter extends SyntaxHighlighterBase {
       PyTokenTypes.TRIPLE_QUOTED_UNICODE
     );
     ret.registerLayer(
-      new PyFStringLiteralLexer(), 
+      new PyFStringLiteralLexer(PyTokenTypes.FSTRING_TEXT),
       PyTokenTypes.FSTRING_TEXT
+    );
+    ret.registerLayer(
+      new PyFStringLiteralLexer(PyTokenTypes.FSTRING_RAW_TEXT),
+      PyTokenTypes.FSTRING_RAW_TEXT
     );
 
     return ret;
@@ -90,6 +94,8 @@ public class PyHighlighter extends SyntaxHighlighterBase {
 
   public static final TextAttributesKey PY_FUNC_DEFINITION = TextAttributesKey.createTextAttributesKey("PY.FUNC_DEFINITION", FUNCTION_DECLARATION);
 
+  public static final TextAttributesKey PY_NESTED_FUNC_DEFINITION = TextAttributesKey.createTextAttributesKey("PY.NESTED_FUNC_DEFINITION", PY_FUNC_DEFINITION);
+
   public static final TextAttributesKey PY_PREDEFINED_DEFINITION = TextAttributesKey.createTextAttributesKey("PY.PREDEFINED_DEFINITION", PREDEFINED_SYMBOL);
 
   public static final TextAttributesKey PY_PREDEFINED_USAGE = TextAttributesKey.createTextAttributesKey("PY.PREDEFINED_USAGE", PREDEFINED_SYMBOL);
@@ -122,7 +128,7 @@ public class PyHighlighter extends SyntaxHighlighterBase {
     myLanguageLevel = languageLevel;
     keys = new HashMap<>();
 
-    fillMap(keys, PythonDialectsTokenSetProvider.INSTANCE.getKeywordTokens(), PY_KEYWORD);
+    fillMap(keys, PythonDialectsTokenSetProvider.getInstance().getKeywordTokens(), PY_KEYWORD);
     fillMap(keys, PyTokenTypes.OPERATIONS, PY_OPERATION_SIGN);
 
     keys.put(PyTokenTypes.INTEGER_LITERAL, PY_NUMBER);
@@ -136,7 +142,8 @@ public class PyHighlighter extends SyntaxHighlighterBase {
     keys.put(PyTokenTypes.FSTRING_START, PY_UNICODE_STRING);
     keys.put(PyTokenTypes.FSTRING_END, PY_UNICODE_STRING);
     keys.put(PyTokenTypes.FSTRING_TEXT, PY_UNICODE_STRING);
-    
+    keys.put(PyTokenTypes.FSTRING_RAW_TEXT, PY_UNICODE_STRING);
+
     keys.put(PyTokenTypes.FSTRING_FRAGMENT_TYPE_CONVERSION, PY_FSTRING_FRAGMENT_TYPE_CONVERSION);
     keys.put(PyTokenTypes.FSTRING_FRAGMENT_FORMAT_START, PY_FSTRING_FRAGMENT_COLON);
     keys.put(PyTokenTypes.FSTRING_FRAGMENT_START, PY_FSTRING_FRAGMENT_BRACES);
@@ -165,8 +172,7 @@ public class PyHighlighter extends SyntaxHighlighterBase {
   }
 
   @Override
-  @NotNull
-  public TextAttributesKey[] getTokenHighlights(IElementType tokenType) {
+  public TextAttributesKey @NotNull [] getTokenHighlights(IElementType tokenType) {
     return pack(keys.get(tokenType));
   }
 }

@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vcs.VcsShowConfirmationOption;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.util.ui.OptionsDialog;
 import org.jetbrains.annotations.NotNull;
 
@@ -16,19 +17,19 @@ import java.awt.event.ActionEvent;
  * @author Dmitry Avdeev
  */
 class VcsConfirmationDialog extends OptionsDialog {
-  @NotNull private final String myOkText;
-  @NotNull private final String myCancelText;
+  @NotNull private final @NlsContexts.Button String myOkText;
+  @NotNull private final @NlsContexts.Button String myCancelText;
   private final VcsShowConfirmationOption myOption;
-  private final String myMessage;
-  private final String myDoNotShowMessage;
+  private final @NlsContexts.Label String myMessage;
+  private final @NlsContexts.Checkbox String myDoNotShowMessage;
 
   VcsConfirmationDialog(@NotNull Project project,
-                        @NotNull String title,
-                        @NotNull String okText,
-                        @NotNull String cancelText,
+                        @NotNull @NlsContexts.DialogTitle String title,
+                        @NotNull @NlsContexts.Button String okText,
+                        @NotNull @NlsContexts.Button String cancelText,
                         @NotNull VcsShowConfirmationOption option,
-                        @NotNull String message,
-                        @NotNull String doNotShowMessage) {
+                        @NotNull @NlsContexts.Label String message,
+                        @NotNull @NlsContexts.Checkbox String doNotShowMessage) {
     super(project);
     myOkText = okText;
     myCancelText = cancelText;
@@ -68,9 +69,8 @@ class VcsConfirmationDialog extends OptionsDialog {
     return myDoNotShowMessage;
   }
 
-  @NotNull
   @Override
-  protected Action[] createActions() {
+  protected Action @NotNull [] createActions() {
     final AbstractAction okAction = new AbstractAction(myOkText) {
       {
         putValue(DEFAULT_ACTION, Boolean.TRUE);

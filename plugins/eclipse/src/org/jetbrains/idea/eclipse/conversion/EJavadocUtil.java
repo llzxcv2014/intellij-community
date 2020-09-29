@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package org.jetbrains.idea.eclipse.conversion;
 
@@ -38,7 +38,7 @@ import static org.jetbrains.idea.eclipse.conversion.EPathUtil.*;
  * <li>http://www.javadoc.url
  * </ul>
  */
-public class EJavadocUtil {
+public final class EJavadocUtil {
   private EJavadocUtil() {
   }
 
@@ -117,7 +117,7 @@ public class EJavadocUtil {
   }
 
   @Nullable
-  private static String stripPathInsideJar(@Nullable String relativeToModulePathWithJarSuffix) {
+  public static String stripPathInsideJar(@Nullable String relativeToModulePathWithJarSuffix) {
     String relativeToModulePath = relativeToModulePathWithJarSuffix;
     if (relativeToModulePath != null) {
       int jarSufIdx = relativeToModulePathWithJarSuffix.indexOf(JarFileSystem.JAR_SEPARATOR);
@@ -128,7 +128,7 @@ public class EJavadocUtil {
     return relativeToModulePath;
   }
 
-  static boolean isJarFileExist(String path) {
+  public static boolean isJarFileExist(String path) {
     final int jarSufIdx = path.indexOf(JarFileSystem.JAR_SEPARATOR);
     if (jarSufIdx != -1) {
       path = path.substring(0, jarSufIdx);
@@ -188,10 +188,10 @@ public class EJavadocUtil {
     setupAttributes(orderEntry, s -> toEclipseJavadocPath(model, s), JAVADOC_LOCATION, libraryOrderEntry.getRootUrls(JavadocOrderRootType.getInstance()));
   }
 
-  static void setupAttributes(Element orderEntry,
-                              Function<? super String, String> fun,
-                              String attributeName,
-                              String[] roots) {
+  public static <T> void setupAttributes(Element orderEntry,
+                                         Function<? super T, String> fun,
+                                         String attributeName,
+                                         T[] roots) {
     final List<String> eclipseUrls = new ArrayList<>();
     if (roots.length > 0) {
       eclipseUrls.add(fun.fun(roots[0]));

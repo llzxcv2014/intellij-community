@@ -34,10 +34,10 @@ public class ReorderingUtils {
   public static ThreeState canExtract(@NotNull PsiExpression ancestor, @NotNull PsiExpression expression) {
     if (expression == ancestor) return ThreeState.YES;
     if (PsiUtil.isConstantExpression(expression)) return ThreeState.YES;
-    PsiExpression parent = ObjectUtils.tryCast(expression.getParent(), PsiExpression.class);
+    PsiElement parent = expression.getParent();
     if (parent instanceof PsiExpressionList) {
-      PsiExpression gParent = ObjectUtils.tryCast(parent.getParent(), PsiExpression.class);
-      if (gParent instanceof PsiCallExpression) {
+      PsiExpression gParent = ObjectUtils.tryCast(parent.getParent(), PsiCallExpression.class);
+      if (gParent != null) {
         PsiExpression[] args = ((PsiExpressionList)parent).getExpressions();
         int index = ArrayUtil.indexOf(args, expression);
         ThreeState result = ThreeState.YES;
@@ -47,29 +47,30 @@ public class ReorderingUtils {
             break;
           }
         }
-        return and(result, () -> canExtract(ancestor, parent));
+        return and(result, () -> canExtract(ancestor, gParent));
       }
     }
-    if (parent == null) {
+    PsiExpression expressionParent = ObjectUtils.tryCast(parent, PsiExpression.class);
+    if (expressionParent == null) {
       if (PsiTreeUtil.isAncestor(ancestor, expression, true)) {
         return ThreeState.UNSURE;
       }
       throw new IllegalArgumentException("Should be an ancestor");
     }
-    if (parent instanceof PsiParenthesizedExpression || parent instanceof PsiInstanceOfExpression ||
-        parent instanceof PsiTypeCastExpression) {
-      return canExtract(ancestor, parent);
+    if (expressionParent instanceof PsiParenthesizedExpression || expressionParent instanceof PsiInstanceOfExpression ||
+        expressionParent instanceof PsiTypeCastExpression) {
+      return canExtract(ancestor, expressionParent);
     }
-    if (parent instanceof PsiReferenceExpression) {
-      if (((PsiReferenceExpression)parent).getQualifierExpression() == expression) {
-        return canExtract(ancestor, parent);
+    if (expressionParent instanceof PsiReferenceExpression) {
+      if (((PsiReferenceExpression)expressionParent).getQualifierExpression() == expression) {
+        return canExtract(ancestor, expressionParent);
       }
     }
-    if (parent instanceof PsiConditionalExpression) {
-      PsiConditionalExpression ternary = (PsiConditionalExpression)parent;
+    if (expressionParent instanceof PsiConditionalExpression) {
+      PsiConditionalExpression ternary = (PsiConditionalExpression)expressionParent;
       PsiExpression condition = ternary.getCondition();
       if (condition == expression) {
-        return canExtract(ancestor, parent);
+        return canExtract(ancestor, expressionParent);
       }
       ThreeState result;
       if (isSideEffectFree(condition, false) &&
@@ -80,25 +81,25 @@ public class ReorderingUtils {
           areConditionsNecessaryFor(new PsiExpression[]{condition}, expression, ternary.getElseExpression() == expression);
         result = isNecessary ? ThreeState.NO : ThreeState.UNSURE;
       }
-      return and(result, () -> canExtract(ancestor, parent));
+      return and(result, () -> canExtract(ancestor, expressionParent));
     }
-    if (parent instanceof PsiLambdaExpression) {
+    if (expressionParent instanceof PsiLambdaExpression) {
       return ThreeState.NO;
     }
-    if (parent instanceof PsiUnaryExpression) {
-      if (PsiUtil.isIncrementDecrementOperation(parent)) return ThreeState.NO;
-      return canExtract(ancestor, parent);
+    if (expressionParent instanceof PsiUnaryExpression) {
+      if (PsiUtil.isIncrementDecrementOperation(expressionParent)) return ThreeState.NO;
+      return canExtract(ancestor, expressionParent);
     }
-    if (parent instanceof PsiPolyadicExpression) {
-      PsiPolyadicExpression polyadic = (PsiPolyadicExpression)parent;
+    if (expressionParent instanceof PsiPolyadicExpression) {
+      PsiPolyadicExpression polyadic = (PsiPolyadicExpression)expressionParent;
       PsiExpression[] operands = polyadic.getOperands();
       int index = ArrayUtil.indexOf(operands, expression);
       if (index == 0) {
-        return canExtract(ancestor, parent);
+        return canExtract(ancestor, expressionParent);
       }
       IElementType tokenType = polyadic.getOperationTokenType();
       if (tokenType.equals(JavaTokenType.ANDAND) || tokenType.equals(JavaTokenType.OROR)) {
-        return and(canMoveToStart(polyadic, index), () -> canExtract(ancestor, parent));
+        return and(canMoveToStart(polyadic, index), () -> canExtract(ancestor, expressionParent));
       }
       ThreeState result = ThreeState.YES;
       for (int i=0; i<index; i++) {
@@ -107,17 +108,17 @@ public class ReorderingUtils {
           break;
         }
       }
-      return and(result, () -> canExtract(ancestor, parent));
+      return and(result, () -> canExtract(ancestor, expressionParent));
     }
-    if (parent instanceof PsiAssignmentExpression) {
-      if (expression == ((PsiAssignmentExpression)parent).getLExpression()) return ThreeState.NO;
-      return canExtract(ancestor, parent);
+    if (expressionParent instanceof PsiAssignmentExpression) {
+      if (expression == ((PsiAssignmentExpression)expressionParent).getLExpression()) return ThreeState.NO;
+      return canExtract(ancestor, expressionParent);
     }
-    return and(ThreeState.UNSURE, () -> canExtract(ancestor, parent));
+    return and(ThreeState.UNSURE, () -> canExtract(ancestor, expressionParent));
   }
 
   @NotNull
-  private static ThreeState and(ThreeState state, Supplier<ThreeState> conjunct) {
+  private static ThreeState and(ThreeState state, Supplier<? extends ThreeState> conjunct) {
     if (state == ThreeState.NO) return ThreeState.NO;
     ThreeState state2 = conjunct.get();
     if (state2 == ThreeState.NO) return ThreeState.NO;
@@ -336,7 +337,7 @@ public class ReorderingUtils {
         List<? extends MethodContract> contracts = DfaUtil.addRangeContracts(method, JavaMethodContractUtil.getMethodCallContracts(call));
         contracts = ContainerUtil.filter(contracts, c -> c.getReturnValue().isFail() && c.getConditions().size() == 1);
         if (contracts.isEmpty()) return null;
-        DfaValueFactory factory = new DfaValueFactory(null, false);
+        DfaValueFactory factory = new DfaValueFactory(expression.getProject(), null, false);
         List<DfaRelation> conditions = new ArrayList<>();
         for (MethodContract contract : contracts) {
           ContractValue condition = contract.getConditions().get(0);

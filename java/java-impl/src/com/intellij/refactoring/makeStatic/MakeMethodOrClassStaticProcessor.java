@@ -16,7 +16,9 @@
 
 package com.intellij.refactoring.makeStatic;
 
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.lang.findUsages.DescriptiveNameUtil;
+import com.intellij.model.PsiElementUsageInfo;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Ref;
@@ -27,7 +29,6 @@ import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.refactoring.BaseRefactoringProcessor;
-import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.listeners.RefactoringEventData;
 import com.intellij.refactoring.ui.ConflictsDialog;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
@@ -61,7 +62,7 @@ public abstract class MakeMethodOrClassStaticProcessor<T extends PsiTypeParamete
 
   @Override
   @NotNull
-  protected UsageViewDescriptor createUsageViewDescriptor(@NotNull UsageInfo[] usages) {
+  protected UsageViewDescriptor createUsageViewDescriptor(UsageInfo @NotNull [] usages) {
     return new MakeMethodOrClassStaticViewDescriptor(myMember);
   }
 
@@ -81,7 +82,7 @@ public abstract class MakeMethodOrClassStaticProcessor<T extends PsiTypeParamete
 
   @Nullable
   @Override
-  protected RefactoringEventData getAfterData(@NotNull UsageInfo[] usages) {
+  protected RefactoringEventData getAfterData(UsageInfo @NotNull [] usages) {
     RefactoringEventData data = new RefactoringEventData();
     data.addElement(myMember);
     return data;
@@ -154,13 +155,13 @@ public abstract class MakeMethodOrClassStaticProcessor<T extends PsiTypeParamete
             PsiField field = (PsiField)referencedElement;
 
             if (mySettings.getNameForField(field) == null) {
-              String message = RefactoringBundle.message("0.uses.non.static.1.which.is.not.passed.as.a.parameter", typeString,
+              String message = JavaRefactoringBundle.message("0.uses.non.static.1.which.is.not.passed.as.a.parameter", typeString,
                                                          RefactoringUIUtil.getDescription(field, true));
               conflicts.putValue(field, message);
             }
           }
           else {
-            String message = RefactoringBundle.message("0.uses.1.which.needs.class.instance", typeString, RefactoringUIUtil.getDescription(referencedElement, true));
+            String message = JavaRefactoringBundle.message("0.uses.1.which.needs.class.instance", typeString, RefactoringUIUtil.getDescription(referencedElement, true));
             conflicts.putValue(referencedElement, message);
           }
         }
@@ -168,7 +169,7 @@ public abstract class MakeMethodOrClassStaticProcessor<T extends PsiTypeParamete
       if (usageInfo instanceof OverridingMethodUsageInfo) {
         LOG.assertTrue(myMember instanceof PsiMethod);
         final PsiMethod overridingMethod = ((PsiMethod)usageInfo.getElement());
-        String message = RefactoringBundle.message("method.0.is.overridden.by.1", RefactoringUIUtil.getDescription(myMember, false),
+        String message = JavaRefactoringBundle.message("method.0.is.overridden.by.1", RefactoringUIUtil.getDescription(myMember, false),
                                                    RefactoringUIUtil.getDescription(overridingMethod, true));
         conflicts.putValue(overridingMethod, message);
       }
@@ -196,27 +197,15 @@ public abstract class MakeMethodOrClassStaticProcessor<T extends PsiTypeParamete
 
   private static void createInaccessibleFieldsConflictDescription(ArrayList<PsiField> inaccessible, PsiElement container,
                                                                                      MultiMap<PsiElement, String> conflicts) {
-    if (inaccessible.size() == 1) {
-      final PsiField field = inaccessible.get(0);
-      conflicts.putValue(field, RefactoringBundle.message("field.0.is.not.accessible",
-                                       CommonRefactoringUtil.htmlEmphasize(field.getName()),
-                                       RefactoringUIUtil.getDescription(container, true)));
-    } else {
-
-      for (int j = 0; j < inaccessible.size(); j++) {
-        PsiField field = inaccessible.get(j);
-        conflicts.putValue(field, RefactoringBundle.message("field.0.is.not.accessible",
-                                       CommonRefactoringUtil.htmlEmphasize(field.getName()),
-                                       RefactoringUIUtil.getDescription(container, true)));
-
-
-      }
+    for (PsiField field : inaccessible) {
+      conflicts.putValue(field, JavaRefactoringBundle.message(
+        "field.0.is.not.accessible", CommonRefactoringUtil.htmlEmphasize(field.getName()), 
+        RefactoringUIUtil.getDescription(container, true)));
     }
   }
 
   @Override
-  @NotNull
-  protected UsageInfo[] findUsages() {
+  protected UsageInfo @NotNull [] findUsages() {
     ArrayList<UsageInfo> result = new ArrayList<>();
 
     ContainerUtil.addAll(result, MakeStaticUtil.findClassRefsInMember(myMember, true));
@@ -249,7 +238,7 @@ public abstract class MakeMethodOrClassStaticProcessor<T extends PsiTypeParamete
         if (qualifier instanceof PsiThisExpression) qualifier = null;
       }
       if (!PsiTreeUtil.isAncestor(myMember, element, true) || qualifier != null) {
-        result.add(new UsageInfo(element));
+        result.add(new PsiElementUsageInfo(element));
       }
 
       processExternalReference(element, method, result);
@@ -302,7 +291,7 @@ public abstract class MakeMethodOrClassStaticProcessor<T extends PsiTypeParamete
   @Override
   @NotNull
   protected String getCommandName() {
-    return RefactoringBundle.message("make.static.command", DescriptiveNameUtil.getDescriptiveName(myMember));
+    return JavaRefactoringBundle.message("make.static.command", DescriptiveNameUtil.getDescriptiveName(myMember));
   }
 
   public T getMember() {
@@ -314,7 +303,7 @@ public abstract class MakeMethodOrClassStaticProcessor<T extends PsiTypeParamete
   }
 
   @Override
-  protected void performRefactoring(@NotNull UsageInfo[] usages) {
+  protected void performRefactoring(UsageInfo @NotNull [] usages) {
     PsiManager manager = myMember.getManager();
     PsiElementFactory factory = JavaPsiFacade.getElementFactory(manager.getProject());
 

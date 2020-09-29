@@ -167,6 +167,7 @@ def method(Box<A> box) {
   }
 
   void testOverloadedInClosure() {
+    RecursionManager.disableAssertOnRecursionPrevention(myFixture.testRootDisposable)
     testHighlighting '''
 def <T> void foo(T t, Closure cl) {}
 
@@ -391,7 +392,7 @@ class GoodCodeRed {
   }
 
   void 'test recursive generics'() {
-    RecursionManager.disableAssertOnRecursionPrevention()
+    RecursionManager.disableAssertOnRecursionPrevention(myFixture.testRootDisposable)
     testHighlighting '''
 import groovy.transform.CompileStatic
 
@@ -524,7 +525,7 @@ class A {
 }
 
 new A(foo: {
-    prop
+    <warning descr="Cannot resolve symbol 'prop'">prop</warning>
 }) 
 '''
   }
@@ -707,5 +708,16 @@ def m2() {
 }
 
 ''',  true, false, false
+  }
+
+  void 'test resolve calls inside closure with CompileStatic'() {
+    testHighlighting '''
+import groovy.transform.CompileStatic
+
+@CompileStatic
+def test() {
+    def x = 1
+    1.with { x.byteValue() }
+}''', true, false, false
   }
 }

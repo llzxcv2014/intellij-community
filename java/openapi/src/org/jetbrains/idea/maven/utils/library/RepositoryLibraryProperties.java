@@ -3,6 +3,7 @@ package org.jetbrains.idea.maven.utils.library;
 
 import com.intellij.openapi.roots.libraries.LibraryProperties;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.xmlb.annotations.Attribute;
 import com.intellij.util.xmlb.annotations.Transient;
@@ -15,9 +16,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-/**
- * @author nik
- */
 public class RepositoryLibraryProperties extends LibraryProperties<RepositoryLibraryProperties> {
   private JpsMavenRepositoryLibraryDescriptor myDescriptor;
 
@@ -69,7 +67,7 @@ public class RepositoryLibraryProperties extends LibraryProperties<RepositoryLib
   }
 
   @Attribute("maven-id")
-  public String getMavenId() {
+  public @NlsSafe String getMavenId() {
     return call(JpsMavenRepositoryLibraryDescriptor::getMavenId, null);
   }
 

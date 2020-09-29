@@ -5,6 +5,7 @@ import com.intellij.CommonBundle;
 import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.daemon.impl.quickfix.ClassKind;
 import com.intellij.ide.util.PackageUtil;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CustomShortcutSet;
@@ -15,6 +16,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.JavaProjectRootsUtil;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pass;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiDirectory;
@@ -45,7 +47,7 @@ import java.awt.event.KeyEvent;
 
 public class CreateClassDialog extends DialogWrapper {
   private final JLabel myInformationLabel = new JLabel("#");
-  private final JLabel myPackageLabel = new JLabel(CodeInsightBundle.message("dialog.create.class.destination.package.label"));
+  private final JLabel myPackageLabel = new JLabel(JavaBundle.message("dialog.create.class.destination.package.label"));
   private final ReferenceEditorComboWithBrowseButton myPackageComponent;
   private final JTextField myTfClassName = new MyTextField();
   private final Project myProject;
@@ -72,7 +74,7 @@ public class CreateClassDialog extends DialogWrapper {
   @NonNls private static final String RECENTS_KEY = "CreateClassDialog.RecentsKey";
 
   public CreateClassDialog(@NotNull Project project,
-                           @NotNull String title,
+                           @NotNull @NlsContexts.DialogTitle String title,
                            @NotNull String targetClassName,
                            @NotNull String targetPackageName,
                            @NotNull ClassKind kind,
@@ -83,23 +85,23 @@ public class CreateClassDialog extends DialogWrapper {
     myModule = defaultModule;
     myClassName = targetClassName;
     myProject = project;
-    myPackageComponent = new PackageNameReferenceEditorCombo(targetPackageName, myProject, RECENTS_KEY, CodeInsightBundle.message("dialog.create.class.package.chooser.title"));
+    myPackageComponent = new PackageNameReferenceEditorCombo(targetPackageName, myProject, RECENTS_KEY, JavaBundle.message("dialog.create.class.package.chooser.title"));
     myPackageComponent.setTextFieldPreferredWidth(40);
 
     init();
 
     if (!myClassNameEditable) {
-      setTitle(CodeInsightBundle.message("dialog.create.class.name", StringUtil.capitalize(kind.getDescription()), targetClassName));
+      setTitle(JavaBundle.message("dialog.create.class.name", StringUtil.capitalize(kind.getDescriptionAccusative()), targetClassName));
     }
     else {
-      myInformationLabel.setText(CodeInsightBundle.message("dialog.create.class.label", kind.getDescription()));
+      myInformationLabel.setText(JavaBundle.message("dialog.create.class.label", kind.getDescriptionAccusative()));
       setTitle(title);
     }
 
     myTfClassName.setText(myClassName);
-    myDestinationCB.setData(myProject, getBaseDir(targetPackageName), new Pass<String>() {
+    myDestinationCB.setData(myProject, getBaseDir(targetPackageName), new Pass<@NlsContexts.DialogMessage String>() {
       @Override
-      public void pass(String s) {
+      public void pass(@NlsContexts.DialogMessage String s) {
         setErrorText(s, myDestinationCB);
       }
     }, myPackageComponent.getChildComponent());

@@ -1,8 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
-
-/*
- * @author max
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.source.resolve;
 
 import com.intellij.openapi.components.ServiceManager;
@@ -16,9 +12,7 @@ import com.intellij.psi.impl.AnyPsiChangeListener;
 import com.intellij.psi.impl.PsiManagerImpl;
 import com.intellij.psi.impl.source.resolve.graphInference.PsiPolyExpressionUtil;
 import com.intellij.psi.infos.MethodCandidateInfo;
-import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
-import com.intellij.psi.util.PsiModificationTracker;
 import com.intellij.util.ConcurrencyUtil;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
@@ -64,8 +58,7 @@ public class JavaResolveCache {
       return f.fun(expr);
     }
 
-    return CachedValuesManager.getCachedValue(expr, () ->
-      CachedValueProvider.Result.create(f.fun(expr), PsiModificationTracker.MODIFICATION_COUNT));
+    return CachedValuesManager.getProjectPsiDependentCache(expr, param -> f.fun(param));
   }
 
   @Nullable

@@ -22,9 +22,9 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiModifier;
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings.WrapConstant;
 import org.jdom.Element;
-import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.TestOnly;
 
@@ -42,7 +42,6 @@ public class JavaCodeStyleSettings extends CustomCodeStyleSettings implements Im
 
   public JavaCodeStyleSettings(CodeStyleSettings container) {
     super("JavaCodeStyleSettings", container);
-    initTypeToName();
     initImportsByDefault();
   }
   public String FIELD_NAME_PREFIX = "";
@@ -64,12 +63,8 @@ public class JavaCodeStyleSettings extends CustomCodeStyleSettings implements Im
   public boolean GENERATE_FINAL_LOCALS;
   public boolean GENERATE_FINAL_PARAMETERS;
 
+  @PsiModifier.ModifierConstant
   public String VISIBILITY = "public";
-
-  public CodeStyleSettings.TypeToNameMap FIELD_TYPE_TO_NAME = new CodeStyleSettings.TypeToNameMap();
-  public CodeStyleSettings.TypeToNameMap STATIC_FIELD_TYPE_TO_NAME = new CodeStyleSettings.TypeToNameMap();
-  public CodeStyleSettings.TypeToNameMap PARAMETER_TYPE_TO_NAME = new CodeStyleSettings.TypeToNameMap();
-  public CodeStyleSettings.TypeToNameMap LOCAL_VARIABLE_TYPE_TO_NAME = new CodeStyleSettings.TypeToNameMap();
 
   public boolean USE_EXTERNAL_ANNOTATIONS;
   public boolean INSERT_OVERRIDE_ANNOTATION = true;
@@ -152,6 +147,20 @@ public class JavaCodeStyleSettings extends CustomCodeStyleSettings implements Im
   public PackageEntryTable PACKAGES_TO_USE_IMPORT_ON_DEMAND = new PackageEntryTable();
   @Property(externalName = "imports_layout")
   public PackageEntryTable IMPORT_LAYOUT_TABLE = new PackageEntryTable();
+
+
+  @WrapConstant
+  public int RECORD_COMPONENTS_WRAP = CommonCodeStyleSettings.WRAP_AS_NEEDED;
+  public boolean ALIGN_MULTILINE_RECORDS = true;
+  public boolean NEW_LINE_AFTER_LPAREN_IN_RECORD_HEADER = false;
+  public boolean RPAREN_ON_NEW_LINE_IN_RECORD_HEADER = false;
+  /**
+   * "record R( String s )"
+   * or
+   * "record R(String s)"
+   */
+  public boolean SPACE_WITHIN_RECORD_HEADER = false;
+
 
   // region JavaDoc
   @Property(externalName = "doc_enable_formatting")
@@ -294,26 +303,6 @@ public class JavaCodeStyleSettings extends CustomCodeStyleSettings implements Im
     return GENERATE_FINAL_PARAMETERS;
   }
 
-  @SuppressWarnings("Duplicates")
-  private static void initGeneralLocalVariable(@NonNls CodeStyleSettings.TypeToNameMap map) {
-    map.addPair("int", "i");
-    map.addPair("byte", "b");
-    map.addPair("char", "c");
-    map.addPair("long", "l");
-    map.addPair("short", "i");
-    map.addPair("boolean", "b");
-    map.addPair("double", "v");
-    map.addPair("float", "v");
-    map.addPair("java.lang.Object", "o");
-    map.addPair("java.lang.String", "s");
-  }
-
-  private void initTypeToName() {
-    initGeneralLocalVariable(PARAMETER_TYPE_TO_NAME);
-    initGeneralLocalVariable(LOCAL_VARIABLE_TYPE_TO_NAME);
-    PARAMETER_TYPE_TO_NAME.addPair("*Exception", "e");
-  }
-
   @SuppressWarnings("deprecation")
   @Override
   protected void importLegacySettings(@NotNull CodeStyleSettings rootSettings) {
@@ -343,10 +332,6 @@ public class JavaCodeStyleSettings extends CustomCodeStyleSettings implements Im
     GENERATE_FINAL_LOCALS = rootSettings.GENERATE_FINAL_LOCALS;
     GENERATE_FINAL_PARAMETERS = rootSettings.GENERATE_FINAL_PARAMETERS;
     VISIBILITY = rootSettings.VISIBILITY;
-    FIELD_TYPE_TO_NAME.copyFrom(rootSettings.FIELD_TYPE_TO_NAME);
-    LOCAL_VARIABLE_TYPE_TO_NAME.copyFrom(rootSettings.LOCAL_VARIABLE_TYPE_TO_NAME);
-    PARAMETER_TYPE_TO_NAME.copyFrom(rootSettings.PARAMETER_TYPE_TO_NAME);
-    STATIC_FIELD_TYPE_TO_NAME.copyFrom(rootSettings.STATIC_FIELD_TYPE_TO_NAME);
 
     ENABLE_JAVADOC_FORMATTING = rootSettings.ENABLE_JAVADOC_FORMATTING;
 
@@ -362,14 +347,6 @@ public class JavaCodeStyleSettings extends CustomCodeStyleSettings implements Im
     JavaCodeStyleSettings cloned = (JavaCodeStyleSettings)super.clone();
     cloned.myRepeatAnnotations = new ArrayList<>();
     cloned.setRepeatAnnotations(getRepeatAnnotations());
-    cloned.FIELD_TYPE_TO_NAME = new CodeStyleSettings.TypeToNameMap();
-    cloned.FIELD_TYPE_TO_NAME.copyFrom(FIELD_TYPE_TO_NAME);
-    cloned.STATIC_FIELD_TYPE_TO_NAME = new CodeStyleSettings.TypeToNameMap();
-    cloned.STATIC_FIELD_TYPE_TO_NAME.copyFrom(STATIC_FIELD_TYPE_TO_NAME);
-    cloned.PARAMETER_TYPE_TO_NAME = new CodeStyleSettings.TypeToNameMap();
-    cloned.PARAMETER_TYPE_TO_NAME.copyFrom(PARAMETER_TYPE_TO_NAME);
-    cloned.LOCAL_VARIABLE_TYPE_TO_NAME = new CodeStyleSettings.TypeToNameMap();
-    cloned.LOCAL_VARIABLE_TYPE_TO_NAME.copyFrom(LOCAL_VARIABLE_TYPE_TO_NAME);
     cloned.PACKAGES_TO_USE_IMPORT_ON_DEMAND = new PackageEntryTable();
     cloned.PACKAGES_TO_USE_IMPORT_ON_DEMAND.copyFrom(PACKAGES_TO_USE_IMPORT_ON_DEMAND);
     cloned.IMPORT_LAYOUT_TABLE = new PackageEntryTable();
@@ -434,7 +411,6 @@ public class JavaCodeStyleSettings extends CustomCodeStyleSettings implements Im
     }
   }
 
-  @SuppressWarnings("deprecation")
   @Override
   protected void afterLoaded() {
     REPLACE_INSTANCEOF_AND_CAST |= REPLACE_CAST || REPLACE_INSTANCEOF;

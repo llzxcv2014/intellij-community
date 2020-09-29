@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.options.ex;
 
 import com.intellij.CommonBundle;
@@ -8,12 +8,11 @@ import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
-import com.intellij.openapi.options.OptionsBundle;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.wm.ex.IdeFocusTraversalPolicy;
 import com.intellij.ui.IdeUICustomization;
 import com.intellij.util.Alarm;
@@ -46,8 +45,7 @@ public class SingleConfigurableEditor extends DialogWrapper {
     myShowApplyButton = showApplyButton;
     String title = createTitleString(configurable);
     if (project != null && project.isDefault()) {
-      title = OptionsBundle.message("title.for.new.projects",
-                                    title, StringUtil.capitalize(IdeUICustomization.getInstance().getProjectConceptName()));
+      title = IdeUICustomization.getInstance().projectMessage("title.for.new.projects", title);
     }
 
     setTitle(title);
@@ -119,7 +117,7 @@ public class SingleConfigurableEditor extends DialogWrapper {
     return myProject;
   }
 
-  private static String createTitleString(@NotNull Configurable configurable) {
+  private static @NlsContexts.DialogTitle String createTitleString(@NotNull Configurable configurable) {
     String displayName = configurable.getDisplayName();
     LOG.assertTrue(displayName != null, configurable.getClass().getName());
     return displayName.replaceAll("\n", " ");
@@ -136,8 +134,12 @@ public class SingleConfigurableEditor extends DialogWrapper {
   }
 
   @Override
-  @NotNull
-  protected Action[] createActions() {
+  public @Nullable Dimension getInitialSize() {
+    return new Dimension(650, 500);
+  }
+
+  @Override
+  protected Action @NotNull [] createActions() {
     List<Action> actions = new ArrayList<>();
     actions.add(getOKAction());
     actions.add(getCancelAction());
@@ -259,7 +261,7 @@ public class SingleConfigurableEditor extends DialogWrapper {
     myConfigurable = null;
 
     if (mySaveAllOnClose) {
-      SaveAndSyncHandler.getInstance().scheduleSaveDocumentsAndProjectsAndApp(myProject);
+      SaveAndSyncHandler.getInstance().scheduleSave(new SaveAndSyncHandler.SaveTask(myProject, /* forceSavingAllSettings = */ true));
     }
   }
 }

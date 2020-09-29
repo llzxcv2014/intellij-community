@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution;
 
 import com.intellij.codeInsight.daemon.impl.analysis.JavaModuleGraphUtil;
@@ -7,11 +7,10 @@ import com.intellij.diagnostic.logging.OutputFileUtil;
 import com.intellij.execution.configurations.*;
 import com.intellij.execution.filters.ArgumentFileFilter;
 import com.intellij.execution.impl.ConsoleBuffer;
-import com.intellij.execution.process.OSProcessHandler;
-import com.intellij.execution.process.ProcessAdapter;
-import com.intellij.execution.process.ProcessEvent;
+import com.intellij.execution.process.*;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.runners.ProgramRunner;
+import com.intellij.execution.target.*;
 import com.intellij.execution.testDiscovery.JavaAutoRunManager;
 import com.intellij.execution.testframework.*;
 import com.intellij.execution.testframework.actions.AbstractRerunFailedTestsAction;
@@ -25,11 +24,13 @@ import com.intellij.execution.testframework.sm.runner.ui.SMTestRunnerResultsForm
 import com.intellij.execution.testframework.ui.BaseTestsOutputConsoleView;
 import com.intellij.execution.util.JavaParametersUtil;
 import com.intellij.execution.util.ProgramParametersConfigurator;
+import com.intellij.openapi.compiler.JavaCompilerBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.extensions.Extensions;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
+import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.JavaSdkType;
@@ -45,7 +46,6 @@ import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.CharsetToolkit;
 import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.JavaPsiFacade;
@@ -63,9 +63,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.model.serialization.PathMacroUtil;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public abstract class JavaTestFrameworkRunnableState<T extends
@@ -120,7 +123,34 @@ public abstract class JavaTestFrameworkRunnableState<T extends
 
   @NotNull protected abstract String getForkMode();
 
-  @NotNull protected abstract OSProcessHandler createHandler(Executor executor) throws ExecutionException;
+  @NotNull
+  private OSProcessHandler createHandler(Executor executor, SMTestRunnerResultsForm viewer) throws ExecutionException {
+    appendForkInfo(executor);
+    appendRepeatMode();
+
+    SearchForTestsTask searchForTestsTask = createSearchingForTestsTask();
+    if (searchForTestsTask != null) {
+      searchForTestsTask.arrangeForIndexAccess();
+      searchForTestsTask.setIncompleteIndexUsageCallback(() -> viewer.setIncompleteIndexUsed());
+    }
+
+    EmptyProgressIndicator targetIndicator = new EmptyProgressIndicator();
+    TargetEnvironment remoteEnvironment = getEnvironment().getPreparedTargetEnvironment(this, targetIndicator);
+    TargetedCommandLineBuilder targetedCommandLineBuilder = getTargetedCommandLine();
+    TargetedCommandLine targetedCommandLine = targetedCommandLineBuilder.build();
+    Process process = remoteEnvironment.createProcess(targetedCommandLine, new EmptyProgressIndicator());
+
+    OSProcessHandler processHandler = new KillableColoredProcessHandler.Silent(process,
+                                                                               targetedCommandLine.getCommandPresentation(remoteEnvironment),
+                                                                               targetedCommandLine.getCharset(),
+                                                                               targetedCommandLineBuilder.getFilesToDeleteOnTermination());
+
+    ProcessTerminatedListener.attach(processHandler);
+    if (searchForTestsTask != null) {
+      searchForTestsTask.attachTaskToProcess(processHandler);
+    }
+    return processHandler;
+  }
 
   public SearchForTestsTask createSearchingForTestsTask() throws ExecutionException {
     return null;
@@ -134,19 +164,26 @@ public abstract class JavaTestFrameworkRunnableState<T extends
     return false;
   }
 
+  @NotNull
   @Override
-  protected GeneralCommandLine createCommandLine() throws ExecutionException {
-    GeneralCommandLine commandLine = super.createCommandLine().withInput(InputRedirectAware.getInputFile(getConfiguration()));
-    Map<String, String> content = commandLine.getUserData(JdkUtil.COMMAND_LINE_CONTENT);
+  protected TargetedCommandLineBuilder createTargetedCommandLine(@NotNull TargetEnvironmentRequest request,
+                                                                 @Nullable TargetEnvironmentConfiguration configuration)
+    throws ExecutionException {
+    TargetedCommandLineBuilder commandLineBuilder = super.createTargetedCommandLine(request, configuration);
+    File inputFile = InputRedirectAware.getInputFile(getConfiguration());
+    if (inputFile != null) {
+      commandLineBuilder.setInputFile(request.getDefaultVolume().createUpload(inputFile.getAbsolutePath()));
+    }
+    Map<String, String> content = commandLineBuilder.getUserData(JdkUtil.COMMAND_LINE_CONTENT);
     if (content != null) {
       content.forEach((key, value) -> myArgumentFileFilters.add(new ArgumentFileFilter(key, value)));
     }
-    return commandLine;
+    return commandLineBuilder;
   }
 
   @NotNull
   @Override
-  public ExecutionResult execute(@NotNull Executor executor, @NotNull ProgramRunner runner) throws ExecutionException {
+  public ExecutionResult execute(@NotNull Executor executor, @NotNull ProgramRunner<?> runner) throws ExecutionException {
     final RunnerSettings runnerSettings = getRunnerSettings();
 
     final SMTRunnerConsoleProperties testConsoleProperties = getConfiguration().createTestConsoleProperties(executor);
@@ -157,7 +194,7 @@ public abstract class JavaTestFrameworkRunnableState<T extends
     final SMTestRunnerResultsForm viewer = ((SMTRunnerConsoleView)consoleView).getResultsViewer();
     Disposer.register(getConfiguration().getProject(), consoleView);
 
-    final OSProcessHandler handler = createHandler(executor);
+    OSProcessHandler handler = createHandler(executor, viewer);
 
     for (ArgumentFileFilter filter : myArgumentFileFilters) {
       consoleView.addMessageFilter(filter);
@@ -288,15 +325,14 @@ public abstract class JavaTestFrameworkRunnableState<T extends
       if (forkPerModule()) {
         if (isExecutorDisabledInForkedMode()) {
           final String actionName = executor.getActionName();
-          throw new CantRunException("'" + actionName + "' is disabled when per-module working directory is configured.<br/>" +
-                                     "Please specify single working directory, or change test scope to single module.");
+          throw new CantRunException(JavaCompilerBundle.message("action.disabled.when.per.module.working.directory.configured", actionName));
         }
       } else {
         return;
       }
     } else if (isExecutorDisabledInForkedMode()) {
       final String actionName = executor.getActionName();
-      throw new CantRunException(actionName + " is disabled in fork mode.<br/>Please change fork mode to &lt;none&gt; to " + StringUtil.toLowerCase(actionName) + ".");
+      throw new CantRunException(JavaCompilerBundle.message("action.disabled.in.fork.mode", actionName, StringUtil.toLowerCase(actionName)));
     }
 
     final JavaParameters javaParameters = getJavaParameters();
@@ -307,12 +343,16 @@ public abstract class JavaTestFrameworkRunnableState<T extends
 
     try {
       final File tempFile = FileUtil.createTempFile("command.line", "", true);
-      try (PrintWriter writer = new PrintWriter(tempFile, CharsetToolkit.UTF8)) {
+      try (PrintWriter writer = new PrintWriter(tempFile, StandardCharsets.UTF_8)) {
         ShortenCommandLine shortenCommandLine = getConfiguration().getShortenCommandLine();
         boolean useDynamicClasspathForForkMode = shortenCommandLine == null
                                                  ? JdkUtil.useDynamicClasspath(getConfiguration().getProject())
                                                  : shortenCommandLine != ShortenCommandLine.NONE;
-        if (useDynamicClasspathForForkMode && forkPerModule()) {
+        if (shortenCommandLine == ShortenCommandLine.ARGS_FILE) {
+          //see com.intellij.rt.execution.testFrameworks.ForkedByModuleSplitter.startChildFork
+          writer.println(shortenCommandLine);
+        }
+        else if (useDynamicClasspathForForkMode && forkPerModule()) {
           writer.println("use classpath jar");
         }
         else {
@@ -377,6 +417,7 @@ public abstract class JavaTestFrameworkRunnableState<T extends
   }
 
   private void configureModulePath(JavaParameters javaParameters, @NotNull Module module) {
+    if (!useModulePath()) return;
     PsiJavaModule testModule = findJavaModule(module, true);
     if (testModule != null) {
       //adding the test module explicitly as it is unreachable from `idea.rt`
@@ -562,7 +603,7 @@ public abstract class JavaTestFrameworkRunnableState<T extends
   protected void writeClassesPerModule(String packageName,
                                        JavaParameters javaParameters,
                                        Map<Module, List<String>> perModule,
-                                       @NotNull String filters) throws FileNotFoundException, UnsupportedEncodingException {
+                                       @NotNull String filters) throws IOException {
     if (perModule != null) {
       final String classpath = getScope() == TestSearchScope.WHOLE_PROJECT
                                ? null : javaParameters.getClassPath().getPathsString();
@@ -572,7 +613,7 @@ public abstract class JavaTestFrameworkRunnableState<T extends
       //like plugin and corresponding IDE register the same components twice
       boolean toChangeWorkingDirectory = toChangeWorkingDirectory(workingDirectory);
 
-      try (PrintWriter wWriter = new PrintWriter(myWorkingDirsFile, CharsetToolkit.UTF8)) {
+      try (PrintWriter wWriter = new PrintWriter(myWorkingDirsFile, StandardCharsets.UTF_8)) {
         wWriter.println(packageName);
         for (Module module : perModule.keySet()) {
           wWriter.println(toChangeWorkingDirectory ? PathMacroUtil.getModuleDir(module.getModuleFilePath()) : workingDirectory);
@@ -589,26 +630,14 @@ public abstract class JavaTestFrameworkRunnableState<T extends
               }
               configureRTClasspath(parameters, module);
               parameters.getClassPath().add(JavaSdkUtil.getIdeaRtJarPath());
-              wWriter.println(parameters.getClassPath().getPathsString());
-              wWriter.println(parameters.getModulePath().getPathsString());
-              ParamsGroup paramsGroup = getJigsawOptions(parameters);
-              if (paramsGroup == null) {
-                wWriter.println(0);
-              }
-              else {
-                List<String> parametersList = paramsGroup.getParametersList().getList();
-                wWriter.println(parametersList.size());
-                for (String option : parametersList) {
-                  wWriter.println(option);
-                }
-              }
+              writeClasspath(wWriter, parameters);
             }
             catch (CantRunException e) {
-              wWriter.println(javaParameters.getClassPath().getPathsString());
+              writeClasspath(wWriter, javaParameters);
             }
           }
           else {
-            wWriter.println(classpath);
+            writeClasspath(wWriter, javaParameters);
           }
 
           final List<String> classNames = perModule.get(module);
@@ -618,6 +647,22 @@ public abstract class JavaTestFrameworkRunnableState<T extends
           }
           wWriter.println(filters);
         }
+      }
+    }
+  }
+
+  private static void writeClasspath(PrintWriter wWriter, JavaParameters parameters) {
+    wWriter.println(parameters.getClassPath().getPathsString());
+    wWriter.println(parameters.getModulePath().getPathsString());
+    ParamsGroup paramsGroup = getJigsawOptions(parameters);
+    if (paramsGroup == null) {
+      wWriter.println(0);
+    }
+    else {
+      List<String> parametersList = paramsGroup.getParametersList().getList();
+      wWriter.println(parametersList.size());
+      for (String option : parametersList) {
+        wWriter.println(option);
       }
     }
   }
@@ -633,4 +678,8 @@ public abstract class JavaTestFrameworkRunnableState<T extends
   }
 
   public void appendRepeatMode() throws ExecutionException { }
+
+  protected boolean useModulePath() {
+    return true;
+  }
 }

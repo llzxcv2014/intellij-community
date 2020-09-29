@@ -15,12 +15,12 @@
  */
 package com.intellij.lang.ant.config.impl.configuration;
 
-import com.intellij.execution.ExecutionBundle;
 import com.intellij.lang.ant.AntBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Factory;
+import com.intellij.openapi.util.NlsActions;
 import com.intellij.ui.ReorderableListController;
 import com.intellij.ui.ScrollingUtil;
 
@@ -52,7 +52,7 @@ public class AnActionListEditor<T> extends JPanel {
     description.setShowText(true);
   }
 
-  public void addRemoveButtonForAnt(final Condition<? super T> removeCondition, String actionName) {
+  public void addRemoveButtonForAnt(final Condition<? super T> removeCondition, @NlsActions.ActionText String actionName) {
     final ReorderableListController<T>.RemoveActionDescription description = myForm.getListActionsBuilder().addRemoveAction(actionName);
     description.addPostHandler(new ReorderableListController.ActionNotification<List<T>>() {
       @Override
@@ -72,12 +72,12 @@ public class AnActionListEditor<T> extends JPanel {
       if (list.size() == 1) {
         return Messages.showOkCancelDialog(description.getList(),
                                            AntBundle.message("delete.selected.ant.configuration.confirmation.text"),
-                                           ExecutionBundle.message("delete.confirmation.dialog.title"),
+                                           AntBundle.message("delete.confirmation.dialog.title"),
                                            Messages.getQuestionIcon()) == Messages.OK;
       } else {
         return Messages.showOkCancelDialog(description.getList(),
                                            AntBundle.message("delete.selected.ant.configurations.confirmation.text"),
-                                           ExecutionBundle.message("delete.confirmation.dialog.title"),
+                                           AntBundle.message("delete.confirmation.dialog.title"),
                                            Messages.getQuestionIcon()) == Messages.OK;
       }
     });
@@ -131,10 +131,6 @@ public class AnActionListEditor<T> extends JPanel {
 
     Form() {
       myList.setModel(new DefaultListModel());
-      if (ApplicationManager.getApplication() == null) {
-        myListController = new ReorderableListToolbar<>(myList);
-        return;  // Preview mode
-      }
       myListController = new ReorderableListToolbar<>(myList);
     }
 

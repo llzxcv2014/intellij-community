@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.ui;
 
 import com.intellij.CommonBundle;
@@ -11,10 +11,7 @@ import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.ListPopup;
 import com.intellij.openapi.ui.popup.ListPopupStep;
-import com.intellij.openapi.util.ActionCallback;
-import com.intellij.openapi.util.Comparing;
-import com.intellij.openapi.util.Condition;
-import com.intellij.openapi.util.Conditions;
+import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.ui.*;
@@ -54,16 +51,11 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
 
   protected History myHistory = new History(new Place.Navigator() {
     @Override
-    public void setHistory(final History history) {
+    public void setHistory(History history) {
       myHistory = history;
     }
-
-    @Override
-    @Nullable
-    public ActionCallback navigateTo(@Nullable final Place place, final boolean requestFocus) {
-      return null;
-    }
   });
+
   private JComponent myMaster;
 
   public void setHistory(final History history) {
@@ -119,11 +111,12 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
     mySplitter.setHonorComponentsMinimumSize(true);
 
     installAutoScroll();
-    reInitWholePanelIfNeeded();
   }
 
   protected void reInitWholePanelIfNeeded() {
-    if (!myToReInitWholePanel) return;
+    if (!myToReInitWholePanel) {
+      return;
+    }
 
     myWholePanel = new NonOpaquePanel(new BorderLayout()) {
       @Override
@@ -155,13 +148,16 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
       }
     };
 
-    ToolbarDecorator decorator = ToolbarDecorator.createDecorator(myTree);
+    ToolbarDecorator decorator = ToolbarDecorator.createDecorator(myTree)
+      .setToolbarPosition(ActionToolbarPosition.TOP)
+      .setPanelBorder(JBUI.Borders.empty())
+      .setScrollPaneBorder(JBUI.Borders.empty());
     DefaultActionGroup group = createToolbarActionGroup();
     if (group != null) {
       decorator.setActionGroup(group);
     }
     //left.add(myNorthPanel, BorderLayout.NORTH);
-    myMaster = decorator.setAsUsualTopToolbar().setPanelBorder(JBUI.Borders.empty()).createPanel();
+    myMaster = decorator.createPanel();
     myNorthPanel.setVisible(false);
     left.add(myMaster, BorderLayout.CENTER);
     mySplitter.setFirstComponent(left);
@@ -369,8 +365,8 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
     }
   }
 
-  private static String getNodePathString(final MyNode node) {
-    StringBuilder path = new StringBuilder();
+  private static @NonNls String getNodePathString(final MyNode node) {
+    @NonNls StringBuilder path = new StringBuilder();
     MyNode current = node;
     while (current != null) {
       final Object userObject = current.getUserObject();
@@ -578,7 +574,7 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
     return null;
   }
 
-  public void selectNodeInTree(String displayName) {
+  public void selectNodeInTree(@NlsSafe String displayName) {
     final MyNode nodeByName = findNodeByName(myRoot, displayName);
     selectNodeInTree(nodeByName, true);
   }
@@ -653,6 +649,7 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
     return null;
   }
 
+  @NlsContexts.StatusText
   @Nullable
   protected String getEmptySelectionString() {
     return null;
@@ -772,7 +769,7 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
     }
 
     public MyDeleteAction(Condition<Object[]> availableCondition) {
-      super(CommonBundle.message("button.delete"), CommonBundle.message("button.delete"), PlatformIcons.DELETE_ICON);
+      super(CommonBundle.messagePointer("button.delete"), CommonBundle.messagePointer("button.delete"), PlatformIcons.DELETE_ICON);
       registerCustomShortcutSet(CommonActionsPanel.getCommonShortcut(CommonActionsPanel.Buttons.REMOVE), myTree);
       myCondition = availableCondition;
     }
@@ -817,7 +814,7 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
     }
 
     @NotNull
-    public String getDisplayName() {
+    public @NlsSafe String getDisplayName() {
       final NamedConfigurable configurable = (NamedConfigurable)getUserObject();
       if (configurable != null) return configurable.getDisplayName();
       LOG.debug("Tree was already disposed"); // workaround for IDEA-206547

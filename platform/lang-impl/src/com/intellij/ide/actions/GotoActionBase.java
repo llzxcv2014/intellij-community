@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ide.actions;
 
@@ -20,7 +20,6 @@ import com.intellij.openapi.keymap.KeymapUtil;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.IdeFocusManager;
@@ -32,16 +31,16 @@ import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.SearchTextField;
 import com.intellij.ui.speedSearch.SpeedSearchSupply;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Author: msk
@@ -175,7 +174,7 @@ public abstract class GotoActionBase extends AnAction {
   protected <T> void showNavigationPopup(AnActionEvent e,
                                          ChooseByNameModel model,
                                          final GotoActionCallback<T> callback,
-                                         @Nullable final String findUsagesTitle,
+                                         @Nullable @Nls final String findUsagesTitle,
                                          boolean useSelectionFromEditor) {
     showNavigationPopup(e, model, callback, findUsagesTitle, useSelectionFromEditor, true);
   }
@@ -183,7 +182,7 @@ public abstract class GotoActionBase extends AnAction {
   protected <T> void showNavigationPopup(AnActionEvent e,
                                          ChooseByNameModel model,
                                          final GotoActionCallback<T> callback,
-                                         @Nullable final String findUsagesTitle,
+                                         @Nullable @Nls final String findUsagesTitle,
                                          boolean useSelectionFromEditor,
                                          final boolean allowMultipleSelection) {
     showNavigationPopup(e, model, callback, findUsagesTitle, useSelectionFromEditor, allowMultipleSelection,
@@ -197,7 +196,7 @@ public abstract class GotoActionBase extends AnAction {
   protected <T> void showNavigationPopup(AnActionEvent e,
                                          ChooseByNameModel model,
                                          final GotoActionCallback<T> callback,
-                                         @Nullable final String findUsagesTitle,
+                                         @Nullable @Nls final String findUsagesTitle,
                                          boolean useSelectionFromEditor,
                                          final boolean allowMultipleSelection,
                                          final DefaultChooseByNameItemProvider itemProvider) {
@@ -207,7 +206,7 @@ public abstract class GotoActionBase extends AnAction {
   protected <T> void showNavigationPopup(AnActionEvent e,
                                          ChooseByNameModel model,
                                          final GotoActionCallback<T> callback,
-                                         @Nullable final String findUsagesTitle,
+                                         @Nullable @Nls final String findUsagesTitle,
                                          boolean useSelectionFromEditor,
                                          final boolean allowMultipleSelection,
                                          final ChooseByNameItemProvider itemProvider) {
@@ -223,13 +222,13 @@ public abstract class GotoActionBase extends AnAction {
   }
 
   protected <T> void showNavigationPopup(final GotoActionCallback<T> callback,
-                                         @Nullable final String findUsagesTitle,
+                                         @Nullable @Nls final String findUsagesTitle,
                                          final ChooseByNamePopup popup) {
     showNavigationPopup(callback, findUsagesTitle, popup, true);
   }
 
   protected <T> void showNavigationPopup(final GotoActionCallback<T> callback,
-                                         @Nullable final String findUsagesTitle,
+                                         @Nullable @Nls final String findUsagesTitle,
                                          final ChooseByNamePopup popup,
                                          final boolean allowMultipleSelection) {
 
@@ -295,7 +294,7 @@ public abstract class GotoActionBase extends AnAction {
 
       void setText(@NotNull List<String> strings) {
         String text = strings.get(myHistoryIndex);
-        if (Comparing.equal(text, editor.getText())) {//don't rebuild popup list, it blinks
+        if (Objects.equals(text, editor.getText())) {//don't rebuild popup list, it blinks
           return;
         }
         javax.swing.text.Document document = editor.getDocument();
@@ -328,12 +327,18 @@ public abstract class GotoActionBase extends AnAction {
     }.registerCustomShortcutSet(SearchTextField.SHOW_HISTORY_SHORTCUT, editor);
   }
 
+  /**
+   * @deprecated if you have to use this method perhaps your Action better should extend
+   * {@link SearchEverywhereBaseAction} instead of {@link GotoActionBase}.
+   * Method is going to be removed in 2021.1
+   */
+  @ApiStatus.ScheduledForRemoval(inVersion = "2021.1")
+  @Deprecated
   protected void showInSearchEverywherePopup(@NotNull String searchProviderID,
                                              @NotNull AnActionEvent event,
                                              boolean useEditorSelection,
                                              boolean sendStatistics) {
     Project project = event.getProject();
-    if (project == null) return;
     SearchEverywhereManager seManager = SearchEverywhereManager.getInstance(project);
     FeatureUsageTracker.getInstance().triggerFeatureUsed(IdeActions.ACTION_SEARCH_EVERYWHERE);
 
@@ -354,7 +359,7 @@ public abstract class GotoActionBase extends AnAction {
     }
 
     if (sendStatistics) {
-      FeatureUsageData data = SearchEverywhereUsageTriggerCollector.createData(searchProviderID);
+      FeatureUsageData data = SearchEverywhereUsageTriggerCollector.createData(searchProviderID).addInputEvent(event);
       SearchEverywhereUsageTriggerCollector.trigger(project, SearchEverywhereUsageTriggerCollector.DIALOG_OPEN, data);
     }
     IdeEventQueue.getInstance().getPopupManager().closeAllPopups(false);

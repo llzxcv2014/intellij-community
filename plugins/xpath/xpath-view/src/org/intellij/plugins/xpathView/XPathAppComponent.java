@@ -18,8 +18,8 @@ package org.intellij.plugins.xpathView;
 import com.intellij.codeInsight.hint.HintManager;
 import com.intellij.codeInsight.hint.HintManagerImpl;
 import com.intellij.codeInsight.hint.HintUtil;
-import com.intellij.codeInsight.template.impl.DefaultLiveTemplatesProvider;
-import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.actionSystem.DataContext;
+import com.intellij.openapi.actionSystem.IdeActions;
 import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.components.State;
@@ -30,6 +30,7 @@ import com.intellij.openapi.editor.ScrollType;
 import com.intellij.openapi.editor.actionSystem.EditorActionHandler;
 import com.intellij.openapi.editor.markup.RangeHighlighter;
 import com.intellij.openapi.keymap.KeymapUtil;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.Gray;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.LightweightHint;
@@ -50,7 +51,7 @@ import java.util.List;
  * Also used to manage highlighters.
  */
 @State(name = "XPathView.XPathViewPlugin", storages = @Storage("xpath.xml"))
-public final class XPathAppComponent implements PersistentStateComponent<Config>, DefaultLiveTemplatesProvider {
+public final class XPathAppComponent implements PersistentStateComponent<Config> {
   private Config configuration = new Config();
 
   @Nullable
@@ -123,12 +124,13 @@ public final class XPathAppComponent implements PersistentStateComponent<Config>
           startOffset = hl.get(isPrev ? hl.size() - 1 : 0).getStartOffset();
         }
         else {
-          final String info = (isPrev ? "First" : "Last") +
-                              " XPath match reached. Press " +
-                              (isPrev ? KeymapUtil.getShortcutText(IdeActions.ACTION_FIND_PREVIOUS) : KeymapUtil.getShortcutText(IdeActions.ACTION_FIND_NEXT)) +
-                              " to search from the " +
-                              (isPrev ? "bottom" : "top");
+          final String info =
+            XPathBundle.message("hint.text.choice.first.last.xpath.match.reached.press.to.search.from.choice.bottom.top",
+                                isPrev ? 0 : 1,
+                                isPrev ? KeymapUtil.getShortcutText(IdeActions.ACTION_FIND_PREVIOUS) : KeymapUtil.getShortcutText(IdeActions.ACTION_FIND_NEXT),
+                                isPrev ? 0 : 1);
 
+          //noinspection DialogTitleCapitalization
           showEditorHint(info, editor);
 
           wrapAround = true;
@@ -155,10 +157,10 @@ public final class XPathAppComponent implements PersistentStateComponent<Config>
     }
   }
 
-  public static void showEditorHint(final String info, final Editor editor) {
+  public static void showEditorHint(final @NlsContexts.HintText String info, final Editor editor) {
     final JLabel label = new JLabel(info);
     label.setBorder(BorderFactory.createCompoundBorder(
-      BorderFactory.createBevelBorder(BevelBorder.RAISED, Color.WHITE, Gray._128),
+      BorderFactory.createBevelBorder(BevelBorder.RAISED, JBColor.WHITE, Gray._128),
       BorderFactory.createEmptyBorder(3, 5, 3, 5)));
     label.setForeground(JBColor.foreground());
     label.setBackground(HintUtil.getInformationColor());
@@ -193,15 +195,5 @@ public final class XPathAppComponent implements PersistentStateComponent<Config>
         */
     final int flags = HintManager.HIDE_BY_ANY_KEY | HintManager.HIDE_BY_SCROLLING;
     HintManagerImpl.getInstanceImpl().showEditorHint(h, editor, point, flags, 0, false);
-  }
-
-  @Override
-  public String[] getDefaultLiveTemplateFiles() {
-    return new String[]{"/liveTemplates/xsl"};
-  }
-
-  @Override
-  public String[] getHiddenLiveTemplateFiles() {
-    return null;
   }
 }

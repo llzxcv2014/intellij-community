@@ -1,7 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actions;
 
+import com.intellij.CommonBundle;
 import com.intellij.diagnostic.ThreadDumper;
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -17,9 +19,11 @@ import com.intellij.util.ReflectionUtil;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.text.CharArrayUtil;
-import gnu.trove.TLongLongHashMap;
-import gnu.trove.TObjectLongHashMap;
+import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2LongMap;
+import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import one.util.streamex.StreamEx;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -29,10 +33,10 @@ import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-class ActivityMonitorAction extends DumbAwareAction {
-  private static final String[] MEANINGLESS_PREFIXES_1 = {"com.intellij.", "com.jetbrains.", "org.jetbrains.", "org.intellij."};
-  private static final String[] MEANINGLESS_PREFIXES_2 = {"util.", "openapi.", "plugins.", "extapi."};
-  private static final String[] INFRASTRUCTURE_PREFIXES = {
+final class ActivityMonitorAction extends DumbAwareAction {
+  private static final @NonNls String[] MEANINGLESS_PREFIXES_1 = {"com.intellij.", "com.jetbrains.", "org.jetbrains.", "org.intellij."};
+  private static final @NonNls String[] MEANINGLESS_PREFIXES_2 = {"util.", "openapi.", "plugins.", "extapi."};
+  private static final @NonNls String[] INFRASTRUCTURE_PREFIXES = {
     "sun.",
     "com.sun.",
     "com.yourkit.",
@@ -52,34 +56,40 @@ class ActivityMonitorAction extends DumbAwareAction {
     "org.gradle.",
     "com.google.common.",
     "com.google.gson.",
-    "com.intellij.psi.impl.source.tree.",
+    "com.intellij.openapi.application.impl.",
+    "com.intellij.psi.impl.",
+    "com.intellij.extapi.psi.",
     "com.intellij.psi.util.Cached",
     "com.intellij.openapi.extensions.",
     "com.intellij.openapi.util.",
+    "com.intellij.facet.",
     "com.intellij.util.",
     "com.intellij.concurrency.",
     "com.intellij.semantic.",
+    "com.intellij.serviceContainer.",
     "com.intellij.jam.",
     "com.intellij.psi.stubs.",
+    "com.intellij.openapi.progress.impl.",
     "com.intellij.ide.IdeEventQueue",
     "com.intellij.openapi.fileTypes.",
     "com.intellij.openapi.vfs.newvfs.persistent.PersistentFS",
     "com.intellij.openapi.vfs.newvfs.persistent.FSRecords",
+    "com.intellij.openapi.roots.impl",
     "javax."
   };
 
   @Override
   public void actionPerformed(@NotNull AnActionEvent e) {
     JTextArea textArea = new JTextArea(12, 100);
-    textArea.setText("Loading...");
+    textArea.setText(CommonBundle.getLoadingTreeNodeText());
     ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
     List<GarbageCollectorMXBean> gcBeans = ManagementFactory.getGarbageCollectorMXBeans();
     CompilationMXBean jitBean = ManagementFactory.getCompilationMXBean();
     OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
     Method getProcessCpuTime = Objects.requireNonNull(ReflectionUtil.getMethod(osBean.getClass().getInterfaces()[0], "getProcessCpuTime"));
     ScheduledFuture<?> future = AppExecutorUtil.getAppScheduledExecutorService().scheduleWithFixedDelay(new Runnable() {
-      final TLongLongHashMap lastThreadTimes = new TLongLongHashMap();
-      final TObjectLongHashMap<String> subsystemToSamples = new TObjectLongHashMap<>();
+      final Long2LongOpenHashMap lastThreadTimes = new Long2LongOpenHashMap();
+      final Object2LongOpenHashMap<String> subsystemToSamples = new Object2LongOpenHashMap<>();
       long lastGcTime = totalGcTime();
       long lastProcessTime = totalProcessTime();
       long lastJitTime = jitBean.getTotalCompilationTime();
@@ -172,7 +182,7 @@ class ActivityMonitorAction extends DumbAwareAction {
           long prev = lastThreadTimes.put(id, cpuTime);
           if (prev != 0 && cpuTime > prev) {
             String subsystem = getSubsystemName(id);
-            subsystemToSamples.put(subsystem, subsystemToSamples.get(subsystem) + cpuTime - prev);
+            subsystemToSamples.put(subsystem, subsystemToSamples.getLong(subsystem) + cpuTime - prev);
           }
         }
         long now = System.currentTimeMillis();
@@ -201,7 +211,10 @@ class ActivityMonitorAction extends DumbAwareAction {
       @NotNull
       private List<Pair<String, Long>> takeSnapshot() {
         List<Pair<String, Long>> times = new ArrayList<>();
-        subsystemToSamples.forEachEntry((pkg, time) -> times.add(Pair.create(pkg, TimeUnit.NANOSECONDS.toMillis(time))));
+        for (Iterator<Object2LongMap.Entry<String>> iterator = subsystemToSamples.object2LongEntrySet().fastIterator(); iterator.hasNext(); ) {
+          Object2LongMap.Entry<String> entry = iterator.next();
+          times.add(new Pair<>(entry.getKey(), TimeUnit.NANOSECONDS.toMillis(entry.getLongValue())));
+        }
         subsystemToSamples.clear();
 
         long gcTime = totalGcTime();
@@ -230,7 +243,7 @@ class ActivityMonitorAction extends DumbAwareAction {
       {
         init();
       }
-      
+
       @Override
       protected JComponent createCenterPanel() {
         JBScrollPane pane = new JBScrollPane(textArea);
@@ -243,13 +256,12 @@ class ActivityMonitorAction extends DumbAwareAction {
         return "Performance.Activity.Monitor";
       }
 
-      @NotNull
       @Override
-      protected Action[] createActions() {
+      protected Action @NotNull [] createActions() {
         return new Action[]{getOKAction()};
       }
     };
-    dialog.setTitle("Activity Monitor");
+    dialog.setTitle(IdeBundle.message("dialog.title.activity.monitor"));
     dialog.setModal(false);
     Disposer.register(dialog.getDisposable(), () -> future.cancel(false));
     dialog.show();

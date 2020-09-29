@@ -30,7 +30,6 @@ import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.editor.impl.TextDrawingCallback;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -70,7 +69,7 @@ public interface EditorEx extends Editor {
    *
    * @return the markup model instance.
    * @see com.intellij.openapi.editor.markup.MarkupEditorFilter
-   * @see com.intellij.openapi.editor.impl.EditorImpl#setHighlightingFilter(Condition)
+   * @see com.intellij.openapi.editor.impl.EditorImpl#setHighlightingPredicate(java.util.function.Predicate)
    * @see com.intellij.openapi.editor.impl.DocumentMarkupModel#forDocument(Document, Project, boolean)
    */
   @NotNull
@@ -270,7 +269,7 @@ public interface EditorEx extends Editor {
 
   /**
    * Registers a function which will be applied to a line number to obtain additional text fragments. The fragments returned by the
-   * function will be drawn in the editor after end of the line (together with fragments returned by {@link com.intellij.openapi.editor.EditorLinePainter} extensions).
+   * function will be drawn in the editor after end of the line (together with fragments returned by {@link EditorLinePainter} extensions).
    */
   void registerLineExtensionPainter(IntFunction<Collection<LineExtensionInfo>> lineExtensionPainter);
 
@@ -315,7 +314,8 @@ public interface EditorEx extends Editor {
    * <p>
    * Default handler shows a context menu corresponding to a certain action group
    * registered in {@link ActionManager}. Group's id can be changed using {@link #setContextMenuGroupId(String)}. For inline custom visual
-   * elements (inlays) action group id is obtained from {@link EditorCustomElementRenderer#getContextMenuGroupId(Inlay)}.
+   * elements (inlays) action group is determined by {@link EditorCustomElementRenderer#getContextMenuGroupId(Inlay)} and
+   * {@link EditorCustomElementRenderer#getContextMenuGroup(Inlay)}.
    * <p>
    * If multiple handlers are installed, they are processed in order, starting from the most recently installed one. Processing stops when
    * some handler returns {@code true} from {@link EditorPopupHandler#handlePopup(EditorMouseEvent)} method.

@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui.components.breadcrumbs;
 
 import com.intellij.openapi.editor.markup.EffectType;
 import com.intellij.openapi.editor.markup.TextAttributes;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.ColorUtil;
@@ -15,6 +16,7 @@ import com.intellij.util.ui.AbstractLayoutManager;
 import com.intellij.util.ui.JBInsets;
 import com.intellij.util.ui.MouseEventHandler;
 import org.intellij.lang.annotations.JdkConstants.FontStyle;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -33,9 +35,6 @@ import static javax.swing.SwingConstants.*;
 import static javax.swing.SwingUtilities.isLeftMouseButton;
 import static javax.swing.SwingUtilities.layoutCompoundLabel;
 
-/**
- * @author Sergey.Malenkov
- */
 public class Breadcrumbs extends JBPanelWithEmptyText {
   private static final int LEFT_RIGHT = 5;
   private static final int TOP_BOTTOM = 3;
@@ -124,7 +123,7 @@ public class Breadcrumbs extends JBPanelWithEmptyText {
   }
 
   @Override
-  public String getToolTipText(MouseEvent event) {
+  public @NlsContexts.Tooltip String getToolTipText(MouseEvent event) {
     return hovered == null ? null : hovered.getTooltip();
   }
 
@@ -351,7 +350,7 @@ public class Breadcrumbs extends JBPanelWithEmptyText {
     private Icon icon;
     private int crumbIconWidth;
     private int crumbIconHeight;
-    private String text;
+    private @Nls String text;
     private Path2D path;
     private Font font;
     private Color foreground;

@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.refactoring.inline;
 
 import com.intellij.codeInsight.TargetElementUtil;
@@ -29,6 +15,7 @@ import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
 import com.intellij.refactoring.util.RefactoringMessageDialog;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.GroovyLanguage;
 import org.jetbrains.plugins.groovy.codeInspection.utils.ControlFlowUtils;
@@ -46,12 +33,13 @@ import org.jetbrains.plugins.groovy.refactoring.GroovyRefactoringBundle;
 import java.util.BitSet;
 import java.util.List;
 
+import static org.jetbrains.annotations.Nls.Capitalization.Title;
+
 /**
  * @author Max Medvedev
  */
 public class GroovyInlineLocalHandler extends InlineActionHandler {
   private static final Logger LOG = Logger.getInstance(GroovyInlineLocalHandler.class);
-  public static final String INLINE_VARIABLE = RefactoringBundle.message("inline.variable.title");
 
   @Override
   public boolean isEnabledForLanguage(Language l) {
@@ -150,7 +138,7 @@ public class GroovyInlineLocalHandler extends InlineActionHandler {
 
     if (initializer == null || writeInstr == null) {
       String message = GroovyRefactoringBundle.message("cannot.find.a.single.definition.to.inline.local.var");
-      CommonRefactoringUtil.showErrorHint(variable.getProject(), editor, message, INLINE_VARIABLE, HelpID.INLINE_VARIABLE);
+      CommonRefactoringUtil.showErrorHint(variable.getProject(), editor, message, getInlineVariable(), HelpID.INLINE_VARIABLE);
       return null;
     }
 
@@ -161,7 +149,7 @@ public class GroovyInlineLocalHandler extends InlineActionHandler {
 
     final String question = GroovyRefactoringBundle.message("inline.local.variable.prompt.0.1", localName);
     RefactoringMessageDialog dialog =
-      new RefactoringMessageDialog(INLINE_VARIABLE, question, HelpID.INLINE_VARIABLE, "OptionPane.questionIcon", true, project);
+      new RefactoringMessageDialog(getInlineVariable(), question, HelpID.INLINE_VARIABLE, "OptionPane.questionIcon", true, project);
     if (dialog.showAndGet()) {
       return new InlineLocalVarSettings(initializer, writeInstructionNumber, flow);
     }
@@ -172,6 +160,10 @@ public class GroovyInlineLocalHandler extends InlineActionHandler {
   @Nullable
   @Override
   public String getActionName(PsiElement element) {
-    return INLINE_VARIABLE;
+    return getInlineVariable();
+  }
+
+  public static @Nls(capitalization = Title) String getInlineVariable() {
+    return RefactoringBundle.message("inline.variable.title");
   }
 }

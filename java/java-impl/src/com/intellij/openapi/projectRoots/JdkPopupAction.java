@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.projectRoots;
 
 import com.intellij.execution.ExecutionException;
@@ -6,6 +6,7 @@ import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.ProcessOutput;
 import com.intellij.execution.util.ExecUtil;
 import com.intellij.icons.AllIcons;
+import com.intellij.java.JavaBundle;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -13,6 +14,8 @@ import com.intellij.openapi.fileChooser.FileSystemTree;
 import com.intellij.openapi.fileChooser.actions.FileChooserAction;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.projectRoots.impl.JavaSdkImpl;
+import com.intellij.openapi.ui.JBPopupMenu;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.VfsUtil;
@@ -33,7 +36,7 @@ public class JdkPopupAction extends AnAction {
   private static final Logger LOG = Logger.getInstance(JdkPopupAction.class);
 
   public JdkPopupAction() {
-    super("Show Quick list", "", AllIcons.General.AddJdk);
+    super(JavaBundle.messagePointer("action.text.show.quick.list"), () -> "", AllIcons.General.AddJdk);
   }
 
   @Override
@@ -74,7 +77,7 @@ public class JdkPopupAction extends AnAction {
       }
 
       ApplicationManager.getApplication().invokeLater(() -> showPopupMenu(e, jdkLocations, showInMiddle, component));
-    }, "Looking for JDK locations...", false, e.getProject(), component);
+    }, JavaBundle.message("progress.title.looking.for.jdk.locations"), false, e.getProject(), component);
   }
 
   private static boolean isEnabledInCurrentOS() {
@@ -87,11 +90,10 @@ public class JdkPopupAction extends AnAction {
                              JComponent component) {
     ActionPopupMenu menu =
       ActionManager.getInstance().createActionPopupMenu(e.getPlace(), new ActionGroup() {
-        @NotNull
         @Override
-        public AnAction[] getChildren(@Nullable AnActionEvent e) {
+        public AnAction @NotNull [] getChildren(@Nullable AnActionEvent e) {
           List<AnAction> result = new ArrayList<>();
-          for (final Pair<File, String> homes : jdkLocations) {
+          for (final Pair<File, @NlsSafe String> homes : jdkLocations) {
             result.add(new FileChooserAction("", null, null) {
               @Override
               protected void update(FileSystemTree fileChooser, AnActionEvent e) {
@@ -120,7 +122,7 @@ public class JdkPopupAction extends AnAction {
               (component.getHeight() - menuComponent.getHeight()) / 2);
     }
     else {
-      menuComponent.show(component, 0, component.getHeight());
+      JBPopupMenu.showBelow(component, menuComponent);
     }
   }
 

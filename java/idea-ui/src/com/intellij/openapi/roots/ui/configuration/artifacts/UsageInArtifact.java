@@ -5,6 +5,7 @@ import com.intellij.openapi.roots.ui.configuration.projectRoot.daemon.LibraryPro
 import com.intellij.openapi.roots.ui.configuration.projectRoot.daemon.PlaceInProjectStructure;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.daemon.ProjectStructureElement;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.daemon.ProjectStructureElementUsage;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.packaging.artifacts.Artifact;
 import com.intellij.packaging.elements.PackagingElement;
 import com.intellij.packaging.elements.PackagingElementFactory;
@@ -12,15 +13,12 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
-/**
- * @author nik
- */
 public class UsageInArtifact extends ProjectStructureElementUsage {
   private final Artifact myOriginalArtifact;
   private final ArtifactsStructureConfigurableContext myContext;
   private final ProjectStructureElement mySourceElement;
   private final ProjectStructureElement myContainingElement;
-  private final String myParentPath;
+  private final @NlsSafe String myParentPath;
   private final PackagingElement<?> myPackagingElement;
 
   public UsageInArtifact(Artifact originalArtifact, ArtifactsStructureConfigurableContext context, ProjectStructureElement sourceElement,

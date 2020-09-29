@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.build;
 
 import com.intellij.compiler.server.CompileServerPlugin;
@@ -20,9 +20,11 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.CompilerModuleExtension;
+import com.intellij.openapi.roots.NativeLibraryOrderRootType;
 import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.openapi.util.text.StringUtil;
@@ -31,11 +33,13 @@ import com.intellij.psi.xml.XmlFile;
 import com.intellij.psi.xml.XmlTag;
 import com.intellij.util.PathUtil;
 import com.intellij.util.io.Compressor;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.devkit.DevKitBundle;
 import org.jetbrains.idea.devkit.dom.Extensions;
 import org.jetbrains.idea.devkit.dom.IdeaPlugin;
+import org.jetbrains.idea.devkit.module.PluginDescriptorConstants;
 import org.jetbrains.idea.devkit.module.PluginModuleType;
 import org.jetbrains.idea.devkit.util.DescriptorUtil;
 
@@ -47,11 +51,13 @@ import java.util.*;
 import java.util.jar.Manifest;
 
 public class PrepareToDeployAction extends AnAction {
-  private static final String ZIP_EXTENSION = ".zip";
-  private static final String JAR_EXTENSION = ".jar";
-  private static final String TEMP_PREFIX = "temp";
+  private static final @NonNls String ZIP_EXTENSION = ".zip";
+  private static final @NonNls String JAR_EXTENSION = ".jar";
+  private static final @NonNls String TEMP_PREFIX = "temp";
 
-  private static final NotificationGroup NOTIFICATION_GROUP = NotificationGroup.balloonGroup("Plugin DevKit Deployment");
+  private static class Holder {
+    private static final NotificationGroup NOTIFICATION_GROUP = NotificationGroup.balloonGroup("Plugin DevKit Deployment");
+  }
 
   @Override
   public void actionPerformed(@NotNull AnActionEvent e) {
@@ -77,13 +83,15 @@ public class PrepareToDeployAction extends AnAction {
             }
           }
           if (!errorMessages.isEmpty()) {
-            Messages.showErrorDialog(errorMessages.iterator().next(), DevKitBundle.message("error.occurred"));
+            @NlsSafe String errorMessage = errorMessages.iterator().next();
+            Messages.showErrorDialog(errorMessage, DevKitBundle.message("error.occurred"));
           }
           else if (!successMessages.isEmpty()) {
             String title = pluginModules.size() == 1 ?
                            DevKitBundle.message("success.deployment.message", pluginModules.get(0).getName()) :
                            DevKitBundle.message("success.deployment.message.all");
-            NOTIFICATION_GROUP.createNotification(title, StringUtil.join(successMessages, "\n"), NotificationType.INFORMATION, null).notify(project);
+            @NlsSafe String successMessage = StringUtil.join(successMessages, "\n");
+            Holder.NOTIFICATION_GROUP.createNotification(title, successMessage, NotificationType.INFORMATION, null).notify(project);
           }
         }, project.getDisposed());
       }
@@ -119,7 +127,7 @@ public class PrepareToDeployAction extends AnAction {
     return clearReadOnly(module.getProject(), dstFile) && ProgressManager.getInstance().runProcessWithProgressSynchronously(() -> {
       ProgressIndicator progressIndicator = ProgressManager.getInstance().getProgressIndicator();
       if (progressIndicator != null) {
-        progressIndicator.setText(DevKitBundle.message("prepare.for.deployment.common"));
+        progressIndicator.setText(DevKitBundle.message("prepare.for.deployment.task.progress"));
         progressIndicator.setIndeterminate(true);
       }
       try {
@@ -141,7 +149,7 @@ public class PrepareToDeployAction extends AnAction {
       catch (IOException e) {
         errorMessages.add(e.getMessage() + "\n(" + dstPath + ")");
       }
-    }, DevKitBundle.message("prepare.for.deployment", pluginName), true, module.getProject());
+    }, DevKitBundle.message("prepare.for.deployment.task", pluginName), true, module.getProject());
   }
 
   @NotNull
@@ -191,10 +199,10 @@ public class PrepareToDeployAction extends AnAction {
       try (Compressor zip = new Compressor.Zip(zipFile)) {
         zip.addDirectory(getZipPath(pluginName, ""));
 
-        Set<String> usedJarNames = new HashSet<>();
+        Set<String> usedFileNames = new HashSet<>();
         String entryName = pluginName + JAR_EXTENSION;
         zip.addFile(getZipPath(pluginName, entryName), jarFile);
-        usedJarNames.add(entryName);
+        usedFileNames.add(entryName);
 
         for (Map.Entry<Module, String> entry : jpsModules.entrySet()) {
           File jpsPluginJar = jarModulesOutput(Collections.singleton(entry.getKey()), null, null);
@@ -212,11 +220,17 @@ public class PrepareToDeployAction extends AnAction {
           for (VirtualFile libRoot : roots) {
             if (jarredVirtualFiles.add(libRoot)) {
               if (libRoot.getFileSystem() instanceof JarFileSystem) {
-                addLibraryJar(libRoot, pluginName, zip, usedJarNames);
+                addLibraryFile(libRoot, pluginName, zip, usedFileNames);
               }
               else {
-                makeAndAddLibraryJar(libRoot, pluginName, zip, usedJarNames, library.getName());
+                makeAndAddLibraryJar(libRoot, pluginName, zip, usedFileNames, library.getName());
               }
+            }
+          }
+          VirtualFile[] nativeRoots = library.getFiles(NativeLibraryOrderRootType.getInstance());
+          for (VirtualFile root : nativeRoots) {
+            if (!root.isDirectory()) {
+              addLibraryFile(root, pluginName, zip, usedFileNames);
             }
           }
         }
@@ -224,14 +238,14 @@ public class PrepareToDeployAction extends AnAction {
     }
   }
 
-  private static String getZipPath(String pluginName, String entryName) {
+  private static @NonNls String getZipPath(String pluginName, String entryName) {
     return pluginName + "/lib/" + entryName;
   }
 
-  private static void addLibraryJar(VirtualFile root, String pluginName, Compressor zip, Set<String> usedJarNames) throws IOException {
+  private static void addLibraryFile(VirtualFile root, String pluginName, Compressor zip, Set<String> usedFileNames) throws IOException {
     File ioFile = VfsUtilCore.virtualToIoFile(root);
-    String jarName = getLibraryJarName(ioFile.getName(), usedJarNames, null);
-    zip.addFile(getZipPath(pluginName, jarName), ioFile);
+    String fileName = getLibraryFileName(ioFile.getName(), usedFileNames, null);
+    zip.addFile(getZipPath(pluginName, fileName), ioFile);
   }
 
   private static void makeAndAddLibraryJar(VirtualFile root,
@@ -246,7 +260,7 @@ public class PrepareToDeployAction extends AnAction {
         tempZip.filter((entryName, file) -> !manager.isFileIgnored(PathUtil.getFileName(entryName)));
         tempZip.addDirectory(VfsUtilCore.virtualToIoFile(root));
       }
-      String jarName = getLibraryJarName(root.getName() + JAR_EXTENSION, usedJarNames, preferredName == null ? null : preferredName + JAR_EXTENSION);
+      String jarName = getLibraryFileName(root.getName() + JAR_EXTENSION, usedJarNames, preferredName == null ? null : preferredName + JAR_EXTENSION);
       zip.addFile(getZipPath(pluginName, jarName), tempFile);
     }
     finally {
@@ -254,14 +268,14 @@ public class PrepareToDeployAction extends AnAction {
     }
   }
 
-  private static String getLibraryJarName(String fileName, Set<String> usedJarNames, @Nullable String preferredName) {
+  private static String getLibraryFileName(String fileName, Set<String> usedFileNames, @Nullable String preferredName) {
     String uniqueName;
-    if (preferredName != null && !usedJarNames.contains(preferredName)) {
+    if (preferredName != null && !usedFileNames.contains(preferredName)) {
       uniqueName = preferredName;
     }
     else {
       uniqueName = fileName;
-      if (usedJarNames.contains(uniqueName)) {
+      if (usedFileNames.contains(uniqueName)) {
         int dotPos = uniqueName.lastIndexOf('.');
         String name = dotPos < 0 ? uniqueName : uniqueName.substring(0, dotPos);
         String ext = dotPos < 0 ? "" : uniqueName.substring(dotPos);
@@ -270,10 +284,10 @@ public class PrepareToDeployAction extends AnAction {
           i++;
           uniqueName = name + i + ext;
         }
-        while (usedJarNames.contains(uniqueName));
+        while (usedFileNames.contains(uniqueName));
       }
     }
-    usedJarNames.add(uniqueName);
+    usedFileNames.add(uniqueName);
     return uniqueName;
   }
 
@@ -307,7 +321,7 @@ public class PrepareToDeployAction extends AnAction {
       }
 
       if (pluginXmlPath != null) {
-        jar.addFile("META-INF/plugin.xml", new File(pluginXmlPath));
+        jar.addFile(PluginDescriptorConstants.PLUGIN_XML_PATH, new File(pluginXmlPath));
       }
     }
 
@@ -334,7 +348,7 @@ public class PrepareToDeployAction extends AnAction {
     boolean enabled = module != null && PluginModuleType.isOfType(module);
     e.getPresentation().setEnabledAndVisible(enabled);
     if (enabled) {
-      e.getPresentation().setText(DevKitBundle.message("prepare.for.deployment", module.getName()));
+      e.getPresentation().setText(DevKitBundle.messagePointer("prepare.for.deployment", module.getName()));
     }
   }
 }

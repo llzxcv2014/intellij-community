@@ -1,7 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.memory.ui;
 
+import com.intellij.CommonBundle;
 import com.intellij.debugger.DebuggerManager;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.engine.DebugProcessImpl;
 import com.intellij.debugger.engine.DebuggerUtils;
 import com.intellij.debugger.engine.JavaValue;
@@ -36,6 +38,7 @@ import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.update.UiNotifyConnector;
 import com.intellij.xdebugger.XDebugSession;
 import com.intellij.xdebugger.XDebugSessionListener;
+import com.intellij.xdebugger.XDebuggerBundle;
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider;
 import com.intellij.xdebugger.frame.XValueChildrenList;
 import com.intellij.xdebugger.impl.ui.XDebuggerExpressionEditor;
@@ -69,7 +72,7 @@ class InstancesView extends InstancesViewBase {
   private final MyNodeManager myNodeManager;
   private final Consumer<? super String> myWarningMessageConsumer;
 
-  private final JButton myFilterButton = new JButton("Filter");
+  private final JButton myFilterButton = new JButton(CommonBundle.message("button.filter"));
   private final FilteringProgressView myProgress = new FilteringProgressView();
 
   private final Object myFilteringTaskLock = new Object();
@@ -100,12 +103,12 @@ class InstancesView extends InstancesViewBase {
     getFilterButton().setPreferredSize(filteringButtonSize);
 
     final JBPanel filteringPane = new JBPanel(new BorderLayout(JBUIScale.scale(BORDER_LAYOUT_DEFAULT_GAP), 0));
-    final JBLabel sideEffectsWarning = new JBLabel("Warning: filtering may have side effects", SwingConstants.RIGHT);
+    final JBLabel sideEffectsWarning = new JBLabel(JavaDebuggerBundle.message("warning.filtering.may.have.side.effects"), SwingConstants.RIGHT);
     sideEffectsWarning.setBorder(JBUI.Borders.emptyTop(1));
     sideEffectsWarning.setComponentStyle(UIUtil.ComponentStyle.SMALL);
     sideEffectsWarning.setFontColor(UIUtil.FontColor.BRIGHTER);
 
-    filteringPane.add(new JBLabel("Condition:"), BorderLayout.WEST);
+    filteringPane.add(new JBLabel(JavaDebuggerBundle.message("condition")), BorderLayout.WEST);
     filteringPane.add(myFilterConditionEditor.getComponent(), BorderLayout.CENTER);
     filteringPane.add(getFilterButton(), BorderLayout.EAST);
     filteringPane.add(sideEffectsWarning, BorderLayout.SOUTH);
@@ -130,7 +133,7 @@ class InstancesView extends InstancesViewBase {
     list.addListSelectionListener(e -> list.navigateToSelectedValue(false));
     new DoubleClickListener() {
       @Override
-      protected boolean onDoubleClick(MouseEvent event) {
+      protected boolean onDoubleClick(@NotNull MouseEvent event) {
         list.navigateToSelectedValue(true);
         return true;
       }
@@ -191,7 +194,7 @@ class InstancesView extends InstancesViewBase {
         final EvaluationContextImpl evaluationContext = new EvaluationContextImpl(suspendContext, suspendContext.getFrameProxy());
 
         if (instances.size() > limit) {
-          myWarningMessageConsumer.accept(String.format("Not all instances will be loaded (only %d)", limit));
+          myWarningMessageConsumer.accept(XDebuggerBundle.message("memory.view.instances.warning.not.all.loaded", limit));
           instances = instances.subList(0, limit);
         }
 

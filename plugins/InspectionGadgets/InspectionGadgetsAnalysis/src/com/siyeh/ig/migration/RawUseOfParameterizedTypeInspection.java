@@ -56,12 +56,6 @@ public class RawUseOfParameterizedTypeInspection extends BaseInspection {
 
   @Override
   @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("raw.use.of.parameterized.type.display.name");
-  }
-
-  @Override
-  @NotNull
   protected String buildErrorString(Object... infos) {
     return InspectionGadgetsBundle.message("raw.use.of.parameterized.type.problem.descriptor");
   }
@@ -125,7 +119,7 @@ public class RawUseOfParameterizedTypeInspection extends BaseInspection {
       }
       final PsiElement parent = PsiTreeUtil.skipParentsOfType(
         typeElement, PsiTypeElement.class, PsiReferenceParameterList.class, PsiJavaCodeReferenceElement.class);
-      if (parent instanceof PsiInstanceOfExpression || parent instanceof PsiClassObjectAccessExpression) {
+      if (parent instanceof PsiTypeTestPattern || parent instanceof PsiClassObjectAccessExpression) {
         return;
       }
       if (ignoreTypeCasts && parent instanceof PsiTypeCastExpression) {
@@ -171,6 +165,9 @@ public class RawUseOfParameterizedTypeInspection extends BaseInspection {
       final PsiReferenceList referenceList = (PsiReferenceList)referenceParent;
       final PsiElement listParent = referenceList.getParent();
       if (!(listParent instanceof PsiClass)) {
+        return;
+      }
+      if (referenceList.equals(((PsiClass)listParent).getPermitsList())) {
         return;
       }
       checkReferenceElement(reference);

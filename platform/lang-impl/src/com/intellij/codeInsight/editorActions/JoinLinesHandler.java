@@ -1,16 +1,15 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.codeInsight.editorActions;
 
 import com.intellij.application.options.CodeStyle;
+import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.formatting.FormatterEx;
+import com.intellij.formatting.FormattingContext;
 import com.intellij.formatting.FormattingModel;
 import com.intellij.formatting.FormattingModelBuilder;
 import com.intellij.ide.DataManager;
-import com.intellij.lang.CodeDocumentationAwareCommenter;
-import com.intellij.lang.Commenter;
-import com.intellij.lang.LanguageCommenters;
-import com.intellij.lang.LanguageFormatting;
+import com.intellij.lang.*;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.application.ApplicationManager;
@@ -87,7 +86,7 @@ public class JoinLinesHandler extends EditorActionHandler {
     int line = startLine;
 
     ((ApplicationImpl)ApplicationManager.getApplication()).runWriteActionWithCancellableProgressInDispatchThread(
-      "Join Lines", project, null, indicator -> {
+      LangBundle.message("progress.title.join.lines"), project, null, indicator -> {
         indicator.setIndeterminate(false);
         JoinLineProcessor processor = new JoinLineProcessor(doc, psiFile, line, indicator);
         processor.process(editor, caret, lineCount);
@@ -123,14 +122,14 @@ public class JoinLinesHandler extends EditorActionHandler {
     private void doProcess(int lineCount) {
       List<RangeMarker> markers = new ArrayList<>();
       try {
-        myIndicator.setText2("Converting end-of-line comments");
+        myIndicator.setText2(CodeInsightBundle.message("progress.text.converting.end.of.line.comments"));
         convertEndComments(lineCount);
-        myIndicator.setText2("Removing line-breaks");
+        myIndicator.setText2(CodeInsightBundle.message("progress.text.removing.line.breaks"));
         int newCount = processRawJoiners(lineCount);
         DocumentUtil.executeInBulk(myDoc, newCount > 100, () -> removeLineBreaks(newCount, markers));
-        myIndicator.setText2("Postprocessing");
+        myIndicator.setText2(CodeInsightBundle.message("progress.text.postprocessing"));
         List<RangeMarker> unprocessed = processNonRawJoiners(markers);
-        myIndicator.setText2("Adjusting white-space");
+        myIndicator.setText2(CodeInsightBundle.message("progress.text.adjusting.white.space"));
         adjustWhiteSpace(unprocessed);
       }
       finally {
@@ -333,7 +332,7 @@ public class JoinLinesHandler extends EditorActionHandler {
       CharSequence text = myDoc.getCharsSequence();
       FormattingModelBuilder builder = LanguageFormatting.INSTANCE.forContext(myFile);
       CodeStyleSettings settings = CodeStyle.getSettings(myFile);
-      FormattingModel model = builder == null ? null : builder.createModel(myFile, settings);
+      FormattingModel model = builder == null ? null : builder.createModel(FormattingContext.create(myFile, settings));
       FormatterEx formatter = FormatterEx.getInstance();
       for (int i = 0; i < size; i++) {
         myIndicator.checkCanceled();

@@ -14,9 +14,6 @@ import com.intellij.xdebugger.impl.evaluate.quick.XQuickEvaluateHandler;
 import com.intellij.xdebugger.impl.evaluate.quick.common.QuickEvaluateHandler;
 import org.jetbrains.annotations.NotNull;
 
-/**
- * @author nik
- */
 public class XDebuggerSupport extends DebuggerSupport {
   private final XBreakpointPanelProvider myBreakpointPanelProvider;
   private final XToggleLineBreakpointActionHandler myToggleLineBreakpointActionHandler;
@@ -35,6 +32,7 @@ public class XDebuggerSupport extends DebuggerSupport {
   private final XQuickEvaluateHandler myQuickEvaluateHandler;
 
   private final XAddToWatchesFromEditorActionHandler myAddToWatchesActionHandler;
+  private final XAddToInlineWatchesFromEditorActionHandler myAddToInlineWatchesActionHandler;
   private final DebuggerActionHandler myEvaluateInConsoleActionHandler = new XEvaluateInConsoleFromEditorActionHandler();
 
   private final DebuggerToggleActionHandler myMuteBreakpointsHandler;
@@ -47,6 +45,7 @@ public class XDebuggerSupport extends DebuggerSupport {
     myToggleLineBreakpointActionHandler = new XToggleLineBreakpointActionHandler(false);
     myToggleTemporaryLineBreakpointActionHandler = new XToggleLineBreakpointActionHandler(true);
     myAddToWatchesActionHandler = new XAddToWatchesFromEditorActionHandler();
+    myAddToInlineWatchesActionHandler = new XAddToInlineWatchesFromEditorActionHandler();
     myStepOverHandler = new XDebuggerSuspendedActionHandler() {
       @Override
       protected void perform(@NotNull final XDebugSession session, final DataContext dataContext) {
@@ -201,6 +200,13 @@ public class XDebuggerSupport extends DebuggerSupport {
   public DebuggerActionHandler getAddToWatchesActionHandler() {
     return myAddToWatchesActionHandler;
   }
+
+  @NotNull
+  @Override
+  public DebuggerActionHandler getAddToInlineWatchesActionHandler() {
+    return myAddToInlineWatchesActionHandler;
+  }
+
 
   @NotNull
   @Override

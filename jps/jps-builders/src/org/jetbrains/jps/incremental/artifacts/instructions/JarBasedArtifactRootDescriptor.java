@@ -21,9 +21,6 @@ import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-/**
- * @author nik
- */
 public class JarBasedArtifactRootDescriptor extends ArtifactRootDescriptor {
   private final String myPathInJar;
   private final Condition<? super String> myPathInJarFilter;
@@ -81,7 +78,7 @@ public class JarBasedArtifactRootDescriptor extends ArtifactRootDescriptor {
     if (!myRoot.isFile()) return;
     ProjectBuilderLogger logger = context.getLoggingManager().getProjectBuilderLogger();
     if (logger.isEnabled()) {
-      logger.logCompiledPaths(Collections.singletonList(filePath), IncArtifactBuilder.BUILDER_NAME, "Extracting archive:");
+      logger.logCompiledPaths(Collections.singletonList(filePath), IncArtifactBuilder.BUILDER_ID, "Extracting archive:");
     }
     processEntries(new EntryProcessor() {
       @Override

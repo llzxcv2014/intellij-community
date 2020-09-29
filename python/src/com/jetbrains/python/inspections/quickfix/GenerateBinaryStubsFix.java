@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.inspections.quickfix;
 
 import com.google.common.collect.Lists;
@@ -38,13 +24,11 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.QualifiedName;
-import com.intellij.util.EmptyConsumer;
 import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.PythonHelper;
 import com.jetbrains.python.psi.*;
 import com.jetbrains.python.sdk.InvalidSdkException;
 import com.jetbrains.python.sdk.PySdkUtil;
-import com.jetbrains.python.sdk.PythonSdkType;
 import com.jetbrains.python.sdk.PythonSdkUtil;
 import com.jetbrains.python.sdk.flavors.IronPythonSdkFlavor;
 import com.jetbrains.python.sdk.flavors.PythonSdkFlavor;
@@ -54,12 +38,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * @author yole
  */
-public class GenerateBinaryStubsFix implements LocalQuickFix {
+public final class GenerateBinaryStubsFix implements LocalQuickFix {
   private static final Logger LOG = Logger.getInstance(GenerateBinaryStubsFix.class);
 
   private final String myQualifiedName;
@@ -73,9 +60,9 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
    * @return pack of fixes
    */
   @NotNull
-  public static Collection<GenerateBinaryStubsFix> generateFixes(@NotNull final PyImportStatementBase importStatementBase) {
+  public static Collection<LocalQuickFix> generateFixes(@NotNull final PyImportStatementBase importStatementBase) {
     final List<String> names = importStatementBase.getFullyQualifiedObjectNames();
-    final List<GenerateBinaryStubsFix> result = new ArrayList<>(names.size());
+    final List<LocalQuickFix> result = new ArrayList<>(names.size());
     if (importStatementBase instanceof PyFromImportStatement && names.isEmpty()) {
       final QualifiedName qName = ((PyFromImportStatement)importStatementBase).getImportSourceQName();
       if (qName != null) {
@@ -106,7 +93,7 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
   @Override
   @NotNull
   public String getFamilyName() {
-    return "Generate binary stubs";
+    return PyBundle.message("QFIX.generate.binary.stubs");
   }
 
   @Override
@@ -132,7 +119,7 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
   public Backgroundable getFixTask(@NotNull final PsiFile fileToRunTaskIn) {
     final Project project = fileToRunTaskIn.getProject();
     final String folder = fileToRunTaskIn.getContainingDirectory().getVirtualFile().getCanonicalPath();
-    return new Task.Backgroundable(project, "Generating skeletons for binary module", false) {
+    return new Task.Backgroundable(project, PyBundle.message("QFIX.generating.skeletons.for.binary.module"), false) {
 
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
@@ -176,7 +163,7 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
     GeneralCommandLine cmd = PythonHelper.EXTRA_SYSPATH.newCommandLine(homePath, Lists.newArrayList(myQualifiedName));
     final ProcessOutput runResult = PySdkUtil.getProcessOutput(cmd,
                                                                new File(homePath).getParent(),
-                                                               PythonSdkType.activateVirtualEnv(mySdk), 5000
+                                                               PySdkUtil.activateVirtualEnv(mySdk), 5000
     );
     if (runResult.checkSuccess(LOG)) {
       final PySkeletonGenerator.Builder builder = refresher.getGenerator()
@@ -204,7 +191,7 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
     final List<String> result = new ArrayList<>();
     file.accept(new PyRecursiveElementVisitor() {
       @Override
-      public void visitPyCallExpression(PyCallExpression node) {
+      public void visitPyCallExpression(@NotNull PyCallExpression node) {
         super.visitPyCallExpression(node);
         // TODO: What if user loads it not by literal? We need to ask user for list of DLLs
         if (node.isCalleeText("AddReference", "AddReferenceByPartialName", "AddReferenceByName")) {

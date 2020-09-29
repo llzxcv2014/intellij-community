@@ -31,6 +31,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public abstract class Intention extends BaseElementAtCaretIntentionAction {
+  @SafeFieldForPreview
   private final NotNullLazyValue<PsiElementPredicate> myPredicate = AtomicNotNullLazyValue.createValue(() -> getElementPredicate());
 
   @Override
@@ -142,6 +143,6 @@ public abstract class Intention extends BaseElementAtCaretIntentionAction {
   @Override
   @NotNull
   public String getFamilyName() {
-    return IntentionPowerPackBundle.defaultableMessage(getPrefix() + ".family.name");
+    return IntentionPowerPackBundle.message(getPrefix() + ".family.name");
   }
 }

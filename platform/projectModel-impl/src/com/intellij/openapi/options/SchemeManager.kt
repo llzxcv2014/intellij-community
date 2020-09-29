@@ -5,12 +5,6 @@ import java.io.File
 import java.util.function.Predicate
 
 abstract class SchemeManager<T> {
-  companion object {
-    const val EDITABLE_COPY_PREFIX = "_@user_"
-
-    @JvmStatic
-    fun getDisplayName(scheme: Scheme) = scheme.name.removePrefix(EDITABLE_COPY_PREFIX)
-  }
 
   abstract val allSchemes: List<T>
 

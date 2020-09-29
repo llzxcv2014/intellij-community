@@ -15,6 +15,7 @@
  */
 package com.intellij.appengine.facet;
 
+import com.intellij.appengine.JavaGoogleAppEngineBundle;
 import com.intellij.framework.FrameworkTypeEx;
 import com.intellij.framework.addSupport.FrameworkSupportInModuleProvider;
 import icons.GoogleAppEngineIcons;
@@ -22,9 +23,6 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 
-/**
- * @author nik
- */
 public class AppEngineFrameworkType extends FrameworkTypeEx {
   public static final String ID = "appengine-java";
 
@@ -45,7 +43,7 @@ public class AppEngineFrameworkType extends FrameworkTypeEx {
   @NotNull
   @Override
   public String getPresentableName() {
-    return "Google App Engine";
+    return JavaGoogleAppEngineBundle.message("plugin.name");
   }
 
   @NotNull

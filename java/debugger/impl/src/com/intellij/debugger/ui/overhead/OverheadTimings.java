@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.ui.overhead;
 
 import com.intellij.debugger.engine.DebugProcess;
@@ -12,9 +12,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * @author egor
- */
 public class OverheadTimings {
   public static final Key<OverheadTimings> KEY = Key.create("OVERHEAD_TIMINGS");
 
@@ -22,7 +19,7 @@ public class OverheadTimings {
   private final Map<OverheadProducer, Timings> myMap = new ConcurrentHashMap<>();
 
   @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
-  private final List<Pair<Long, Timings>> myLast10Elements = new LinkedList<Pair<Long, Timings>>() {
+  private final List<Pair<Long, Timings>> myLast10Elements = new LinkedList<>() {
     private long totalTime = 0;
 
     @Override

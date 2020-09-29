@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.components;
 
 import com.intellij.application.options.PathMacrosCollector;
@@ -6,9 +6,11 @@ import com.intellij.application.options.PathMacrosImpl;
 import com.intellij.application.options.ReplacePathToMacroMap;
 import com.intellij.openapi.application.PathMacroFilter;
 import com.intellij.openapi.application.PathMacros;
-import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.util.SystemInfoRt;
 import com.intellij.openapi.util.io.FileUtil;
-import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.util.io.FileUtilRt;
+import com.intellij.openapi.util.io.OSAgnosticPathUtil;
+import com.intellij.openapi.util.text.Strings;
 import com.intellij.util.PathUtilRt;
 import org.jdom.Element;
 import org.jetbrains.annotations.Contract;
@@ -18,16 +20,16 @@ import org.jetbrains.annotations.SystemIndependent;
 import org.jetbrains.jps.model.serialization.PathMacroUtil;
 
 import java.util.Map;
-import java.util.Objects;
 
 public class PathMacroManager implements PathMacroSubstitutor {
-  @NotNull
-  public static PathMacroManager getInstance(@NotNull ComponentManager componentManager) {
-    return Objects.requireNonNull(componentManager.getService(PathMacroManager.class));
+  public static @NotNull PathMacroManager getInstance(@NotNull ComponentManager componentManager) {
+    return componentManager.getService(PathMacroManager.class);
   }
 
   private static class Holder {
-    private static final CompositePathMacroFilter FILTER = new CompositePathMacroFilter(PathMacrosCollector.MACRO_FILTER_EXTENSION_POINT_NAME.getExtensionList());
+    private static @NotNull CompositePathMacroFilter createFilter() {
+      return new CompositePathMacroFilter(PathMacrosCollector.MACRO_FILTER_EXTENSION_POINT_NAME.getExtensionList());
+    }
   }
 
   private PathMacrosImpl myPathMacros;
@@ -41,12 +43,12 @@ public class PathMacroManager implements PathMacroSubstitutor {
 
   @NotNull
   public PathMacroFilter getMacroFilter() {
-    return Holder.FILTER;
+    return Holder.createFilter();
   }
 
   protected static void addFileHierarchyReplacements(@NotNull ExpandMacroToPathMap result, @NotNull String macroName, @SystemIndependent @Nullable String path) {
     if (path != null) {
-      doAddFileHierarchyReplacements(result, StringUtil.trimEnd(path, "/"), '$' + macroName + '$');
+      doAddFileHierarchyReplacements(result, Strings.trimEnd(path, "/"), '$' + macroName + '$');
     }
   }
 
@@ -59,23 +61,17 @@ public class PathMacroManager implements PathMacroSubstitutor {
   }
 
   protected static void addFileHierarchyReplacements(ReplacePathToMacroMap result, String macroName, @Nullable String path, @Nullable String stopAt) {
-    if (path == null) {
-      return;
-    }
+    if (path == null) return;
 
     String macro = '$' + macroName + '$';
-    path = StringUtil.trimEnd(FileUtil.toSystemIndependentName(path), "/");
+    path = Strings.trimEnd(FileUtilRt.toSystemIndependentName(path), "/");
     boolean overwrite = true;
-    while (StringUtil.isNotEmpty(path) && path.contains("/")) {
+    while (Strings.isNotEmpty(path) && path.contains("/") && !"/".equals(path)) {
       result.addReplacement(path, macro, overwrite);
-
-      if (path.equals(stopAt)) {
-        break;
-      }
-
+      if (path.equals(stopAt)) break;
       macro += "/..";
+      path = OSAgnosticPathUtil.getParent(path);
       overwrite = false;
-      path = StringUtil.getPackageName(path, '/');
     }
   }
 
@@ -114,24 +110,24 @@ public class PathMacroManager implements PathMacroSubstitutor {
   @Override
   @Contract("null -> null; !null -> !null")
   public String expandPath(@Nullable String text) {
-    if (StringUtil.isEmpty(text)) {
+    if (Strings.isEmpty(text)) {
       return text;
     }
-    return getExpandMacroMap().substitute(text, SystemInfo.isFileSystemCaseSensitive);
+    return getExpandMacroMap().substitute(text, SystemInfoRt.isFileSystemCaseSensitive);
   }
 
   @Contract("null, _ -> null; !null, _ -> !null")
   @Override
   public String collapsePath(@Nullable String text, boolean recursively) {
-    if (StringUtil.isEmpty(text)) {
+    if (Strings.isEmpty(text)) {
       return text;
     }
-    return getReplacePathMap().substitute(text, SystemInfo.isFileSystemCaseSensitive, recursively);
+    return getReplacePathMap().substitute(text, SystemInfoRt.isFileSystemCaseSensitive, recursively).toString();
   }
 
   @Override
   public void expandPaths(@NotNull Element element) {
-    getExpandMacroMap().substitute(element, SystemInfo.isFileSystemCaseSensitive);
+    getExpandMacroMap().substitute(element, SystemInfoRt.isFileSystemCaseSensitive);
   }
 
   @Override
@@ -140,7 +136,7 @@ public class PathMacroManager implements PathMacroSubstitutor {
   }
 
   public static void collapsePaths(@NotNull Element element, boolean recursively, @NotNull ReplacePathToMacroMap map) {
-    map.substitute(element, SystemInfo.isFileSystemCaseSensitive, recursively, Holder.FILTER);
+    map.substitute(element, SystemInfoRt.isFileSystemCaseSensitive, recursively, Holder.createFilter());
   }
 
   @NotNull
@@ -153,6 +149,6 @@ public class PathMacroManager implements PathMacroSubstitutor {
 
   protected static boolean pathsEqual(@Nullable String path1, @Nullable String path2) {
     return path1 != null && path2 != null &&
-           FileUtil.pathsEqual(FileUtil.toSystemIndependentName(path1), FileUtil.toSystemIndependentName(path2));
+           FileUtil.pathsEqual(FileUtilRt.toSystemIndependentName(path1), FileUtilRt.toSystemIndependentName(path2));
   }
 }

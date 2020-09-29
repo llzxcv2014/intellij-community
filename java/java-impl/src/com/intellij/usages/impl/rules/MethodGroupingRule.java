@@ -1,6 +1,4 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.usages.impl.rules;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
@@ -11,8 +9,8 @@ import com.intellij.openapi.actionSystem.DataSink;
 import com.intellij.openapi.actionSystem.TypeSafeDataProvider;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Iconable;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Segment;
 import com.intellij.openapi.vcs.FileStatus;
 import com.intellij.psi.*;
@@ -27,10 +25,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.util.Objects;
 
-/**
- * @author max
- */
 public class MethodGroupingRule extends SingleParentUsageGroupingRule {
   private static final Logger LOG = Logger.getInstance(MethodGroupingRule.class);
   @NotNull
@@ -42,7 +38,7 @@ public class MethodGroupingRule extends SingleParentUsageGroupingRule {
 
   @Nullable
   @Override
-  protected UsageGroup getParentGroupFor(@NotNull Usage usage, @NotNull UsageTarget[] targets) {
+  protected UsageGroup getParentGroupFor(@NotNull Usage usage, UsageTarget @NotNull [] targets) {
     if (!(usage instanceof PsiElementUsage)) return null;
     PsiElement psiElement = ((PsiElementUsage)usage).getElement();
     PsiFile containingFile = psiElement.getContainingFile();
@@ -72,7 +68,7 @@ public class MethodGroupingRule extends SingleParentUsageGroupingRule {
 
   private static class MethodUsageGroup implements UsageGroup, TypeSafeDataProvider {
     private final SmartPsiElementPointer<PsiMethod> myMethodPointer;
-    private final String myName;
+    private final @NlsSafe String myName;
     private final Icon myIcon;
     private final Project myProject;
 
@@ -111,7 +107,7 @@ public class MethodGroupingRule extends SingleParentUsageGroupingRule {
         return false;
       }
       MethodUsageGroup group = (MethodUsageGroup) object;
-      return Comparing.equal(myName, ((MethodUsageGroup)object).myName)
+      return Objects.equals(myName, ((MethodUsageGroup)object).myName)
              && SmartPointerManager.getInstance(myProject).pointToTheSameElement(myMethodPointer, group.myMethodPointer);
     }
 
@@ -132,6 +128,7 @@ public class MethodGroupingRule extends SingleParentUsageGroupingRule {
 
     @Override
     public FileStatus getFileStatus() {
+      if (myMethodPointer.getProject().isDisposed()) return null;
       PsiFile file = myMethodPointer.getContainingFile();
       return file == null ? null : NavigationItemFileStatus.get(file);
     }

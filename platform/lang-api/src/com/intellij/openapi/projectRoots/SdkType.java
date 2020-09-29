@@ -1,27 +1,31 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.projectRoots;
 
 import com.intellij.icons.AllIcons;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
+import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectBundle;
 import com.intellij.openapi.roots.OrderRootType;
+import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.Consumer;
-import com.intellij.util.IconUtil;
-import com.intellij.util.containers.ContainerUtil;
 import org.jdom.Element;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.io.File;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 
 public abstract class SdkType implements SdkTypeId {
-  public static final ExtensionPointName<SdkType> EP_NAME = ExtensionPointName.create("com.intellij.sdkType");
+  public static final ExtensionPointName<SdkType> EP_NAME = new ExtensionPointName<>("com.intellij.sdkType");
 
   private static final Comparator<Sdk> ALPHABETICAL_COMPARATOR = (sdk1, sdk2) -> StringUtil.compare(sdk1.getName(), sdk2.getName(), true);
 
@@ -37,6 +41,10 @@ public abstract class SdkType implements SdkTypeId {
    * <p/>
    * E.g. for Python SDK on Unix the method may return either {@code "/usr/bin"} or {@code "/usr/bin/python"}
    * (if there is only one Python interpreter installed on a host).
+   * <p/>
+   * This method should work fast and allow running from the EDT thread. See the {@link #suggestHomePaths()}
+   * for more advanced scenarios
+   * @see #suggestHomePaths()
    */
   @Nullable
   public abstract String suggestHomePath();
@@ -45,11 +53,26 @@ public abstract class SdkType implements SdkTypeId {
    * Returns a list of all valid SDKs found on this host.
    * <p/>
    * E.g. for Python SDK on Unix the method may return {@code ["/usr/bin/python2", "/usr/bin/python3"]}.
+   * <p/>
+   * This method may take significant time to execute. The implementation may check {@link ProgressManager#checkCanceled()}
+   * for possible interruption request. It is not recommended to call this method from a ETD thread. See
+   * an alternative {@link #suggestHomePath()} method for EDT-friendly calls.
+   * @see #suggestHomePath()
    */
   @NotNull
   public Collection<String> suggestHomePaths() {
     String home = suggestHomePath();
     return home != null ? Collections.singletonList(home) : Collections.emptyList();
+  }
+
+  /**
+   * This method is used to decide if a given {@link VirtualFile} has something in common
+   * with this {@link SdkType}.
+   *
+   * For example, it can be used by the IDE to decide showing SDK related editor notifications or quick fixes
+   */
+  public boolean isRelevantForFile(@NotNull Project project, @NotNull VirtualFile file) {
+    return true;
   }
 
   /**
@@ -129,6 +152,7 @@ public abstract class SdkType implements SdkTypeId {
   }
 
   @NotNull
+  @Nls(capitalization = Nls.Capitalization.Title)
   public abstract String getPresentableName();
 
   public Icon getIcon() {
@@ -142,7 +166,7 @@ public abstract class SdkType implements SdkTypeId {
 
   @NotNull
   public Icon getIconForAddAction() {
-    return IconUtil.getAddIcon();
+    return AllIcons.General.Add;
   }
 
   @Override
@@ -171,7 +195,7 @@ public abstract class SdkType implements SdkTypeId {
   public FileChooserDescriptor getHomeChooserDescriptor() {
     FileChooserDescriptor descriptor = new FileChooserDescriptor(false, true, false, false, false, false) {
       @Override
-      public void validateSelectedFiles(@NotNull VirtualFile[] files) throws Exception {
+      public void validateSelectedFiles(VirtualFile @NotNull [] files) throws Exception {
         if (files.length != 0) {
           String selectedPath = files[0].getPath();
           boolean valid = isValidSdkHome(selectedPath);
@@ -190,7 +214,7 @@ public abstract class SdkType implements SdkTypeId {
   }
 
   @NotNull
-  public String getHomeFieldLabel() {
+  public @NlsContexts.Label String getHomeFieldLabel() {
     return ProjectBundle.message("sdk.configure.type.home.path", getPresentableName());
   }
 
@@ -204,12 +228,20 @@ public abstract class SdkType implements SdkTypeId {
     return null;
   }
 
-  @NotNull
-  public static SdkType[] getAllTypes() {
-    //noinspection deprecation
-    SdkType[] components = ApplicationManager.getApplication().getComponents(SdkType.class);
-    List<SdkType> list1 = components.length == 0 ? Collections.emptyList() : Arrays.asList(components);
-    return ContainerUtil.concat(list1, EP_NAME.getExtensionList()).toArray(new SdkType[0]);
+  public static SdkType @NotNull [] getAllTypes() {
+    return EP_NAME.getExtensions();
+  }
+
+  @Nullable
+  public static SdkType findByName(@Nullable String sdkName) {
+    if (sdkName == null) return null;
+
+    for (SdkType sdkType : getAllTypes()) {
+      if (Comparing.strEqual(sdkType.getName(), sdkName)) {
+        return sdkType;
+      }
+    }
+    return null;
   }
 
   @NotNull
@@ -261,15 +293,14 @@ public abstract class SdkType implements SdkTypeId {
   public void showCustomCreateUI(@NotNull SdkModel sdkModel,
                                  @NotNull JComponent parentComponent,
                                  @Nullable Sdk selectedSdk,
-                                 @NotNull Consumer<Sdk> sdkCreatedCallback) {
-    //noinspection deprecation
+                                 @NotNull Consumer<? super Sdk> sdkCreatedCallback) {
     showCustomCreateUI(sdkModel, parentComponent, sdkCreatedCallback);
   }
 
   /** @deprecated use {@link #showCustomCreateUI(SdkModel, JComponent, Sdk, Consumer)} method instead */
   @Deprecated
   @SuppressWarnings("DeprecatedIsStillUsed")
-  public void showCustomCreateUI(@NotNull SdkModel sdkModel, @NotNull JComponent parentComponent, @NotNull Consumer<Sdk> sdkCreatedCallback) { }
+  public void showCustomCreateUI(@NotNull SdkModel sdkModel, @NotNull JComponent parentComponent, @NotNull Consumer<? super Sdk> sdkCreatedCallback) { }
 
   /**
    * Checks if the home directory of the specified SDK is valid. By default, checks that the directory points to a valid local

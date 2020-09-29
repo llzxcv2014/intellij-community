@@ -1,12 +1,13 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.ui.popup;
 
 import com.intellij.openapi.ui.ListComponentUpdater;
 import com.intellij.openapi.util.Computable;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsContexts.PopupAdvertisement;
 import com.intellij.util.Consumer;
 import com.intellij.util.Function;
 import com.intellij.util.Processor;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -16,23 +17,17 @@ import java.awt.*;
 import java.awt.event.ActionListener;
 import java.util.Set;
 
-
 public interface IPopupChooserBuilder<T> {
+  IPopupChooserBuilder<T> setRenderer(ListCellRenderer<? super T> renderer);
 
-  IPopupChooserBuilder<T> setRenderer(ListCellRenderer renderer);
-
-  @NotNull
   IPopupChooserBuilder<T> setItemChosenCallback(@NotNull Consumer<? super T> callback);
 
-  @NotNull
-  IPopupChooserBuilder<T> setItemsChosenCallback(@NotNull Consumer<? super Set<T>> callback);
+  IPopupChooserBuilder<T> setItemsChosenCallback(@NotNull Consumer<? super Set<? extends T>> callback);
 
   IPopupChooserBuilder<T> setCancelOnClickOutside(boolean cancelOnClickOutside);
 
-  @NotNull
-  IPopupChooserBuilder<T> setTitle(@NotNull @Nls(capitalization = Nls.Capitalization.Title) String title);
+  IPopupChooserBuilder<T> setTitle(@NotNull @NlsContexts.PopupTitle String title);
 
-  @NotNull
   IPopupChooserBuilder<T> setCouldPin(@Nullable Processor<? super JBPopup> callback);
 
   IPopupChooserBuilder<T> setRequestFocus(boolean requestFocus);
@@ -57,14 +52,11 @@ public interface IPopupChooserBuilder<T> {
 
   IPopupChooserBuilder<T> setModalContext(boolean modalContext);
 
-  @NotNull
-  JBPopup createPopup();
-
   IPopupChooserBuilder<T> setMinSize(Dimension dimension);
 
   IPopupChooserBuilder<T> registerKeyboardAction(KeyStroke keyStroke, ActionListener actionListener);
 
-  IPopupChooserBuilder<T> setAutoSelectIfEmpty(boolean autoselect);
+  IPopupChooserBuilder<T> setAutoSelectIfEmpty(boolean autoSelect);
 
   IPopupChooserBuilder<T> setCancelKeyEnabled(boolean enabled);
 
@@ -76,10 +68,9 @@ public interface IPopupChooserBuilder<T> {
 
   IPopupChooserBuilder<T> setCloseOnEnter(boolean closeOnEnter);
 
-  @NotNull
-  IPopupChooserBuilder<T> setAdText(String ad);
+  IPopupChooserBuilder<T> setAdText(@PopupAdvertisement String ad);
 
-  IPopupChooserBuilder<T> setAdText(String ad, int alignment);
+  IPopupChooserBuilder<T> setAdText(@PopupAdvertisement String ad, int alignment);
 
   IPopupChooserBuilder<T> setCancelOnWindowDeactivation(boolean cancelOnWindowDeactivation);
 
@@ -96,6 +87,8 @@ public interface IPopupChooserBuilder<T> {
   IPopupChooserBuilder<T> setFont(Font f);
 
   IPopupChooserBuilder<T> setVisibleRowCount(int visibleRowCount);
+
+  @NotNull JBPopup createPopup();
 
   ListComponentUpdater getBackgroundUpdater();
 }

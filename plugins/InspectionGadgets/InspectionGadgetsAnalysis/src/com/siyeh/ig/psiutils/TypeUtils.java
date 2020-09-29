@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class TypeUtils {
+public final class TypeUtils {
   private static final String[] EQUAL_CONTRACT_CLASSES = {CommonClassNames.JAVA_UTIL_LIST,
     CommonClassNames.JAVA_UTIL_SET, CommonClassNames.JAVA_UTIL_MAP, CommonClassNames.JAVA_UTIL_MAP_ENTRY};
 
@@ -131,7 +131,7 @@ public class TypeUtils {
   }
 
   //getTypeIfOneOfOrSubtype
-  public static String expressionHasTypeOrSubtype(@Nullable PsiExpression expression, @NonNls @NotNull String... typeNames) {
+  public static String expressionHasTypeOrSubtype(@Nullable PsiExpression expression, @NonNls String @NotNull ... typeNames) {
     if (expression == null) {
       return null;
     }
@@ -167,7 +167,7 @@ public class TypeUtils {
     return false;
   }
 
-  public static boolean variableHasTypeOrSubtype(@Nullable PsiVariable variable, @NonNls @NotNull String... typeNames) {
+  public static boolean variableHasTypeOrSubtype(@Nullable PsiVariable variable, @NonNls String @NotNull ... typeNames) {
     if (variable == null) {
       return false;
     }

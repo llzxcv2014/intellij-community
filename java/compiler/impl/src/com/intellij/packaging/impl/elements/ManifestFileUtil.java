@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.packaging.impl.elements;
 
 import com.intellij.CommonBundle;
@@ -8,6 +8,7 @@ import com.intellij.ide.util.TreeClassChooserFactory;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.application.WriteAction;
+import com.intellij.openapi.compiler.JavaCompilerBundle;
 import com.intellij.openapi.compiler.make.ManifestBuilder;
 import com.intellij.openapi.deployment.DeploymentUtil;
 import com.intellij.openapi.diagnostic.Logger;
@@ -21,7 +22,6 @@ import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.util.Ref;
-import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VfsUtilCore;
@@ -55,10 +55,7 @@ import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
-/**
- * @author nik
- */
-public class ManifestFileUtil {
+public final class ManifestFileUtil {
   private static final Logger LOG = Logger.getInstance(ManifestFileUtil.class);
   public static final String MANIFEST_PATH = JarFile.MANIFEST_NAME;
   public static final String MANIFEST_FILE_NAME = PathUtil.getFileName(MANIFEST_PATH);
@@ -81,25 +78,27 @@ public class ManifestFileUtil {
 
     final Ref<VirtualFile> sourceDir = Ref.create(null);
     final Ref<VirtualFile> sourceFile = Ref.create(null);
-    ArtifactUtil.processElementsWithSubstitutions(root.getChildren(), context, artifactType, PackagingElementPath.EMPTY, new PackagingElementProcessor<PackagingElement<?>>() {
-      @Override
-      public boolean process(@NotNull PackagingElement<?> element, @NotNull PackagingElementPath path) {
-        if (element instanceof FileCopyPackagingElement) {
-          final VirtualFile file = ((FileCopyPackagingElement)element).findFile();
-          if (file != null) {
-            sourceFile.set(file);
-          }
-        }
-        else if (element instanceof DirectoryCopyPackagingElement) {
-          final VirtualFile file = ((DirectoryCopyPackagingElement)element).findFile();
-          if (file != null) {
-            sourceDir.set(file);
-            return false;
-          }
-        }
-        return true;
-      }
-    });
+    ArtifactUtil.processElementsWithSubstitutions(root.getChildren(), context, artifactType, PackagingElementPath.EMPTY,
+                                                  new PackagingElementProcessor<>() {
+                                                    @Override
+                                                    public boolean process(@NotNull PackagingElement<?> element,
+                                                                           @NotNull PackagingElementPath path) {
+                                                      if (element instanceof FileCopyPackagingElement) {
+                                                        final VirtualFile file = ((FileCopyPackagingElement)element).findFile();
+                                                        if (file != null) {
+                                                          sourceFile.set(file);
+                                                        }
+                                                      }
+                                                      else if (element instanceof DirectoryCopyPackagingElement) {
+                                                        final VirtualFile file = ((DirectoryCopyPackagingElement)element).findFile();
+                                                        if (file != null) {
+                                                          sourceDir.set(file);
+                                                          return false;
+                                                        }
+                                                      }
+                                                      return true;
+                                                    }
+                                                  });
 
     if (!sourceDir.isNull()) {
       return sourceDir.get();
@@ -209,7 +208,7 @@ public class ManifestFileUtil {
 
   public static List<String> getClasspathForElements(List<? extends PackagingElement<?>> elements, PackagingElementResolvingContext context, final ArtifactType artifactType) {
     final List<String> classpath = new ArrayList<>();
-    final PackagingElementProcessor<PackagingElement<?>> processor = new PackagingElementProcessor<PackagingElement<?>>() {
+    final PackagingElementProcessor<PackagingElement<?>> processor = new PackagingElementProcessor<>() {
       @Override
       public boolean process(@NotNull PackagingElement<?> element, @NotNull PackagingElementPath path) {
         if (element instanceof FileCopyPackagingElement) {
@@ -271,7 +270,7 @@ public class ManifestFileUtil {
 
   public static FileChooserDescriptor createDescriptorForManifestDirectory() {
     FileChooserDescriptor descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
-    descriptor.setTitle("Select Directory for META-INF/MANIFEST.MF file");
+    descriptor.setTitle(JavaCompilerBundle.message("select.directory.for.meta.inf.manifest.mf.file"));
     return descriptor;
   }
 
@@ -279,7 +278,7 @@ public class ManifestFileUtil {
                                              final @NotNull CompositePackagingElement<?> element) {
     context.editLayout(context.getArtifact(), () -> {
       final VirtualFile file = findManifestFile(element, context, context.getArtifactType());
-      if (file == null || !FileUtil.pathsEqual(file.getPath(), path)) {
+      if (file == null || !PathUtil.pathEqualsTo(file, path)) {
         PackagingElementFactory.getInstance().addFileCopy(element, MANIFEST_DIR_NAME, path, MANIFEST_FILE_NAME);
       }
     });
@@ -291,7 +290,8 @@ public class ManifestFileUtil {
     final GlobalSearchScope searchScope = GlobalSearchScope.allScope(project);
     final PsiClass aClass = initialClassName != null ? JavaPsiFacade.getInstance(project).findClass(initialClassName, searchScope) : null;
     final TreeClassChooser chooser =
-        chooserFactory.createWithInnerClassesScopeChooser("Select Main Class", searchScope, new MainClassFilter(), aClass);
+        chooserFactory.createWithInnerClassesScopeChooser(JavaCompilerBundle.message("dialog.title.manifest.select.main.class"),
+                                                          searchScope, new MainClassFilter(), aClass);
     chooser.showDialog();
     return chooser.getSelected();
   }

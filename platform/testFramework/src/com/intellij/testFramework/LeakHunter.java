@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.testFramework;
 
 import com.intellij.ide.IdeEventQueue;
@@ -9,9 +9,8 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.impl.LaterInvocator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.impl.ProjectImpl;
-import com.intellij.openapi.util.Condition;
-import com.intellij.openapi.util.Conditions;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.project.TestProjectManager;
 import com.intellij.util.PairProcessor;
 import com.intellij.util.ReflectionUtil;
 import com.intellij.util.io.PersistentEnumeratorBase;
@@ -26,11 +25,13 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Vector;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class LeakHunter {
+@SuppressWarnings("UseOfSystemOutOrSystemErr")
+public final class LeakHunter {
   @TestOnly
-  public static void checkProjectLeak() {
+  public static void checkProjectLeak() throws AssertionError {
     checkLeak(allRoots(), ProjectImpl.class, project -> !project.isDefault() && !project.isLight());
   }
 
@@ -50,9 +51,9 @@ public class LeakHunter {
   @TestOnly
   public static <T> void checkLeak(@NotNull Supplier<? extends Map<Object, String>> rootsSupplier,
                                    @NotNull Class<T> suspectClass,
-                                   @Nullable final Condition<? super T> isReallyLeak) throws AssertionError {
+                                   @Nullable Predicate<? super T> isReallyLeak) throws AssertionError {
     processLeaks(rootsSupplier, suspectClass, isReallyLeak, (leaked, backLink)->{
-      String place = leaked instanceof Project ? HeavyPlatformTestCase.getCreationPlace((Project)leaked) : "";
+      String place = leaked instanceof Project ? TestProjectManager.getCreationPlace((Project)leaked) : "";
       String message ="Found leaked "+leaked.getClass() + ": "+leaked +
                       "; hash: " + System.identityHashCode(leaked) + "; place: " + place + "\n" +
                       backLink;
@@ -68,10 +69,10 @@ public class LeakHunter {
    * Checks if there is a memory leak if an object of type {@code suspectClass} is strongly accessible via references from the {@code root} object.
    */
   @TestOnly
-  static <T> void processLeaks(@NotNull Supplier<? extends Map<Object, String>> rootsSupplier,
-                               @NotNull Class<T> suspectClass,
-                               @Nullable final Condition<? super T> isReallyLeak,
-                               @NotNull final PairProcessor<? super T, Object> processor) throws AssertionError {
+  public static <T> void processLeaks(@NotNull Supplier<? extends Map<Object, String>> rootsSupplier,
+                                      @NotNull Class<T> suspectClass,
+                                      @Nullable Predicate<? super T> isReallyLeak,
+                                      @NotNull PairProcessor<? super T, Object> processor) throws AssertionError {
     if (SwingUtilities.isEventDispatchThread()) {
       UIUtil.dispatchAllInvocationEvents();
     }
@@ -81,10 +82,10 @@ public class LeakHunter {
     PersistentEnumeratorBase.clearCacheForTests();
     Runnable runnable = () -> {
       try (AccessToken ignored = ProhibitAWTEvents.start("checking for leaks")) {
-        DebugReflectionUtil.walkObjects(10000, rootsSupplier.get(), suspectClass, Conditions.alwaysTrue(), (value, backLink) -> {
+        DebugReflectionUtil.walkObjects(10000, rootsSupplier.get(), suspectClass, __ -> true, (value, backLink) -> {
           @SuppressWarnings("unchecked")
           T leaked = (T)value;
-          if (isReallyLeak == null || isReallyLeak.value(leaked)) {
+          if (isReallyLeak == null || isReallyLeak.test(leaked)) {
             return processor.process(leaked, backLink);
           }
           return true;
@@ -104,29 +105,33 @@ public class LeakHunter {
    * Checks if there is a memory leak if an object of type {@code suspectClass} is strongly accessible via references from the {@code root} object.
    */
   @TestOnly
-  public static <T> void checkLeak(@NotNull Object root, @NotNull Class<T> suspectClass, @Nullable final Condition<? super T> isReallyLeak) throws AssertionError {
+  public static <T> void checkLeak(@NotNull Object root, @NotNull Class<T> suspectClass, @Nullable Predicate<? super T> isReallyLeak) throws AssertionError {
     checkLeak(() -> Collections.singletonMap(root, "Root object"), suspectClass, isReallyLeak);
   }
 
-  @NotNull
-  public static Supplier<Map<Object, String>> allRoots() {
+  public static @NotNull Supplier<Map<Object, String>> allRoots() {
     return () -> {
       ClassLoader classLoader = LeakHunter.class.getClassLoader();
       // inspect static fields of all loaded classes
-      Vector allLoadedClasses = ReflectionUtil.getField(classLoader.getClass(), classLoader, Vector.class, "classes");
+      @SuppressWarnings("UseOfObsoleteCollectionType")
+      Vector<?> allLoadedClasses = ReflectionUtil.getField(classLoader.getClass(), classLoader, Vector.class, "classes");
 
       // Remove expired invocations, so they are not used as object roots.
       LaterInvocator.purgeExpiredItems();
 
       Map<Object, String> result = new IdentityHashMap<>();
-      if (ApplicationManager.getApplication() != null) {
-        result.put(ApplicationManager.getApplication(), "ApplicationManager.getApplication()");
+      Application application = ApplicationManager.getApplication();
+      if (application != null) {
+        result.put(application, "ApplicationManager.getApplication()");
       }
       result.put(Disposer.getTree(), "Disposer.getTree()");
       result.put(IdeEventQueue.getInstance(), "IdeEventQueue.getInstance()");
-      result.put(LaterInvocator.getLaterInvocatorQueue(), "LaterInvocator.getLaterInvocatorQueue()");
+      result.put(LaterInvocator.getLaterInvocatorEdtQueue(), "LaterInvocator.getLaterInvocatorEdtQueue()");
+      result.put(LaterInvocator.getLaterInvocatorWtQueue(), "LaterInvocator.getLaterInvocatorWtQueue()");
       result.put(ThreadTracker.getThreads().values(), "all live threads");
-      result.put(allLoadedClasses, "all loaded classes statics");
+      if (allLoadedClasses != null) {
+        result.put(allLoadedClasses, "all loaded classes statics");
+      }
       return result;
     };
   }

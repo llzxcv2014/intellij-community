@@ -3,11 +3,12 @@ package com.intellij.diff.actions;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
+import com.intellij.openapi.diff.DiffBundle;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.project.Project;
-import org.jetbrains.annotations.CalledInAwt;
+import com.intellij.util.concurrency.annotations.RequiresEdt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -60,14 +61,15 @@ abstract class DocumentsSynchronizer {
 
   protected abstract void onDocumentChanged2(@NotNull DocumentEvent event);
 
-  @CalledInAwt
+  @RequiresEdt
   protected void replaceString(@NotNull final Document document,
                                final int startOffset,
                                final int endOffset,
                                @NotNull final CharSequence newText) {
     try {
       myDuringModification = true;
-      CommandProcessor.getInstance().executeCommand(myProject, () -> ApplicationManager.getApplication().runWriteAction(() -> document.replaceString(startOffset, endOffset, newText)), "Synchronize document and its fragment", document);
+      CommandProcessor.getInstance().executeCommand(myProject, () -> ApplicationManager.getApplication().runWriteAction(() -> document.replaceString(startOffset, endOffset, newText)),
+                                                    DiffBundle.message("synchronize.document.and.its.fragment"), document);
     }
     finally {
       myDuringModification = false;

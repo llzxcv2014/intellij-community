@@ -18,13 +18,13 @@ package com.intellij.codeInsight.daemon.impl;
 
 import com.intellij.codeInsight.daemon.impl.analysis.HighlightInfoHolder;
 import com.intellij.concurrency.JobLauncher;
+import com.intellij.ide.IdeBundle;
 import com.intellij.injected.editor.DocumentWindow;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.HighlighterColors;
-import com.intellij.openapi.editor.colors.EditorColors;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -44,7 +44,6 @@ import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil;
 import com.intellij.psi.impl.source.tree.injected.Place;
 import com.intellij.util.CommonProcessors;
 import com.intellij.util.Processor;
-import com.intellij.util.Processors;
 import com.intellij.util.containers.ContainerUtil;
 import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
@@ -52,9 +51,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
-  private static final String PRESENTABLE_NAME = "Injected fragments";
+import static com.intellij.openapi.editor.colors.EditorColors.createInjectedLanguageFragmentKey;
 
+public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
   InjectedGeneralHighlightingPass(@NotNull Project project,
                                   @NotNull PsiFile file,
                                   @NotNull Document document,
@@ -69,7 +68,7 @@ public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
 
   @Override
   protected String getPresentableName() {
-    return PRESENTABLE_NAME;
+    return IdeBundle.message("highlighting.pass.injected.presentable.name");
   }
 
   @Override
@@ -85,7 +84,6 @@ public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
     // all infos for the "injected fragment for the host which is inside" are indeed inside
     // but some of the infos for the "injected fragment for the host which is outside" can be still inside
     Set<PsiFile> injected = getInjectedPsiFiles(allInsideElements, allOutsideElements, progress);
-    setProgressLimit(injected.size());
 
     Set<HighlightInfo> injectedResult = new THashSet<>();
     if (!addInjectedPsiHighlights(injected, progress, Collections.synchronizedSet(injectedResult))) {
@@ -95,7 +93,7 @@ public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
     Set<HighlightInfo> result;
     synchronized (injectedResult) {
       // sync here because all writes happened in another thread
-      result = injectedResult;
+      result = injectedResult.isEmpty() ? Collections.emptySet(): new THashSet<>(injectedResult);
     }
     final Set<HighlightInfo> gotHighlights = new THashSet<>(100);
     final List<HighlightInfo> injectionsOutside = new ArrayList<>(gotHighlights.size());
@@ -166,8 +164,19 @@ public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
         hosts.add(context);
       }
     }
+
     InjectedLanguageManagerImpl injectedLanguageManager = InjectedLanguageManagerImpl.getInstanceImpl(myProject);
-    Processor<PsiElement> collectInjectableProcessor = Processors.cancelableCollectProcessor(hosts);
+    final boolean probeUp = false;
+    Processor<PsiElement> collectInjectableProcessor = new CommonProcessors.CollectProcessor<PsiElement>(hosts){
+      @Override
+      public boolean process(PsiElement t) {
+        ProgressManager.checkCanceled();
+        if (InjectedLanguageUtil.isInjectable(t, probeUp)) {
+          super.process(t);
+        }
+        return true;
+      }
+    };
     injectedLanguageManager.processInjectableElements(elements1, collectInjectableProcessor);
     injectedLanguageManager.processInjectableElements(elements2, collectInjectableProcessor);
 
@@ -178,13 +187,18 @@ public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
         outInjected.add(injectedPsi);
       }
     };
-    if (!JobLauncher.getInstance().invokeConcurrentlyUnderProgress(new ArrayList<>(hosts), progress, 
-                                                                   element -> {
-                                                                     ApplicationManager.getApplication().assertReadAccessAllowed();
-                                                                     InjectedLanguageManager.getInstance(myFile.getProject()).enumerateEx(
-                                                                       element, myFile, false, visitor);
-                                                                     return true;
-                                                                   })) {
+
+    // the most expensive process is running injectors for these hosts, comparing to highlighting the resulting injected fragments,
+    // so instead of showing "highlighted 1% of injected fragments", show "ran injectors for 1% of hosts"
+    setProgressLimit(hosts.size());
+
+    if (!JobLauncher.getInstance().invokeConcurrentlyUnderProgress(
+      new ArrayList<>(hosts), progress, element -> {
+        ApplicationManager.getApplication().assertReadAccessAllowed();
+        injectedLanguageManager.enumerateEx(element, myFile, probeUp, visitor);
+        advanceProgress(1);
+        return true;
+      })) {
       throw new ProcessCanceledException();
     }
     synchronized (outInjected) {
@@ -198,7 +212,7 @@ public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
                                            @NotNull final Collection<? super HighlightInfo> outInfos) {
     if (injectedFiles.isEmpty()) return true;
     final InjectedLanguageManager injectedLanguageManager = InjectedLanguageManager.getInstance(myProject);
-    final TextAttributes injectedAttributes = myGlobalScheme.getAttributes(EditorColors.INJECTED_LANGUAGE_FRAGMENT);
+    final TextAttributes injectedAttributes = myGlobalScheme.getAttributes(createInjectedLanguageFragmentKey(myFile.getLanguage()));
 
     return JobLauncher.getInstance()
       .invokeConcurrentlyUnderProgress(new ArrayList<>(injectedFiles), progress,
@@ -213,7 +227,7 @@ public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
   }
 
   private boolean addInjectedPsiHighlights(@NotNull PsiFile injectedPsi,
-                                           TextAttributes injectedAttributes,
+                                           @Nullable TextAttributes injectedAttributes,
                                            @NotNull Collection<? super HighlightInfo> outInfos,
                                            @NotNull InjectedLanguageManager injectedLanguageManager) {
     DocumentWindow documentWindow = (DocumentWindow)PsiDocumentManager.getInstance(myProject).getCachedDocument(injectedPsi);
@@ -275,7 +289,6 @@ public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
         addPatchedInfos(info, injectedPsi, documentWindow, injectedLanguageManager, null, outInfos);
       }
     }
-    advanceProgress(1);
     return true;
   }
 
@@ -408,7 +421,7 @@ public class InjectedGeneralHighlightingPass extends GeneralHighlightingPass {
           TextAttributes.ERASE_MARKER).createUnconditionally();
         holder.add(info);
 
-        forcedAttributes = new TextAttributes(attributes.getForegroundColor(), attributes.getBackgroundColor(), 
+        forcedAttributes = new TextAttributes(attributes.getForegroundColor(), attributes.getBackgroundColor(),
                                               attributes.getEffectColor(), attributes.getEffectType(), attributes.getFontType());
       }
 

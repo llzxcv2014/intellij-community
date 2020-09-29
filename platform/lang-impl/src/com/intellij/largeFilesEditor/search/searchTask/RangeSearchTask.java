@@ -1,10 +1,13 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.largeFilesEditor.search.searchTask;
 
+import com.intellij.largeFilesEditor.Utils;
 import com.intellij.largeFilesEditor.search.SearchResult;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.editor.EditorBundle;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.NlsContexts;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,16 +28,16 @@ public class RangeSearchTask extends SearchTaskBase {
     myCallback = callback;
   }
 
-  public String getTitleForBackgroundableTask() {
+  public @NlsContexts.ProgressTitle String getTitleForBackgroundableTask() {
     final int maxStrToFindLength = 16;
     final int maxFileNameLength = 20;
 
-    String strToFind = cutToMaxLength(
+    String strToFind = Utils.cutToMaxLength(
       options.stringToFind, maxStrToFindLength);
-    String fileName = cutToMaxLength(
+    String fileName = Utils.cutToMaxLength(
       fileDataProviderForSearch.getName(), maxFileNameLength);
 
-    return String.format("Searching for \"%s\" in file \"%s\"", strToFind, fileName);
+    return EditorBundle.message("large.file.editor.title.searching.for.some.string.in.some.file", strToFind, fileName);
   }
 
   public void setProgressIndicator(ProgressIndicator progressIndicator) {
@@ -56,7 +59,7 @@ public class RangeSearchTask extends SearchTaskBase {
     ArrayList<SearchResult> allMatchesAtFrame;
 
     searcher = createFrameSearcher(options, project);
-    tailLength = options.stringToFind.length() - 1;
+    tailLength = getTailLength(options);
 
     try {
       /* preparing init data... */
@@ -143,16 +146,6 @@ public class RangeSearchTask extends SearchTaskBase {
     catch (IOException e) {
       logger.warn(e);
       myCallback.tellSearchCatchedException(this, e);
-    }
-  }
-
-  private static String cutToMaxLength(String whatToCut, int maxLength) {
-    if (whatToCut.length() > maxLength) {
-      return whatToCut.substring(0, maxLength / 2 - 1) + "..." +
-             whatToCut.substring(whatToCut.length() - 1 - maxLength / 2);
-    }
-    else {
-      return whatToCut;
     }
   }
 

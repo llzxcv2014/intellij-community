@@ -19,7 +19,6 @@ import com.intellij.ide.XmlRpcServer;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.CharsetToolkit;
-import gnu.trove.THashMap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
@@ -38,11 +37,12 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class XmlRpcServerImpl implements XmlRpcServer {
   private static final Logger LOG = Logger.getInstance(XmlRpcServerImpl.class);
 
-  private final Map<String, Object> handlerMapping = new THashMap<>();
+  private final Map<String, Object> handlerMapping = new ConcurrentHashMap<>();
 
   public XmlRpcServerImpl() {
   }
@@ -76,7 +76,7 @@ public class XmlRpcServerImpl implements XmlRpcServer {
 
   @Override
   public boolean process(@NotNull String path, @NotNull FullHttpRequest request, @NotNull ChannelHandlerContext context, @Nullable Map<String, Object> handlers) {
-    if (!(path.isEmpty() || (path.length() == 1 && path.charAt(0) == '/') || path.equalsIgnoreCase("/rpc2"))) {
+    if (!(path.isEmpty() || (path.length() == 1 && path.charAt(0) == '/') || path.equalsIgnoreCase("/rpc2"))) { //NON-NLS
       return false;
     }
 

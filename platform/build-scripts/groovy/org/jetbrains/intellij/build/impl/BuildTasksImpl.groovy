@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.intellij.build.impl
 
 import com.intellij.openapi.util.SystemInfo
@@ -21,9 +21,6 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.function.Function
-/**
- * @author nik
- */
 class BuildTasksImpl extends BuildTasks {
   final BuildContext buildContext
 
@@ -97,52 +94,42 @@ class BuildTasksImpl extends BuildTasks {
       buildContext.notifyArtifactBuilt(targetFilePath)
     })
   }
-  
-  static void runApplicationStarter(BuildContext buildContext, String tempDir, List<String> modules, List<String> arguments, Map<String, Object> systemProperties = [:]) {
-    def javaRuntimeClasses = "${buildContext.getModuleOutputPath(buildContext.findModule("intellij.java.rt"))}"
-    if (!new File(javaRuntimeClasses).exists()) {
-      buildContext.messages.error("Cannot run application starter ${arguments}, 'java-runtime' module isn't compiled ($javaRuntimeClasses doesn't exist)")
-    }
 
-    buildContext.ant.mkdir(dir: tempDir)
-    String systemPath = "$tempDir/system"
-    String configPath = "$tempDir/config"
+  static void runApplicationStarter(BuildContext context,
+                                    String tempDir,
+                                    List<String> modules,
+                                    List<String> arguments,
+                                    Map<String, Object> systemProperties = [:],
+                                    List<String> vmOptions = ["-ea", "-Xmx512m"]) {
+    context.ant.mkdir(dir: tempDir)
 
-    def ideClasspath = new LinkedHashSet<String>()
-    buildContext.messages.debug("Collecting classpath to run application starter '${arguments.first()}:")
+    Set<String> ideClasspath = new LinkedHashSet<String>()
+    context.messages.debug("Collecting classpath to run application starter '${arguments.first()}:")
     for (moduleName in modules) {
-      for (pathElement in buildContext.getModuleRuntimeClasspath(buildContext.findRequiredModule(moduleName), false)) {
+      for (pathElement in context.getModuleRuntimeClasspath(context.findRequiredModule(moduleName), false)) {
         if (ideClasspath.add(pathElement)) {
-          buildContext.messages.debug(" $pathElement from $moduleName")
+          context.messages.debug(" $pathElement from $moduleName")
         }
       }
     }
 
-    String classpathFile = "$tempDir/classpath.txt"
-    new File(classpathFile).text = ideClasspath.join("\n")
+    Map<String, ?> ideaProperties = [
+      "java.awt.headless": true,
+      "idea.home.path"   : context.paths.projectHome,
+      "idea.system.path" : "${tempDir}/system",
+      "idea.config.path" : "${tempDir}/config"]
 
-    buildContext.ant.java(classname: "com.intellij.rt.execution.CommandLineWrapper", fork: true, failonerror: true) {
-      jvmarg(line: "-ea -Xmx500m")
-      sysproperty(key: "java.awt.headless", value: true)
-      sysproperty(key: "idea.home.path", value: buildContext.paths.projectHome)
-      sysproperty(key: "idea.system.path", value: systemPath)
-      sysproperty(key: "idea.config.path", value: configPath)
-
-      systemProperties.each {
-        sysproperty(key: it.key, value: it.value)
-      }
-      
-      if (buildContext.productProperties.platformPrefix != null) {
-        sysproperty(key: "idea.platform.prefix", value: buildContext.productProperties.platformPrefix)
-      }
-      arg(value: "$classpathFile")
-      arg(line: "com.intellij.idea.Main")
-      arguments.each { arg(value: it) }
-
-      classpath() {
-        pathelement(location: "$javaRuntimeClasses")
-      }
+    if (context.productProperties.platformPrefix != null) {
+      ideaProperties += ["idea.platform.prefix": context.productProperties.platformPrefix]
     }
+
+    BuildUtils.runJava(
+      context,
+      vmOptions,
+      ideaProperties + systemProperties,
+      ideClasspath,
+      "com.intellij.idea.Main",
+      arguments)
   }
 
   File patchIdeaPropertiesFile() {
@@ -279,8 +266,9 @@ idea.fatal.error.notification=disabled
   private DistributionJARsBuilder compileModulesForDistribution(File patchedApplicationInfo) {
     def productLayout = buildContext.productProperties.productLayout
     def moduleNames = DistributionJARsBuilder.getModulesToCompile(buildContext)
+    def mavenArtifacts = buildContext.productProperties.mavenArtifacts
     compileModules(moduleNames + (buildContext.proprietaryBuildTools.scrambleTool?.additionalModulesToCompile ?: []) +
-                   productLayout.mainModules + buildContext.productProperties.mavenArtifacts.additionalModules,
+                   productLayout.mainModules + mavenArtifacts.additionalModules + mavenArtifacts.proprietaryModules,
                    buildContext.productProperties.modulesToCompileTests)
 
     def pluginsToPublish = new LinkedHashSet<>(
@@ -327,7 +315,7 @@ idea.fatal.error.notification=disabled
         def mavenArtifactsBuilder = new MavenArtifactsBuilder(buildContext)
         def ideModuleNames
         if (mavenArtifacts.forIdeModules) {
-          def bundledPlugins = buildContext.productProperties.productLayout.allBundledPluginsModules
+          def bundledPlugins = buildContext.productProperties.productLayout.bundledPluginModules as Set<String>
           ideModuleNames = distributionJARsBuilder.platformModules + buildContext.productProperties.productLayout.getIncludedPluginModules(bundledPlugins)
         } else {
           ideModuleNames = []
@@ -363,17 +351,23 @@ idea.fatal.error.notification=disabled
       layoutShared()
 
       def propertiesFile = patchIdeaPropertiesFile()
-      List<BuildTaskRunnable<String>> tasks = [
-        createDistributionForOsTask("win", { BuildContext context ->
-          context.windowsDistributionCustomizer?.with { new WindowsDistributionBuilder(context, it, propertiesFile, patchedApplicationInfo) }
-        }),
-        createDistributionForOsTask("linux", { BuildContext context ->
+      List<BuildTaskRunnable<String>> tasks = new ArrayList<>()
+      if (buildContext.shouldBuildDistributionForOS(BuildOptions.OS_WINDOWS)) {
+        tasks.add(createDistributionForOsTask("win", { BuildContext context ->
+          context.windowsDistributionCustomizer?.
+            with { new WindowsDistributionBuilder(context, it, propertiesFile, patchedApplicationInfo) }
+        }))
+      }
+      if (buildContext.shouldBuildDistributionForOS(BuildOptions.OS_LINUX)) {
+        tasks.add(createDistributionForOsTask("linux", { BuildContext context ->
           context.linuxDistributionCustomizer?.with { new LinuxDistributionBuilder(context, it, propertiesFile) }
-        }),
-        createDistributionForOsTask("mac", { BuildContext context ->
+        }))
+      }
+      if (buildContext.shouldBuildDistributionForOS(BuildOptions.OS_MAC)) {
+        tasks.add(createDistributionForOsTask("mac", { BuildContext context ->
           context.macDistributionCustomizer?.with { new MacDistributionBuilder(context, it, propertiesFile) }
-        })
-      ]
+        }))
+      }
 
       List<String> paths = runInParallel(tasks).findAll { it != null }
 
@@ -431,7 +425,7 @@ idea.fatal.error.notification=disabled
   @Override
   void buildNonBundledPlugins(List<String> mainPluginModules) {
     checkProductProperties()
-    checkPluginModules(mainPluginModules, "mainPluginModules", [] as Set<String>)
+    checkPluginModules(mainPluginModules, "mainPluginModules")
     copyDependenciesFile()
     def pluginsToPublish = new LinkedHashSet<PluginLayout>(
       DistributionJARsBuilder.getPluginsByModules(buildContext, mainPluginModules))
@@ -440,22 +434,24 @@ idea.fatal.error.notification=disabled
     distributionJARsBuilder.buildNonBundledPlugins()
   }
 
+  @Override
+  void generateProjectStructureMapping(File targetFile) {
+    def jarsBuilder = new DistributionJARsBuilder(buildContext, patchApplicationInfo())
+    jarsBuilder.generateProjectStructureMapping(targetFile)
+  }
+
   private void setupJBre() {
     logFreeDiskSpace("before downloading JREs")
     String[] args = [
       'setupJbre', "-Dintellij.build.target.os=$buildContext.options.targetOS",
       "-Dintellij.build.bundled.jre.version=$buildContext.options.bundledJreVersion"
     ]
+    String prefix = System.getProperty("intellij.build.bundled.jre.prefix")
+    if (prefix != null) {
+      args += "-Dintellij.build.bundled.jre.prefix=$prefix"
+    }
     if (buildContext.options.bundledJreBuild != null) {
       args += "-Dintellij.build.bundled.jre.build=$buildContext.options.bundledJreBuild"
-    }
-    [
-      'intellij.build.bundle.second.jre',
-      'intellij.build.bundled.second.jre.build'
-    ].each { prop ->
-      System.getProperty(prop)?.with {
-        args += "-D$prop=$it"
-      }
     }
     buildContext.gradle.run('Setting up JetBrains JREs', args)
     logFreeDiskSpace("after downloading JREs")
@@ -488,17 +484,27 @@ idea.fatal.error.notification=disabled
     }
   }
 
+  //dbus-java is used only on linux for KWallet integration.
+  //It relies on native libraries, causing notarization issues on mac.
+  //So it is excluded from all distributions and manually re-included on linux.
+  static def addDbusJava(BuildContext buildContext, String distDir) {
+    def library = buildContext.findModule("intellij.platform.credentialStore").libraryCollection.findLibrary("dbus-java")
+    library.getFiles(JpsOrderRootType.COMPILED).each { f ->
+      buildContext.ant.copy(todir: "$distDir/lib") {
+        fileset(file: f.absolutePath)
+      }
+    }
+  }
+
   private void logFreeDiskSpace(String phase) {
     CompilationContextImpl.logFreeDiskSpace(buildContext.messages, buildContext.paths.buildOutputRoot, phase)
   }
 
 
   private def copyDependenciesFile() {
-    if (buildContext.gradle.forceRun('Preparing dependencies file', 'dependenciesFile')) {
-      def outputFile = "$buildContext.paths.artifacts/dependencies.txt"
-      buildContext.ant.copy(file: "$buildContext.paths.communityHome/build/dependencies/build/dependencies.properties", tofile: outputFile)
-      buildContext.notifyArtifactBuilt(outputFile)
-    }
+    def outputFile = "$buildContext.paths.artifacts/dependencies.txt"
+    buildContext.ant.copy(file: buildContext.dependenciesProperties.file.absolutePath, tofile: outputFile)
+    buildContext.notifyArtifactBuilt(outputFile)
   }
 
   private void scramble() {
@@ -560,20 +566,15 @@ idea.fatal.error.notification=disabled
     }
 
     List<PluginLayout> nonTrivialPlugins = layout.allNonTrivialPlugins
-    def optionalModules = nonTrivialPlugins.collectMany { it.optionalModules } as Set<String>
-    checkPluginModules(layout.bundledPluginModules, "productProperties.productLayout.bundledPluginModules", optionalModules)
-    for (osFamily in OsFamily.values()) {
-      checkPluginModules(layout.bundledOsPluginModules[osFamily],
-                         "productProperties.productLayout.bundledOsPluginModules[$osFamily]", optionalModules)
-    }
-    checkPluginModules(layout.pluginModulesToPublish, "productProperties.productLayout.pluginModulesToPublish", optionalModules)
+    checkPluginModules(layout.bundledPluginModules, "productProperties.productLayout.bundledPluginModules")
+    checkPluginModules(layout.pluginModulesToPublish, "productProperties.productLayout.pluginModulesToPublish")
 
     if (!layout.buildAllCompatiblePlugins && !layout.compatiblePluginsToIgnore.isEmpty()) {
       buildContext.messages.warning("layout.buildAllCompatiblePlugins option isn't enabled. Value of " +
                                     "layout.compatiblePluginsToIgnore property will be ignored ($layout.compatiblePluginsToIgnore)")
     }
     if (layout.buildAllCompatiblePlugins && !layout.compatiblePluginsToIgnore.isEmpty()) {
-      checkPluginModules(layout.compatiblePluginsToIgnore, "productProperties.productLayout.compatiblePluginsToIgnore", optionalModules)
+      checkPluginModules(layout.compatiblePluginsToIgnore, "productProperties.productLayout.compatiblePluginsToIgnore")
     }
 
     if (!buildContext.shouldBuildDistributions() && layout.buildAllCompatiblePlugins) {
@@ -585,23 +586,15 @@ idea.fatal.error.notification=disabled
       buildContext.messages.error("productProperties.productLayout.prepareCustomPluginRepositoryForPublishedPlugins option is enabled but no pluginModulesToPublish are specified")
     }
 
-    checkModules(layout.platformApiModules, "productProperties.productLayout.platformApiModules")
-    checkModules(layout.platformImplementationModules, "productProperties.productLayout.platformImplementationModules")
     checkModules(layout.productApiModules, "productProperties.productLayout.productApiModules")
     checkModules(layout.productImplementationModules, "productProperties.productLayout.productImplementationModules")
-    if (!layout.productApiModules.isEmpty() && !layout.platformApiModules.isEmpty()) {
-      buildContext.messages.error("Products which set productProperties.productLayout.productApiModules must not use deprecated platformApiModules.")
-    }
-    if (!layout.productImplementationModules.isEmpty() && !layout.platformImplementationModules.isEmpty()) {
-      buildContext.messages.error("Products which set productProperties.productLayout.productImplementationModules must not use deprecated platformImplementationModules.")
-    }
     checkModules(layout.additionalPlatformJars.values(), "productProperties.productLayout.additionalPlatformJars")
     checkModules(layout.moduleExcludes.keySet(), "productProperties.productLayout.moduleExcludes")
     checkModules(layout.mainModules, "productProperties.productLayout.mainModules")
     checkProjectLibraries(layout.projectLibrariesToUnpackIntoMainJar, "productProperties.productLayout.projectLibrariesToUnpackIntoMainJar")
-    def allBundledPlugins = layout.allBundledPluginsModules
+    def allBundledPlugins = layout.bundledPluginModules as Set<String>
     nonTrivialPlugins.findAll { allBundledPlugins.contains(it.mainModule) }.each { plugin ->
-      checkModules(plugin.moduleJars.values() - plugin.optionalModules, "'$plugin.mainModule' plugin")
+      checkModules(plugin.moduleJars.values(), "'$plugin.mainModule' plugin")
       checkModules(plugin.moduleExcludes.keySet(), "'$plugin.mainModule' plugin")
       checkProjectLibraries(plugin.includedProjectLibraries.collect {it.libraryName}, "'$plugin.mainModule' plugin")
       checkArtifacts(plugin.includedArtifacts.keySet(), "'$plugin.mainModule' plugin")
@@ -631,12 +624,12 @@ idea.fatal.error.notification=disabled
     }
   }
 
-  private void checkPluginModules(List<String> pluginModules, String fieldName, Set<String> optionalModules) {
+  private void checkPluginModules(List<String> pluginModules, String fieldName) {
     if (pluginModules == null) {
       return
     }
     checkModules(pluginModules, fieldName)
-    def unknownBundledPluginModules = pluginModules.findAll { !optionalModules.contains(it) && buildContext.findFileInModuleSources(it, "META-INF/plugin.xml") == null }
+    def unknownBundledPluginModules = pluginModules.findAll { buildContext.findFileInModuleSources(it, "META-INF/plugin.xml") == null }
     if (!unknownBundledPluginModules.empty) {
       buildContext.messages.error(
         "The following modules from $fieldName don't contain META-INF/plugin.xml file and aren't specified as optional plugin modules " +
@@ -699,6 +692,16 @@ idea.fatal.error.notification=disabled
             }
           } as Callable<V>)
         }
+
+        //wait until all tasks finishes
+        futures.each {
+          try {
+            it.get()
+          }
+          catch (Throwable ignore) {
+          }
+        }
+
         futures.collect { it.get() }
       }
     }
@@ -747,6 +750,10 @@ idea.fatal.error.notification=disabled
       scramble()
     }
     layoutShared()
+    Map<String, String> checkerConfig = buildContext.productProperties.versionCheckerConfig
+    if (checkerConfig != null) {
+      new ClassVersionChecker(checkerConfig).checkVersions(buildContext, new File(buildContext.paths.distAll))
+    }
   }
 
   @Override
@@ -806,6 +813,7 @@ idea.fatal.error.notification=disabled
       }
     }
     else {
+      SVGPreBuilder.copyIconDb(buildContext, SystemInfo.isMac ? "$targetDirectory/Resources" : targetDirectory)
       unpackPty4jNative(buildContext, targetDirectory, null)
     }
   }

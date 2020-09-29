@@ -68,7 +68,7 @@ class JavaTypeHintsPresentationFactory(private val myFactory: PresentationFactor
       else -> null
     }
 
-    val className = myFactory.psiSingleReference(getName(aClass)) { aClass }
+    val className = reference(aClass)
     if (!aClass.hasTypeParameters()) {
       return if (containingClassPresentation != null) {
         myFactory.seq(containingClassPresentation, myFactory.smallText("."), className)
@@ -82,12 +82,17 @@ class JavaTypeHintsPresentationFactory(private val myFactory: PresentationFactor
       collapsible(
         prefix = smallText("<"),
         collapsed = smallText(PLACEHOLDER_MARK),
-        expanded = { join(aClass.typeParameters.map { myFactory.psiSingleReference(getName(it), resolve = { it }) }, ", ") },
+        expanded = { join(aClass.typeParameters.map { reference(it) }, ", ") },
         suffix = smallText(">"),
         startWithPlaceholder = false
       )
     })
     return SequencePresentation(presentations)
+  }
+
+  private fun reference(named: PsiNamedElement): InlayPresentation {
+    val pointer = SmartPointerManager.createPointer(named)
+    return myFactory.psiSingleReference(getName(named), resolve = { pointer.element })
   }
 
 
@@ -130,6 +135,12 @@ class JavaTypeHintsPresentationFactory(private val myFactory: PresentationFactor
     fun presentation(type: PsiType, factory: PresentationFactory): InlayPresentation {
       val base = JavaTypeHintsPresentationFactory(factory, 3).typeHint(type)
       return factory.roundWithBackground(base)
+    }
+
+    @JvmStatic
+    fun presentationWithColon(type: PsiType, factory: PresentationFactory): InlayPresentation {
+      val presentations = JavaTypeHintsPresentationFactory(factory, 3).hint(type, 0)
+      return factory.roundWithBackground(factory.seq(factory.smallText(": "), presentations))
     }
 
     private const val ANONYMOUS_MARK = "anonymous"

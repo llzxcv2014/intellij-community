@@ -22,10 +22,13 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.xml.XmlText;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.idea.maven.dom.MavenDomUtil;
+import org.jetbrains.idea.maven.project.MavenProjectBundle;
+
+import static org.jetbrains.idea.maven.utils.MavenUtil.MAVEN_NAME_UPCASE;
 
 public class MavenLiveTemplateContextType extends TemplateContextType {
   public MavenLiveTemplateContextType() {
-    super("MAVEN", "Maven");
+    super(MAVEN_NAME_UPCASE, MavenProjectBundle.message("configurable.MavenSettings.display.name"));
   }
 
   @Override

@@ -1,7 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package hg4idea.test.log;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.vcs.log.VcsLogProvider;
 import com.intellij.vcs.log.VcsLogUserFilterTest;
@@ -18,8 +19,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static com.intellij.openapi.vcs.Executor.append;
-import static com.intellij.openapi.vcs.Executor.cd;
+import static com.intellij.openapi.vcs.Executor.*;
 import static hg4idea.test.HgExecutor.hg;
 
 public class HgUserFilterTest extends HgPlatformTest {
@@ -28,24 +28,45 @@ public class HgUserFilterTest extends HgPlatformTest {
   @Override
   public void setUp() throws Exception {
     super.setUp();
-    cd(myProject.getBaseDir());
+    cd(getOrCreateProjectBaseDir());
 
     myVcsLogUserFilterTest = new VcsLogUserFilterTest(findLogProvider(myProject), myProject) {
       @Override
       @NotNull
       protected String commit(@NotNull VcsUser user) throws IOException {
-        String file = "file.txt";
-        append(file, String.valueOf(Math.random()));
-        myProject.getBaseDir().refresh(false, true);
-        hg("add " + file);
-        hg("commit -m ' Commit by " + user.getName() + "' --user '" + VcsUserUtil.toExactString(user) + "'");
-        return new HgWorkingCopyRevisionsCommand(myProject).tip(myProject.getBaseDir()).getChangeset();
+        boolean success;
+        int attempt = 0;
+        do {
+          success = commitAttempt(user);
+        }
+        while (!success && attempt++ < 10);
+        return new HgWorkingCopyRevisionsCommand(myProject).tip(getOrCreateProjectBaseDir()).getChangeset();
+      }
+
+      private boolean commitAttempt(@NotNull VcsUser user) throws IOException {
+        try {
+          String file = "file.txt";
+          append(file, String.valueOf(Math.random()));
+          getOrCreateProjectBaseDir().refresh(false, true);
+          hg("add " + file);
+          hg("commit -m ' Commit by " + user.getName() + "' --user '" + VcsUserUtil.toExactString(user) + "'");
+          debug(hg("tip"));
+        }
+        catch (RuntimeException e) {
+          // nothing changed error (hg wrong file status)
+          if (StringUtil.containsIgnoreCase(e.getMessage(), "nothing")) {
+            debug(e.getMessage());
+            return false;
+          }
+          throw e;
+        }
+        return true;
       }
     };
   }
 
   @Override
-  protected void tearDown() throws Exception {
+  protected void tearDown() {
     myVcsLogUserFilterTest = null;
     super.tearDown();
   }

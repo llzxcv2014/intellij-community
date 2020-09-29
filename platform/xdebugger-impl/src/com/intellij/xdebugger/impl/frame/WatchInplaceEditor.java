@@ -16,8 +16,13 @@
 package com.intellij.xdebugger.impl.frame;
 
 import com.intellij.util.ui.tree.TreeUtil;
+import com.intellij.xdebugger.XDebuggerManager;
 import com.intellij.xdebugger.XExpression;
+import com.intellij.xdebugger.impl.XDebuggerManagerImpl;
 import com.intellij.xdebugger.impl.XDebuggerUtilImpl;
+import com.intellij.xdebugger.impl.XDebuggerWatchesManager;
+import com.intellij.xdebugger.impl.inline.InlineWatchNodeImpl;
+import com.intellij.xdebugger.impl.inline.XInlineWatchesView;
 import com.intellij.xdebugger.impl.ui.tree.XDebuggerTreeInplaceEditor;
 import com.intellij.xdebugger.impl.ui.tree.nodes.WatchNode;
 import com.intellij.xdebugger.impl.ui.tree.nodes.WatchesRootNode;
@@ -26,10 +31,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
+import java.util.Collections;
 
-/**
- * @author nik
- */
 public class WatchInplaceEditor extends XDebuggerTreeInplaceEditor {
   private final WatchesRootNode myRootNode;
   private final XWatchesView myWatchesView;
@@ -63,7 +66,14 @@ public class WatchInplaceEditor extends XDebuggerTreeInplaceEditor {
     super.doOKAction();
     int index = myRootNode.removeChildNode(myNode);
     if (!XDebuggerUtilImpl.isEmptyExpression(expression) && index != -1) {
-      myWatchesView.addWatchExpression(expression, index, false);
+      if (myNode instanceof InlineWatchNodeImpl) {
+        XDebuggerWatchesManager watchesManager = ((XDebuggerManagerImpl)XDebuggerManager.getInstance(getProject())).getWatchesManager();
+        watchesManager.inlineWatchesRemoved(Collections.singletonList(((InlineWatchNodeImpl)myNode).getWatch()),
+                                            (XInlineWatchesView)myWatchesView);
+        watchesManager.addInlineWatchExpression(expression, index, ((InlineWatchNodeImpl)myNode).getPosition(), false);
+      } else  {
+        myWatchesView.addWatchExpression(expression, index, false);
+      }
     }
     TreeUtil.selectNode(myTree, myNode);
   }

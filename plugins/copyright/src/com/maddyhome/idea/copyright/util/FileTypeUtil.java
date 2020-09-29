@@ -2,56 +2,38 @@
 
 package com.maddyhome.idea.copyright.util;
 
+import com.intellij.ide.highlighter.HtmlFileType;
+import com.intellij.ide.highlighter.XmlFileType;
 import com.intellij.lang.Commenter;
 import com.intellij.lang.LanguageCommenters;
-import com.intellij.openapi.application.Application;
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.ServiceManager;
-import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.extensions.ExtensionPointListener;
-import com.intellij.openapi.extensions.PluginDescriptor;
-import com.intellij.openapi.fileTypes.*;
+import com.intellij.openapi.fileTypes.FileType;
+import com.intellij.openapi.fileTypes.LanguageFileType;
+import com.intellij.openapi.fileTypes.StdFileTypes;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiCodeFragment;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiFile;
-import com.intellij.util.KeyedLazyInstance;
 import com.maddyhome.idea.copyright.CopyrightUpdaters;
 import com.maddyhome.idea.copyright.options.LanguageOptions;
-import com.maddyhome.idea.copyright.psi.UpdateCopyrightsProvider;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
 
-public class FileTypeUtil {
+public class FileTypeUtil implements Disposable {
+
   public static synchronized FileTypeUtil getInstance() {
     return ServiceManager.getService(FileTypeUtil.class);
   }
 
   public FileTypeUtil() {
     createMappings();
-    Application application = ApplicationManager.getApplication();
-    application.getMessageBus().connect().subscribe(FileTypeManager.TOPIC, new FileTypeListener() {
-      @Override
-      public void fileTypesChanged(@NotNull FileTypeEvent event) {
-        types = null;
-      }
-    });
-    Objects.requireNonNull(CopyrightUpdaters.INSTANCE.getPoint())
-      .addExtensionPointListener(
-        new ExtensionPointListener<KeyedLazyInstance<UpdateCopyrightsProvider >> () {
-          @Override
-          public void extensionAdded(@NotNull KeyedLazyInstance<UpdateCopyrightsProvider> extension, @NotNull PluginDescriptor pluginDescriptor) {
-            types = null;
-          }
-
-          @Override
-          public void extensionRemoved(@NotNull KeyedLazyInstance<UpdateCopyrightsProvider> extension, @NotNull PluginDescriptor pluginDescriptor) {
-            types = null;
-          }
-        }, false, application);
   }
 
   public static String buildComment(FileType type, String template, LanguageOptions options) {
@@ -204,7 +186,7 @@ public class FileTypeUtil {
     return preview.substring(0, preview.length() - 1);
   }
 
-  public boolean isSupportedFile(@NotNull VirtualFile file) {
+  public static boolean isSupportedFile(@NotNull VirtualFile file) {
     if (file.isDirectory()) {
       return false;
     }
@@ -213,7 +195,7 @@ public class FileTypeUtil {
     return isSupportedType(file.getFileType());
   }
 
-  public static boolean isSupportedFile(PsiFile file) {
+  public static boolean isSupportedFile(@Nullable PsiFile file) {
     if (file == null || file instanceof PsiDirectory || file instanceof PsiCodeFragment) {
       return false;
     }
@@ -223,25 +205,8 @@ public class FileTypeUtil {
     return isSupportedType(virtualFile.getFileType());
   }
 
-  public FileType[] getSupportedTypes() {
-    Set<FileType> set = new HashSet<>(getMap().values());
-    return set.toArray(FileType.EMPTY_ARRAY);
-  }
-
-  public FileType getFileTypeByFile(VirtualFile file) {
-    FileType type = file.getFileType();
-
-    return getFileTypeByType(type);
-  }
-
-  public FileType getFileTypeByType(FileType type) {
-    return getMap().get(type.getName());
-  }
-
-  public String getFileTypeNameByName(String name) {
-    FileType type = getMap().get(name);
-
-    return type != null ? type.getName() : name;
+  public static Set<FileType> getSupportedTypes() {
+    return CopyrightUpdaters.INSTANCE.getAllRegisteredExtensions().keySet();
   }
 
   public static boolean hasBlockComment(FileType fileType) {
@@ -251,9 +216,7 @@ public class FileTypeUtil {
   }
 
   public boolean allowSeparators(FileType fileType) {
-    FileType type = getFileTypeByType(fileType);
-
-    return !noSeparators.contains(type);
+    return !noSeparators.contains(fileType);
   }
 
   private static Commenter getCommenter(FileType fileType) {
@@ -266,25 +229,8 @@ public class FileTypeUtil {
   }
 
   private void createMappings() {
-    Set<FileType> maps = new HashSet<>();
-    maps.add(StdFileTypes.DTD);
-    maps.add(StdFileTypes.XML);
-
-    mappings.put(StdFileTypes.XML, maps);
-
-    maps = new HashSet<>();
-    maps.add(StdFileTypes.HTML);
-    maps.add(StdFileTypes.XHTML);
-
-    mappings.put(StdFileTypes.HTML, maps);
-
-    maps = new HashSet<>();
-    maps.add(StdFileTypes.JSP);
-
-    mappings.put(StdFileTypes.JSP, maps);
-
-    noSeparators.add(StdFileTypes.XML);
-    noSeparators.add(StdFileTypes.HTML);
+    noSeparators.add(XmlFileType.INSTANCE);
+    noSeparators.add(HtmlFileType.INSTANCE);
     noSeparators.add(StdFileTypes.JSP);
     noSeparators.add(StdFileTypes.JSPX);
   }
@@ -294,18 +240,6 @@ public class FileTypeUtil {
       return false;
     }
     else {
-      if (type.equals(StdFileTypes.DTD)) {
-        return true;
-      }
-      if (type.equals(StdFileTypes.HTML)) {
-        return true;
-      }
-      if (type.equals(StdFileTypes.XHTML)) {
-        return true;
-      }
-      if (type.getName().equals("Properties")) {
-        return true;
-      }
       if (CopyrightUpdaters.INSTANCE.forFileType(type) == null) {
         return false;
       }
@@ -315,44 +249,6 @@ public class FileTypeUtil {
     }
   }
 
-  private void loadFileTypes() {
-    LOG.debug("loadFileTypes");
-    Map<String, FileType> map = new HashMap<>();
-    for (FileType ftype : FileTypeManager.getInstance().getRegisteredFileTypes()) {
-      // Ignore binary files
-      // Ignore IDEA specific file types (PROJECT, MODULE, WORKSPACE)
-      // Ignore GUI Designer files
-      if (isSupportedType(ftype)) {
-        LOG.debug("adding " + ftype.getName());
-        Iterator<FileType> iter = mappings.keySet().iterator();
-        FileType type = ftype;
-        while (iter.hasNext()) {
-          FileType fileType = iter.next();
-          Set<FileType> maps = mappings.get(fileType);
-          if (maps.contains(ftype)) {
-            type = fileType;
-            break;
-          }
-        }
-        map.put(ftype.getName(), type);
-      }
-      else {
-        LOG.debug("ignoring " + ftype.getName());
-      }
-    }
-    types = map;
-  }
-
-  public FileType getFileTypeByName(String name) {
-    return getMap().get(name);
-  }
-
-  @NotNull
-  private Map<String, FileType> getMap() {
-    if (types == null) loadFileTypes();
-    return types;
-  }
-
   public static class SortByName implements Comparator<FileType> {
     @Override
     public int compare(FileType a, FileType b) {
@@ -360,9 +256,7 @@ public class FileTypeUtil {
     }
   }
 
-  private Map<String, FileType> types;
-  private final Map<FileType, Set<FileType>> mappings = new HashMap<>();
   private final Set<FileType> noSeparators = new HashSet<>();
-
-  private static final Logger LOG = Logger.getInstance(FileTypeUtil.class.getName());
+  @Override
+  public void dispose() { }
 }

@@ -92,7 +92,9 @@ internal class Generator(outputDir: String, private val rootPackage: String, req
         continue
       }
 
-      val fileUpdater = fileSet.createFileUpdater("${StringUtil.nullize(domain.domain()) ?: "protocol"}.kt")
+      val domainName = StringUtil.nullize(domain.domain())
+      val filePath = if (domainName != null) "${domainName.toLowerCase()}/$domainName.kt" else "protocol.kt"
+      val fileUpdater = fileSet.createFileUpdater(filePath)
       val out = fileUpdater.out
 
       out.append("// Generated source").newLine().append("package ").append(getPackageName(rootPackage, domain.domain())).newLine().newLine()
@@ -257,7 +259,7 @@ fun <R> switchByType(typedObject: ItemDescriptor, visitor: TypeVisitor<R>): R {
   val typeName = typedObject.type
   return when (typeName) {
     BOOLEAN_TYPE -> visitor.visitBoolean()
-    STRING_TYPE -> if (typedObject.enum == null) visitor.visitString() else visitor.visitEnum(typedObject.enum!!)
+    STRING_TYPE, BINARY_TYPE -> if (typedObject.enum == null) visitor.visitString() else visitor.visitEnum(typedObject.enum!!)
     INTEGER_TYPE, "int" -> visitor.visitInteger()
     NUMBER_TYPE -> visitor.visitNumber()
     ARRAY_TYPE -> visitor.visitArray(typedObject.items!!)

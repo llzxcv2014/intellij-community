@@ -1,30 +1,33 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.github.util
 
-import com.intellij.CommonBundle
+import com.intellij.UtilBundle
+import com.intellij.openapi.application.ApplicationBundle
 import com.intellij.openapi.editor.impl.view.FontLayoutService
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.JBPopupListener
 import com.intellij.openapi.ui.popup.LightweightWindowEvent
+import com.intellij.openapi.util.NlsActions
+import com.intellij.openapi.util.NlsContexts
 import com.intellij.openapi.util.Pair
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vcs.changes.issueLinks.LinkMouseListenerBase
 import com.intellij.openapi.wm.IdeFocusManager
-import com.intellij.openapi.wm.ToolWindowId
-import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.*
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.speedSearch.NameFilteringListModel
 import com.intellij.ui.speedSearch.SpeedSearch
-import com.intellij.util.ContentUtilEx
 import com.intellij.util.text.DateFormatUtil
 import com.intellij.util.ui.*
 import com.intellij.util.ui.components.BorderLayoutPanel
+import icons.GithubIcons
 import org.jetbrains.plugins.github.api.data.GHLabel
 import org.jetbrains.plugins.github.api.data.GHUser
-import org.jetbrains.plugins.github.pullrequest.GHPRAccountsComponent
+import org.jetbrains.plugins.github.api.data.GithubIssueState
+import org.jetbrains.plugins.github.api.data.pullrequest.GHPullRequestRequestedReviewer
+import org.jetbrains.plugins.github.api.data.pullrequest.GHPullRequestState
+import org.jetbrains.plugins.github.i18n.GithubBundle
 import org.jetbrains.plugins.github.pullrequest.avatars.CachingGithubAvatarIconsProvider
 import java.awt.Color
 import java.awt.Component
@@ -33,14 +36,49 @@ import java.awt.event.ActionListener
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.beans.PropertyChangeListener
 import java.util.*
 import java.util.concurrent.CompletableFuture
-import java.util.function.Consumer
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 
 object GithubUIUtil {
   val avatarSize = JBUI.uiIntValue("Github.Avatar.Size", 20)
+
+  fun getPullRequestStateIcon(state: GHPullRequestState, isDraft: Boolean): Icon =
+    if (isDraft) GithubIcons.PullRequestDraft
+    else when (state) {
+      GHPullRequestState.CLOSED -> GithubIcons.PullRequestClosed
+      GHPullRequestState.MERGED -> GithubIcons.PullRequestMerged
+      GHPullRequestState.OPEN -> GithubIcons.PullRequestOpen
+    }
+
+  fun getPullRequestStateText(state: GHPullRequestState, isDraft: Boolean): String =
+    if (isDraft) GithubBundle.message("pull.request.state.draft")
+    else when (state) {
+      GHPullRequestState.CLOSED -> GithubBundle.message("pull.request.state.closed")
+      GHPullRequestState.MERGED -> GithubBundle.message("pull.request.state.merged")
+      GHPullRequestState.OPEN -> GithubBundle.message("pull.request.state.open")
+    }
+
+  fun getIssueStateIcon(state: GithubIssueState): Icon =
+    when (state) {
+      GithubIssueState.open -> GithubIcons.IssueOpened
+      GithubIssueState.closed -> GithubIcons.IssueClosed
+    }
+
+  fun getIssueStateText(state: GithubIssueState): String =
+    when (state) {
+      GithubIssueState.open -> GithubBundle.message("issue.state.open")
+      GithubIssueState.closed -> GithubBundle.message("issue.state.closed")
+    }
+
+  fun <T : JComponent> overrideUIDependentProperty(component: T, listener: T.() -> Unit) {
+    component.addPropertyChangeListener("UI", PropertyChangeListener {
+      listener.invoke(component)
+    })
+    listener.invoke(component)
+  }
 
   fun focusPanel(panel: JComponent) {
     val focusManager = IdeFocusManager.findInstanceByComponent(panel)
@@ -60,15 +98,6 @@ object GithubUIUtil {
 
   fun getLabelForeground(bg: Color): Color = if (ColorUtil.isDark(bg)) Color.white else Color.black
 
-  fun setTransparentRecursively(component: Component) {
-    if (component is JComponent) {
-      component.isOpaque = false
-      for (c in component.components) {
-        setTransparentRecursively(c)
-      }
-    }
-  }
-
   fun getFontEM(component: JComponent): Float {
     val metrics = component.getFontMetrics(component.font)
     //em dash character
@@ -77,8 +106,8 @@ object GithubUIUtil {
 
   fun formatActionDate(date: Date): String {
     val prettyDate = DateFormatUtil.formatPrettyDate(date).toLowerCase()
-    val datePrefix = if (prettyDate.equals(CommonBundle.message("date.format.today"), true) ||
-                         prettyDate.equals(CommonBundle.message("date.format.yesterday"), true)) ""
+    val datePrefix = if (prettyDate.equals(UtilBundle.message("date.format.today"), true) ||
+                         prettyDate.equals(UtilBundle.message("date.format.yesterday"), true)) ""
     else "on "
     return datePrefix + prettyDate
   }
@@ -95,7 +124,7 @@ object GithubUIUtil {
     }
   }
 
-  fun <T> showChooserPopup(popupTitle: String, parentComponent: JComponent,
+  fun <T> showChooserPopup(@NlsContexts.PopupTitle popupTitle: String, parentComponent: JComponent,
                            cellRendererFactory: (JList<SelectableWrapper<T>>) -> SelectionListCellRenderer<T>,
                            currentList: List<T>,
                            availableListFuture: CompletableFuture<List<T>>)
@@ -180,15 +209,15 @@ object GithubUIUtil {
       .addListener(object : JBPopupListener {
         override fun beforeShown(event: LightweightWindowEvent) {
           list.setPaintBusy(true)
-          list.emptyText.text = "Loading..."
+          list.emptyText.text = ApplicationBundle.message("label.loading.page.please.wait")
 
           availableListFuture
             .thenApplyAsync { available ->
               available.map { SelectableWrapper(it, originalSelection.contains(it)) }
                 .sortedWith(Comparator.comparing<SelectableWrapper<T>, Boolean> { !it.selected }
                               .thenComparing({ listCellRenderer.getText(it.value) }) { a, b -> StringUtil.compare(a, b, true) })
-            }.thenAcceptAsync(Consumer { possibilities ->
-              listModel.replaceAll(possibilities)
+            }.successOnEdt {
+              listModel.replaceAll(it)
 
               list.setPaintBusy(false)
               list.emptyText.text = UIBundle.message("message.noMatchesFound")
@@ -198,7 +227,7 @@ object GithubUIUtil {
               if (list.selectedIndex == -1) {
                 list.selectedIndex = 0
               }
-            }, EDT_EXECUTOR)
+            }
         }
 
         override fun onClosed(event: LightweightWindowEvent) {
@@ -209,22 +238,6 @@ object GithubUIUtil {
       .createPopup()
       .showUnderneathOf(parentComponent)
     return result
-  }
-
-  fun findAndSelectGitHubContent(project: Project, select: Boolean) {
-    val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(ToolWindowId.VCS) ?: return
-
-    val manager = toolWindow.contentManager
-    val component = ContentUtilEx.findContentComponent(manager) { c ->
-      return@findContentComponent c is GHPRAccountsComponent
-    } ?: return
-
-    if (select) {
-      if (!toolWindow.isVisible)
-        toolWindow.activate(null)
-
-      ContentUtilEx.selectContent(manager, component, true)
-    }
   }
 
   data class SelectableWrapper<T>(val value: T, var selected: Boolean = false)
@@ -264,8 +277,15 @@ object GithubUIUtil {
       return this
     }
 
+    @NlsContexts.Label
     abstract fun getText(value: T): String
     abstract fun getIcon(value: T): Icon
+
+    class PRReviewers(private val iconsProvider: CachingGithubAvatarIconsProvider)
+      : SelectionListCellRenderer<GHPullRequestRequestedReviewer>() {
+      override fun getText(value: GHPullRequestRequestedReviewer) = value.shortName
+      override fun getIcon(value: GHPullRequestRequestedReviewer) = iconsProvider.getIcon(value.avatarUrl)
+    }
 
     class Users(private val iconsProvider: CachingGithubAvatarIconsProvider)
       : SelectionListCellRenderer<GHUser>() {
@@ -279,3 +299,6 @@ object GithubUIUtil {
     }
   }
 }
+
+@NlsActions.ActionText
+fun Action.getName(): String = (getValue(Action.NAME) as? String).orEmpty()

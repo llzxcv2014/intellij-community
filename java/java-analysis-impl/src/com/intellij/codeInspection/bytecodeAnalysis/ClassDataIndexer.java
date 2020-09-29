@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.bytecodeAnalysis;
 
 import com.intellij.codeInspection.bytecodeAnalysis.asm.*;
@@ -54,7 +54,7 @@ public class ClassDataIndexer implements VirtualFileGist.GistCalculator<Map<HMem
   static final BinaryOperator<Equations> MERGER =
     (eq1, eq2) -> eq1.equals(eq2) ? eq1 : new Equations(Collections.emptyList(), false);
 
-  private static final int VERSION = 13; // change when inference algorithm changes
+  private static final int VERSION = 14; // change when inference algorithm changes
   private static final int VERSION_MODIFIER = HardCodedPurity.AGGRESSIVE_HARDCODED_PURITY ? 1 : 0;
   private static final int FINAL_VERSION = VERSION * 2 + VERSION_MODIFIER;
   private static final VirtualFileGist<Map<HMember, Equations>> ourGist = GistManager.getInstance().newVirtualFileGist(
@@ -251,7 +251,7 @@ public class ClassDataIndexer implements VirtualFileGist.GistCalculator<Map<HMem
     }
   }
 
-  private static class MethodAnalysisVisitor extends KeyedMethodVisitor {
+  private static final class MethodAnalysisVisitor extends KeyedMethodVisitor {
     private final Map<EKey, Equations> myEquations;
     private final String myPresentableUrl;
     private final ExpandableArray<State> mySharedPendingStates;

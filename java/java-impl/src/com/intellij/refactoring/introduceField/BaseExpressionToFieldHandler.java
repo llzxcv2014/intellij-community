@@ -13,16 +13,16 @@ import com.intellij.codeInsight.navigation.NavigationUtil;
 import com.intellij.ide.util.DirectoryChooserUtil;
 import com.intellij.ide.util.PackageUtil;
 import com.intellij.ide.util.PsiClassListCellRenderer;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.colors.EditorColors;
-import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.editor.markup.RangeHighlighter;
-import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.psi.*;
@@ -48,6 +48,7 @@ import com.intellij.refactoring.util.classMembers.ClassMemberReferencesVisitor;
 import com.intellij.refactoring.util.occurrences.OccurrenceManager;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.VisibilityUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -86,13 +87,13 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
 
     final PsiType tempType = getTypeByExpression(selectedExpr);
     if (tempType == null || LambdaUtil.notInferredType(tempType)) {
-      String message = RefactoringBundle.getCannotRefactorMessage(RefactoringBundle.message("unknown.expression.type"));
+      String message = RefactoringBundle.getCannotRefactorMessage(JavaRefactoringBundle.message("unknown.expression.type"));
       CommonRefactoringUtil.showErrorHint(project, editor, message, getRefactoringName(), getHelpID());
       return false;
     }
 
     if (PsiType.VOID.equals(tempType)) {
-      String message = RefactoringBundle.getCannotRefactorMessage(RefactoringBundle.message("selected.expression.has.void.type"));
+      String message = RefactoringBundle.getCannotRefactorMessage(JavaRefactoringBundle.message("selected.expression.has.void.type"));
       CommonRefactoringUtil.showErrorHint(project, editor, message, getRefactoringName(), getHelpID());
       return false;
     }
@@ -120,9 +121,16 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
     }
     else if (!classes.isEmpty()){
       PsiClass selection = AnonymousTargetClassPreselectionUtil.getPreselection(classes, myParentClass);
+      final @Nls String title;
+      if (myIsConstant) {
+        title = JavaRefactoringBundle.message("popup.title.choose.class.to.introduce.constant");
+      }
+      else {
+        title = JavaRefactoringBundle.message("popup.title.choose.class.to.introduce.field");
+      }
       NavigationUtil.getPsiElementPopup(classes.toArray(PsiClass.EMPTY_ARRAY), new PsiClassListCellRenderer(),
-                                        "Choose class to introduce " + (myIsConstant ? "constant" : "field"),
-                                        new PsiElementProcessor<PsiClass>() {
+                                        title,
+                                        new PsiElementProcessor<>() {
                                           @Override
                                           public boolean execute(@NotNull PsiClass aClass) {
                                             AnonymousTargetClassPreselectionUtil.rememberSelection(aClass, myParentClass);
@@ -142,13 +150,13 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
                                            PsiType tempType) {
     if (myParentClass == null) {
       if (FileTypeUtils.isInServerPageFile(file)) {
-        CommonRefactoringUtil.showErrorHint(project, editor, RefactoringBundle.message("error.not.supported.for.jsp", getRefactoringName()),
+        CommonRefactoringUtil.showErrorHint(project, editor, JavaRefactoringBundle.message("error.not.supported.for.jsp", getRefactoringName()),
                                             getRefactoringName(), getHelpID());
         return true;
       }
       else if ("package-info.java".equals(file.getName())) {
         CommonRefactoringUtil
-          .showErrorHint(project, editor, RefactoringBundle.message("error.not.supported.for.package.info", getRefactoringName()),
+          .showErrorHint(project, editor, JavaRefactoringBundle.message("error.not.supported.for.package.info", getRefactoringName()),
                          getRefactoringName(), getHelpID());
         return true;
       }
@@ -174,10 +182,10 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
     }
 
     PsiElement tempAnchorElement = RefactoringUtil.getParentExpressionAnchorElement(selectedExpr);
-    if (!Comparing.strEqual(IntroduceConstantHandler.REFACTORING_NAME, getRefactoringName()) &&
+    if (!Comparing.strEqual(IntroduceConstantHandler.getRefactoringNameText(), getRefactoringName()) &&
         IntroduceFieldHandler.isInSuperOrThis(selectedExpr) &&
         isStaticFinalInitializer(selectedExpr) != null) {
-      String message = RefactoringBundle.getCannotRefactorMessage(RefactoringBundle.message("invalid.expression.context"));
+      String message = RefactoringBundle.getCannotRefactorMessage(JavaRefactoringBundle.message("invalid.expression.context"));
       CommonRefactoringUtil.showErrorHint(project, editor, message, getRefactoringName(), getHelpID());
       return true;
     }
@@ -233,12 +241,6 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
     PsiElement element = selectedExpr.getUserData(ElementToWorkOn.PARENT);
     if (element == null) element = selectedExpr;
     return element;
-  }
-
-  private static TextAttributes highlightAttributes() {
-    return EditorColorsManager.getInstance().getGlobalScheme().getAttributes(
-                EditorColors.SEARCH_RESULT_ATTRIBUTES
-              );
   }
 
   @Nullable
@@ -447,7 +449,7 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
   protected abstract boolean accept(ElementToWorkOn elementToWorkOn);
 
   protected ElementToWorkOn.ElementsProcessor<ElementToWorkOn> getElementProcessor(final Project project, final Editor editor) {
-    return new ElementToWorkOn.ElementsProcessor<ElementToWorkOn>() {
+    return new ElementToWorkOn.ElementsProcessor<>() {
       @Override
       public boolean accept(ElementToWorkOn el) {
         return BaseExpressionToFieldHandler.this.accept(el);
@@ -481,7 +483,7 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
     };
   }
 
-  protected abstract String getRefactoringName();
+  protected abstract @NlsContexts.DialogTitle String getRefactoringName();
 
   public static class Settings {
     private final String myFieldName;
@@ -827,7 +829,8 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
             if (!ApplicationManager.getApplication().isUnitTestMode()) {
               PsiElement[] exprsToHighlight = PsiUtilCore.toPsiElementArray(array);
               HighlightManager highlightManager = HighlightManager.getInstance(myProject);
-              highlightManager.addOccurrenceHighlights(myEditor, exprsToHighlight, highlightAttributes(), true, null);
+              highlightManager.addOccurrenceHighlights(myEditor, exprsToHighlight,
+                                                       EditorColors.SEARCH_RESULT_ATTRIBUTES, true, null);
               WindowManager
                 .getInstance().getStatusBar(myProject).setInfo(RefactoringBundle.message("press.escape.to.remove.the.highlighting"));
             }
@@ -942,7 +945,7 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
     @Override
     public void visitReferenceExpression(PsiReferenceExpression expression) {
       final PsiElement psiElement = expression.resolve();
-      if ((psiElement instanceof PsiLocalVariable || psiElement instanceof PsiParameter) &&
+      if ((PsiUtil.isJvmLocalVariable(psiElement)) &&
           !PsiTreeUtil.isAncestor(myInitializer, psiElement, false)) {
         myElementReference = expression;
       }
@@ -988,7 +991,7 @@ public abstract class BaseExpressionToFieldHandler extends IntroduceHandlerBase 
     }
 
     @Override
-    public void visitElement(PsiElement element) {
+    public void visitElement(@NotNull PsiElement element) {
       if (myElementReference != null) return;
       super.visitElement(element);
     }

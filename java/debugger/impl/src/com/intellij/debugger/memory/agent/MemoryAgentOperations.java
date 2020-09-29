@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.debugger.memory.agent;
 
 import com.intellij.debugger.engine.DebugProcessImpl;
@@ -7,13 +7,13 @@ import com.intellij.debugger.engine.evaluation.EvaluateException;
 import com.intellij.debugger.engine.evaluation.EvaluateExceptionUtil;
 import com.intellij.debugger.engine.evaluation.EvaluationContextImpl;
 import com.intellij.debugger.impl.ClassLoadingUtils;
+import com.intellij.debugger.impl.DebuggerUtilsEx;
 import com.intellij.debugger.memory.agent.extractor.ProxyExtractor;
-import com.intellij.debugger.memory.agent.parsers.BooleanParser;
-import com.intellij.debugger.memory.agent.parsers.GcRootsPathsParser;
-import com.intellij.debugger.memory.agent.parsers.LongArrayParser;
-import com.intellij.debugger.memory.agent.parsers.LongValueParser;
+import com.intellij.debugger.memory.agent.parsers.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.Pair;
+import com.intellij.util.containers.ContainerUtil;
 import com.sun.jdi.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -22,29 +22,60 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-class MemoryAgentOperations {
+final class MemoryAgentOperations {
   private static final Key<MemoryAgent> MEMORY_AGENT_KEY = Key.create("MEMORY_AGENT_KEY");
   private static final Logger LOG = Logger.getInstance(MemoryAgentOperations.class);
 
-  static long estimateObjectSize(@NotNull EvaluationContextImpl evaluationContext, @NotNull ObjectReference reference)
+  @NotNull
+  static Pair<Long, ObjectReference[]> estimateObjectSize(@NotNull EvaluationContextImpl evaluationContext, @NotNull ObjectReference reference)
     throws EvaluateException {
     Value result = callMethod(evaluationContext, MemoryAgentNames.Methods.ESTIMATE_OBJECT_SIZE, Collections.singletonList(reference));
-    return LongValueParser.INSTANCE.parse(result);
+    Pair<Long, List<ObjectReference>> pair = SizeAndHeldObjectsParser.INSTANCE.parse(result);
+    return new Pair<>(pair.getFirst(), pair.getSecond().toArray(new ObjectReference[0]));
   }
 
-  @NotNull
-  static long[] estimateObjectsSizes(@NotNull EvaluationContextImpl evaluationContext, @NotNull List<ObjectReference> references)
+  static long @NotNull [] estimateObjectsSizes(@NotNull EvaluationContextImpl evaluationContext, @NotNull List<ObjectReference> references)
     throws EvaluateException {
     ArrayReference array = wrapWithArray(evaluationContext, references);
     Value result = callMethod(evaluationContext, MemoryAgentNames.Methods.ESTIMATE_OBJECTS_SIZE, Collections.singletonList(array));
     return LongArrayParser.INSTANCE.parse(result).stream().mapToLong(Long::longValue).toArray();
   }
 
+  static long @NotNull [] getShallowSizeByClasses(@NotNull EvaluationContextImpl evaluationContext, @NotNull List<ReferenceType> classes)
+    throws EvaluateException {
+    ArrayReference array = wrapWithArray(evaluationContext, ContainerUtil.map(classes, ReferenceType::classObject));
+    Value result = callMethod(evaluationContext, MemoryAgentNames.Methods.GET_SHALLOW_SIZE_BY_CLASSES, Collections.singletonList(array));
+    return LongArrayParser.INSTANCE.parse(result).stream().mapToLong(Long::longValue).toArray();
+  }
+
+  static long @NotNull [] getRetainedSizeByClasses(@NotNull EvaluationContextImpl evaluationContext, @NotNull List<ReferenceType> classes)
+    throws EvaluateException {
+    ArrayReference array = wrapWithArray(evaluationContext, ContainerUtil.map(classes, ReferenceType::classObject));
+    Value result = callMethod(evaluationContext, MemoryAgentNames.Methods.GET_RETAINED_SIZE_BY_CLASSES, Collections.singletonList(array));
+    return LongArrayParser.INSTANCE.parse(result).stream().mapToLong(Long::longValue).toArray();
+  }
+
   @NotNull
-  static ReferringObjectsInfo findReferringObjects(@NotNull EvaluationContextImpl evaluationContext,
-                                                   @NotNull ObjectReference reference, int limit) throws EvaluateException {
-    IntegerValue limitValue = evaluationContext.getDebugProcess().getVirtualMachineProxy().mirrorOf(limit);
-    Value value = callMethod(evaluationContext, MemoryAgentNames.Methods.FIND_GC_ROOTS, Arrays.asList(reference, limitValue));
+  static Pair<long[], long[]> getShallowAndRetainedSizeByClasses(@NotNull EvaluationContextImpl evaluationContext, @NotNull List<ReferenceType> classes)
+    throws EvaluateException {
+    ArrayReference array = wrapWithArray(evaluationContext, ContainerUtil.map(classes, ReferenceType::classObject));
+    Value result = callMethod(evaluationContext, MemoryAgentNames.Methods.GET_SHALLOW_AND_RETAINED_SIZE_BY_CLASSES, Collections.singletonList(array));
+    Pair<List<Long>, List<Long>> pair = ShallowAndRetainedSizeParser.INSTANCE.parse(result);
+    return new Pair<>(pair.getFirst().stream().mapToLong(Long::longValue).toArray(),
+                      pair.getSecond().stream().mapToLong(Long::longValue).toArray());
+  }
+
+  @NotNull
+  static ReferringObjectsInfo findPathsToClosestGCRoots(@NotNull EvaluationContextImpl evaluationContext,
+                                                        @NotNull ObjectReference reference, int pathsNumber,
+                                                        int objectsNumber) throws EvaluateException {
+    IntegerValue pathsNumberValue = evaluationContext.getDebugProcess().getVirtualMachineProxy().mirrorOf(pathsNumber);
+    IntegerValue objectsNumberValue = evaluationContext.getDebugProcess().getVirtualMachineProxy().mirrorOf(objectsNumber);
+    Value value = callMethod(
+      evaluationContext,
+      MemoryAgentNames.Methods.FIND_PATHS_TO_CLOSEST_GC_ROOTS,
+      Arrays.asList(reference, pathsNumberValue, objectsNumberValue)
+    );
     return GcRootsPathsParser.INSTANCE.parse(value);
   }
 
@@ -77,7 +108,9 @@ class MemoryAgentOperations {
       return builder
         .setCanEstimateObjectSize(checkAgentCapability(context, proxyType, MemoryAgentNames.Methods.CAN_ESTIMATE_OBJECT_SIZE))
         .setCanEstimateObjectsSizes(checkAgentCapability(context, proxyType, MemoryAgentNames.Methods.CAN_ESTIMATE_OBJECTS_SIZES))
-        .setCanFindGcRoots(checkAgentCapability(context, proxyType, MemoryAgentNames.Methods.CAN_FIND_GC_ROOTS))
+        .setCanGetShallowSizeByClasses(checkAgentCapability(context, proxyType, MemoryAgentNames.Methods.CAN_GET_SHALLOW_SIZE_BY_CLASSES))
+        .setCanGetRetainedSizeByClasses(checkAgentCapability(context, proxyType, MemoryAgentNames.Methods.CAN_GET_RETAINED_SIZE_BY_CLASSES))
+        .setCanFindPathsToClosestGcRoots(checkAgentCapability(context, proxyType, MemoryAgentNames.Methods.CAN_FIND_PATHS_TO_CLOSEST_GC_ROOTS))
         .buildLoaded();
     }
   }
@@ -136,7 +169,7 @@ class MemoryAgentOperations {
                                   @NotNull List<? extends Value> args) throws EvaluateException {
     DebuggerManagerThreadImpl.assertIsManagerThread();
     long start = System.currentTimeMillis();
-    List<Method> methods = proxyType.methodsByName(methodName);
+    List<Method> methods = DebuggerUtilsEx.declaredMethodsByName(proxyType, methodName);
     if (methods.isEmpty()) {
       throw EvaluateExceptionUtil.createEvaluateException("Could not find method with such name: " + methodName);
     }
@@ -157,8 +190,7 @@ class MemoryAgentOperations {
     return result;
   }
 
-  @NotNull
-  private static byte[] readUtilityClass() {
+  private static byte @NotNull [] readUtilityClass() {
     return new ProxyExtractor().extractProxy();
   }
 

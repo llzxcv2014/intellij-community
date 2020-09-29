@@ -1,6 +1,7 @@
 // Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.uiDesigner.propertyInspector.renderers;
 
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.uiDesigner.propertyInspector.editors.IntEnumEditor;
 import org.jetbrains.annotations.NotNull;
 
@@ -11,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 public final class IntEnumRenderer extends LabelPropertyRenderer<Integer> {
   private final IntEnumEditor.Pair[] myPairs;
 
-  public IntEnumRenderer(@NotNull final IntEnumEditor.Pair[] pairs) {
+  public IntEnumRenderer(final IntEnumEditor.Pair @NotNull [] pairs) {
     myPairs = pairs;
   }
 
@@ -20,7 +21,8 @@ public final class IntEnumRenderer extends LabelPropertyRenderer<Integer> {
     // Find pair
     for(int i = myPairs.length - 1; i >= 0; i--){
       if(myPairs[i].myValue == value.intValue()){
-        setText(myPairs[i].myText);
+        @NlsSafe String text = myPairs[i].myText;
+        setText(text);
         return;
       }
     }

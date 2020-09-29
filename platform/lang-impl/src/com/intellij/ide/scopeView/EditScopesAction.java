@@ -1,22 +1,20 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ide.scopeView;
 
-import com.intellij.icons.AllIcons;
 import com.intellij.ide.projectView.ProjectView;
 import com.intellij.ide.projectView.impl.AbstractProjectViewPane;
 import com.intellij.ide.util.scopeChooser.ScopeChooserConfigurable;
-import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.actionSystem.ActionPlaces;
+import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 
 public final class EditScopesAction extends AnAction implements DumbAware {
-  public EditScopesAction() {
-    super(AllIcons.Ide.LocalScope);
-  }
-
   @Override
   public void actionPerformed(@NotNull AnActionEvent event) {
     Project project = event.getData(CommonDataKeys.PROJECT);
@@ -27,7 +25,7 @@ public final class EditScopesAction extends AnAction implements DumbAware {
         AbstractProjectViewPane pane = view.getCurrentProjectViewPane();
         if (pane instanceof ScopeViewPane) {
           NamedScopeFilter filter = ((ScopeViewPane)pane).getFilter(pane.getSubId());
-          if (filter != null) configurable.selectNodeInTree(filter.getScope().getName());
+          if (filter != null) configurable.selectNodeInTree(filter.getScope().getScopeId());
         }
       });
     }

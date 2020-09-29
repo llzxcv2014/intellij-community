@@ -1,13 +1,14 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.util.io;
 
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.ReviseWhenPortedToJDK;
+import com.intellij.execution.process.ProcessIOExecutorService;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.PathUtil;
-import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.io.StreamReadingCallable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.Assume;
@@ -18,25 +19,33 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class IoTestUtil {
-  public static final boolean isSymLinkCreationSupported = SystemInfo.isUnix || SystemInfo.isWinVistaOrNewer && canCreateSymlinks();
+public final class IoTestUtil {
+  @ReviseWhenPortedToJDK("13")
+  private static final @Nullable Boolean symLinkMode = SystemInfo.isUnix ? Boolean.TRUE : canCreateSymlinks();  // `TRUE` == NIO, `FALSE` == "mklink"
+  public static final boolean isSymLinkCreationSupported = symLinkMode != null;
 
   private IoTestUtil() { }
 
+  @SuppressWarnings("SpellCheckingInspection")
   private static final String[] UNICODE_PARTS = {"Юникоде", "Úñíçødê"};
 
   @Nullable
@@ -70,29 +79,66 @@ public class IoTestUtil {
     return file;
   }
 
-  @NotNull
-  public static File createSymLink(@NotNull String target, @NotNull String link) {
-    return createSymLink(target, link, true);
+  public static @NotNull File createSymLink(@NotNull String target, @NotNull String link) {
+    return createSymLink(target, link, Boolean.TRUE);
   }
 
-  @NotNull
-  public static File createSymLink(@NotNull String target, @NotNull String link, boolean shouldExist) {
-    File linkFile = getFullLinkPath(link);
+  public static @NotNull File createSymLink(@NotNull String target, @NotNull String link, boolean shouldExist) {
+    return createSymLink(target, link, Boolean.valueOf(shouldExist));
+  }
+
+  /** A drop-in replacement for `Files#createSymbolicLink` needed until `Patches.JDK_BUG_ID_JDK_8218418` is resolved */
+  public static @NotNull Path createSymbolicLink(@NotNull Path link, @NotNull Path target) throws IOException {
     try {
-      Files.createSymbolicLink(linkFile.toPath(), FileSystems.getDefault().getPath(target));
+      return createSymLink(target.toString(), link.toString(), null).toPath();
+    }
+    catch (UncheckedIOException e) {
+      throw e.getCause();
+    }
+  }
+
+  private static File createSymLink(String target, String link, @Nullable Boolean shouldExist) {
+    File linkFile = getFullLinkPath(link), targetFile = new File(target);
+    try {
+      if (symLinkMode == Boolean.TRUE) {
+        Files.createSymbolicLink(linkFile.toPath(), targetFile.toPath());
+      }
+      else if (Files.isDirectory(targetFile.isAbsolute() ? targetFile.toPath() : linkFile.toPath().getParent().resolve(target))) {
+        runCommand("cmd", "/C", "mklink", "/D", linkFile.getPath(), targetFile.getPath());
+      }
+      else {
+        runCommand("cmd", "/C", "mklink", linkFile.getPath(), targetFile.getPath());
+      }
     }
     catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new UncheckedIOException(e);
     }
-    assertEquals("target=" + target + ", link=" + linkFile, shouldExist, linkFile.exists());
+    if (shouldExist != null) {
+      assertEquals("target=" + target + ", link=" + linkFile, shouldExist, linkFile.exists());
+    }
     return linkFile;
   }
 
   public static void assumeSymLinkCreationIsSupported() throws AssumptionViolatedException {
-    Assume.assumeTrue("Expected can create symlinks, but it seems '"+SystemInfo.getOsNameAndVersion()+"' is unwilling", isSymLinkCreationSupported);
+    Assume.assumeTrue("Can't create symlinks on " + SystemInfo.OS_NAME, isSymLinkCreationSupported);
   }
+
+  public static void assumeNioSymLinkCreationIsSupported() throws AssumptionViolatedException {
+    Assume.assumeTrue("Can't create symlinks via NIO2 on " + SystemInfo.OS_NAME, symLinkMode == Boolean.TRUE);
+  }
+
   public static void assumeWindows() throws AssumptionViolatedException {
-    Assume.assumeTrue("Expected windows but got: '" + SystemInfo.getOsNameAndVersion()+"'", SystemInfo.isWindows);
+    Assume.assumeTrue("Need Windows, can't run on " + SystemInfo.OS_NAME, SystemInfo.isWindows);
+  }
+
+  public static void assumeUnix() throws AssumptionViolatedException {
+    Assume.assumeTrue("Need Unix, can't run on " + SystemInfo.OS_NAME, SystemInfo.isUnix);
+  }
+  public static void assumeCaseSensitiveFS() throws AssumptionViolatedException {
+    Assume.assumeTrue("Assumed case sensitive FS but got " + SystemInfo.OS_NAME, SystemInfo.isFileSystemCaseSensitive);
+  }
+  public static void assumeCaseInsensitiveFS() throws AssumptionViolatedException {
+    Assume.assumeFalse("Assumed case insensitive FS but got " + SystemInfo.OS_NAME, SystemInfo.isFileSystemCaseSensitive);
   }
 
   @NotNull
@@ -128,7 +174,10 @@ public class IoTestUtil {
   }
 
   private static char getFirstFreeDriveLetter() {
-    Set<Character> roots = ContainerUtil.map2Set(File.listRoots(), root -> StringUtil.toUpperCase(root.getPath()).charAt(0));
+    Set<Character> roots = StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
+      .map(root -> StringUtil.toUpperCase(root.toString()).charAt(0))
+      .collect(Collectors.toSet());
+    Logger.getInstance(IoTestUtil.class).debug("logical drives: " + roots);
     for (char c = 'E'; c <= 'Z'; c++) {
       if (!roots.contains(c)) {
         return c;
@@ -150,31 +199,17 @@ public class IoTestUtil {
 
   private static void runCommand(String... command) {
     try {
-      ProcessBuilder builder = new ProcessBuilder(command);
-      builder.redirectErrorStream(true);
-
+      ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
       Process process = builder.start();
-      StringBuilder output = new StringBuilder();
-
-      Future<?> thread = ApplicationManager.getApplication().executeOnPooledThread(() -> {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-          String line;
-          while ((line = reader.readLine()) != null) {
-            output.append(line).append('\n');
-          }
-        }
-        catch (IOException e) {
-          throw new RuntimeException(e);
-        }
-      });
-      int ret = process.waitFor();
-      thread.get();
-
+      Future<ByteArrayOutputStream> reader = ProcessIOExecutorService.INSTANCE.submit(new StreamReadingCallable(process));
+      boolean finished = process.waitFor(30, TimeUnit.SECONDS);
+      int ret = finished ? process.exitValue() : -1;
+      ByteArrayOutputStream output = reader.get(30, TimeUnit.SECONDS);
       if (ret != 0) {
-        throw new RuntimeException(builder.command() + "\nresult: " + ret + "\noutput:\n" + output);
+        throw new RuntimeException(builder.command() + "\nresult: " + ret + "\noutput:\n" + output.toString());
       }
     }
-    catch (IOException | InterruptedException | ExecutionException e) {
+    catch (IOException | InterruptedException | ExecutionException | TimeoutException e) {
       throw new RuntimeException(e);
     }
   }
@@ -194,23 +229,12 @@ public class IoTestUtil {
   }
 
   @NotNull
-  public static File createTestJar() {
-    try {
-      File jarFile = expandWindowsPath(FileUtil.createTempFile("test.", ".jar"));
-      return createTestJar(jarFile);
-    }
-    catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  @NotNull
-  public static File createTestJar(File jarFile) {
+  public static File createTestJar(@NotNull File jarFile) {
     return createTestJar(jarFile, JarFile.MANIFEST_NAME, "");
   }
 
   @NotNull
-  public static File createTestJar(@NotNull File jarFile, @NotNull String... namesAndTexts) {
+  public static File createTestJar(@NotNull File jarFile, String @NotNull ... namesAndTexts) {
     try (ZipOutputStream stream = new ZipOutputStream(new FileOutputStream(jarFile))) {
       for (int i = 0; i < namesAndTexts.length; i += 2) {
         stream.putNextEntry(new ZipEntry(namesAndTexts[i]));
@@ -246,7 +270,7 @@ public class IoTestUtil {
     try (ZipOutputStream stream = new ZipOutputStream(new FileOutputStream(jarFile))) {
       FileUtil.visitFiles(root, file -> {
         if (file.isFile()) {
-          String path = FileUtil.toSystemIndependentName(ObjectUtils.assertNotNull(FileUtil.getRelativePath(root, file)));
+          String path = FileUtil.toSystemIndependentName(Objects.requireNonNull(FileUtil.getRelativePath(root, file)));
           try {
             stream.putNextEntry(new ZipEntry(path));
             try (InputStream is = new FileInputStream(file)) {
@@ -327,27 +351,38 @@ public class IoTestUtil {
     }
   }
 
-  private static boolean canCreateSymlinks() {
-    File target = null;
-    File link = null;
+  private static Boolean canCreateSymlinks() {
     try {
-      target = File.createTempFile("IOTestUtil_link_target.", ".txt");
-      link = new File(target.getParent(), target.getName().replace("IOTestUtil_link_target", "IOTestUtil_link"));
-      Files.createSymbolicLink(link.toPath(), target.toPath());
-      return true;
-    }
-    catch (IOException e) {
-      return false;
-    }
-    finally {
-      if (link != null) {
-        //noinspection ResultOfMethodCallIgnored
-        link.delete();
+      Path target = Files.createTempFile("IOTestUtil_link_target.", ".txt");
+      try {
+        Path link = target.getParent().resolve("IOTestUtil_link");
+        try {
+          try {
+            Files.createSymbolicLink(link, target.getFileName());
+            return Boolean.TRUE;
+          }
+          catch (IOException e) {
+            runCommand("cmd", "/C", "mklink", link.toString(), target.getFileName().toString());
+            return Boolean.FALSE;
+          }
+        }
+        finally {
+          Files.deleteIfExists(link);
+        }
       }
-      if (target != null) {
-        //noinspection ResultOfMethodCallIgnored
-        target.delete();
+      finally {
+        Files.delete(target);
       }
     }
+    catch (Exception e) {
+      //noinspection SSBasedInspection
+      Logger.getInstance("#com.intellij.openapi.util.io.IoTestUtil").debug(e);
+      return null;
+    }
+  }
+
+  /* "C:\path" -> "\\127.0.0.1\C$\path" */
+  public static @NotNull String toLocalUncPath(@NotNull String localPath) {
+    return "\\\\127.0.0.1\\" + localPath.charAt(0) + '$' + localPath.substring(2);
   }
 }

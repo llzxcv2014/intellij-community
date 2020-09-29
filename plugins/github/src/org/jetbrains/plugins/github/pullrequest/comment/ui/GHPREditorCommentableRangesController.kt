@@ -1,46 +1,47 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.github.pullrequest.comment.ui
 
 import com.intellij.diff.util.LineRange
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.editor.Inlay
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.LogicalPosition
+import com.intellij.openapi.editor.event.EditorMouseEvent
+import com.intellij.openapi.editor.event.EditorMouseListener
+import com.intellij.openapi.editor.event.EditorMouseMotionListener
+import com.intellij.openapi.editor.ex.EditorEx
 import com.intellij.openapi.editor.ex.RangeHighlighterEx
 import com.intellij.openapi.editor.ex.util.EditorUtil
 import com.intellij.openapi.editor.impl.event.MarkupModelListener
 import com.intellij.openapi.editor.markup.HighlighterLayer
 import com.intellij.openapi.editor.markup.HighlighterTargetArea
-import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.util.Disposer
 import gnu.trove.TIntHashSet
-import org.jetbrains.plugins.github.pullrequest.comment.viewer.GHPRCreateDiffCommentIconRenderer
 import org.jetbrains.plugins.github.ui.util.SingleValueModel
-import org.jetbrains.plugins.github.util.GithubUIUtil
-import java.awt.event.KeyEvent
 import javax.swing.JComponent
-import javax.swing.KeyStroke
 
 class GHPREditorCommentableRangesController(commentableRanges: SingleValueModel<List<LineRange>>,
-                                            private val componentFactory: GHPRDiffEditorReviewComponentsFactory,
-                                            private val inlaysManager: EditorComponentInlaysManager,
-                                            private val diffLineCalculator: (Int) -> Int?) {
+                                            private val gutterIconRendererFactory: GHPRDiffEditorGutterIconRendererFactory,
+                                            private val editor: EditorEx) {
 
-  private val editor = inlaysManager.editor
   private val commentableLines = TIntHashSet()
+  private val highlighters = mutableSetOf<RangeHighlighterEx>()
 
   init {
     val listenerDisposable = Disposer.newDisposable()
     editor.markupModel.addMarkupModelListener(listenerDisposable, object : MarkupModelListener {
       override fun beforeRemoved(highlighter: RangeHighlighterEx) {
-        val iconRenderer = highlighter.gutterIconRenderer as? GHPRCreateDiffCommentIconRenderer ?: return
+        val iconRenderer = highlighter.gutterIconRenderer as? GHPRAddCommentGutterIconRenderer ?: return
+        Disposer.dispose(iconRenderer)
         commentableLines.remove(iconRenderer.line)
+        highlighters.remove(highlighter)
       }
     })
+    val iconVisibilityController = IconVisibilityController()
+    editor.addEditorMouseListener(iconVisibilityController)
+    editor.addEditorMouseMotionListener(iconVisibilityController)
+
     EditorUtil.disposeWithEditor(editor, listenerDisposable)
 
-    for (range in commentableRanges.value) {
-      markCommentableLines(range)
-    }
-    commentableRanges.addValueChangedListener {
+    commentableRanges.addAndInvokeValueChangedListener {
       for (range in commentableRanges.value) {
         markCommentableLines(range)
       }
@@ -52,44 +53,30 @@ class GHPREditorCommentableRangesController(commentableRanges: SingleValueModel<
       if (!commentableLines.add(i)) continue
       val start = editor.document.getLineStartOffset(i)
       val end = editor.document.getLineEndOffset(i)
-      editor.markupModel
-        .addRangeHighlighterAndChangeAttributes(start, end, HighlighterLayer.LAST, null, HighlighterTargetArea.EXACT_RANGE,
-                                                false) { highlighter ->
-          highlighter.gutterIconRenderer = GHPRCreateDiffCommentIconRenderer(i, object : DumbAwareAction() {
-            private var inlay: Inlay<*>? = null
+      highlighters.add(editor.markupModel
+                         .addRangeHighlighterAndChangeAttributes(null, start, end, HighlighterLayer.LAST, HighlighterTargetArea.EXACT_RANGE,
+                                                                 false) { highlighter ->
+                           highlighter.gutterIconRenderer = gutterIconRendererFactory.createCommentRenderer(i)
+                         })
+    }
+  }
 
-            override fun actionPerformed(e: AnActionEvent) {
-              if (inlay?.let { focusInlay(it) } != null) return
+  private inner class IconVisibilityController : EditorMouseListener, EditorMouseMotionListener {
 
-              val diffLine = diffLineCalculator(i) ?: return
+    override fun mouseMoved(e: EditorMouseEvent) = doUpdate(e.editor, e.logicalPosition.line)
+    override fun mouseExited(e: EditorMouseEvent) = doUpdate(e.editor, -1)
 
-              val component =
-                componentFactory.createCommentComponent(diffLine) {
-                  inlay?.let { Disposer.dispose(it) }
-                  inlay = null
-                }
-              val newInlay = inlaysManager.insertAfter(i, component) ?: return
-              component.revalidate()
-              //TODO: replace with focus listeners
-              component.registerKeyboardAction({
-                                                 newInlay.let {
-                                                   Disposer.dispose(it)
-                                                   inlay = null
-                                                 }
-                                               },
-                                               KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
-                                               JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
-              focusInlay(newInlay)
-
-              inlay = newInlay
-            }
-
-            private fun focusInlay(inlay: Inlay<*>) {
-              val component = inlaysManager.findComponent(inlay) ?: return
-              GithubUIUtil.focusPanel(component)
-            }
-          })
+    private fun doUpdate(editor: Editor, line: Int) {
+      highlighters.mapNotNull { it.gutterIconRenderer as? GHPRAddCommentGutterIconRenderer }.forEach {
+        val visible = it.line == line
+        val needUpdate = it.iconVisible != visible
+        if (needUpdate) {
+          it.iconVisible = visible
+          val gutter = editor.gutter as JComponent
+          val y = editor.logicalPositionToXY(LogicalPosition(it.line, 0)).y
+          gutter.repaint(0, y, gutter.width, y + editor.lineHeight)
         }
+      }
     }
   }
 }

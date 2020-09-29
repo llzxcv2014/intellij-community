@@ -1,23 +1,9 @@
-/*
- * Copyright 2000-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.application.options.schemes;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.HelpTooltip;
-import com.intellij.ide.actions.NonTrivialActionGroup;
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationBundle;
 import com.intellij.openapi.options.Scheme;
@@ -28,10 +14,12 @@ import com.intellij.openapi.ui.popup.BalloonBuilder;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.ListPopup;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.util.ui.JBDimension;
 import com.intellij.util.ui.JBUI;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -139,7 +127,7 @@ public abstract class AbstractSchemesPanel<T extends Scheme, InfoComponent exten
   @NotNull
   private JComponent createToolbar() {
     DefaultActionGroup group = new DefaultActionGroup();
-    group.add(new ShowSchemesActionsListAction(myActions.getActions()));
+    group.add(new ShowSchemesActionsListAction(myActions));
     ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.NAVIGATION_BAR_TOOLBAR, group, true);
     toolbar.setReservePlaceAutoPopupIcon(false);
     toolbar.setLayoutPolicy(ActionToolbar.NOWRAP_LAYOUT_POLICY);
@@ -203,12 +191,12 @@ public abstract class AbstractSchemesPanel<T extends Scheme, InfoComponent exten
     mySchemesCombo.cancelEdit();
   }
 
-  public final void showInfo(@NotNull String message, @NotNull MessageType messageType) {
+  public final void showInfo(@NotNull @Nls String message, @NotNull MessageType messageType) {
     myToolbar.setVisible(false);
     showMessage(message, messageType);
   }
 
-  protected abstract void showMessage(@Nullable String message, @NotNull MessageType messageType);
+  protected abstract void showMessage(@NlsContexts.Label @Nullable String message, @NotNull MessageType messageType);
 
   final void clearInfo() {
     myToolbar.setVisible(true);
@@ -229,11 +217,12 @@ public abstract class AbstractSchemesPanel<T extends Scheme, InfoComponent exten
    * @return a string label to place before the combobox or {@code null} if it is not needed
    */
   @Nullable
-  protected String getComboBoxLabel() {
+  protected @NlsContexts.Label String getComboBoxLabel() {
     return getSchemeTypeName() + ":";
   }
 
   @NotNull
+  @Nls
   protected String getSchemeTypeName() {
     return ApplicationBundle.message("editbox.scheme.type.name");
   }
@@ -278,7 +267,7 @@ public abstract class AbstractSchemesPanel<T extends Scheme, InfoComponent exten
 
   public abstract boolean useBoldForNonRemovableSchemes();
 
-  public void showStatus(@NotNull String message, @NotNull MessageType messageType) {
+  public void showStatus(@NotNull @NlsContexts.PopupContent String message, @NotNull MessageType messageType) {
     BalloonBuilder balloonBuilder = JBPopupFactory.getInstance()
       .createHtmlTextBalloonBuilder(message, messageType.getDefaultIcon(),
                                     messageType.getPopupBackground(), null);
@@ -289,13 +278,15 @@ public abstract class AbstractSchemesPanel<T extends Scheme, InfoComponent exten
     Disposer.register(ProjectManager.getInstance().getDefaultProject(), balloon);
   }
 
-  private static class ShowSchemesActionsListAction extends NonTrivialActionGroup {
-    ShowSchemesActionsListAction(@NotNull Collection<? extends AnAction> actions) {
+  private static class ShowSchemesActionsListAction extends DefaultActionGroup {
+    private final AbstractSchemeActions<?> mySchemeActions;
+
+    ShowSchemesActionsListAction(AbstractSchemeActions<?> schemeActions) {
       setPopup(true);
+      mySchemeActions = schemeActions;
       getTemplatePresentation().setIcon(AllIcons.General.GearPlain);
-      getTemplatePresentation().setText("Show Scheme Actions");
-      getTemplatePresentation().setDescription("Show Scheme Actions");
-      addAll(actions);
+      getTemplatePresentation().setText(IdeBundle.messagePointer("action.presentation.AbstractSchemesPanel.text"));
+      getTemplatePresentation().setDescription(IdeBundle.messagePointer("action.presentation.AbstractSchemesPanel.description"));
     }
 
     @Override
@@ -310,8 +301,10 @@ public abstract class AbstractSchemesPanel<T extends Scheme, InfoComponent exten
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
+      DefaultActionGroup group = new DefaultActionGroup();
+      group.addAll(mySchemeActions.getActions());
       ListPopup popup = JBPopupFactory.getInstance().
-        createActionGroupPopup(null, this, e.getDataContext(), true, null, Integer.MAX_VALUE);
+        createActionGroupPopup(null, group, e.getDataContext(), true, null, Integer.MAX_VALUE);
 
       HelpTooltip.setMasterPopup(e.getInputEvent().getComponent(), popup);
       Component component = e.getInputEvent().getComponent();
@@ -324,7 +317,7 @@ public abstract class AbstractSchemesPanel<T extends Scheme, InfoComponent exten
     }
   }
 
-  protected static void showMessage(@Nullable String message,
+  protected static void showMessage(@NlsContexts.Label @Nullable String message,
                                     @NotNull MessageType messageType,
                                     @NotNull JLabel infoComponent) {
     infoComponent.setText(message);

@@ -22,15 +22,18 @@ import com.intellij.sh.psi.ShFile;
 import com.intellij.sh.statistics.ShFeatureUsagesCollector;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 public class ShExplainShellIntention extends BaseIntentionAction {
-  private static final String FEATURE_ACTION_ID = "ExplainShellUsed";
+  @NonNls private static final String FEATURE_ACTION_ID = "ExplainShellUsed";
 
   @NotNull
   @Override
@@ -41,7 +44,7 @@ public class ShExplainShellIntention extends BaseIntentionAction {
   @NotNull
   @Override
   public String getText() {
-    return "Explain shell";
+    return ShBundle.message("sh.explain.inspection.text");
   }
 
   @Override
@@ -90,7 +93,8 @@ public class ShExplainShellIntention extends BaseIntentionAction {
       List<ShCompositeElement> commands = ContainerUtil.filter(parents, e -> (e instanceof ShCommand || e instanceof ShCommandsList) && strings.add(e.getText()));
 
       if (commands.isEmpty()) {
-        CommonRefactoringUtil.showErrorHint(project, editor, "Nothing to explain", "Nothing to explain", "");
+        CommonRefactoringUtil.showErrorHint(project, editor, ShBundle.message("sh.explain.message.nothing.to.explain"),
+                                            ShBundle.message("sh.explain.title.nothing.to.explain"), "");
       }
       else {
         IntroduceTargetChooser.showChooser(editor, commands, new Pass<PsiElement>() {
@@ -98,13 +102,14 @@ public class ShExplainShellIntention extends BaseIntentionAction {
           public void pass(@NotNull PsiElement psiElement) {
             explain(psiElement.getText());
           }
-        }, PsiElement::getText, "Command to Explain");
+        }, PsiElement::getText, ShBundle.message("sh.explain.command.to.explain"));
       }
       ShFeatureUsagesCollector.logFeatureUsage(FEATURE_ACTION_ID);
     }
   }
 
   private static void explain(@NotNull String text) {
-    BrowserUtil.browse("https://explainshell.com/explain?cmd=" + text);
+    String encodedText = URLEncoder.encode(text, StandardCharsets.UTF_8);
+    BrowserUtil.browse("https://explainshell.com/explain?cmd=" + encodedText);
   }
 }

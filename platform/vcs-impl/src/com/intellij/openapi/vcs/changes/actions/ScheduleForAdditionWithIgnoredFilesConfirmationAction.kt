@@ -4,12 +4,12 @@ package com.intellij.openapi.vcs.changes.actions
 import com.intellij.CommonBundle
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.Messages.YES
 import com.intellij.openapi.ui.Messages.getQuestionIcon
+import com.intellij.openapi.util.NlsContexts
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vcs.*
 import com.intellij.openapi.vcs.VcsBundle.getString
@@ -34,12 +34,6 @@ import kotlin.streams.toList
 
 
 class ScheduleForAdditionWithIgnoredFilesConfirmationAction : ScheduleForAdditionAction() {
-
-  companion object {
-    private val EP_NAME =
-      ExtensionPointName.create<ScheduleForAdditionActionExtension>("com.intellij.vcs.actions.ScheduleForAdditionActionExtension")
-  }
-
   override fun isEnabled(e: AnActionEvent): Boolean {
     val project = e.getData(CommonDataKeys.PROJECT) ?: return false
     if (!getUnversionedFiles(e, project).isEmpty()) return true
@@ -69,15 +63,9 @@ class ScheduleForAdditionWithIgnoredFilesConfirmationAction : ScheduleForAdditio
     val (ignored, toAddWithoutIgnored) = toAdd.partition(changeListManager::isIgnoredFile)
     val confirmedIgnored =
       confirmAddFilePaths(project, ignored,
-                          { path ->
-                            message(
-                              "confirmation.title.add.ignored.single", if (path.isDirectory) "Directory" else "File")
-                          },
-                          { path ->
-                            message("confirmation.message.add.ignored.single", if (path.isDirectory) "directory" else "file",
-                                    FileUtil.getLocationRelativeToUserHome(path.presentableUrl))
-                          },
-                          getString("confirmation.title.add.ignored.files.or.dirs"))
+                          this::dialogTitle,
+                          this::dialogMessage,
+                          message("confirmation.title.add.ignored.files.or.dirs"))
 
     val addToVcsTask =
       if (toAdd.isNotEmpty()) PairConsumer<ProgressIndicator, MutableList<VcsException>> { _, exceptions ->
@@ -87,6 +75,17 @@ class ScheduleForAdditionWithIgnoredFilesConfirmationAction : ScheduleForAdditio
 
     addUnversioned(project, unversionedFiles, browser, addToVcsTask)
   }
+
+  private fun dialogMessage(path: FilePath): String {
+    val question =
+      if (path.isDirectory) message("confirmation.message.add.ignored.single.directory")
+      else message("confirmation.message.add.ignored.single.file")
+    return question + "\n" + FileUtil.getLocationRelativeToUserHome(path.presentableUrl)
+  }
+
+  private fun dialogTitle(path: FilePath): String =
+    if (path.isDirectory) message("confirmation.title.add.ignored.single.directory")
+    else message("confirmation.title.add.ignored.single.file")
 
   private fun addPathsToVcs(project: Project,
                             toAdd: Collection<FilePath>,
@@ -123,21 +122,23 @@ class ScheduleForAdditionWithIgnoredFilesConfirmationAction : ScheduleForAdditio
     return allFiles
       .filter { file ->
         val actionExtension = getExtensionFor(project, vcsManager.getVcsFor(file))
-        actionExtension != null && (file.isDirectory || actionExtension.isStatusForAddition(
-          changeListManager.getStatus(file)))
+        actionExtension != null &&
+        changeListManager.getStatus(file).let { status->
+          if (file.isDirectory) actionExtension.isStatusForDirectoryAddition(status) else actionExtension.isStatusForAddition(status)
+        }
       }
       .map(VcsUtil::getFilePath)
   }
 
   private fun getExtensionFor(project: Project, vcs: AbstractVcs?) =
     if (vcs == null) null
-    else EP_NAME.extensions.find { it.getSupportedVcs(project) == vcs }
+    else ScheduleForAdditionActionExtension.EP_NAME.findFirstSafe { it.getSupportedVcs(project) == vcs }
 }
 
 fun confirmAddFilePaths(project: Project, paths: List<FilePath>,
                         singlePathDialogTitle: (FilePath) -> String,
                         singlePathDialogMessage: (FilePath) -> String,
-                        multiplePathsDialogTitle: String): List<FilePath> {
+                        @NlsContexts.DialogTitle multiplePathsDialogTitle: String): List<FilePath> {
   if (paths.isEmpty()) return paths
 
   if (paths.size == 1) {

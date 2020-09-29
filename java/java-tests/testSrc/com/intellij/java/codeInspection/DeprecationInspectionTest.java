@@ -1,9 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.java.codeInspection;
 
 import com.intellij.JavaTestUtil;
-import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.codeInspection.deprecation.DeprecationInspection;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.module.Module;
@@ -18,11 +17,6 @@ import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.fixtures.DefaultLightProjectDescriptor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
-
-/**
- * @author max
- */
 public class DeprecationInspectionTest extends JavaInspectionTestCase {
 
   private final DefaultLightProjectDescriptor myProjectDescriptor = new DefaultLightProjectDescriptor() {

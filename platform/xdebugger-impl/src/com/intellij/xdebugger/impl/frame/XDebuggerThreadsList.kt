@@ -1,12 +1,16 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.xdebugger.impl.frame
 
+import com.intellij.openapi.actionSystem.DataKey
 import com.intellij.openapi.ui.popup.ListItemDescriptor
 import com.intellij.ui.CollectionListModel
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.components.JBList
 import com.intellij.ui.popup.list.GroupedItemsListRenderer
+import com.intellij.util.ui.UIUtil
+import com.intellij.xdebugger.XDebuggerBundle
 import com.intellij.xdebugger.frame.XExecutionStack
+import org.jetbrains.annotations.Nls
 import java.awt.Component
 import java.awt.Point
 import javax.swing.*
@@ -21,6 +25,8 @@ class XDebuggerThreadsList(private val renderer: ListCellRenderer<StackInfo>) : 
         get() = model.size
 
     companion object {
+        val THREADS_LIST: DataKey<XDebuggerThreadsList> = DataKey.create("THREADS_LIST")
+
         fun createDefault(): XDebuggerThreadsList {
             return create(XDebuggerGroupedFrameListRenderer())
         }
@@ -39,6 +45,9 @@ class XDebuggerThreadsList(private val renderer: ListCellRenderer<StackInfo>) : 
         if (font != null) {
             setFont(FontUIResource(font.name, font.style, font.size))
         }
+        setDataProvider {
+            return@setDataProvider if (THREADS_LIST.`is`(it)) this@XDebuggerThreadsList else null
+        }
     }
 
     private fun doInit() {
@@ -50,7 +59,7 @@ class XDebuggerThreadsList(private val renderer: ListCellRenderer<StackInfo>) : 
             }
         }
 
-        emptyText.text = "Threads are not available"
+        emptyText.text = XDebuggerBundle.message("threads.list.threads.not.available")
     }
 
     private fun onThreadChanged(stack: StackInfo?) {
@@ -102,8 +111,8 @@ class XDebuggerThreadsList(private val renderer: ListCellRenderer<StackInfo>) : 
     }
 
     private class XDebuggerListItemDescriptor : ListItemDescriptor<StackInfo> {
-        override fun getTextFor(value: StackInfo?): String? = value?.toString()
-        override fun getTooltipFor(value: StackInfo?): String? = value?.toString()
+        override fun getTextFor(value: StackInfo?): String? = value?.getText()
+        override fun getTooltipFor(value: StackInfo?): String? = value?.getText()
 
         override fun getIconFor(value: StackInfo?): Icon? = value?.stack?.icon
 
@@ -121,31 +130,37 @@ class XDebuggerThreadsList(private val renderer: ListCellRenderer<StackInfo>) : 
             hasFocus: Boolean
         ) {
             val stack = value ?: return
+            if (selected) {
+                background = UIUtil.getListSelectionBackground(hasFocus)
+                foreground = UIUtil.getListSelectionForeground(hasFocus)
+                mySelectionForeground = foreground
+            }
             when (stack.kind) {
                 StackInfo.StackKind.ExecutionStack -> {
-                    append(stack.toString())
+                    append(stack.getText())
                     icon = stack.stack?.icon
                 }
                 StackInfo.StackKind.Error,
-                StackInfo.StackKind.Loading -> append(stack.toString())
+                StackInfo.StackKind.Loading -> append(stack.getText())
             }
         }
     }
 }
 
-data class StackInfo private constructor(val kind: StackKind, val stack: XExecutionStack?, val error: String?) {
+data class StackInfo private constructor(val kind: StackKind, val stack: XExecutionStack?, @Nls val error: String?) {
     companion object {
         fun from(executionStack: XExecutionStack): StackInfo = StackInfo(StackKind.ExecutionStack, executionStack, null)
-        fun error(error: String): StackInfo = StackInfo(StackKind.Error, null, error)
+        fun error(@Nls error: String): StackInfo = StackInfo(StackKind.Error, null, error)
 
         val loading = StackInfo(StackKind.Loading, null, null)
     }
 
-    override fun toString(): String {
+    @Nls
+    fun getText(): String {
         return when (kind) {
             StackKind.ExecutionStack -> stack!!.displayName
             StackKind.Error -> error!!
-            StackKind.Loading -> "Loading..."
+            StackKind.Loading -> XDebuggerBundle.message("stack.frame.loading.text")
         }
     }
 

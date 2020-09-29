@@ -21,6 +21,7 @@ import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Computable;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtilCore;
@@ -51,7 +52,7 @@ public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSe
 
   private final GrIntroduceContext myContext;
 
-  public GrAbstractInplaceIntroducer(String title,
+  public GrAbstractInplaceIntroducer(@NlsContexts.Command String title,
                                      OccurrencesChooser.ReplaceChoice replaceChoice,
                                      GrIntroduceContext context) {
     super(context.getProject(), context.getEditor(), context.getExpression(), context.getVar(), context.getOccurrences(), title, GroovyFileType.GROOVY_FILE_TYPE);
@@ -163,15 +164,14 @@ public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSe
     runRefactoring(new IntroduceContextAdapter(), getSettings(), true);
   }
 
-  @NotNull
-  protected PsiElement[] restoreOccurrences() {
+  protected PsiElement @NotNull [] restoreOccurrences() {
     List<PsiElement> result = ContainerUtil.map(getOccurrenceMarkers(), marker -> PsiImplUtil.findElementInRange(myFile, marker.getStartOffset(), marker.getEndOffset(), GrExpression.class));
     return PsiUtilCore.toPsiElementArray(result);
   }
 
   @Nullable
   @Override
-  protected GrVariable createFieldToStartTemplateOn(boolean replaceAll, @NotNull String[] names) {
+  protected GrVariable createFieldToStartTemplateOn(boolean replaceAll, String @NotNull [] names) {
 
     final Settings settings = getInitialSettingsForInplace(myContext, myReplaceChoice, names);
     if (settings == null) return null;
@@ -247,9 +247,8 @@ public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSe
       return null;
     }
 
-    @NotNull
     @Override
-    public PsiElement[] getOccurrences() {
+    public PsiElement @NotNull [] getOccurrences() {
       return restoreOccurrences();
     }
 

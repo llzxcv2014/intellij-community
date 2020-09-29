@@ -1,8 +1,8 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.externalSystem.service.execution;
 
-import com.intellij.debugger.DebuggerBundle;
 import com.intellij.debugger.DebuggerManager;
+import com.intellij.debugger.JavaDebuggerBundle;
 import com.intellij.debugger.engine.DebugProcess;
 import com.intellij.debugger.engine.DebugProcessImpl;
 import com.intellij.debugger.engine.jdi.VirtualMachineProxy;
@@ -11,6 +11,7 @@ import com.intellij.debugger.jdi.VirtualMachineProxyImpl;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.ProgramRunnerUtil;
 import com.intellij.execution.RunnerAndConfigurationSettings;
+import com.intellij.execution.configurations.RunConfiguration;
 import com.intellij.execution.executors.DefaultDebugExecutor;
 import com.intellij.execution.impl.ConsoleViewImpl;
 import com.intellij.execution.impl.EditorHyperlinkSupport;
@@ -33,6 +34,7 @@ import com.intellij.openapi.externalSystem.debugger.DebuggerBackendExtension;
 import com.intellij.openapi.externalSystem.rt.execution.ForkedDebuggerHelper;
 import com.intellij.openapi.externalSystem.util.ExternalSystemBundle;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.UserDataHolder;
 import com.intellij.openapi.util.io.StreamUtil;
 import com.intellij.openapi.wm.ToolWindowId;
 import com.intellij.openapi.wm.ToolWindowManager;
@@ -48,6 +50,10 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Map;
+import java.util.Objects;
+
+import static com.intellij.openapi.externalSystem.debugger.DebuggerBackendExtension.RUNTIME_MODULE_DIR_KEY;
 
 /**
  * @author Vladislav.Soroka
@@ -119,7 +125,6 @@ class ForkedDebuggerThread extends Thread {
 
   private void handleForkedProcessSignal(Socket accept) throws IOException {
     // the stream can not be closed in the current thread
-    //noinspection IOResourceOpenedButNotSafelyClosed
     DataInputStream stream = new DataInputStream(accept.getInputStream());
 
     String debuggerId = stream.readUTF();
@@ -127,7 +132,7 @@ class ForkedDebuggerThread extends Thread {
     String processParameters = stream.readUTF();
 
     if (processParameters.startsWith(ForkedDebuggerHelper.FINISH_PARAMS)) {
-      removeTerminatedForks(processName, processParameters, accept, stream);
+      removeTerminatedForks(processName, accept, stream);
       return;
     }
 
@@ -153,7 +158,7 @@ class ForkedDebuggerThread extends Thread {
     }
   }
 
-  private void unblockRemote(Socket socket, DataInputStream inputStream) {
+  private static void unblockRemote(Socket socket, DataInputStream inputStream) {
     try {
       socket.getOutputStream().write(0);
       inputStream.close();
@@ -187,7 +192,6 @@ class ForkedDebuggerThread extends Thread {
   }
 
   private void removeTerminatedForks(@NotNull String processName,
-                                     @NotNull String processParams,
                                      Socket socket,
                                      DataInputStream inputStream) {
     ApplicationManager.getApplication().invokeLater(() -> {
@@ -210,17 +214,27 @@ class ForkedDebuggerThread extends Thread {
   private static void runDebugConfiguration(@NotNull RunnerAndConfigurationSettings runSettings, ProgramRunner.Callback callback) {
     try {
       runSettings.setActivateToolWindowBeforeRun(false);
-      ExecutionEnvironment environment = ExecutionEnvironmentBuilder.create(DefaultDebugExecutor.getDebugExecutorInstance(), runSettings)
+      ExecutionEnvironmentBuilder builder = ExecutionEnvironmentBuilder.create(DefaultDebugExecutor.getDebugExecutorInstance(), runSettings)
         .contentToReuse(null)
         .dataContext(null)
-        .activeTarget()
-        .build();
+        .activeTarget();
+      buildWithRuntimeModuleDir(runSettings, builder);
+      ExecutionEnvironment environment = builder.build();
       ApplicationManager.getApplication().invokeAndWait(() -> {
         ProgramRunnerUtil.executeConfigurationAsync(environment, true, true, callback);
       });
     }
     catch (ExecutionException e) {
       ExternalSystemTaskDebugRunner.LOG.error(e);
+    }
+  }
+
+  private static void buildWithRuntimeModuleDir(@NotNull RunnerAndConfigurationSettings runSettings, ExecutionEnvironmentBuilder builder) {
+    RunConfiguration configuration = runSettings.getConfiguration();
+    if (configuration instanceof UserDataHolder) {
+      String moduleDir = ((UserDataHolder)configuration).getUserData(RUNTIME_MODULE_DIR_KEY);
+      if (moduleDir != null)
+        builder.modulePath(moduleDir);
     }
   }
 
@@ -266,7 +280,7 @@ class ForkedDebuggerThread extends Thread {
         String addressDisplayName = "";
         DebugProcess debugProcess = DebuggerManager.getInstance(myProject).getDebugProcess(handler);
         if (debugProcess instanceof DebugProcessImpl) {
-          addressDisplayName = "(" + DebuggerBundle.getAddressDisplayName(((DebugProcessImpl)debugProcess).getConnection()) + ")";
+          addressDisplayName = "(" + JavaDebuggerBundle.getAddressDisplayName(((DebugProcessImpl)debugProcess).getConnection()) + ")";
         }
         String linkText = ExternalSystemBundle.message("debugger.open.session.tab");
         String debuggerAttachedStatusMessage =
@@ -299,8 +313,8 @@ class ForkedDebuggerThread extends Thread {
               EditorHyperlinkSupport hyperlinkSupport = mainConsoleView.getHyperlinks();
               int startOffset = myHyperlink.getStartOffset();
               int endOffset = myHyperlink.getEndOffset();
-              TextAttributes inactiveTextAttributes = myHyperlink.getTextAttributes() != null
-                                                      ? myHyperlink.getTextAttributes().clone() : TextAttributes.ERASE_MARKER.clone();
+              TextAttributes attributes = myHyperlink.getTextAttributes(mainConsoleView.getEditor().getColorsScheme());
+              TextAttributes inactiveTextAttributes = attributes != null ? attributes.clone() : TextAttributes.ERASE_MARKER.clone();
               inactiveTextAttributes.setForegroundColor(UIUtil.getInactiveTextColor());
               inactiveTextAttributes.setEffectColor(UIUtil.getInactiveTextColor());
               inactiveTextAttributes.setFontType(Font.ITALIC);

@@ -4,15 +4,18 @@ package com.intellij.codeInsight.intention.impl.config;
 import com.intellij.codeInsight.CodeInsightBundle;
 import com.intellij.codeInsight.hint.HintUtil;
 import com.intellij.ide.BrowserUtil;
-import com.intellij.ide.plugins.*;
+import com.intellij.ide.plugins.IdeaPluginDescriptorImpl;
+import com.intellij.ide.plugins.PluginManagerConfigurableProxy;
+import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.ide.ui.search.SearchUtil;
+import com.intellij.openapi.application.ex.ApplicationInfoEx;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.ex.FileTypeManagerEx;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.HintHint;
 import com.intellij.ui.HyperlinkLabel;
@@ -46,8 +49,8 @@ public class IntentionDescriptionPanel {
   @NonNls private static final String AFTER_TEMPLATE = "after.java.template";
 
   public IntentionDescriptionPanel() {
-    myBeforePanel.setBorder(IdeBorderFactory.createTitledBorder("Before:", false, JBUI.insetsTop(8)).setShowLine(false));
-    myAfterPanel.setBorder(IdeBorderFactory.createTitledBorder("After:", false, JBUI.insetsTop(8)).setShowLine(false));
+    myBeforePanel.setBorder(IdeBorderFactory.createTitledBorder(CodeInsightBundle.message("border.title.before"), false, JBUI.insetsTop(8)).setShowLine(false));
+    myAfterPanel.setBorder(IdeBorderFactory.createTitledBorder(CodeInsightBundle.message("border.title.after"), false, JBUI.insetsTop(8)).setShowLine(false));
     myPoweredByPanel.setBorder(IdeBorderFactory.createTitledBorder(
       CodeInsightBundle.message("powered.by"), false, JBUI.insetsTop(8)).setShowLine(false));
 
@@ -70,7 +73,7 @@ public class IntentionDescriptionPanel {
   }
 
   // TODO 134099: see SingleInspectionProfilePanel#setHTML and PostfixDescriptionPanel#readHtml
-  private String toHTML(String text) {
+  private String toHTML(@NlsContexts.HintText String text) {
     final HintHint hintHint = new HintHint(myDescriptionBrowser, new Point(0, 0));
     hintHint.setFont(StartupUiUtil.getLabelFont());
     return HintUtil.prepareHintText(text, hintHint);
@@ -100,12 +103,16 @@ public class IntentionDescriptionPanel {
     PluginId pluginId = actionMetaData == null ? null : actionMetaData.getPluginId();
     myPoweredByPanel.removeAll();
     IdeaPluginDescriptorImpl pluginDescriptor  = (IdeaPluginDescriptorImpl)PluginManagerCore.getPlugin(pluginId);
-    boolean isCustomPlugin = pluginDescriptor != null && pluginDescriptor.isBundled();
+    ApplicationInfoEx appInfo = ApplicationInfoEx.getInstanceEx();
+    boolean isCustomPlugin = pluginDescriptor != null && pluginDescriptor.isBundled() && !appInfo.isEssentialPlugin(pluginId);
     if (isCustomPlugin) {
       HyperlinkLabel label = new HyperlinkLabel(CodeInsightBundle.message("powered.by.plugin", pluginDescriptor.getName()));
       label.addHyperlinkListener(__ -> {
-        Project project = ProjectManager.getInstance().getDefaultProject();
-        PluginManagerConfigurableProxy.showPluginConfigurable(null, project, pluginDescriptor);
+        PluginManagerConfigurableProxy.showPluginConfigurable(
+          null,
+          ProjectManager.getInstance().getDefaultProject(),
+          pluginDescriptor
+        );
       });
       myPoweredByPanel.add(label, BorderLayout.CENTER);
     }
@@ -133,7 +140,7 @@ public class IntentionDescriptionPanel {
 
   private static void showUsages(final JPanel panel,
                                  final List<IntentionUsagePanel> usagePanels,
-                                 @Nullable final TextDescriptor[] exampleUsages) throws IOException {
+                                 final TextDescriptor @Nullable [] exampleUsages) throws IOException {
     GridBagConstraints gb = null;
     boolean reuse = exampleUsages != null && panel.getComponents().length == exampleUsages.length;
     if (!reuse) {

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.run;
 
 import com.intellij.execution.DefaultExecutionResult;
@@ -15,6 +15,9 @@ import com.intellij.execution.filters.OpenFileHyperlinkInfo;
 import com.intellij.execution.filters.UrlFilter;
 import com.intellij.execution.process.*;
 import com.intellij.execution.runners.ExecutionEnvironment;
+import com.intellij.execution.target.TargetEnvironment;
+import com.intellij.execution.target.TargetEnvironmentRequest;
+import com.intellij.execution.target.value.TargetEnvironmentFunctions;
 import com.intellij.execution.ui.ConsoleView;
 import com.intellij.execution.ui.ExecutionConsole;
 import com.intellij.execution.util.ProgramParametersConfigurator;
@@ -27,6 +30,7 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.encoding.EncodingProjectManager;
 import com.intellij.terminal.TerminalExecutionConsole;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.PathMapper;
@@ -41,7 +45,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * @author yole
@@ -141,7 +147,8 @@ public class PythonScriptCommandLineState extends PythonCommandLineState {
             if (file == null) {
               return null;
             }
-            return new Result(entireLength - filePath.length() - 1, entireLength, new OpenFileHyperlinkInfo(new OpenFileDescriptor(project, file)));
+            return new Result(entireLength - filePath.length() - 1, entireLength,
+                              new OpenFileHyperlinkInfo(new OpenFileDescriptor(project, file)));
           }
           return null;
         }
@@ -168,6 +175,18 @@ public class PythonScriptCommandLineState extends PythonCommandLineState {
     if (emulateTerminal()) {
       if (!SystemInfo.isWindows) {
         envs.put("TERM", "xterm-256color");
+      }
+    }
+  }
+
+  @Override
+  public void customizePythonExecutionEnvironmentVars(@NotNull TargetEnvironmentRequest targetEnvironment,
+                                                      @NotNull Map<String, Function<TargetEnvironment, String>> envs,
+                                                      boolean passParentEnvs) {
+    super.customizePythonExecutionEnvironmentVars(targetEnvironment, envs, passParentEnvs);
+    if (emulateTerminal()) {
+      if (!SystemInfo.isWindows) {
+        envs.put("TERM", TargetEnvironmentFunctions.constant("xterm-256color"));
       }
     }
   }
@@ -204,6 +223,32 @@ public class PythonScriptCommandLineState extends PythonCommandLineState {
   }
 
   @Override
+  protected @NotNull PythonExecution buildPythonExecution(@NotNull TargetEnvironmentRequest targetEnvironmentRequest) {
+    PythonExecution pythonExecution;
+    if (myConfig.isModuleMode()) {
+      PythonModuleExecution moduleExecution = new PythonModuleExecution();
+      String moduleName = myConfig.getScriptName();
+      if (!StringUtil.isEmptyOrSpaces(moduleName)) {
+        moduleExecution.setModuleName(moduleName);
+      }
+      pythonExecution = moduleExecution;
+    }
+    else {
+      PythonScriptExecution pythonScriptExecution = new PythonScriptExecution();
+      String scriptPath = myConfig.getScriptName();
+      if (!StringUtil.isEmptyOrSpaces(scriptPath)) {
+        pythonScriptExecution.setPythonScriptPath(TargetEnvironmentFunctions.getTargetEnvironmentValueForLocalPath(targetEnvironmentRequest,
+                                                                                                                   scriptPath));
+      }
+      pythonExecution = pythonScriptExecution;
+    }
+
+    pythonExecution.setCharset(EncodingProjectManager.getInstance(myConfig.getProject()).getDefaultCharset());
+
+    return pythonExecution;
+  }
+
+  @Override
   protected void buildCommandLineParameters(GeneralCommandLine commandLine) {
     ParametersList parametersList = commandLine.getParametersList();
     ParamsGroup exeOptions = parametersList.getParamsGroup(GROUP_EXE_OPTIONS);
@@ -226,8 +271,7 @@ public class PythonScriptCommandLineState extends PythonCommandLineState {
       }
     }
 
-    final String scriptOptionsString = getExpandedScriptParameters();
-    if (scriptOptionsString != null) scriptParameters.addParametersString(scriptOptionsString);
+    scriptParameters.addParameters(getExpandedScriptParameters());
 
     if (!StringUtil.isEmptyOrSpaces(myConfig.getWorkingDirectory())) {
       commandLine.setWorkDirectory(myConfig.getWorkingDirectory());
@@ -238,10 +282,9 @@ public class PythonScriptCommandLineState extends PythonCommandLineState {
     }
   }
 
-  @Nullable
-  private String getExpandedScriptParameters() {
+  private @NotNull List<String> getExpandedScriptParameters() {
     final String parameters = myConfig.getScriptParameters();
-    return ProgramParametersConfigurator.expandMacros(parameters);
+    return ProgramParametersConfigurator.expandMacrosAndParseParameters(parameters);
   }
 
   private static String escape(String s) {
@@ -273,15 +316,14 @@ public class PythonScriptCommandLineState extends PythonCommandLineState {
 
     sb.append("runfile('").append(escape(scriptPath)).append("'");
 
-    final String parametersString = getExpandedScriptParameters();
-    final String[] scriptParameters = parametersString != null ? ParametersList.parse(parametersString) : ArrayUtil.EMPTY_STRING_ARRAY;
-    if (scriptParameters.length != 0) {
+    final List<String> scriptParameters = getExpandedScriptParameters();
+    if (scriptParameters.size() != 0) {
       sb.append(", args=[");
-      for (int i = 0; i < scriptParameters.length; i++) {
+      for (int i = 0; i < scriptParameters.size(); i++) {
         if (i != 0) {
           sb.append(", ");
         }
-        sb.append("'").append(escape(scriptParameters[i])).append("'");
+        sb.append("'").append(escape(scriptParameters.get(i))).append("'");
       }
       sb.append("]");
     }

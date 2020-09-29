@@ -15,7 +15,7 @@
  */
 package com.intellij.ide.util.projectWizard;
 
-import com.intellij.ide.IdeBundle;
+import com.intellij.ide.JavaUiBundle;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
@@ -24,6 +24,7 @@ import com.intellij.openapi.projectRoots.SdkTypeId;
 import com.intellij.openapi.ui.TextBrowseFolderListener;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.util.Condition;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -51,7 +52,7 @@ public class JavaSettingsStep extends SdkSettingsStep {
   private       TextFieldWithBrowseButton mySourcePath;
   private       JPanel                    myPanel;
 
-  public JavaSettingsStep(@NotNull SettingsStep settingsStep, @NotNull ModuleBuilder moduleBuilder, @NotNull Condition<SdkTypeId> sdkFilter) {
+  public JavaSettingsStep(@NotNull SettingsStep settingsStep, @NotNull ModuleBuilder moduleBuilder, @NotNull Condition<? super SdkTypeId> sdkFilter) {
     super(settingsStep, moduleBuilder, sdkFilter);
     mySourcePath.setText(PropertiesComponent.getInstance().getValue(MODULE_SOURCE_ROOT_KEY, DEFAULT_MODULE_SOURCE_ROOT_PATH));
     myModuleBuilder = moduleBuilder;
@@ -64,7 +65,7 @@ public class JavaSettingsStep extends SdkSettingsStep {
   private void addSourcePath(SettingsStep settingsStep) {
     Project project = settingsStep.getContext().getProject();
     FileChooserDescriptor descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
-    descriptor.setTitle(IdeBundle.message("prompt.select.source.directory"));
+    descriptor.setTitle(JavaUiBundle.message("prompt.select.source.directory"));
     mySourcePath.addBrowseFolderListener(new TextBrowseFolderListener(descriptor, project) {
       @NotNull
       @Override
@@ -103,7 +104,7 @@ public class JavaSettingsStep extends SdkSettingsStep {
   }
 
   @TestOnly
-  public void setSourcePath(String path) {
+  public void setSourcePath(@NlsSafe String path) {
     mySourcePath.setText(path);
   }
 }

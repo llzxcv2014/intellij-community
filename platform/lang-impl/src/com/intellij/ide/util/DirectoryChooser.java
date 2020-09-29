@@ -5,6 +5,7 @@ package com.intellij.ide.util;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.actions.GotoClassPresentationUpdater;
 import com.intellij.ide.util.gotoByName.*;
+import com.intellij.lang.LangBundle;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
@@ -17,6 +18,7 @@ import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
@@ -70,7 +72,7 @@ public class DirectoryChooser extends DialogWrapper {
     final PropertiesComponent propertiesComponent = PropertiesComponent.getInstance();
     myFilterExisting = propertiesComponent.isTrueValue(FILTER_NON_EXISTING);
     myTabbedPaneWrapper = new TabbedPaneWrapper(getDisposable());
-    String gotoClassText = GotoClassPresentationUpdater.getTabTitle(false);
+    String gotoClassText = GotoClassPresentationUpdater.getTabTitle();
     myByClassPanel = gotoClassText.startsWith("Class") ? createChooserPanel(project, true) : null;
     myByFilePanel = createChooserPanel(project, false);
     init();
@@ -160,11 +162,11 @@ public class DirectoryChooser extends DialogWrapper {
 
     installEnterAction(component);
     panel.add(jScrollPane, BorderLayout.CENTER);
-    myTabbedPaneWrapper.addTab("Directory Structure", panel);
+    myTabbedPaneWrapper.addTab(LangBundle.message("tab.title.directory.structure"), panel);
     if (myByClassPanel != null) {
-      myTabbedPaneWrapper.addTab("By Class", myByClassPanel.getPanel());
+      myTabbedPaneWrapper.addTab(LangBundle.message("tab.title.by.class"), myByClassPanel.getPanel());
     }
-    myTabbedPaneWrapper.addTab("By File", myByFilePanel.getPanel());
+    myTabbedPaneWrapper.addTab(LangBundle.message("tab.title.by.file"), myByFilePanel.getPanel());
     return myTabbedPaneWrapper.getComponent();
   }
 
@@ -365,7 +367,7 @@ public class DirectoryChooser extends DialogWrapper {
       return myDirectory;
     }
 
-    public String getRelativeToProjectPath() {
+    public @NlsSafe String getRelativeToProjectPath() {
       if (myRelativeToProjectPath == null) {
         final PsiDirectory directory = getDirectory();
         final VirtualFile virtualFile = directory != null ? directory.getVirtualFile() : null;
@@ -519,7 +521,7 @@ public class DirectoryChooser extends DialogWrapper {
       myCommon = isCommon;
     }
 
-    public String getText() {
+    public @NlsSafe String getText() {
       return myText;
     }
 
@@ -531,8 +533,8 @@ public class DirectoryChooser extends DialogWrapper {
 
   private class FilterExistentAction extends ToggleAction {
     FilterExistentAction() {
-      super(RefactoringBundle.message("directory.chooser.hide.non.existent.checkBox.text"),
-            UIUtil.removeMnemonic(RefactoringBundle.message("directory.chooser.hide.non.existent.checkBox.text")),
+      super(RefactoringBundle.messagePointer("directory.chooser.hide.non.existent.checkBox.text"),
+            () -> UIUtil.removeMnemonic(RefactoringBundle.message("directory.chooser.hide.non.existent.checkBox.text")),
             AllIcons.General.Filter);
     }
 

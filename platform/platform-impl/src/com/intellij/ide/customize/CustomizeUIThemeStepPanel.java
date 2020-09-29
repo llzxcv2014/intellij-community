@@ -1,7 +1,8 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.customize;
 
 import com.intellij.CommonBundle;
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.WelcomeWizardUtil;
 import com.intellij.ide.cloudConfig.CloudConfigProvider;
 import com.intellij.ide.ui.LafManager;
@@ -11,12 +12,14 @@ import com.intellij.ide.ui.laf.darcula.DarculaLaf;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.options.OptionsBundle;
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.ui.AppUIUtil;
 import com.intellij.util.IconUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.StartupUiUtil;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -27,13 +30,13 @@ import java.util.Set;
 
 public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
   public static class ThemeInfo {
-    public final String name;
-    public final String previewFileName;
-    public final String laf;
+    public final @NonNls String name;
+    public final @NonNls String previewFileName;
+    public final @NonNls String laf;
 
     private Icon icon;
 
-    public ThemeInfo(String name, String previewFileName, String laf) {
+    public ThemeInfo(@NonNls String name, @NonNls String previewFileName, @NonNls String laf) {
       this.name = name;
       this.previewFileName = SystemInfo.isMac && "IntelliJ".equals(previewFileName) ? "Aqua" : previewFileName;
       this.laf = laf;
@@ -78,7 +81,8 @@ public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
     final ThemeInfo myDefaultTheme = getDefaultTheme();
 
     for (final ThemeInfo theme : myThemes) {
-      final JRadioButton radioButton = new JRadioButton(theme.name, myDefaultTheme == theme);
+      @NlsSafe String themName = theme.name;
+      final JRadioButton radioButton = new JRadioButton(themName, myDefaultTheme == theme);
       radioButton.setOpaque(false);
       final JPanel panel = createBigButtonPanel(createSmallBorderLayout(), radioButton, () -> {
         CustomizeIDEWizardInteractions.INSTANCE.record(CustomizeIDEWizardInteractionType.UIThemeChanged);
@@ -164,20 +168,18 @@ public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
 
   @Override
   public String getTitle() {
-    return "UI Themes";
+    return IdeBundle.message("step.title.ui.themes");
   }
 
   @Override
   public String getHTMLHeader() {
-    return "<html><body><h2>Set UI theme</h2>&nbsp;</body></html>";
+    return IdeBundle.message("label.set.ui.theme");
   }
 
   @Override
   public String getHTMLFooter() {
-    return "You can change the UI theme later in " +
-           CommonBundle.settingsTitle()
-           + " | " + OptionsBundle.message("configurable.group.appearance.settings.display.name")
-           + " | " + "Appearance. Additional themes are available in " + CommonBundle.settingsTitle() + " | Plugins.";
+    return IdeBundle.message("label.you.can.change.the.ui.theme.later.in.0.1", CommonBundle.settingsTitle(),
+                             OptionsBundle.message("configurable.group.appearance.settings.display.name"), CommonBundle.settingsTitle());
   }
 
   private void applyLaf(ThemeInfo theme, Component component) {

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.execution.build;
 
 import com.intellij.execution.*;
@@ -22,7 +22,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.gradle.importing.GradleBuildScriptBuilderEx;
 import org.jetbrains.plugins.gradle.importing.GradleSettingsImportingTestCase;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -30,7 +29,6 @@ import org.junit.Test;
  */
 public class GradleApplicationEnvironmentProviderTest extends GradleSettingsImportingTestCase {
 
-  @Before
   @Override
   public void setUp() throws Exception {
     super.setUp();
@@ -39,7 +37,7 @@ public class GradleApplicationEnvironmentProviderTest extends GradleSettingsImpo
 
   @Test
   public void testApplicationRunConfigurationSettingsImport() throws Exception {
-    PlatformTestUtil.getOrCreateProjectTestBaseDir(myProject);
+    PlatformTestUtil.getOrCreateProjectBaseDir(myProject);
     @Language("Java")
     String appClass = "package my;\n" +
                       "import java.util.Arrays;\n" +
@@ -106,15 +104,28 @@ public class GradleApplicationEnvironmentProviderTest extends GradleSettingsImpo
   }
 
   @NotNull
-  private String runAppAndGetOutput(RunnerAndConfigurationSettings configurationSettings) {
+  private static String runAppAndGetOutput(RunnerAndConfigurationSettings configurationSettings) {
     final Semaphore done = new Semaphore();
     done.down();
     ExternalSystemProgressNotificationManager notificationManager =
       ServiceManager.getService(ExternalSystemProgressNotificationManager.class);
     StringBuilder out = new StringBuilder();
     ExternalSystemTaskNotificationListenerAdapter listener = new ExternalSystemTaskNotificationListenerAdapter() {
+      private volatile ExternalSystemTaskId myId = null;
+
+      @Override
+      public void onStart(@NotNull ExternalSystemTaskId id, String workingDir) {
+        if (myId != null) {
+          throw new IllegalStateException("This test listener is not supposed to listen to more than 1 task");
+        }
+        myId = id;
+      }
+
       @Override
       public void onTaskOutput(@NotNull ExternalSystemTaskId id, @NotNull String text, boolean stdOut) {
+        if (!id.equals(myId)) {
+          return;
+        }
         if (StringUtil.isEmptyOrSpaces(text)) return;
         (stdOut ? System.out : System.err).print(text);
         out.append(text);
@@ -122,26 +133,34 @@ public class GradleApplicationEnvironmentProviderTest extends GradleSettingsImpo
 
       @Override
       public void onEnd(@NotNull ExternalSystemTaskId id) {
-        notificationManager.removeNotificationListener(this);
+        if (!id.equals(myId)) {
+          return;
+        }
         done.up();
       }
     };
-    notificationManager.addNotificationListener(listener);
-    edt(() -> {
-      try {
-        ExecutionEnvironment environment =
-          ExecutionEnvironmentBuilder.create(DefaultRunExecutor.getRunExecutorInstance(), configurationSettings)
-            .contentToReuse(null)
-            .dataContext(null)
-            .activeTarget()
-            .build();
-        ProgramRunnerUtil.executeConfiguration(environment, false, true);
-      }
-      catch (ExecutionException e) {
-        fail(e.getMessage());
-      }
-    });
-    Assert.assertTrue(done.waitFor(30000));
+
+    try {
+      notificationManager.addNotificationListener(listener);
+      edt(() -> {
+        try {
+          ExecutionEnvironment environment =
+            ExecutionEnvironmentBuilder.create(DefaultRunExecutor.getRunExecutorInstance(), configurationSettings)
+              .contentToReuse(null)
+              .dataContext(null)
+              .activeTarget()
+              .build();
+          ProgramRunnerUtil.executeConfiguration(environment, false, true);
+        }
+        catch (ExecutionException e) {
+          fail(e.getMessage());
+        }
+      });
+      Assert.assertTrue(done.waitFor(30000));
+    }
+    finally {
+      notificationManager.removeNotificationListener(listener);
+    }
     return out.toString();
   }
 }

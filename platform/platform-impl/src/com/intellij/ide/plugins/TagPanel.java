@@ -3,6 +3,7 @@ package com.intellij.ide.plugins;
 
 import com.intellij.ide.plugins.newui.HorizontalLayout;
 import com.intellij.ide.plugins.newui.TagComponent;
+import com.intellij.openapi.util.NlsContexts.Tooltip;
 import com.intellij.ui.components.labels.LinkListener;
 import com.intellij.ui.components.panels.NonOpaquePanel;
 import com.intellij.ui.scale.JBUIScale;
@@ -60,8 +61,10 @@ public class TagPanel extends NonOpaquePanel {
     setVisible(true);
   }
 
-  public void setFirstTagTooltip(@Nullable String text) {
-    ((JComponent)getComponent(0)).setToolTipText(text);
+  public void setFirstTagTooltip(@Nullable @Tooltip String text) {
+    if (getComponentCount() > 0) {
+      ((JComponent)getComponent(0)).setToolTipText(text);
+    }
   }
 
   @Override

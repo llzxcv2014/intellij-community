@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.impl.source.resolve.reference;
 
 import com.intellij.openapi.project.IndexNotReadyException;
@@ -8,25 +8,22 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiReferenceProvider;
 import com.intellij.psi.PsiReferenceService;
 import com.intellij.util.ProcessingContext;
+import com.intellij.util.SharedProcessingContext;
 import com.intellij.util.SmartList;
-import gnu.trove.THashMap;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author maxim
  */
 public abstract class NamedObjectProviderBinding implements ProviderBinding {
-  private final Map<String, List<ProviderInfo<ElementPattern>>> myNamesToProvidersMap = new THashMap<>(5);
-  private final Map<String, List<ProviderInfo<ElementPattern>>> myNamesToProvidersMapInsensitive = new THashMap<>(5);
+  private final Map<String, List<ProviderInfo<ElementPattern>>> myNamesToProvidersMap = new HashMap<>(5);
+  private final Map<String, List<ProviderInfo<ElementPattern>>> myNamesToProvidersMapInsensitive = new HashMap<>(5);
 
-  public void registerProvider(@NonNls @NotNull String[] names,
+  public void registerProvider(@NonNls String @NotNull [] names,
                                @NotNull ElementPattern filter,
                                boolean caseSensitive,
                                @NotNull PsiReferenceProvider provider,
@@ -87,6 +84,8 @@ public abstract class NamedObjectProviderBinding implements ProviderBinding {
                                    @NotNull PsiReferenceService.Hints hints) {
     if (providerList == null) return;
 
+    SharedProcessingContext sharedProcessingContext = new SharedProcessingContext();
+
     //noinspection ForLoopReplaceableByForEach
     for (int i = 0; i < providerList.size(); i++) {
       ProviderInfo<ElementPattern> info = providerList.get(i);
@@ -94,7 +93,7 @@ public abstract class NamedObjectProviderBinding implements ProviderBinding {
         continue;
       }
 
-      final ProcessingContext context = new ProcessingContext();
+      ProcessingContext context = new ProcessingContext(sharedProcessingContext);
       boolean suitable = false;
       try {
         suitable = info.processingContext.accepts(position, context);

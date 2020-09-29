@@ -26,9 +26,6 @@ import org.jetbrains.jps.model.module.JpsModule;
 import java.io.File;
 import java.util.*;
 
-/**
- * @author nik
- */
 public class CompileScopeImpl extends CompileScope {
   private final Collection<? extends BuildTargetType<?>> myTypes;
   private final Collection<BuildTargetType<?>> myTypesToForceBuild;
@@ -65,7 +62,7 @@ public class CompileScopeImpl extends CompileScope {
 
   @Override
   public boolean isWholeTargetAffected(@NotNull BuildTarget<?> target) {
-    return myFiles.isEmpty() && (myTypes.contains(target.getTargetType()) || myTargets.contains(target) || isAffectedByAssociatedModule(target));
+    return (myTypes.contains(target.getTargetType()) || myTargets.contains(target) || isAffectedByAssociatedModule(target)) && !myFiles.containsKey(target);
   }
 
   @Override

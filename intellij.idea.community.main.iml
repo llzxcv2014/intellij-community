@@ -44,7 +44,7 @@
     <orderEntry type="module" module-name="intellij.platform.resources.en" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.properties" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.java.ide.resources" scope="RUNTIME" />
-    <orderEntry type="module" module-name="intellij.java.ide.customization" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.java.ide.customization" exported="" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.java.resources" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.java.resources.en" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.spellchecker" scope="RUNTIME" />
@@ -80,7 +80,7 @@
     <orderEntry type="module" module-name="intellij.xml.langInjection" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.xpath" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.xslt.debugger" scope="RUNTIME" />
-    <orderEntry type="module" module-name="intellij.xslt.debugger.engine" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.xslt.debugger.rt" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.java.i18n" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.tasks" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.tasks.java" scope="RUNTIME" />
@@ -90,6 +90,7 @@
     <orderEntry type="module" module-name="intellij.relaxng" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.gradle.java" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.platform.remoteServers.impl" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.properties.resource.bundle.editor" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.xml.dom.tests" scope="TEST" />
     <orderEntry type="module" module-name="intellij.platform.colorSchemes" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.javaFX.community" scope="RUNTIME" />
@@ -118,12 +119,14 @@
     <orderEntry type="module" module-name="intellij.platform.updater" scope="TEST" />
     <orderEntry type="module" module-name="intellij.java.coverage" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.platform.scriptDebugger.ui" scope="TEST" />
-    <orderEntry type="module" module-name="intellij.java.remoteServers.git" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.terminal" scope="RUNTIME" />
-    <orderEntry type="module" module-name="intellij.java.jps.javacRefScanner8" scope="RUNTIME" />
-    <orderEntry type="module" module-name="intellij.platform.buildScripts" scope="TEST" />
     <orderEntry type="module" module-name="intellij.platform.images.build" scope="TEST" />
     <orderEntry type="module" module-name="intellij.statsCollector" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.statsCollector.tests" scope="TEST" />
+    <orderEntry type="module" module-name="intellij.completionMlRankingModels" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.completionMlRankingModels.tests" scope="TEST" />
+    <orderEntry type="module" module-name="intellij.completionMlRanking" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.completionMlRanking.tests" scope="TEST" />
     <orderEntry type="module" module-name="intellij.java.debugger.streams" scope="RUNTIME" />
     <orderEntry type="library" scope="RUNTIME" name="jgoodies-common" level="project" />
     <orderEntry type="library" scope="RUNTIME" name="commons-net" level="project" />
@@ -131,9 +134,14 @@
     <orderEntry type="module" module-name="intellij.testng.rt.tests" scope="TEST" />
     <orderEntry type="module" module-name="intellij.editorconfig" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.vcs.changeReminder" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.platform.workspaceModel.storage.tests" scope="TEST" />
+    <orderEntry type="module" module-name="intellij.platform.workspaceModel.ide.tests" scope="TEST" />
     <orderEntry type="module" module-name="intellij.sh" scope="RUNTIME" />
     <orderEntry type="module" module-name="intellij.gradle.java.maven" scope="RUNTIME" />
-    <orderEntry type="module" module-name="intellij.markdown" scope="TEST" />
-    <orderEntry type="module" module-name="intellij.statsCollector.tests" scope="TEST" />
+    <orderEntry type="module" module-name="intellij.markdown" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.filePrediction" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.textmate" scope="TEST" />
+    <orderEntry type="module" module-name="intellij.webp" scope="RUNTIME" />
+    <orderEntry type="module" module-name="intellij.space" scope="RUNTIME" />
   </component>
 </module>

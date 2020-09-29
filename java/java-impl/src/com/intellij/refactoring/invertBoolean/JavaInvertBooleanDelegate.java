@@ -21,6 +21,7 @@ import com.intellij.codeInspection.dataFlow.ContractReturnValue;
 import com.intellij.codeInspection.dataFlow.JavaMethodContractUtil;
 import com.intellij.codeInspection.dataFlow.StandardMethodContract;
 import com.intellij.ide.util.SuperMethodWarningUtil;
+import com.intellij.java.refactoring.JavaRefactoringBundle;
 import com.intellij.lang.java.JavaLanguage;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
@@ -68,8 +69,8 @@ public class JavaInvertBooleanDelegate extends InvertBooleanDelegate {
       if (!PsiType.BOOLEAN.equals(returnType)) {
         CommonRefactoringUtil.showErrorHint(project, editor,
                                             RefactoringBundle
-                                              .getCannotRefactorMessage(RefactoringBundle.message("invert.boolean.wrong.type")),
-                                            InvertBooleanHandler.REFACTORING_NAME, InvertBooleanHandler.INVERT_BOOLEAN_HELP_ID);
+                                              .getCannotRefactorMessage(JavaRefactoringBundle.message("invert.boolean.wrong.type")),
+                                            InvertBooleanHandler.getRefactoringName(), InvertBooleanHandler.INVERT_BOOLEAN_HELP_ID);
         return null;
       }
 
@@ -77,7 +78,7 @@ public class JavaInvertBooleanDelegate extends InvertBooleanDelegate {
         final PsiElement declarationScope = ((PsiParameter)var).getDeclarationScope();
         if (declarationScope instanceof PsiMethod) {
           final PsiMethod method = (PsiMethod)declarationScope;
-          final PsiMethod superMethod = SuperMethodWarningUtil.checkSuperMethod(method, RefactoringBundle.message("to.refactor"));
+          final PsiMethod superMethod = SuperMethodWarningUtil.checkSuperMethod(method);
           if (superMethod == null) {
             return null;
           }
@@ -85,8 +86,8 @@ public class JavaInvertBooleanDelegate extends InvertBooleanDelegate {
         }
         else if (declarationScope instanceof PsiForeachStatement) {
           CommonRefactoringUtil.showErrorHint(project, editor,
-                                              RefactoringBundle.message("invert.boolean.foreach"),
-                                              InvertBooleanHandler.REFACTORING_NAME, InvertBooleanHandler.INVERT_BOOLEAN_HELP_ID);
+                                              JavaRefactoringBundle.message("invert.boolean.foreach"),
+                                              InvertBooleanHandler.getRefactoringName(), InvertBooleanHandler.INVERT_BOOLEAN_HELP_ID);
           return null;
         }
       }
@@ -97,13 +98,13 @@ public class JavaInvertBooleanDelegate extends InvertBooleanDelegate {
       final PsiType returnType = method.getReturnType();
       if (!PsiType.BOOLEAN.equals(returnType)) {
         CommonRefactoringUtil.showErrorHint(project, editor,
-                                            RefactoringBundle.getCannotRefactorMessage(RefactoringBundle.message("invert.boolean.wrong.type")),
-                                            InvertBooleanHandler.REFACTORING_NAME,
+                                            RefactoringBundle.getCannotRefactorMessage(JavaRefactoringBundle.message("invert.boolean.wrong.type")),
+                                            InvertBooleanHandler.getRefactoringName(),
                                             InvertBooleanHandler.INVERT_BOOLEAN_HELP_ID);
         return null;
       }
 
-      return SuperMethodWarningUtil.checkSuperMethod(method, RefactoringBundle.message("to.refactor"));
+      return SuperMethodWarningUtil.checkSuperMethod(method);
     }
     return null;
   }
@@ -322,7 +323,7 @@ public class JavaInvertBooleanDelegate extends InvertBooleanDelegate {
     for (UsageInfo info : usageInfos) {
       final PsiElement element = info.getElement();
       if (element instanceof PsiMethodReferenceExpression) {
-        conflicts.putValue(element, RefactoringBundle.message("expand.method.reference.warning"));
+        conflicts.putValue(element, JavaRefactoringBundle.message("expand.method.reference.warning"));
       }
     }
   }

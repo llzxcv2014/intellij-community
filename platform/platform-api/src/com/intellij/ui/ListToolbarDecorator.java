@@ -1,35 +1,28 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
+import com.intellij.openapi.actionSystem.ActionToolbarPosition;
 import com.intellij.util.ui.EditableModel;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 
 /**
  * @author Konstantin Bulenkov
  */
-class ListToolbarDecorator extends ToolbarDecorator {
-  private final JList myList;
+class ListToolbarDecorator<T> extends ToolbarDecorator {
+  private final JList<T> myList;
   private final EditableModel myEditableModel;
 
-  ListToolbarDecorator(JList list, @Nullable EditableModel editableModel) {
+  ListToolbarDecorator(@NotNull JList<T> list, @Nullable EditableModel editableModel) {
     myList = list;
     myEditableModel = editableModel;
     myAddActionEnabled = myRemoveActionEnabled = myUpActionEnabled = myDownActionEnabled = true;
     createActions();
-    myList.addListSelectionListener(new ListSelectionListener() {
-      @Override
-      public void valueChanged(ListSelectionEvent e) {
-        updateButtons();
-      }
-    });
+    myList.addListSelectionListener(__ -> updateButtons());
     ListDataListener modelListener = new ListDataListener() {
       @Override
       public void intervalAdded(ListDataEvent e) {
@@ -49,46 +42,38 @@ class ListToolbarDecorator extends ToolbarDecorator {
     myList.getModel().addListDataListener(modelListener);
     myList.addPropertyChangeListener("model", evt -> {
       if (evt.getOldValue() != null) {
-        ((ListModel)evt.getOldValue()).removeListDataListener(modelListener);
+        ((ListModel<T>)evt.getOldValue()).removeListDataListener(modelListener);
       }
       if (evt.getNewValue() != null) {
-        ((ListModel)evt.getNewValue()).addListDataListener(modelListener);
+        ((ListModel<T>)evt.getNewValue()).addListDataListener(modelListener);
       }
     });
-    myList.addPropertyChangeListener("enabled", new PropertyChangeListener() {
-      @Override
-      public void propertyChange(PropertyChangeEvent evt) {
-        updateButtons();
-      }
-    });
+    myList.addPropertyChangeListener("enabled", __ -> updateButtons());
+  }
+
+  @Override
+  public @NotNull ToolbarDecorator initPosition() {
+    setToolbarPosition(ActionToolbarPosition.BOTTOM);
+    return this;
   }
 
   private void createActions() {
-    myRemoveAction = new AnActionButtonRunnable() {
-      @Override
-      public void run(AnActionButton button) {
-        ListUtil.removeSelectedItems(myList);
-        updateButtons();
-      }
+    myRemoveAction = __ -> {
+      ListUtil.removeSelectedItems(myList);
+      updateButtons();
     };
-    myUpAction = new AnActionButtonRunnable() {
-      @Override
-      public void run(AnActionButton button) {
-        ListUtil.moveSelectedItemsUp(myList);
-        updateButtons();
-      }
+    myUpAction = __ -> {
+      ListUtil.moveSelectedItemsUp(myList);
+      updateButtons();
     };
-    myDownAction = new AnActionButtonRunnable() {
-      @Override
-      public void run(AnActionButton button) {
-        ListUtil.moveSelectedItemsDown(myList);
-        updateButtons();
-      }
+    myDownAction = __ -> {
+      ListUtil.moveSelectedItemsDown(myList);
+      updateButtons();
     };
   }
 
   @Override
-  protected JComponent getComponent() {
+  protected @NotNull JComponent getComponent() {
     return myList;
   }
 
@@ -128,7 +113,7 @@ class ListToolbarDecorator extends ToolbarDecorator {
   }
 
   @Override
-  public ToolbarDecorator setVisibleRowCount(int rowCount) {
+  public @NotNull ToolbarDecorator setVisibleRowCount(int rowCount) {
     myList.setVisibleRowCount(rowCount);
     return this;
   }

@@ -15,11 +15,13 @@
  */
 package org.jetbrains.idea.maven.navigator;
 
+import com.intellij.CommonBundle;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.treeStructure.NullNode;
 import com.intellij.ui.treeStructure.SimpleNode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.idea.maven.project.MavenProject;
+import org.jetbrains.idea.maven.project.MavenProjectBundle;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
@@ -28,7 +30,7 @@ public class SelectMavenProjectDialog extends SelectFromMavenProjectsDialog {
   private MavenProject myResult;
 
   public SelectMavenProjectDialog(Project project, final MavenProject current) {
-    super(project, "Select Maven Project", MavenProjectsStructure.ProjectNode.class, new NodeSelector() {
+    super(project, MavenProjectBundle.message("dialog.title.select.maven.project"), MavenProjectsStructure.ProjectNode.class, new NodeSelector() {
       @Override
       public boolean shouldSelect(SimpleNode node) {
         if (node instanceof MavenProjectsStructure.ProjectNode) {
@@ -41,10 +43,9 @@ public class SelectMavenProjectDialog extends SelectFromMavenProjectsDialog {
     init();
   }
 
-  @NotNull
   @Override
-  protected Action[] createActions() {
-    Action selectNoneAction = new AbstractAction("&None") {
+  protected Action @NotNull [] createActions() {
+    Action selectNoneAction = new AbstractAction(CommonBundle.message("action.text.none")) {
       @Override
       public void actionPerformed(ActionEvent e) {
         doOKAction();

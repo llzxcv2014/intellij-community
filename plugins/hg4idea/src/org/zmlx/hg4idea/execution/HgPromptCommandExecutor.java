@@ -6,6 +6,7 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.zmlx.hg4idea.HgBundle;
 
 import java.awt.*;
 import java.io.DataInputStream;
@@ -68,7 +69,7 @@ public class HgPromptCommandExecutor extends HgCommandExecutor {
       //noinspection IOResourceOpenedButNotSafelyClosed
       DataInputStream dataInput = new DataInputStream(socket.getInputStream());
       DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-      final String message = new String(readDataBlock(dataInput), StandardCharsets.UTF_8);
+      final String message = new String(readDataBlock(dataInput), StandardCharsets.UTF_8); //NON-NLS
       int numOfChoices = dataInput.readInt();
       final HgPromptChoice[] choices = new HgPromptChoice[numOfChoices];
       for (int i = 0; i < numOfChoices; i++) {
@@ -90,7 +91,7 @@ public class HgPromptCommandExecutor extends HgCommandExecutor {
             choicePresentationArray[i] = choices[i].toString();
           }
           index[0] = Messages
-            .showDialog(message, "Mercurial Prompt Message",
+            .showDialog(message, HgBundle.message("hg4idea.prompt.message"),
                         choicePresentationArray,
                         defaultChoice.getChosenIndex(), Messages.getQuestionIcon());
         });

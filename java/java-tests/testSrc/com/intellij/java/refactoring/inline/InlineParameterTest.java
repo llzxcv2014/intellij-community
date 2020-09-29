@@ -122,6 +122,10 @@ public class InlineParameterTest extends LightRefactoringTestCase {
     doTestCannotFindInitializer();
   }
 
+  public void testRefSameFinalFieldOtherObject() {
+    doTestCannotFindInitializer();
+  }
+
   public void testRef2ConstantsWithTheSameValue() {
     doTest(false);
   }
@@ -135,7 +139,7 @@ public class InlineParameterTest extends LightRefactoringTestCase {
       doTest(false);
     }
     catch (BaseRefactoringProcessor.ConflictsInTestsException e) {
-      assertEquals("Parameter initializer depends on class <b><code>User.Local</code></b> which is not available inside method and cannot be inlined", e.getMessage());
+      assertEquals("Parameter initializer depends on class <b><code>User.Local</code></b> which is not available inside the method and cannot be inlined", e.getMessage());
     }
   }
 
@@ -177,7 +181,7 @@ public class InlineParameterTest extends LightRefactoringTestCase {
       doTest(false);
     }
     catch (BaseRefactoringProcessor.ConflictsInTestsException e) {
-      assertEquals("Parameter initializer depends on class <b><code>Local</code></b> which is not available inside method and cannot be inlined", e.getMessage());
+      assertEquals("Parameter initializer depends on class <b><code>Local</code></b> which is not available inside the method and cannot be inlined", e.getMessage());
     }
   }
 
@@ -194,7 +198,7 @@ public class InlineParameterTest extends LightRefactoringTestCase {
       doTest(false);
     }
     catch (BaseRefactoringProcessor.ConflictsInTestsException e) {
-      assertEquals("Parameter initializer depends on class <b><code>Local</code></b> which is not available inside method and cannot be inlined", e.getMessage());
+      assertEquals("Parameter initializer depends on class <b><code>Local</code></b> which is not available inside the method and cannot be inlined", e.getMessage());
     }
   }
 

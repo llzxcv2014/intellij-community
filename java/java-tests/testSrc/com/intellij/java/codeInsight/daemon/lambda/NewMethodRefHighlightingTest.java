@@ -34,9 +34,8 @@ public class NewMethodRefHighlightingTest extends LightDaemonAnalyzerTestCase {
     enableInspectionTool(new UnusedDeclarationInspection());
   }
 
-  @NotNull
   @Override
-  protected LocalInspectionTool[] configureLocalInspectionTools() {
+  protected LocalInspectionTool @NotNull [] configureLocalInspectionTools() {
     return new LocalInspectionTool[]{
       new UncheckedWarningLocalInspection()
     };
@@ -84,7 +83,7 @@ public class NewMethodRefHighlightingTest extends LightDaemonAnalyzerTestCase {
     doHighlighting()
       .stream()
       .filter(info -> info.type == HighlightInfoType.ERROR)
-      .forEach(info -> Assert.assertEquals("<html>Cannot resolve method 'm'</html>",
+      .forEach(info -> Assert.assertEquals("<html>Reference to 'm' is ambiguous, both 'm(Test, String)' and 'm(String)' match</html>",
                                            info.getToolTip()));
   }
   public void testSuperClassPotentiallyApplicableMembers() { doTest(); }
@@ -196,7 +195,9 @@ public class NewMethodRefHighlightingTest extends LightDaemonAnalyzerTestCase {
   public void testDontIgnoreIncompatibilitiesDuringFirstApplicabilityCheck() { doTest(); }
   public void testCaptureOnDedicatedParameterOfSecondSearch() { doTest(); }
   public void testVoidConflict() { doTest(); }
+  public void testCreateMethodFromMethodRefApplicability() { doTest(); }
   public void testErrorMessageOnTopCallWhenFunctionalInterfaceIsNotInferred() { doTest(); }
+  public void testReferencesToPolymorphicMethod() { doTest(); }
 
   private void doTest() {
     doTest(false);

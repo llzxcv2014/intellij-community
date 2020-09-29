@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.ui;
 
 import com.intellij.CommonBundle;
@@ -6,7 +6,11 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.NlsActions;
+import com.intellij.openapi.util.NlsContexts.DialogTitle;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.util.containers.ContainerUtil;
+import com.intellij.openapi.util.NlsContexts;
 import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -28,9 +32,9 @@ public class DialogBuilder implements Disposable {
 
   private JComponent myCenterPanel;
   private JComponent myNorthPanel;
-  private String myTitle;
+  private @DialogTitle String myTitle;
   private JComponent myPreferedFocusComponent;
-  private String myDimensionServiceKey;
+  private @NonNls String myDimensionServiceKey;
   private ArrayList<ActionDescriptor> myActions = null;
   private final MyDialogWrapper myDialogWrapper;
   private Runnable myCancelOperation = null;
@@ -93,12 +97,12 @@ public class DialogBuilder implements Disposable {
     return this;
   }
 
-  public void setTitle(String title) {
+  public void setTitle(@DialogTitle String title) {
     myTitle = title;
   }
 
   @NotNull
-  public DialogBuilder title(@NotNull String title) {
+  public DialogBuilder title(@NotNull @DialogTitle String title) {
     myTitle = title;
     return this;
   }
@@ -111,7 +115,7 @@ public class DialogBuilder implements Disposable {
     myDimensionServiceKey = dimensionServiceKey;
   }
 
-  public DialogBuilder dimensionKey(@NotNull String dimensionServiceKey) {
+  public DialogBuilder dimensionKey(@NotNull @NlsSafe String dimensionServiceKey) {
     myDimensionServiceKey = dimensionServiceKey;
     return this;
   }
@@ -230,11 +234,11 @@ public class DialogBuilder implements Disposable {
   }
 
   public abstract static class DialogActionDescriptor implements ActionDescriptor {
-    private final String myName;
+    private final @NlsActions.ActionText String myName;
     private final Object myMnemonicChar;
     private boolean myIsDefault = false;
 
-    protected DialogActionDescriptor(String name, int mnemonicChar) {
+    protected DialogActionDescriptor(@NlsActions.ActionText String name, int mnemonicChar) {
       myName = name;
       myMnemonicChar = mnemonicChar == -1 ? null : Integer.valueOf(mnemonicChar);
     }
@@ -262,7 +266,7 @@ public class DialogBuilder implements Disposable {
       this(CommonBundle.getCloseButtonText(), -1, DialogWrapper.CLOSE_EXIT_CODE);
     }
 
-    public CloseDialogAction(String name, int mnemonicChar, int exitCode) {
+    public CloseDialogAction(@NlsActions.ActionText String name, int mnemonicChar, int exitCode) {
       super(name, mnemonicChar);
       myExitCode = exitCode;
     }
@@ -285,7 +289,7 @@ public class DialogBuilder implements Disposable {
   }
 
   public interface CustomizableAction {
-    void setText(String text);
+    void setText(@NlsActions.ActionText String text);
   }
 
   public static class CustomActionDescriptor implements ActionDescriptor {
@@ -302,7 +306,7 @@ public class DialogBuilder implements Disposable {
   }
 
   private abstract static class BuiltinAction implements ActionDescriptor, CustomizableAction {
-    protected String myText = null;
+    protected @NlsActions.ActionText String myText = null;
 
     @Override
     public void setText(String text) {
@@ -333,8 +337,8 @@ public class DialogBuilder implements Disposable {
     }
   }
 
-  private class MyDialogWrapper extends DialogWrapper {
-    private String myHelpId = null;
+  private final class MyDialogWrapper extends DialogWrapper {
+    private @NonNls String myHelpId = null;
     private MyDialogWrapper(@Nullable Project project, boolean canBeParent) {
       super(project, canBeParent);
     }
@@ -343,7 +347,7 @@ public class DialogBuilder implements Disposable {
       super(parent, canBeParent);
     }
 
-    public void setHelpId(String helpId) {
+    public void setHelpId(@NonNls String helpId) {
       myHelpId = helpId;
     }
 
@@ -425,8 +429,7 @@ public class DialogBuilder implements Disposable {
     }
 
     @Override
-    @NotNull
-    protected Action[] createActions() {
+    protected Action @NotNull [] createActions() {
       if (myActions == null) return super.createActions();
       ArrayList<Action> actions = new ArrayList<>(myActions.size());
       for (ActionDescriptor actionDescriptor : myActions) {
@@ -437,11 +440,11 @@ public class DialogBuilder implements Disposable {
     }
   }
 
-  public void setErrorText(@Nullable final String text) {
+  public void setErrorText(@NlsContexts.DialogMessage @Nullable final String text) {
     myDialogWrapper.setErrorText(text);
   }
 
-  public void setErrorText(@Nullable final String text, @Nullable JComponent component) {
+  public void setErrorText(@NlsContexts.DialogMessage @Nullable final String text, @Nullable JComponent component) {
     myDialogWrapper.setErrorText(text, component);
   }
 }

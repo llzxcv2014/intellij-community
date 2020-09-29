@@ -1,10 +1,11 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.execution.jshell;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.compiler.JavaCompilerBundle;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -24,8 +25,10 @@ import org.jetbrains.annotations.Nullable;
 /**
  * @author Eugene Zhuravlev
  */
-class ExecuteJShellAction extends AnAction{
-  private static final AnAction ourInstance = new ExecuteJShellAction();
+final class ExecuteJShellAction extends AnAction{
+  private static class Holder {
+    private static final AnAction ourInstance = new ExecuteJShellAction();
+  }
   private static final boolean myIsExecuteContextElement = false;
 
   private ExecuteJShellAction() {
@@ -78,7 +81,7 @@ class ExecuteJShellAction extends AnAction{
           hasDataToEvaluate = scheduleEval(handler, document.getText(selectedRange));
         }
         if (!hasDataToEvaluate) {
-          JShellDiagnostic.notifyInfo("Nothing to execute", project);
+          JShellDiagnostic.notifyInfo(JavaCompilerBundle.message("jshell.nothing.to.execute"), project);
         }
       }
     }
@@ -140,6 +143,6 @@ class ExecuteJShellAction extends AnAction{
   }
 
   public static AnAction getSharedInstance() {
-    return ourInstance;
+    return Holder.ourInstance;
   }
 }

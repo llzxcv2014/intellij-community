@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.refactoring.introduce.inplace;
 
 import com.intellij.codeInsight.lookup.LookupElement;
@@ -15,10 +15,12 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.PostprocessReformattingAspect;
+import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.refactoring.rename.NameSuggestionProvider;
 import com.intellij.refactoring.rename.inplace.InplaceRefactoring;
 import com.intellij.refactoring.rename.inplace.MyLookupExpression;
@@ -44,7 +46,7 @@ public abstract class InplaceVariableIntroducer<E extends PsiElement> extends In
   public InplaceVariableIntroducer(PsiNamedElement elementToRename,
                                    Editor editor,
                                    final Project project,
-                                   String title, E[] occurrences,
+                                   @NlsContexts.Command String title, E[] occurrences,
                                    @Nullable E expr) {
     super(editor, elementToRename, project);
     myTitle = title;
@@ -60,7 +62,8 @@ public abstract class InplaceVariableIntroducer<E extends PsiElement> extends In
           final Lexer lexer = LanguageParserDefinitions.INSTANCE.forLanguage(expr.getLanguage()).createLexer(project);
           if (LanguageUtil.canStickTokensTogetherByLexer(prev, prev, lexer) == ParserDefinition.SpaceRequirements.MUST) {
             PostprocessReformattingAspect.getInstance(project).disablePostprocessFormattingInside(
-              () -> WriteCommandAction.writeCommandAction(project).withName("Normalize declaration").run(() -> node.getTreeParent().addChild(astNode, node)));
+              () -> WriteCommandAction.writeCommandAction(project).withName(
+                RefactoringBundle.message("introduce.normalize.declaration.command.name")).run(() -> node.getTreeParent().addChild(astNode, node)));
           }
         }
       }
@@ -128,10 +131,6 @@ public abstract class InplaceVariableIntroducer<E extends PsiElement> extends In
   }
 
   @Override
-  protected void collectAdditionalElementsToRename(@NotNull List<Pair<PsiElement, TextRange>> stringUsages) {
-  }
-
-  @Override
   protected String getCommandName() {
     return myTitle;
   }
@@ -163,7 +162,7 @@ public abstract class InplaceVariableIntroducer<E extends PsiElement> extends In
                                        final LinkedHashSet<String> names,
                                        final PsiNamedElement elementToRename,
                                        final boolean shouldSelectAll,
-                                       final String advertisementText) {
+                                       final @NlsContexts.PopupAdvertisement String advertisementText) {
       super(initialName, names, elementToRename, elementToRename, shouldSelectAll, advertisementText);
       myPointer = SmartPointerManager.getInstance(elementToRename.getProject()).createSmartPsiElementPointer(elementToRename);
     }
@@ -178,8 +177,7 @@ public abstract class InplaceVariableIntroducer<E extends PsiElement> extends In
       return myPointer.getElement();
     }
 
-    @Nullable
-    private LookupElement[] createLookupItems(String name, Editor editor, PsiNamedElement psiVariable) {
+    private LookupElement @Nullable [] createLookupItems(String name, Editor editor, PsiNamedElement psiVariable) {
       TemplateState templateState = TemplateManagerImpl.getTemplateState(editor);
       if (psiVariable != null) {
         final TextResult insertedValue =

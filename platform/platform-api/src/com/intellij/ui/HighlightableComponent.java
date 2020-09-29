@@ -5,6 +5,7 @@ import com.intellij.ide.ui.UISettings;
 import com.intellij.openapi.editor.markup.EffectType;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.ui.paint.LinePainter2D;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -248,7 +249,7 @@ public class HighlightableComponent extends JComponent implements Accessible {
       myText = "";
     }
     // center text inside the component:
-    final int yOffset = (getHeight() - defFontMetrics.getMaxAscent() - defFontMetrics.getMaxDescent()) / 2 + defFontMetrics.getMaxAscent() - 1;
+    final int yOffset = (getHeight() - defFontMetrics.getMaxAscent() - defFontMetrics.getMaxDescent()) / 2 + defFontMetrics.getMaxAscent();
     if (myHighlightedRegions.size() == 0){
       g.setColor(fgColor);
       g.drawString(myText, textOffset, yOffset/*defFontMetrics.getMaxAscent()*/);
@@ -299,7 +300,7 @@ public class HighlightableComponent extends JComponent implements Accessible {
         if (hRegion.textAttributes.getEffectType() != null && hRegion.textAttributes.getEffectColor() != null) {
           g.setColor(hRegion.textAttributes.getEffectColor());
           int y = yOffset/*fontMetrics.getMaxAscent()*/ + 2;
-          UIUtil.drawLine(g, offset, y, offset + fontMetrics.stringWidth(text) - 1, y);
+          LinePainter2D.paint((Graphics2D)g, offset, y, offset + fontMetrics.stringWidth(text) - 1, y);
         }
 
         // draw highlight border

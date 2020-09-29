@@ -7,6 +7,7 @@ import com.intellij.codeInsight.javadoc.JavaDocUtil;
 import com.intellij.codeInspection.LocalQuickFixOnPsiElement;
 import com.intellij.find.findUsages.JavaFindUsagesHelper;
 import com.intellij.find.findUsages.JavaMethodFindUsagesOptions;
+import com.intellij.java.analysis.JavaAnalysisBundle;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
@@ -21,16 +22,23 @@ import com.intellij.psi.util.PsiFormatUtilBase;
 import com.intellij.refactoring.RefactoringBundle;
 import com.intellij.util.SmartList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.PropertyKey;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.stream.Stream;
 
 public abstract class MethodThrowsFix extends LocalQuickFixOnPsiElement {
   protected final String myThrowsCanonicalText;
   private final String myMethodName;
+  private final @PropertyKey(resourceBundle = QuickFixBundle.BUNDLE) String myMessageKey;
 
-  protected MethodThrowsFix(@NotNull PsiMethod method, @NotNull PsiClassType exceptionType, boolean showClassName) {
+  protected MethodThrowsFix(@PropertyKey(resourceBundle = QuickFixBundle.BUNDLE) String key, 
+                            @NotNull PsiMethod method, @NotNull PsiClassType exceptionType, boolean showClassName) {
     super(method);
+    myMessageKey = key;
     myThrowsCanonicalText = exceptionType.getCanonicalText();
     myMethodName = PsiFormatUtil.formatMethod(method,
                                               PsiSubstitutor.EMPTY,
@@ -39,13 +47,7 @@ public abstract class MethodThrowsFix extends LocalQuickFixOnPsiElement {
 
   public static class Add extends MethodThrowsFix {
     public Add(@NotNull PsiMethod method, @NotNull PsiClassType exceptionType, boolean showClassName) {
-      super(method, exceptionType, showClassName);
-    }
-
-    @NotNull
-    @Override
-    protected String getTextMessageKey() {
-      return "fix.throws.list.add.exception";
+      super("fix.throws.list.add.exception", method, exceptionType, showClassName);
     }
 
     @Override
@@ -65,13 +67,7 @@ public abstract class MethodThrowsFix extends LocalQuickFixOnPsiElement {
 
   public static class RemoveFirst extends MethodThrowsFix {
     public RemoveFirst(@NotNull PsiMethod method, @NotNull PsiClassType exceptionType, boolean showClassName) {
-      super(method, exceptionType, showClassName);
-    }
-
-    @NotNull
-    @Override
-    protected String getTextMessageKey() {
-      return "fix.throws.list.remove.exception";
+      super("fix.throws.list.remove.exception", method, exceptionType, showClassName);
     }
 
     @Override
@@ -83,18 +79,12 @@ public abstract class MethodThrowsFix extends LocalQuickFixOnPsiElement {
 
   public static class Remove extends MethodThrowsFix {
     public Remove(@NotNull PsiMethod method, @NotNull PsiClassType exceptionType, boolean showClassName) {
-      super(method, exceptionType, showClassName);
+      super("fix.throws.list.remove.exception", method, exceptionType, showClassName);
     }
 
     @Override
     public boolean startInWriteAction() {
       return false;
-    }
-
-    @NotNull
-    @Override
-    protected String getTextMessageKey() {
-      return "fix.throws.list.remove.exception";
     }
 
     @Override
@@ -138,9 +128,10 @@ public abstract class MethodThrowsFix extends LocalQuickFixOnPsiElement {
             }
           }
           return true;
-        }), "Processing Method Usages...", true, project);
+        }), JavaAnalysisBundle.message("processing.method.usages"), true, project);
 
-        if (breakSourceCode && Messages.showYesNoDialog(project, "Exception removal will break source code. Proceed anyway?", RefactoringBundle.getCannotRefactorMessage(null), null) == Messages.NO) {
+        if (breakSourceCode && Messages.showYesNoDialog(project, JavaAnalysisBundle
+          .message("exception.removal.will.break.source.code.proceed.anyway"), RefactoringBundle.getCannotRefactorMessage(null), null) == Messages.NO) {
           return;
         }
       }
@@ -179,12 +170,9 @@ public abstract class MethodThrowsFix extends LocalQuickFixOnPsiElement {
   }
 
   @NotNull
-  protected abstract String getTextMessageKey();
-
-  @NotNull
   @Override
   public final String getText() {
-    return QuickFixBundle.message(getTextMessageKey(), StringUtil.getShortName(myThrowsCanonicalText), myMethodName);
+    return QuickFixBundle.message(myMessageKey, StringUtil.getShortName(myThrowsCanonicalText), myMethodName);
   }
 
   @Override

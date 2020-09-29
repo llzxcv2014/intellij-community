@@ -1092,8 +1092,8 @@ public class Py3TypeTest extends PyTestCase {
   // PY-27783
   public void testApplyingSuperSubstitutionToGenericClass() {
     runWithLanguageLevel(
-      LanguageLevel.PYTHON36,
-      () -> doTest("Dict[T, int]",
+      LanguageLevel.getLatest(),
+      () -> doTest("dict[T, int]",
                    "from typing import TypeVar, Generic, Dict, List\n" +
                    "\n" +
                    "T = TypeVar('T')\n" +
@@ -1110,16 +1110,37 @@ public class Py3TypeTest extends PyTestCase {
     );
   }
 
+  // PY-27783
+  public void testApplyingSuperSubstitutionToBoundedGenericClass() {
+    runWithLanguageLevel(
+      LanguageLevel.getLatest(),
+      () -> doTest("dict[T, int]",
+                   "from typing import TypeVar, Generic, Dict, List\n" +
+                   "\n" +
+                   "T = TypeVar('T', bound=str)\n" +
+                   "\n" +
+                   "class A(Generic[T]):\n" +
+                   "    pass\n" +
+                   "\n" +
+                   "class B(A[List[T]], Generic[T]):\n" +
+                   "    def __init__(self) -> None:\n" +
+                   "        self.value_set: Dict[T, int] = {}\n" +
+                   "\n" +
+                   "    def foo(self) -> None:\n" +
+                   "        expr = self.value_set")
+    );
+  }
+
   // PY-13750
   public void testBuiltinRound() {
     doTest("int", "expr = round(1)");
-    doTest("Union[float, int]", "expr = round(1, 1)");
+    doTest("Union[int, float]", "expr = round(1, 1)");
 
     doTest("int", "expr = round(1.1)");
     doTest("float", "expr = round(1.1, 1)");
 
     doTest("int", "expr = round(True)");
-    doTest("Union[float, int]", "expr = round(True, 1)");
+    doTest("Union[int, float]", "expr = round(True, 1)");
   }
 
   // PY-29665
@@ -1131,6 +1152,15 @@ public class Py3TypeTest extends PyTestCase {
   public void testFStringLiteralType() {
     doTest("str",
            "expr = f'foo'");
+  }
+
+  // PY-35885
+  public void testFunctionDunderDoc() {
+    doTest("str",
+           "def example():\n" +
+           "    \"\"\"Example Docstring\"\"\"\n" +
+           "    return 0\n" +
+           "expr = example.__doc__");
   }
 
   private void doTest(final String expectedType, final String text) {

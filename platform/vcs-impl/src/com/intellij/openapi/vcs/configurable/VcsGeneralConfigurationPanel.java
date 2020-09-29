@@ -6,12 +6,20 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vcs.*;
+import com.intellij.openapi.vcs.AbstractVcs;
+import com.intellij.openapi.vcs.VcsBundle;
+import com.intellij.openapi.vcs.VcsConfiguration;
+import com.intellij.openapi.vcs.VcsShowConfirmationOption;
 import com.intellij.openapi.vcs.ex.ProjectLevelVcsManagerEx;
+import com.intellij.openapi.vcs.impl.projectlevelman.PersistentVcsShowConfirmationOption;
+import com.intellij.openapi.vcs.impl.projectlevelman.PersistentVcsShowSettingOption;
 import com.intellij.openapi.vcs.readOnlyHandler.ReadonlyStatusHandlerImpl;
 import com.intellij.openapi.vfs.ReadonlyStatusHandler;
+import com.intellij.ui.EnumComboBoxModel;
 import com.intellij.ui.border.IdeaTitledBorder;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
@@ -43,10 +51,10 @@ public class VcsGeneralConfigurationPanel {
   private JPanel myPromptsPanel;
 
 
-  Map<VcsShowOptionsSettingImpl, JCheckBox> myPromptOptions = new LinkedHashMap<>();
+  Map<PersistentVcsShowSettingOption, JCheckBox> myPromptOptions = new LinkedHashMap<>();
   private JPanel myRemoveConfirmationPanel;
   private JPanel myAddConfirmationPanel;
-  private JComboBox myOnPatchCreation;
+  private JComboBox<ShowPatchAfterCreation> myOnPatchCreation;
   private JCheckBox myReloadContext;
   private JLabel myOnPatchCreationLabel;
   private JPanel myEmptyChangeListPanel;
@@ -80,10 +88,10 @@ public class VcsGeneralConfigurationPanel {
 
     myPromptsPanel.setLayout(new GridLayout(3, 0));
 
-    List<VcsShowOptionsSettingImpl> options = ProjectLevelVcsManagerEx.getInstanceEx(project).getAllOptions();
+    List<PersistentVcsShowSettingOption> options = ProjectLevelVcsManagerEx.getInstanceEx(project).getAllOptions();
 
-    for (VcsShowOptionsSettingImpl setting : options) {
-      if (!setting.getApplicableVcses().isEmpty() || project.isDefault()) {
+    for (PersistentVcsShowSettingOption setting : options) {
+      if (project.isDefault() || !setting.getApplicableVcses(project).isEmpty()) {
         final JCheckBox checkBox = new JCheckBox(setting.getDisplayName());
         myPromptsPanel.add(checkBox);
         myPromptOptions.put(setting, checkBox);
@@ -91,6 +99,7 @@ public class VcsGeneralConfigurationPanel {
     }
 
     myPromptsPanel.setSize(myPromptsPanel.getPreferredSize());                           // todo check text!
+    myOnPatchCreation.setModel(new EnumComboBoxModel<>(ShowPatchAfterCreation.class));
     myOnPatchCreation.setName((SystemInfo.isMac ? "Reveal patch in" : "Show patch in ") +
                               RevealFileAction.getFileManagerName() + " after creation:");
   }
@@ -103,7 +112,7 @@ public class VcsGeneralConfigurationPanel {
     settings.RELOAD_CONTEXT = myReloadContext.isSelected();
     settings.ADD_EXTERNAL_FILES_SILENTLY = myAddExternalFiles.isSelected();
 
-    for (VcsShowOptionsSettingImpl setting : myPromptOptions.keySet()) {
+    for (PersistentVcsShowSettingOption setting : myPromptOptions.keySet()) {
       setting.setValue(myPromptOptions.get(setting).isSelected());
     }
 
@@ -120,14 +129,7 @@ public class VcsGeneralConfigurationPanel {
 
   @Nullable
   private Boolean getShowPatchValue() {
-    final int index = myOnPatchCreation.getSelectedIndex();
-    if (index == 0) {
-      return null;
-    } else if (index == 1) {
-      return true;
-    } else {
-      return false;
-    }
+    return ((ShowPatchAfterCreation)Objects.requireNonNull(myOnPatchCreation.getSelectedItem())).getState();
   }
 
   private VcsShowConfirmationOption getAddConfirmation() {
@@ -193,7 +195,7 @@ public class VcsGeneralConfigurationPanel {
       return true;
     }
 
-    for (VcsShowOptionsSettingImpl setting : myPromptOptions.keySet()) {
+    for (PersistentVcsShowSettingOption setting : myPromptOptions.keySet()) {
       if (setting.getValue() != myPromptOptions.get(setting).isSelected()) return true;
     }
 
@@ -214,28 +216,27 @@ public class VcsGeneralConfigurationPanel {
                                                              ? 0
                                                              : value == VcsShowConfirmationOption.Value.DO_NOTHING_SILENTLY ? 2 : 1);
     myShowReadOnlyStatusDialog.setSelected(getReadOnlyStatusHandler().getState().SHOW_DIALOG);
-    for (VcsShowOptionsSettingImpl setting : myPromptOptions.keySet()) {
+    for (PersistentVcsShowSettingOption setting : myPromptOptions.keySet()) {
       myPromptOptions.get(setting).setSelected(setting.getValue());
     }
 
     selectInGroup(myOnFileAddingGroup, getAddConfirmation());
     selectInGroup(myOnFileRemovingGroup, getRemoveConfirmation());
-    if (settings.SHOW_PATCH_IN_EXPLORER == null) {
-      myOnPatchCreation.setSelectedIndex(0);
-    } else if (Boolean.TRUE.equals(settings.SHOW_PATCH_IN_EXPLORER)) {
-      myOnPatchCreation.setSelectedIndex(1);
-    } else {
-      myOnPatchCreation.setSelectedIndex(2);
-    }
+    myOnPatchCreation.setSelectedItem(ShowPatchAfterCreation.getByState(settings.SHOW_PATCH_IN_EXPLORER));
   }
 
   private static void selectInGroup(final JRadioButton[] group, final VcsShowConfirmationOption confirmation) {
     final VcsShowConfirmationOption.Value value = confirmation.getValue();
     final int index;
-    switch(value) {
-      case SHOW_CONFIRMATION: index = 0; break;
-      case DO_ACTION_SILENTLY: index = 1; break;
-      default: index = 2;
+    switch (value) {
+      case SHOW_CONFIRMATION:
+        index = 0;
+        break;
+      case DO_ACTION_SILENTLY:
+        index = 1;
+        break;
+      default:
+        index = 2;
     }
     group[index].setSelected(true);
   }
@@ -246,25 +247,26 @@ public class VcsGeneralConfigurationPanel {
   }
 
   public void updateAvailableOptions(final Collection<? extends AbstractVcs> activeVcses) {
-    for (VcsShowOptionsSettingImpl setting : myPromptOptions.keySet()) {
+    for (PersistentVcsShowSettingOption setting : myPromptOptions.keySet()) {
       final JCheckBox checkBox = myPromptOptions.get(setting);
       checkBox.setEnabled(setting.isApplicableTo(activeVcses) || myProject.isDefault());
       if (!myProject.isDefault()) {
-        checkBox.setToolTipText(VcsBundle.message("tooltip.text.action.applicable.to.vcses", composeText(setting.getApplicableVcses())));
+        checkBox.setToolTipText(
+          VcsBundle.message("tooltip.text.action.applicable.to.vcses", composeText(setting.getApplicableVcses(myProject))));
       }
     }
 
     if (!myProject.isDefault()) {
       final ProjectLevelVcsManagerEx vcsManager = ProjectLevelVcsManagerEx.getInstanceEx(myProject);
-      final VcsShowConfirmationOptionImpl addConfirmation = vcsManager.getConfirmation(VcsConfiguration.StandardConfirmation.ADD);
+      PersistentVcsShowConfirmationOption addConfirmation = vcsManager.getConfirmation(VcsConfiguration.StandardConfirmation.ADD);
       UIUtil.setEnabled(myAddConfirmationPanel, addConfirmation.isApplicableTo(activeVcses), true);
       myAddConfirmationPanel.setToolTipText(
-        VcsBundle.message("tooltip.text.action.applicable.to.vcses", composeText(addConfirmation.getApplicableVcses())));
+        VcsBundle.message("tooltip.text.action.applicable.to.vcses", composeText(addConfirmation.getApplicableVcses(myProject))));
 
-      final VcsShowConfirmationOptionImpl removeConfirmation = vcsManager.getConfirmation(VcsConfiguration.StandardConfirmation.REMOVE);
+      PersistentVcsShowConfirmationOption removeConfirmation = vcsManager.getConfirmation(VcsConfiguration.StandardConfirmation.REMOVE);
       UIUtil.setEnabled(myRemoveConfirmationPanel, removeConfirmation.isApplicableTo(activeVcses), true);
       myRemoveConfirmationPanel.setToolTipText(
-        VcsBundle.message("tooltip.text.action.applicable.to.vcses", composeText(removeConfirmation.getApplicableVcses())));
+        VcsBundle.message("tooltip.text.action.applicable.to.vcses", composeText(removeConfirmation.getApplicableVcses(myProject))));
     }
   }
 
@@ -276,4 +278,34 @@ public class VcsGeneralConfigurationPanel {
     return StringUtil.join(result, ", ");
   }
 
+  private enum ShowPatchAfterCreation {
+    ASK(VcsBundle.getString("settings.confirmation.option.text.ask"), null),
+    YES(VcsBundle.getString("settings.confirmation.option.text.yes"), true),
+    NO(VcsBundle.getString("settings.confirmation.option.text.no"), false);
+
+    private final String myText;
+    private final Boolean myState;
+
+    ShowPatchAfterCreation(@Nls String text, Boolean state) {
+      myText = text;
+      myState = state;
+    }
+
+    Boolean getState() {
+      return myState;
+    }
+
+    @NotNull
+    static ShowPatchAfterCreation getByState(Boolean state) {
+      if (state == null) {
+        return ASK;
+      }
+      return state ? YES : NO;
+    }
+
+    @Override
+    public String toString() {
+      return myText;
+    }
+  }
 }

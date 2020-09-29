@@ -20,6 +20,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.MessageType;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts.DialogMessage;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.ui.ColorUtil;
@@ -38,7 +39,7 @@ import javax.swing.event.HyperlinkListener;
 import java.awt.*;
 import java.awt.geom.Ellipse2D;
 
-public class ExecutionUtil {
+public final class ExecutionUtil {
   private static final Logger LOG = Logger.getInstance(ExecutionUtil.class);
 
   private static final NotificationGroup ourNotificationGroup = NotificationGroup.logOnlyGroup("Execution");
@@ -54,7 +55,7 @@ public class ExecutionUtil {
 
   public static void handleExecutionError(@NotNull ExecutionEnvironment environment, @NotNull ExecutionException e) {
     handleExecutionError(environment.getProject(),
-                         ExecutionManager.getInstance(environment.getProject()).getContentManager().getToolWindowIdByEnvironment(environment),
+                         RunContentManager.getInstance(environment.getProject()).getToolWindowIdByEnvironment(environment),
                          environment.getRunProfile().getName(), e);
   }
 
@@ -71,9 +72,7 @@ public class ExecutionUtil {
     String description = e.getMessage();
     HyperlinkListener listener = null;
     if (isProcessNotCreated(e) && !PropertiesComponent.getInstance(project).isTrueValue("dynamic.classpath")) {
-      description = "Command line is too long. In order to reduce its length classpath file can be used.<br>" +
-                    "Would you like to enable classpath file mode for all run configurations of your project?<br>" +
-                    "<a href=\"\">Enable</a>";
+      description = ExecutionBundle.message("dialog.message.command.line.too.long.notification");
       listener = event -> PropertiesComponent.getInstance(project).setValue("dynamic.classpath", "true");
     }
 
@@ -93,7 +92,7 @@ public class ExecutionUtil {
                                           @NotNull String toolWindowId,
                                           @NotNull String taskName,
                                           @NotNull Throwable e,
-                                          @Nullable String description,
+                                          @Nullable @DialogMessage String description,
                                           @Nullable HyperlinkListener listener) {
     String title = ExecutionBundle.message("error.running.configuration.message", taskName);
 
@@ -106,6 +105,8 @@ public class ExecutionUtil {
 
     if (ApplicationManager.getApplication().isUnitTestMode()) {
       LOG.error(fullMessage, e);
+    } else {
+      LOG.info(fullMessage, e);
     }
 
     if (listener == null) {
@@ -125,7 +126,7 @@ public class ExecutionUtil {
         toolWindowManager.notifyByBalloon(toolWindowId, MessageType.ERROR, fullMessage, null, _listener);
       }
       else {
-        Messages.showErrorDialog(project, UIUtil.toHtml(fullMessage), "");
+        Messages.showErrorDialog(project, UIUtil.toHtml(_description), title);
       }
 
       NotificationListener notificationListener = _listener == null ? null : (notification, event) -> {
@@ -166,8 +167,9 @@ public class ExecutionUtil {
   }
 
   public static void restart(@NotNull ExecutionEnvironment environment) {
-    if (!ExecutorRegistry.getInstance().isStarting(environment)) {
-      ExecutionManager.getInstance(environment.getProject()).restartRunProfile(environment);
+    ExecutionManager executionManager = ExecutionManager.getInstance(environment.getProject());
+    if (!executionManager.isStarting(environment)) {
+      executionManager.restartRunProfile(environment);
     }
   }
 
@@ -182,12 +184,10 @@ public class ExecutionUtil {
   /**
    * @param executionId Id that will be set for {@link ExecutionEnvironment} that is created to run configuration.
    */
-  public static void runConfiguration(
-    @NotNull RunnerAndConfigurationSettings configuration,
-    @NotNull Executor executor,
-    @NotNull ExecutionTarget target,
-    long executionId
-  ) {
+  public static void runConfiguration(@NotNull RunnerAndConfigurationSettings configuration,
+                                      @NotNull Executor executor,
+                                      @NotNull ExecutionTarget target,
+                                      long executionId) {
     doRunConfiguration(configuration, executor, target, executionId, null);
   }
 
@@ -195,28 +195,29 @@ public class ExecutionUtil {
     doRunConfiguration(configuration, executor, null, executionId, null);
   }
 
-  public static void doRunConfiguration(
-    @NotNull RunnerAndConfigurationSettings configuration,
-    @NotNull Executor executor,
-    @Nullable ExecutionTarget targetOrNullForDefault,
-    @Nullable Long executionId,
-    @Nullable DataContext dataContext) {
+  public static void doRunConfiguration(@NotNull RunnerAndConfigurationSettings configuration,
+                                        @NotNull Executor executor,
+                                        @Nullable ExecutionTarget targetOrNullForDefault,
+                                        @Nullable Long executionId,
+                                        @Nullable DataContext dataContext) {
     ExecutionEnvironmentBuilder builder = createEnvironment(executor, configuration);
-    if (builder != null) {
-      if (targetOrNullForDefault != null) {
-        builder.target(targetOrNullForDefault);
-      }
-      else {
-        builder.activeTarget();
-      }
-      if (executionId != null) {
-        builder.executionId(executionId);
-      }
-      if (dataContext != null) {
-        builder.dataContext(dataContext);
-      }
-      ExecutionManager.getInstance(configuration.getConfiguration().getProject()).restartRunProfile(builder.build());
+    if (builder == null) {
+      return;
     }
+
+    if (targetOrNullForDefault != null) {
+      builder.target(targetOrNullForDefault);
+    }
+    else {
+      builder.activeTarget();
+    }
+    if (executionId != null) {
+      builder.executionId(executionId);
+    }
+    if (dataContext != null) {
+      builder.dataContext(dataContext);
+    }
+    ExecutionManager.getInstance(configuration.getConfiguration().getProject()).restartRunProfile(builder.build());
   }
 
   @Nullable
@@ -227,7 +228,7 @@ public class ExecutionUtil {
     catch (ExecutionException e) {
       RunConfiguration configuration = settings.getConfiguration();
       Project project = configuration.getProject();
-      RunContentManager manager = ExecutionManager.getInstance(project).getContentManager();
+      RunContentManager manager = RunContentManager.getInstance(project);
       String toolWindowId = manager.getContentDescriptorToolWindowId(configuration);
       if (toolWindowId == null) {
         toolWindowId = executor.getToolWindowId();

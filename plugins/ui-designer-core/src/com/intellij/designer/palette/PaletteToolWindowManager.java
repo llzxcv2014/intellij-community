@@ -1,10 +1,7 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.designer.palette;
 
-import com.intellij.designer.AbstractToolWindowManager;
-import com.intellij.designer.DesignerCustomizations;
-import com.intellij.designer.DesignerEditorPanelFacade;
-import com.intellij.designer.LightToolWindow;
+import com.intellij.designer.*;
 import com.intellij.designer.designSurface.DesignerEditorPanel;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
@@ -67,7 +64,7 @@ public class PaletteToolWindowManager extends AbstractToolWindowManager {
     content.setPreferredFocusableComponent(myToolWindowPanel);
     contentManager.addContent(content);
     contentManager.setSelectedContent(content, true);
-    myToolWindow.setAvailable(false, null);
+    myToolWindow.setAvailable(false);
   }
 
   @Override
@@ -81,10 +78,10 @@ public class PaletteToolWindowManager extends AbstractToolWindowManager {
     myToolWindowPanel.loadPalette((DesignerEditorPanel)designer);
 
     if (designer == null) {
-      myToolWindow.setAvailable(false, null);
+      myToolWindow.setAvailable(false);
     }
     else {
-      myToolWindow.setAvailable(true, null);
+      myToolWindow.setAvailable(true);
       myToolWindow.show(null);
     }
   }
@@ -108,7 +105,7 @@ public class PaletteToolWindowManager extends AbstractToolWindowManager {
 
     return createContent(designer,
                          palettePanel,
-                         "Palette",
+                         DesignerBundle.message("palette.toolwindow.title"),
                          AllIcons.Toolwindows.ToolWindowPalette,
                          palettePanel,
                          palettePanel,

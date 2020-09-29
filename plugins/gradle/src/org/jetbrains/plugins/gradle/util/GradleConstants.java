@@ -1,3 +1,4 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle.util;
 
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
@@ -8,9 +9,10 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
 
-public class GradleConstants {
+public final class GradleConstants {
 
   @NotNull @NonNls public static final ProjectSystemId SYSTEM_ID = new ProjectSystemId("GRADLE");
+  @NotNull @NonNls public static final String GRADLE_NAME = "Gradle";
 
   @NotNull @NonNls public static final String EXTENSION           = "gradle";
   @NotNull @NonNls public static final String DEFAULT_SCRIPT_NAME = "build.gradle";
@@ -19,7 +21,7 @@ public class GradleConstants {
   @NotNull @NonNls public static final String SETTINGS_FILE_NAME  = "settings.gradle";
   @NotNull @NonNls public static final String KOTLIN_DSL_SETTINGS_FILE_NAME  = "settings.gradle.kts";
 
-  @NotNull @NonNls public static final String[] BUILD_FILE_EXTENSIONS = {EXTENSION, KOTLIN_DSL_SCRIPT_EXTENSION};
+  @NonNls public static final String @NotNull [] BUILD_FILE_EXTENSIONS = {EXTENSION, KOTLIN_DSL_SCRIPT_EXTENSION};
 
   @NotNull public static final Set<String> KNOWN_GRADLE_FILES = ContainerUtil.immutableSet(DEFAULT_SCRIPT_NAME,
                                                                                            KOTLIN_DSL_SCRIPT_NAME,

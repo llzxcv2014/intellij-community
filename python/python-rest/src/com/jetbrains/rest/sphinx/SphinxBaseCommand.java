@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.rest.sphinx;
 
 import com.google.common.collect.Lists;
@@ -26,11 +26,14 @@ import com.jetbrains.python.run.PythonProcessRunner;
 import com.jetbrains.python.run.PythonTracebackFilter;
 import com.jetbrains.python.sdk.PythonSdkType;
 import com.jetbrains.python.sdk.PythonSdkUtil;
+import com.jetbrains.rest.PythonRestBundle;
+import com.jetbrains.rest.RestBundle;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -57,20 +60,20 @@ public class SphinxBaseCommand {
     return true;
   }
 
-  public static class AskForWorkDir extends DialogWrapper {
+  public static final class AskForWorkDir extends DialogWrapper {
     private TextFieldWithBrowseButton myInputFile;
     private JPanel myPanel;
 
     private AskForWorkDir(Project project) {
       super(project);
 
-      setTitle("Set Sphinx Working Directory: ");
+      setTitle(RestBundle.message("sphinx.set.working.directory.dialog.title"));
       init();
       VirtualFile baseDir =  project.getBaseDir();
       String path = baseDir != null? baseDir.getPath() : "";
       myInputFile.setText(path);
       myInputFile.setEditable(false);
-      myInputFile.addBrowseFolderListener("Choose Sphinx Working Directory (Containing Makefile): ", null, project,
+      myInputFile.addBrowseFolderListener(RestBundle.message("sphinx.choose.working.directory.browse.folder.title"), null, project,
                                           FileChooserDescriptorFactory.createSingleFolderDescriptor());
 
       myPanel.setPreferredSize(new Dimension(600, 20));
@@ -100,7 +103,7 @@ public class SphinxBaseCommand {
         .run();
     }
     catch (ExecutionException e) {
-      Messages.showErrorDialog(e.getMessage(), "ReStructuredText Error");
+      Messages.showErrorDialog(e.getMessage(), RestBundle.message("sphinx.restructured.text.error"));
     }
   }
 
@@ -122,7 +125,7 @@ public class SphinxBaseCommand {
   protected GeneralCommandLine createCommandLine(Module module, List<String> params) throws ExecutionException {
     Sdk sdk = PythonSdkUtil.findPythonSdk(module);
     if (sdk == null) {
-      throw new ExecutionException("No sdk specified");
+      throw new ExecutionException(PythonRestBundle.message("python.rest.no.sdk.specified"));
     }
 
     ReSTService service = ReSTService.getInstance(module);
@@ -137,7 +140,7 @@ public class SphinxBaseCommand {
         cmd.setExePath(executablePath);
       }
       else {
-        cmd = PythonHelper.LOAD_ENTRY_POINT.newCommandLine(sdkHomePath, Lists.newArrayList());
+        cmd = PythonHelper.LOAD_ENTRY_POINT.newCommandLine(sdkHomePath, new ArrayList<String>());
       }
     }
 

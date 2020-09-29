@@ -1,6 +1,7 @@
 // Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.inspections.quickfix;
 
+import com.intellij.CommonBundle;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.openapi.diagnostic.Logger;
@@ -9,6 +10,7 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.ReadonlyStatusHandler;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.SmartPsiElementPointer;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
@@ -21,8 +23,8 @@ abstract class BaseFix implements LocalQuickFix {
   protected final SmartPsiElementPointer<? extends PsiElement> myPointer;
   protected final boolean myOnTheFly;
 
-  protected BaseFix(@NotNull SmartPsiElementPointer<? extends PsiElement> pointer, boolean onTheFly) {
-    myPointer = pointer;
+  protected BaseFix(@NotNull PsiElement psiElement, boolean onTheFly) {
+    myPointer = SmartPointerManager.createPointer(psiElement);
     myOnTheFly = onTheFly;
   }
 
@@ -42,11 +44,10 @@ abstract class BaseFix implements LocalQuickFix {
       if (status.hasReadonlyFiles()) {
         String className = clazz != null ? clazz.getQualifiedName() : element.getContainingFile().getName();
 
-        Messages.showMessageDialog(project,
+        Messages.showErrorDialog(project,
                                    DevKitBundle.message("inspections.registration.problems.quickfix.read-only",
                                                         className),
-                                   getName(),
-                                   Messages.getErrorIcon());
+                                   CommonBundle.getErrorTitle());
         return;
       }
     }

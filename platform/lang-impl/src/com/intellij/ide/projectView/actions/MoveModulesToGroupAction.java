@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 
 package com.intellij.ide.projectView.actions;
 
@@ -26,13 +12,14 @@ import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.impl.ModuleManagerImpl;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ui.configuration.ProjectSettingsService;
+import com.intellij.openapi.util.NlsActions.ActionText;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class MoveModulesToGroupAction extends AnAction {
   protected final ModuleGroup myModuleGroup;
 
-  public MoveModulesToGroupAction(ModuleGroup moduleGroup, String title) {
+  public MoveModulesToGroupAction(ModuleGroup moduleGroup, @ActionText String title) {
     super(title);
     myModuleGroup = moduleGroup;
   }
@@ -49,7 +36,7 @@ public class MoveModulesToGroupAction extends AnAction {
     }
   }
 
-  protected static String whatToMove(@NotNull Module[] modules) {
+  protected static String whatToMove(Module @NotNull [] modules) {
     return modules.length == 1 ? IdeBundle.message("message.module", modules[0].getName()) : IdeBundle.message("message.modules");
   }
 
@@ -59,7 +46,7 @@ public class MoveModulesToGroupAction extends AnAction {
     doMove(modules, myModuleGroup, e.getDataContext());
   }
 
-  public static void doMove(final @NotNull Module[] modules, final ModuleGroup group, @Nullable final DataContext dataContext) {
+  public static void doMove(final Module @NotNull [] modules, final ModuleGroup group, @Nullable final DataContext dataContext) {
     Project project = modules[0].getProject();
     for (final Module module : modules) {
       ModifiableModuleModel model = dataContext != null

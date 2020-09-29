@@ -168,6 +168,20 @@ public class PyEditingTest extends PyTestCase {
                                         "<caret>\"\"\"");
   }
 
+  // PY-32864
+  public void testIndentationOfTripleQuotedFStringContent() {
+    doTestEnter("if True:\n" +
+                "    s = f\"\"\"\n" +
+                "        SELECT<caret>\n" +
+                "\"\"\"",
+                "if True:\n" +
+                "    s = f\"\"\"\n" +
+                "        SELECT\n" +
+                "        <caret>\n" +
+                "\"\"\""
+                );
+  }
+
   public void testOvertypeFromInside() {
     assertEquals("''", doTestTyping("''", 1, '\''));
   }
@@ -605,6 +619,12 @@ public class PyEditingTest extends PyTestCase {
     return myFixture.getDocument(file).getText();
   }
 
+  private void doTestTyping(@NotNull String before, @NotNull String typedText, @NotNull String after) {
+    myFixture.configureByText("a.py", before);
+    myFixture.type(typedText);
+    myFixture.checkResult(after);
+  }
+
   private void doTypingTest(final char character) {
     final String testName = "editing/" + getTestName(true);
     myFixture.configureByFile(testName + ".py");
@@ -787,6 +807,49 @@ public class PyEditingTest extends PyTestCase {
     finally {
       CodeInsightSettings.getInstance().TAB_EXITS_BRACKETS_AND_QUOTES = savedValue;
     }
+  }
+
+  // PY-31343
+  public void testInsertingColonRightBeforeParametersClosingParenthesisAtMultipleCarets() {
+    doTestTyping("def alpha(foo<caret>):\n" +
+                 "    pass\n" +
+                 "\n" +
+                 "def bravo(foo<caret>):\n" +
+                 "    pass",
+                 ":",
+                 "def alpha(foo:):\n" +
+                 "    pass\n" +
+                 "\n" +
+                 "def bravo(foo:):\n" +
+                 "    pass");
+  }
+
+  public void testOverTypingColon() {
+    doTestTyping("def func()<caret>: pass",
+                 ":",
+                 "def func():<caret> pass");
+  }
+
+  public void testOverTypingColonInStringLiteral() {
+    doTestTyping("s = 'def func()<caret>: pass'",
+                 ":",
+                 "s = 'def func():<caret>: pass'");
+  }
+
+  public void testOverTypingColonInFStringFragment() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), () -> {
+      doTestTyping("s = f'{(lambda<caret>: 42)}'",
+                   ":",
+                   "s = f'{(lambda:<caret> 42)}'");
+    });
+  }
+
+  public void testOverTypingFormatStartInFStringFragment() {
+    runWithLanguageLevel(LanguageLevel.getLatest(), () -> {
+      doTestTyping("s = f'{42<caret>:3d}'",
+                   ":",
+                   "s = f'{42:<caret>:3d}'");
+    });
   }
 
   @NotNull

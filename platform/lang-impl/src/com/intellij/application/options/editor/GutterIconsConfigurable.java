@@ -1,7 +1,10 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.application.options.editor;
 
 import com.intellij.codeInsight.daemon.*;
+import com.intellij.ide.IdeBundle;
+import com.intellij.ide.plugins.IdeaPluginDescriptor;
+import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.lang.LanguageExtensionPoint;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
@@ -20,16 +23,11 @@ import com.intellij.ui.ListSpeedSearch;
 import com.intellij.ui.SeparatorWithText;
 import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.speedSearch.SpeedSearchSupply;
-import com.intellij.util.Function;
 import com.intellij.util.NullableFunction;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.ui.EmptyIcon;
-import org.jetbrains.annotations.Nls;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.TestOnly;
+import org.jetbrains.annotations.*;
 
 import javax.swing.*;
 import javax.swing.event.ChangeListener;
@@ -41,8 +39,8 @@ import java.util.*;
  * @author Dmitry Avdeev
  */
 public class GutterIconsConfigurable implements SearchableConfigurable, Configurable.NoScroll {
-  public static final String DISPLAY_NAME = "Gutter Icons";
-  public static final String ID = "editor.preferences.gutterIcons";
+  @NonNls public static final String ID = "editor.preferences.gutterIcons";
+
   private JPanel myPanel;
   private CheckBoxList<GutterIconDescriptor> myList;
   private JBCheckBox myShowGutterIconsJBCheckBox;
@@ -52,7 +50,7 @@ public class GutterIconsConfigurable implements SearchableConfigurable, Configur
   @Nls
   @Override
   public String getDisplayName() {
-    return DISPLAY_NAME;
+    return IdeBundle.message("configurable.GutterIconsConfigurable.display.name");
   }
 
   @Nullable
@@ -125,6 +123,7 @@ public class GutterIconsConfigurable implements SearchableConfigurable, Configur
 
     myList.setItems(myDescriptors, GutterIconDescriptor::getName);
     myShowGutterIconsJBCheckBox.addChangeListener(e -> myList.setEnabled(myShowGutterIconsJBCheckBox.isSelected()));
+    SwingUtilities.updateComponentTreeUI(myPanel); // TODO: create Swing components in this method (see javadoc)
     return myPanel;
   }
 
@@ -171,9 +170,9 @@ public class GutterIconsConfigurable implements SearchableConfigurable, Configur
     }
   }
 
-  private static String getPluginDisplayName(PluginDescriptor pluginDescriptor) {
-    final String name = pluginDescriptor.getName();
-    return "IDEA CORE".equals(name) ? "Common" : name;
+  private static @Nls String getPluginDisplayName(PluginDescriptor pluginDescriptor) {
+    if (pluginDescriptor instanceof IdeaPluginDescriptor && pluginDescriptor.getPluginId() == PluginManagerCore.CORE_ID) return IdeBundle.message("title.common");
+    return pluginDescriptor.getName();
   }
 
   private void createUIComponents() {
@@ -216,7 +215,7 @@ public class GutterIconsConfigurable implements SearchableConfigurable, Configur
     };
     myList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
     myList.setBorder(BorderFactory.createEmptyBorder());
-    new ListSpeedSearch<>(myList, (Function<JCheckBox, String>)JCheckBox::getText);
+    new ListSpeedSearch<>(myList, JCheckBox::getText);
   }
 
   @NotNull
@@ -228,14 +227,13 @@ public class GutterIconsConfigurable implements SearchableConfigurable, Configur
   @Nullable
   @Override
   public Runnable enableSearch(String option) {
-    return () -> ObjectUtils.assertNotNull(SpeedSearchSupply.getSupply(myList, true)).findAndSelectElement(option);
+    return () -> Objects.requireNonNull(SpeedSearchSupply.getSupply(myList, true)).findAndSelectElement(option);
   }
 
   @TestOnly
   public List<GutterIconDescriptor> getDescriptors() { return myDescriptors; }
 
   public static class ShowSettingsAction extends DumbAwareAction {
-
     public ShowSettingsAction() {
     }
 

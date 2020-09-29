@@ -13,6 +13,7 @@
 // limitations under the License.
 package com.jetbrains.python.packaging;
 
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.jetbrains.python.packaging.requirement.PyRequirementVersionSpec;
@@ -61,11 +62,18 @@ public interface PyRequirement {
   @Nullable
   PyPackage match(@NotNull Collection<? extends PyPackage> packages);
 
+
+  default boolean isEditable() {
+    if (getInstallOptions().isEmpty()) return false;
+    String firstOption = getInstallOptions().get(0);
+    return "-e".equals(firstOption) || "--editable".equals(firstOption);
+  }
+
   /**
    * @return concatenated representation of name, extras and version specs so it could be easily displayed.
    */
   @NotNull
-  default String getPresentableText() {
+  default @NlsSafe String getPresentableText() {
     return getName() + getExtras() + StringUtil.join(getVersionSpecs(), PyRequirementVersionSpec::getPresentableText, ",");
   }
 }

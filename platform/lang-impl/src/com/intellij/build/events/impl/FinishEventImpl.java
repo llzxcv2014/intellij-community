@@ -15,9 +15,11 @@
  */
 package com.intellij.build.events.impl;
 
+import com.intellij.build.events.BuildEventsNls;
 import com.intellij.build.events.EventResult;
 import com.intellij.build.events.FinishEvent;
 import com.intellij.build.events.SuccessResult;
+import com.intellij.lang.LangBundle;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,12 +33,12 @@ public class FinishEventImpl extends AbstractBuildEvent implements FinishEvent {
   public FinishEventImpl(@NotNull Object eventId,
                          @Nullable Object parentId,
                          long eventTime,
-                         @NotNull String message,
+                         @NotNull @BuildEventsNls.Message String message,
                          @NotNull EventResult result) {
     super(eventId, parentId, eventTime, message);
     myResult = result;
     if(myResult instanceof SuccessResult && ((SuccessResult)myResult).isUpToDate()) {
-      setHint("UP-TO-DATE");
+      setHint(LangBundle.message("build.event.message.up.to.date"));
     }
   }
 

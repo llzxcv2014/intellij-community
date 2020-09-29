@@ -1,3 +1,4 @@
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.tasks.redmine;
 
 import com.google.gson.Gson;
@@ -28,6 +29,7 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static com.intellij.tasks.impl.httpclient.TaskResponseUtil.GsonSingleObjectDeserializer;
@@ -42,7 +44,7 @@ public class RedmineRepository extends NewBaseRepositoryImpl {
   private static final Gson GSON = TaskGsonUtil.createDefaultBuilder().create();
   private static final Pattern ID_PATTERN = Pattern.compile("\\d+");
   private static final Logger LOG = Logger.getInstance(RedmineRepository.class);
-  
+
   public static final RedmineProject UNSPECIFIED_PROJECT = createUnspecifiedProject();
 
   @NotNull
@@ -101,7 +103,7 @@ public class RedmineRepository extends NewBaseRepositoryImpl {
     if (!super.equals(o)) return false;
     if (!(o instanceof RedmineRepository)) return false;
     RedmineRepository that = (RedmineRepository)o;
-    if (!Comparing.equal(getAPIKey(), that.getAPIKey())) return false;
+    if (!Objects.equals(getAPIKey(), that.getAPIKey())) return false;
     if (!Comparing.equal(getCurrentProject(), that.getCurrentProject())) return false;
     if (isAssignedToMe() != that.isAssignedToMe()) return false;
     return true;
@@ -249,7 +251,7 @@ public class RedmineRepository extends NewBaseRepositoryImpl {
   }
 
   @NotNull
-  private URIBuilder createUriBuilderWithApiKey(@NotNull Object... pathParts) throws URISyntaxException {
+  private URIBuilder createUriBuilderWithApiKey(Object @NotNull ... pathParts) throws URISyntaxException {
     final URIBuilder builder = new URIBuilder(getRestApiUrl(pathParts));
     if (isUseApiKeyAuthentication()) {
       builder.addParameter("key", myAPIKey);
@@ -261,7 +263,7 @@ public class RedmineRepository extends NewBaseRepositoryImpl {
   public String getPresentableName() {
     String name = super.getPresentableName();
     if (myCurrentProject != null && myCurrentProject != UNSPECIFIED_PROJECT) {
-      name += "/projects/" + StringUtil.notNullize(myCurrentProject.getIdentifier(), String.valueOf(myCurrentProject.getId()));
+      name += "/projects/" + StringUtil.notNullize(myCurrentProject.getIdentifier(), String.valueOf(myCurrentProject.getId())); //NON-NLS
     }
     return name;
   }

@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.codeInsight.typing
 
 import com.google.common.cache.Cache
@@ -7,9 +7,7 @@ import com.intellij.codeInspection.ex.EditInspectionToolsSettingsAction
 import com.intellij.codeInspection.ex.ProblemDescriptorImpl
 import com.intellij.codeInspection.ui.ListEditForm
 import com.intellij.execution.ExecutionException
-import com.intellij.notification.NotificationDisplayType
-import com.intellij.notification.NotificationGroup
-import com.intellij.notification.NotificationType
+import com.intellij.notification.*
 import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleUtilCore
@@ -19,6 +17,8 @@ import com.intellij.openapi.util.Key
 import com.intellij.profile.codeInspection.ProjectInspectionProfileManager
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.util.QualifiedName
+import com.jetbrains.python.PyBundle
+import com.jetbrains.python.PyPsiBundle
 import com.jetbrains.python.codeInsight.typing.PyStubPackagesAdvertiserCache.Companion.StubPackagesForSource
 import com.jetbrains.python.inspections.PyInspection
 import com.jetbrains.python.inspections.PyInspectionVisitor
@@ -30,28 +30,36 @@ import com.jetbrains.python.psi.PyReferenceExpression
 import com.jetbrains.python.sdk.PythonSdkUtil
 import javax.swing.JComponent
 
-class PyStubPackagesAdvertiser : PyInspection() {
-
+private class PyStubPackagesAdvertiser : PyInspection() {
   companion object {
     // file-level suggestion will be shown for packages below
-    private val FORCED = mapOf("django" to "Django", "numpy" to "numpy") // top-level package to package on PyPI
+    private val FORCED = emptyMap<String, String>() // top-level package to package on PyPI
 
     // notification will be shown for packages below
     private val CHECKED = mapOf("coincurve" to "coincurve",
                                 "docutils" to "docutils",
-                                "ordered_set" to "ordered-set",
+                                "pika" to "pika",
                                 "gi" to "PyGObject",
                                 "PyQt5" to "PyQt5",
-                                "pyspark" to "pyspark") // top-level package to package on PyPI, sorted by the latter
+                                "pyspark" to "pyspark",
+                                "traits" to "traits") // top-level package to package on PyPI, sorted by the latter
 
     private val BALLOON_SHOWING = Key.create<Boolean>("showingStubPackagesAdvertiserBalloon")
-    private val BALLOON_NOTIFICATIONS = NotificationGroup("Python Stub Packages Advertiser", NotificationDisplayType.STICKY_BALLOON, true)
+    private val BALLOON_NOTIFICATIONS = NotificationGroup(
+      "Python Stub Packages Advertiser",
+      NotificationDisplayType.STICKY_BALLOON,
+      true,
+      null,
+      null,
+      PyBundle.message("code.insight.stub.package.advertiser.notifications.group.title"),
+      null)
   }
 
   @Suppress("MemberVisibilityCanBePrivate")
   var ignoredPackages: MutableList<String> = mutableListOf()
 
-  override fun createOptionsPanel(): JComponent = ListEditForm("Ignored stub packages", ignoredPackages).contentPanel
+  override fun createOptionsPanel(): JComponent = ListEditForm(PyPsiBundle.message("INSP.stub.packages.compatibility.ignored.packages"),
+                                                               ignoredPackages).contentPanel
 
   override fun buildVisitor(holder: ProblemsHolder,
                             isOnTheFly: Boolean,
@@ -124,12 +132,11 @@ class PyStubPackagesAdvertiser : PyInspection() {
 
       val (reqs, args) = toRequirementsAndExtraArgs(cached, ignoredStubPackages)
       if (reqs.isNotEmpty()) {
-        val plural = reqs.size > 1
         val reqsToString = PyPackageUtil.requirementsToString(reqs)
+        val message = PyBundle.message("code.insight.stub.forced.packages.are.not.installed.message", reqs.size, reqsToString)
 
         registerProblem(file,
-                        "Stub package${if (plural) "s" else ""} $reqsToString ${if (plural) "are" else "is"} not installed. " +
-                        "${if (plural) "They" else "It"} contain${if (plural) "" else "s"} type hints needed for better code insight.",
+                        message,
                         createInstallStubPackagesQuickFix(reqs, args, module, sdk, packageManager),
                         createIgnorePackagesQuickFix(reqs, packageManager))
       }
@@ -156,41 +163,47 @@ class PyStubPackagesAdvertiser : PyInspection() {
 
         project.putUserData(BALLOON_SHOWING, true)
 
+        val descriptionTemplate = PyBundle.message("code.insight.stub.checked.packages.are.not.installed.message", reqs.size, reqsToString)
+        val problemDescriptor = ProblemDescriptorImpl(
+          file,
+          file,
+          descriptionTemplate,
+          LocalQuickFix.EMPTY_ARRAY,
+          ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+          true,
+          null,
+          true
+        )
+
         BALLOON_NOTIFICATIONS
           .createNotification(
-            "Type hints are not installed",
-            "They could make code insight better.<br/>" +
-            "<a href=\"#yes\">Install ${if (plural) "stub packages" else reqsToString}</a>&nbsp;&nbsp;&nbsp;&nbsp;" +
-            "<a href=\"#no\">Ignore</a>&nbsp;&nbsp;&nbsp;&nbsp;" +
-            "<a href=\"#settings\">Settings</a>",
-            NotificationType.INFORMATION
-          ) { notification, event ->
-            try {
-              val problemDescriptor = ProblemDescriptorImpl(
-                file,
-                file,
-                "Stub package${if (plural) "s" else ""} $reqsToString ${if (plural) "are" else "is"} not installed",
-                LocalQuickFix.EMPTY_ARRAY,
-                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                true,
-                null,
-                true
-              )
+            title = PyBundle.message("code.insight.type.hints.are.not.installed"),
+            content = PyBundle.message("code.insight.install.type.hints.content")
+          )
+          .apply {
+            addAction(
+              NotificationAction.createSimpleExpiring(
+                if (plural) PyBundle.message("code.insight.install.type.hints.action")
+                else "${PyBundle.message("python.packaging.install")} $reqsToString"
+              ) { createInstallStubPackagesQuickFix(reqs, args, module, sdk, packageManager).applyFix(project, problemDescriptor) }
+            )
 
-              when (event.description) {
-                "#yes" -> {
-                  createInstallStubPackagesQuickFix(reqs, args, module, sdk, packageManager).applyFix(project, problemDescriptor)
-                }
-                "#no" -> createIgnorePackagesQuickFix(reqs, packageManager).applyFix(project, problemDescriptor)
-                "#settings" -> {
-                  val profile = ProjectInspectionProfileManager.getInstance(project).currentProfile
-                  EditInspectionToolsSettingsAction.editToolSettings(project, profile, PyStubPackagesAdvertiser::class.simpleName)
-                }
+            addAction(
+              NotificationAction.createSimpleExpiring(
+                PyBundle.message("code.insight.ignore.type.hints")
+              ) { createIgnorePackagesQuickFix(reqs, packageManager).applyFix(project, problemDescriptor) }
+            )
+
+            addAction(
+              NotificationAction.createSimpleExpiring(
+                InspectionsBundle.message("inspection.action.edit.settings")
+              ) {
+                val profile = ProjectInspectionProfileManager.getInstance(project).currentProfile
+                EditInspectionToolsSettingsAction.editToolSettings(project, profile, PyStubPackagesAdvertiser::class.simpleName)
               }
-            }
-            finally {
-              notification.expire()
-            }
+            )
+
+            collapseActionsDirection = Notification.CollapseActionsDirection.KEEP_LEFTMOST
           }
           .whenExpired { project.putUserData(BALLOON_SHOWING, false) }
           .notify(project)
@@ -285,10 +298,8 @@ class PyStubPackagesAdvertiser : PyInspection() {
               }
             }
 
-            val plural = stubPkgNamesToUninstall.size > 1
-            val content = "Suggested ${stubPkgNamesToUninstall.joinToString { "'$it'" }} " +
-                          "${if (plural) "are" else "is"} incompatible with your current environment.<br/>" +
-                          "${if (plural) "These" else "This"} stub package${if (plural) "s" else ""} will be removed and ignored until new version is released."
+            val content = PyBundle.message("code.insight.stub.packages.ignored.notification.content",
+                                           stubPkgNamesToUninstall.joinToString { "'$it'" }, stubPkgNamesToUninstall.size > 1)
 
             BALLOON_NOTIFICATIONS.createNotification(content, NotificationType.WARNING).notify(project)
             PyPackageManagerUI(project, sdk, uninstallationListener).uninstall(stubPkgsToUninstall)
@@ -300,13 +311,13 @@ class PyStubPackagesAdvertiser : PyInspection() {
         }
       }
 
-      val name = "Install stub package" + if (reqs.size > 1) "s" else ""
+      val name = PyBundle.message("code.insight.stub.packages.install.requirements.fix.name", reqs.size)
       return PyInstallRequirementsFix(name, module, sdk, reqs, args, installationListener)
     }
 
     private fun createIgnorePackagesQuickFix(reqs: List<PyRequirement>, packageManager: PyPackageManager): LocalQuickFix {
       return object : LocalQuickFix {
-        override fun getFamilyName() = "Ignore package" + if (reqs.size > 1) "s" else ""
+        override fun getFamilyName() = PyBundle.message("code.insight.ignore.packages.qfix", reqs.size)
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
           this@Visitor.addStubPackagesToIgnore(reqs, reqs.mapTo(mutableSetOf()) { it.name }, project, packageManager)

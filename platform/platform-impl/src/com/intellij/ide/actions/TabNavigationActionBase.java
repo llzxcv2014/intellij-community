@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ide.actions;
 
 import com.intellij.idea.ActionsBundle;
@@ -55,8 +55,8 @@ abstract class TabNavigationActionBase extends AnAction implements DumbAware {
     if (project == null || project.isDisposed()) {
       return;
     }
-    final ToolWindowManager windowManager = ToolWindowManager.getInstance(project);
-    if (windowManager.isEditorComponentActive()) {
+    final ToolWindowManager toolWindowManager = ToolWindowManager.getInstance(project);
+    if (toolWindowManager != null && toolWindowManager.isEditorComponentActive()) {
       final FileEditorManagerEx editorManager = FileEditorManagerEx.getInstanceEx(project);
       EditorWindow currentWindow = EditorWindow.DATA_KEY.getData(dataContext);
       if (currentWindow == null){
@@ -147,11 +147,11 @@ abstract class TabNavigationActionBase extends AnAction implements DumbAware {
     protected GoToTabAction(@NotNull NavigationType navigationType) {
       super(navigationType);
       if (navigationType == NavigationType.LAST) {
-        getTemplatePresentation().setText(ActionsBundle.message("action.GoToLastTab.text"));
-        getTemplatePresentation().setDescription(ActionsBundle.message("action.GoToLastTab.description"));
+        getTemplatePresentation().setText(ActionsBundle.messagePointer("action.GoToLastTab.text"));
+        getTemplatePresentation().setDescription(ActionsBundle.messagePointer("action.GoToLastTab.description"));
       } else {
-        getTemplatePresentation().setText(ActionsBundle.message("action.GoToTab.text", navigationType.ordinal() + 1));
-        getTemplatePresentation().setDescription(ActionsBundle.message("action.GoToTab.description", navigationType.ordinal() + 1));
+        getTemplatePresentation().setText(ActionsBundle.messagePointer("action.GoToTab.text", navigationType.ordinal() + 1));
+        getTemplatePresentation().setDescription(ActionsBundle.messagePointer("action.GoToTab.description", navigationType.ordinal() + 1));
       }
     }
 
@@ -161,55 +161,55 @@ abstract class TabNavigationActionBase extends AnAction implements DumbAware {
     }
   }
 
-  public static class GoToTab1Action extends GoToTabAction {
+  public static final class GoToTab1Action extends GoToTabAction {
     private GoToTab1Action() {
       super(NavigationType.NUM1);
     }
   }
 
-  public static class GoToTab2Action extends GoToTabAction {
+  public static final class GoToTab2Action extends GoToTabAction {
     private GoToTab2Action() {
       super(NavigationType.NUM2);
     }
   }
 
-  public static class GoToTab3Action extends GoToTabAction {
+  public static final class GoToTab3Action extends GoToTabAction {
     private GoToTab3Action() {
       super(NavigationType.NUM3);
     }
   }
 
-  public static class GoToTab4Action extends GoToTabAction {
+  public static final class GoToTab4Action extends GoToTabAction {
     private GoToTab4Action() {
       super(NavigationType.NUM4);
     }
   }
 
-  public static class GoToTab5Action extends GoToTabAction {
+  public static final class GoToTab5Action extends GoToTabAction {
     private GoToTab5Action() {
       super(NavigationType.NUM5);
     }
   }
 
-  public static class GoToTab6Action extends GoToTabAction {
+  public static final class GoToTab6Action extends GoToTabAction {
     private GoToTab6Action() {
       super(NavigationType.NUM6);
     }
   }
 
-  public static class GoToTab7Action extends GoToTabAction {
+  public static final class GoToTab7Action extends GoToTabAction {
     private GoToTab7Action() {
       super(NavigationType.NUM7);
     }
   }
 
-  public static class GoToTab8Action extends GoToTabAction {
+  public static final class GoToTab8Action extends GoToTabAction {
     private GoToTab8Action() {
       super(NavigationType.NUM8);
     }
   }
 
-  public static class GoToTab9Action extends GoToTabAction {
+  public static final class GoToTab9Action extends GoToTabAction {
     private GoToTab9Action() {
       super(NavigationType.NUM9);
     }

@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.intellij.build
 
 import com.intellij.openapi.util.MultiValuesMap
@@ -9,30 +9,14 @@ import org.jetbrains.intellij.build.impl.PluginLayout
 
 import java.util.function.Consumer
 
-/**
- * @author nik
- */
 @CompileStatic
 class ProductModulesLayout {
+  public static List<String> DEFAULT_BUNDLED_PLUGINS = ["intellij.platform.images"]
+
   /**
    * Name of the main product JAR file. Outputs of {@link #productImplementationModules} will be packed into it.
    */
   String mainJarName
-
-  /**
-   * Names of the modules which need to be packed into openapi.jar in the product's 'lib' directory.
-   * @see CommunityRepositoryModules#PLATFORM_API_MODULES
-   * @deprecated if you need to pack additional modules into the product, use {@link #productApiModules} instead; {@link CommunityRepositoryModules#PLATFORM_API_MODULES}
-   * will be packed into platform-api.jar in the product's 'lib' directory automatically then.
-   */
-  List<String> platformApiModules = []
-
-  /**
-   * Names of the modules which need to be included into {@link #mainJarName} in the product's 'lib' directory
-   * @see CommunityRepositoryModules#PLATFORM_IMPLEMENTATION_MODULES
-   * @deprecated if you need to pack additional modules into the product, use {@link #productImplementationModules} instead; {@link CommunityRepositoryModules#PLATFORM_IMPLEMENTATION_MODULES}
-   * will be packed into platform-impl.jar in the product's 'lib' directory automatically then.   */
-  List<String> platformImplementationModules = []
 
   /**
    * Names of the additional product-specific modules which need to be packed into openapi.jar in the product's 'lib' directory.
@@ -45,25 +29,10 @@ class ProductModulesLayout {
   List<String> productImplementationModules = []
 
   /**
-   * Names of the main modules (containing META-INF/plugin.xml) of the plugins which need to be bundled with the product. It may also
-   * includes names of optional modules (added via {@link org.jetbrains.intellij.build.impl.PluginLayout.PluginLayoutSpec#withOptionalModule})
-   * from these plugins which need to be included into the plugin distribution for this product. Layouts of the bundled plugins are specified
-   * in {@link #allNonTrivialPlugins} list.
+   * Names of the main modules (containing META-INF/plugin.xml) of the plugins which need to be bundled with the product. Layouts of the
+   * bundled plugins are specified in {@link #allNonTrivialPlugins} list.
    */
-  List<String> bundledPluginModules = []
-
-  /**
-   * Names of the main modules of the plugins which need to be bundled in windows distribution of the product.
-   *
-   * @deprecated specify supported OS in {@link PluginBundlingRestrictions#supportedOs bundlingRestrictions.supportedOs} property in
-   * {@link org.jetbrains.intellij.build.impl.PluginLayout.PluginLayoutSpec#bundlingRestrictions the plugin layout} and add the plugin to
-   * the standard {@link #bundledPluginModules} instead
-   */
-  final Map<OsFamily, List<String>> bundledOsPluginModules = [:]
-
-  Set<String> getAllBundledPluginsModules() {
-    return (bundledOsPluginModules.values().flatten() as Set<String>) + bundledPluginModules
-  }
+  List<String> bundledPluginModules = new ArrayList<>(DEFAULT_BUNDLED_PLUGINS)
 
   private LinkedHashSet<String> pluginsToPublish = new LinkedHashSet<>()
 
@@ -77,7 +46,7 @@ class ProductModulesLayout {
   }
 
   /**
-   * @see #setPluginModulesToPublish 
+   * @see #setPluginModulesToPublish
    */
   List<String> getPluginModulesToPublish() {
     return pluginsToPublish.toList()
@@ -121,13 +90,6 @@ class ProductModulesLayout {
   List<String> mainModules = []
 
   /**
-   * Name of the module containing search/searchableOptions.xml file.
-   * @deprecated not used anymore as searchable options are split between modules
-   */
-  @Deprecated
-  String searchableOptionsModule = ""
-
-  /**
    * If {@code true} a special xml descriptor in custom plugin repository format will be generated for {@link #setPluginModulesToPublish} plugins.
    * This descriptor and the plugin *.zip files can be uploaded to the URL specified in 'plugins@builtin-url' attribute in *ApplicationInfo.xml file
    * to allow installing custom plugins directly from IDE. If {@link ProprietaryBuildTools#artifactsServer} is specified, {@code __BUILTIN_PLUGINS_URL__} in
@@ -136,7 +98,7 @@ class ProductModulesLayout {
    * @see #setPluginModulesToPublish
    */
   boolean prepareCustomPluginRepositoryForPublishedPlugins = true
-  
+
   /**
    * If {@code true} then all plugins that compatible with an IDE will be built. By default these plugins will be placed to "auto-uploading"
    * subdirectory and may be automatically uploaded to plugins.jetbrains.com.
@@ -152,7 +114,7 @@ class ProductModulesLayout {
 
   /**
    * @deprecated we generate the order file automatically based on the application startup statistics
-   * 
+   *
    * Specifies path to a text file containing list of classes in order they are loaded by the product. Entries in the produces *.jar files
    * will be reordered accordingly to reduct IDE startup time. If {@code null} no reordering will be performed.
    */
@@ -160,11 +122,18 @@ class ProductModulesLayout {
   String classesLoadingOrderFilePath = null
 
   /**
+   * Module names which should be excluded from this product.
+   * Allows to filter out default platform modules (both api and implementation) as well as product modules.
+   * This API is experimental, use with care
+   */
+  List<String> excludedModuleNames = []
+
+  /**
    * @return list of all modules which output is included into the plugin's JARs
    */
   List<String> getIncludedPluginModules(Set<String> enabledPluginModules) {
     def modulesFromNonTrivialPlugins = allNonTrivialPlugins.findAll { enabledPluginModules.contains(it.mainModule) }.
-      collectMany { it.getActualModules(enabledPluginModules).values() }
+      collectMany { it.moduleJars.values() }
     (enabledPluginModules + modulesFromNonTrivialPlugins) as List<String>
   }
 

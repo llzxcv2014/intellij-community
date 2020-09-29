@@ -12,6 +12,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.*;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileFilter;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.model.module.JpsModuleSourceRootType;
@@ -21,6 +22,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * This is an internal class, {@link ProjectFileIndex} must be used instead.
+ */
+@ApiStatus.Internal
 public class ProjectFileIndexImpl extends FileIndexBase implements ProjectFileIndex {
   private static final Logger LOG = Logger.getInstance(ProjectFileIndexImpl.class);
   private final Project myProject;
@@ -65,16 +70,14 @@ public class ProjectFileIndexImpl extends FileIndexBase implements ProjectFileIn
       for (Iterator<VirtualFile> iterator = result.iterator(); iterator.hasNext(); ) {
         VirtualFile root = iterator.next();
         DirectoryInfo info = getInfoForFileOrDirectory(root);
-        if (!info.isInProject(root) // is excluded or ignored
-            || !module.equals(info.getModule())) { // maybe 2 modules have the same content root?
+        if (!module.equals(info.getModule())) { // maybe 2 modules have the same content root?
           iterator.remove();
           continue;
         }
 
         VirtualFile parent = root.getParent();
         if (parent != null) {
-          DirectoryInfo parentInfo = getInfoForFileOrDirectory(parent);
-          if (isFileInContent(parent, parentInfo)) {
+          if (isInContent(parent)) {
             iterator.remove();
           }
         }
@@ -225,6 +228,8 @@ public class ProjectFileIndexImpl extends FileIndexBase implements ProjectFileIn
     return info.isInModuleSource(fileOrDir) && rootTypes.contains(myDirectoryIndex.getSourceRootType(info));
   }
 
+  @Nullable
+  @Override
   public SourceFolder getSourceFolder(@NotNull VirtualFile fileOrDir) {
     return myDirectoryIndex.getSourceRootFolder(getInfoForFileOrDirectory(fileOrDir));
   }

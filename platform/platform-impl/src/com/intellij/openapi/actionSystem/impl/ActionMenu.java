@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.actionSystem.impl;
 
 import com.intellij.ide.DataManager;
@@ -13,6 +13,7 @@ import com.intellij.openapi.application.impl.LaterInvocator;
 import com.intellij.openapi.ui.JBPopupMenu;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.wm.IdeFocusManager;
@@ -24,10 +25,13 @@ import com.intellij.ui.mac.foundation.NSDefaults;
 import com.intellij.ui.plaf.beg.IdeaMenuUI;
 import com.intellij.util.ReflectionUtil;
 import com.intellij.util.SingleAlarm;
+import com.intellij.util.ui.JBSwingUtilities;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
 import java.awt.*;
@@ -77,6 +81,12 @@ public final class ActionMenu extends JBMenu {
 
     // Triggering initialization of private field "popupMenu" from JMenu with our own JBPopupMenu
     getPopupMenu();
+  }
+
+  @Override
+  protected Graphics getComponentGraphics(Graphics graphics) {
+    if (!(getParent() instanceof JMenuBar)) return super.getComponentGraphics(graphics);
+    return JBSwingUtilities.runGlobalCGTransform(this, super.getComponentGraphics(graphics));
   }
 
   public void updateContext(DataContext context) {
@@ -145,8 +155,11 @@ public final class ActionMenu extends JBMenu {
 
     myStubItem = macSystemMenu ? null : new StubItem();
     addStubItem();
-    addMenuListener(new MenuListenerImpl());
     setBorderPainted(false);
+
+    MenuListenerImpl menuListener = new MenuListenerImpl();
+    addMenuListener(menuListener);
+    getModel().addChangeListener(menuListener);
 
     setVisible(myPresentation.isVisible());
     setEnabled(myPresentation.isEnabled());
@@ -164,6 +177,7 @@ public final class ActionMenu extends JBMenu {
 
   public void setMnemonicEnabled(boolean enable) {
     myMnemonicEnabled = enable;
+    setText(myPresentation.getText(enable));
     setMnemonic(myPresentation.getMnemonic());
     setDisplayedMnemonicIndex(myPresentation.getDisplayedMnemonicIndex());
   }
@@ -187,14 +201,31 @@ public final class ActionMenu extends JBMenu {
         // JDK can't paint correctly our HiDPI icons at the system menu bar
         icon = IconLoader.getMenuBarIcon(icon, myUseDarkIcons);
       }
-      setIcon(icon);
-      if (presentation.getDisabledIcon() != null) {
-        setDisabledIcon(presentation.getDisabledIcon());
-      }
-      else {
-        setDisabledIcon(icon == null ? null : IconLoader.getDisabledIcon(icon));
+      if (isShowIcons()) {
+        setIcon(null);
+        setDisabledIcon(null);
+      } else {
+        setIcon(icon);
+        if (presentation.getDisabledIcon() != null) {
+          setDisabledIcon(presentation.getDisabledIcon());
+        }
+        else {
+          setDisabledIcon(icon == null ? null : IconLoader.getDisabledIcon(icon));
+        }
       }
     }
+  }
+
+  static boolean isShowIcons() {
+    return SystemInfo.isMac && Registry.get("ide.macos.main.menu.alignment.options").isOptionEnabled("No icons");
+  }
+
+  static boolean isAligned() {
+    return SystemInfo.isMac && Registry.get("ide.macos.main.menu.alignment.options").isOptionEnabled("Aligned");
+  }
+
+  static boolean isAlignedInGroup() {
+    return SystemInfo.isMac && Registry.get("ide.macos.main.menu.alignment.options").isOptionEnabled("Aligned in group");
   }
 
   @Override
@@ -203,7 +234,7 @@ public final class ActionMenu extends JBMenu {
     showDescriptionInStatusBar(isIncluded, this, myPresentation.getDescription());
   }
 
-  public static void showDescriptionInStatusBar(boolean isIncluded, Component component, String description) {
+  public static void showDescriptionInStatusBar(boolean isIncluded, Component component, @NlsContexts.StatusBarText String description) {
     IdeFrame frame = (IdeFrame)(component instanceof IdeFrame ? component : SwingUtilities.getAncestorOfClass(IdeFrame.class, component));
     StatusBar statusBar;
     if (frame != null && (statusBar = frame.getStatusBar()) != null) {
@@ -211,8 +242,30 @@ public final class ActionMenu extends JBMenu {
     }
   }
 
-  private class MenuListenerImpl implements MenuListener {
+  private class MenuListenerImpl implements ChangeListener, MenuListener {
+    boolean isSelected = false;
+
     boolean myIsHidden = false;
+
+    @Override
+    public void stateChanged(ChangeEvent e) {
+      // Re-implement javax.swing.JMenu.MenuChangeListener to avoid recursive event notifications
+      // if 'menuSelected' fires unrelated 'stateChanged' event, without changing 'model.isSelected()' value.
+      ButtonModel model = (ButtonModel)e.getSource();
+      boolean modelSelected = model.isSelected();
+
+      if (modelSelected != isSelected) {
+        isSelected = modelSelected;
+
+        if (modelSelected) {
+          menuSelected();
+        }
+        else {
+          menuDeselected();
+        }
+      }
+    }
+
     @Override
     public void menuCanceled(MenuEvent e) {
       onMenuHidden();
@@ -220,6 +273,15 @@ public final class ActionMenu extends JBMenu {
 
     @Override
     public void menuDeselected(MenuEvent e) {
+      // Use ChangeListener instead to guard against recursive calls
+    }
+
+    @Override
+    public void menuSelected(MenuEvent e) {
+      // Use ChangeListener instead to guard against recursive calls
+    }
+
+    private void menuDeselected() {
       if (myDisposable != null) {
         Disposer.dispose(myDisposable);
         myDisposable = null;
@@ -228,36 +290,41 @@ public final class ActionMenu extends JBMenu {
     }
 
     private void onMenuHidden() {
-      if (!KEEP_MENU_HIERARCHY) {
-        final Runnable clearSelf = ()->{
-          clearItems();
-          addStubItem();
-        };
-        if (SystemInfo.isMacSystemMenu && myPlace.equals(ActionPlaces.MAIN_MENU)) {
-          // Menu items may contain mnemonic and they can affect key-event dispatching (when Alt pressed)
-          // To avoid influence of mnemonic it's necessary to clear items when menu was hidden.
-          // When user selects item of system menu (under MacOs) AppKit generates such sequence: CloseParentMenu -> PerformItemAction
-          // So we can destroy menu-item before item's action performed, and because of that action will not be executed.
-          // Defer clearing to avoid this problem.
-          final Disposable listenerHolder = Disposer.newDisposable();
-          IdeEventQueue.getInstance().addDispatcher(e->{
-            if (e instanceof KeyEvent) {
-              if (myIsHidden)
-                clearSelf.run();
-              ApplicationManager.getApplication().invokeLater(() -> Disposer.dispose(listenerHolder));
-            }
-            return false;
-          }, listenerHolder);
+      if (KEEP_MENU_HIERARCHY) {
+        return;
+      }
 
-          myIsHidden = true;
-        } else {
-          clearSelf.run();
-        }
+      Runnable clearSelf = () -> {
+        clearItems();
+        addStubItem();
+      };
+
+      if (SystemInfo.isMacSystemMenu && myPlace.equals(ActionPlaces.MAIN_MENU)) {
+        // Menu items may contain mnemonic and they can affect key-event dispatching (when Alt pressed)
+        // To avoid influence of mnemonic it's necessary to clear items when menu was hidden.
+        // When user selects item of system menu (under MacOs) AppKit generates such sequence: CloseParentMenu -> PerformItemAction
+        // So we can destroy menu-item before item's action performed, and because of that action will not be executed.
+        // Defer clearing to avoid this problem.
+        Disposable listenerHolder = Disposer.newDisposable();
+        Disposer.register(ApplicationManager.getApplication(), listenerHolder);
+        IdeEventQueue.getInstance().addDispatcher(e -> {
+          if (e instanceof KeyEvent) {
+            if (myIsHidden) {
+              clearSelf.run();
+            }
+            ApplicationManager.getApplication().invokeLater(() -> Disposer.dispose(listenerHolder));
+          }
+          return false;
+        }, listenerHolder);
+
+        myIsHidden = true;
+      }
+      else {
+        clearSelf.run();
       }
     }
 
-    @Override
-    public void menuSelected(MenuEvent e) {
+    private void menuSelected() {
       UsabilityHelper helper = new UsabilityHelper(ActionMenu.this);
       if (myDisposable == null) {
         myDisposable = Disposer.newDisposable();
@@ -300,11 +367,12 @@ public final class ActionMenu extends JBMenu {
       context = myContext;
     }
     else {
-      @SuppressWarnings("deprecation") DataContext contextFromFocus = DataManager.getInstance().getDataContext();
+      DataManager dataManager = DataManager.getInstance();
+      @SuppressWarnings("deprecation") DataContext contextFromFocus = dataManager.getDataContext();
       context = contextFromFocus;
       if (PlatformDataKeys.CONTEXT_COMPONENT.getData(context) == null) {
         IdeFrame frame = ComponentUtil.getParentOfType((Class<? extends IdeFrame>)IdeFrame.class, (Component)this);
-        context = DataManager.getInstance().getDataContext(IdeFocusManager.getGlobalInstance().getLastFocusedFor(frame));
+        context = dataManager.getDataContext(IdeFocusManager.getGlobalInstance().getLastFocusedFor((Window)frame));
       }
     }
 
@@ -332,14 +400,14 @@ public final class ActionMenu extends JBMenu {
         setDisplayedMnemonicIndex(myPresentation.getDisplayedMnemonicIndex());
       }
       else if (Presentation.PROP_TEXT.equals(name)) {
-        setText(myPresentation.getText());
+        setText(myPresentation.getText(true));
       }
       else if (Presentation.PROP_ICON.equals(name) || Presentation.PROP_DISABLED_ICON.equals(name)) {
         updateIcon();
       }
     }
   }
-  private static class UsabilityHelper implements IdeEventQueue.EventDispatcher, AWTEventListener, Disposable {
+  private static final class UsabilityHelper implements IdeEventQueue.EventDispatcher, AWTEventListener, Disposable {
 
     private Component myComponent;
     private Point myLastMousePoint;

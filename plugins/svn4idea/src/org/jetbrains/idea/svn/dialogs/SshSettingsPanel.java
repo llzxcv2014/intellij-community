@@ -1,10 +1,13 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.svn.dialogs;
 
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
 import com.intellij.openapi.options.ConfigurableUi;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
+import com.intellij.openapi.util.NlsContexts;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.PortField;
@@ -15,7 +18,6 @@ import com.intellij.util.EnvironmentUtil;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.idea.svn.SvnBundle;
 import org.jetbrains.idea.svn.SvnConfiguration;
 import org.jetbrains.idea.svn.SvnConfigurationState;
 import org.jetbrains.idea.svn.commandLine.SshTunnelRuntimeModule;
@@ -25,10 +27,9 @@ import javax.swing.event.DocumentEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 
-/**
- * @author Konstantin Kolosovsky.
- */
-public class SshSettingsPanel implements ConfigurableUi<SvnConfiguration> {
+import static org.jetbrains.idea.svn.SvnBundle.message;
+
+public class SshSettingsPanel implements ConfigurableUi<SvnConfiguration>, Disposable {
   private JBRadioButton myPasswordChoice;
   private JBRadioButton myPrivateKeyChoice;
   private JBRadioButton mySubversionConfigChoice;
@@ -70,8 +71,8 @@ public class SshSettingsPanel implements ConfigurableUi<SvnConfiguration> {
 
     enableOptions(mySubversionConfigChoice);
 
-    registerBrowseDialog(myExecutablePathField, SvnBundle.message("ssh.settings.browse.executable.dialog.title"));
-    registerBrowseDialog(myPrivateKeyPathField, SvnBundle.message("ssh.settings.browse.private.key.dialog.title"));
+    registerBrowseDialog(myExecutablePathField, message("dialog.title.ssh.settings.browse.executable"));
+    registerBrowseDialog(myPrivateKeyPathField, message("dialog.title.ssh.settings.browse.private.key"));
 
     mySshTunnelField.getEmptyText().setText(SshTunnelRuntimeModule.DEFAULT_SSH_TUNNEL_VALUE);
     mySshTunnelField.getDocument().addDocumentListener(new DocumentAdapter() {
@@ -90,7 +91,7 @@ public class SshSettingsPanel implements ConfigurableUi<SvnConfiguration> {
     });
   }
 
-  private void registerBrowseDialog(@NotNull TextFieldWithBrowseButton component, @NotNull String dialogTitle) {
+  private void registerBrowseDialog(@NotNull TextFieldWithBrowseButton component, @NlsContexts.DialogTitle @NotNull String dialogTitle) {
     component.addBrowseFolderListener(dialogTitle, null, mySvnConfiguration.getProject(),
                                       FileChooserDescriptorFactory.createSingleFileNoJarsDescriptor());
   }
@@ -145,6 +146,10 @@ public class SshSettingsPanel implements ConfigurableUi<SvnConfiguration> {
     return myMainPanel;
   }
 
+  @Override
+  public void dispose() {
+  }
+
   private void setConnectionChoice(@NotNull SvnConfiguration.SshConnectionType value) {
     setSelected(myPasswordChoice, value);
     setSelected(myPrivateKeyChoice, value);
@@ -171,7 +176,7 @@ public class SshSettingsPanel implements ConfigurableUi<SvnConfiguration> {
     updateSshTunnelDependentValues(tunnelSetting);
   }
 
-  private void updateSshTunnelDependentValues(@Nullable String tunnelSetting) {
+  private void updateSshTunnelDependentValues(@NlsSafe @Nullable String tunnelSetting) {
     String svnSshVariableName = SshTunnelRuntimeModule.getSvnSshVariableName(
       !StringUtil.isEmpty(tunnelSetting) ? tunnelSetting : SshTunnelRuntimeModule.DEFAULT_SSH_TUNNEL_VALUE);
     String svnSshVariableValue = StringUtil.notNullize(EnvironmentUtil.getValue(svnSshVariableName));
@@ -202,6 +207,7 @@ public class SshSettingsPanel implements ConfigurableUi<SvnConfiguration> {
 
   private void createUIComponents() {
     myExecutablePathTextField = new JBTextField();
-    myExecutablePathField = new TextFieldWithBrowseButton(myExecutablePathTextField);
+    myExecutablePathField = new TextFieldWithBrowseButton(myExecutablePathTextField, null, this);
+    myPrivateKeyPathField = new TextFieldWithBrowseButton(null, this);
   }
 }

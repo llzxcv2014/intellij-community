@@ -5,7 +5,9 @@ package com.intellij.psi.impl.source;
 import com.google.common.annotations.VisibleForTesting;
 import com.intellij.ide.util.PsiNavigationSupport;
 import com.intellij.lang.*;
+import com.intellij.model.ModelBranch;
 import com.intellij.navigation.ItemPresentation;
+import com.intellij.openapi.application.AppUIExecutor;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
@@ -40,6 +42,7 @@ import com.intellij.testFramework.ReadOnlyLightVirtualFile;
 import com.intellij.util.*;
 import com.intellij.util.concurrency.AtomicFieldUpdater;
 import com.intellij.util.text.CharArrayUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -48,7 +51,7 @@ import java.util.*;
 
 public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiFileWithStubSupport, Queryable, Cloneable {
   private static final Logger LOG = Logger.getInstance(PsiFileImpl.class);
-  static final String STUB_PSI_MISMATCH = "stub-psi mismatch";
+  static final @NonNls String STUB_PSI_MISMATCH = "stub-psi mismatch";
   private static final AtomicFieldUpdater<PsiFileImpl, FileTrees> ourTreeUpdater =
     AtomicFieldUpdater.forFieldOfType(PsiFileImpl.class, FileTrees.class);
 
@@ -120,11 +123,11 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
 
   @Override
   public VirtualFile getVirtualFile() {
-    return getViewProvider().isEventSystemEnabled() ? getViewProvider().getVirtualFile() : null;
+    return getViewProvider().isEventSystemEnabled() || ModelBranch.getPsiBranch(this) != null ? getViewProvider().getVirtualFile() : null;
   }
 
   @Override
-  public boolean processChildren(@NotNull final PsiElementProcessor<PsiFileSystemItem> processor) {
+  public boolean processChildren(final @NotNull PsiElementProcessor<? super PsiFileSystemItem> processor) {
     return true;
   }
 
@@ -195,7 +198,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
       final VirtualFile vFile = viewProvider.getVirtualFile();
       AstLoadingFilter.assertTreeLoadingAllowed(vFile);
       if (myManager.isAssertOnFileLoading(vFile)) {
-        LOG.error("Access to tree elements not allowed. path='" + vFile.getPresentableUrl() + "'");
+        reportProhibitedAstAccess(vFile);
       }
     }
 
@@ -222,6 +225,29 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
 
       return treeElement;
     }
+  }
+
+  /**
+   * Reports unexpected AST loading in tests.<p></p>
+   *
+   * AST loading is expensive and should be avoided for files that aren't already opened in the editor.
+   * Resolving references during editor highlighting should be done via stubs (see {@link com.intellij.extapi.psi.StubBasedPsiElementBase})
+   * or other indices, otherwise highlighting can become quite slow and memory-hungry due to parsing a lot of
+   * other files and building their ASTs.<p></p>
+   *
+   * To help prevent this performance issue, there's a mode in tests when AST loading for non-opened files is prohibited.
+   * To fix it, find in the stack trace where an AST-requiring API is called and consider using stubs or other indices instead.
+   * In a rare case when loading AST is actually OK (e.g. during reference search for "unused symbol" highlighting),
+   * you can switch off this check, e.g. via {@link com.intellij.testFramework.fixtures.CodeInsightTestFixture#allowTreeAccessForFile}.
+   * <p></p>
+   *
+   * Note that this failure can be nondeterministic due to garbage collector which might or might not have collected previously loaded AST.
+   * To make debugging simpler in this case, you can increase the chance of failure by starting the test with a smaller Xmx.
+   */
+  private static void reportProhibitedAstAccess(VirtualFile vFile) {
+    LOG.error("Access to tree elements not allowed for '" + vFile.getPresentableUrl() + "'.\n" +
+              "Try using stub-based PSI API to avoid expensive AST loading for files that aren't already opened in the editor.\n" +
+              "Consult this method's javadoc for more details.");
   }
 
   @NotNull
@@ -446,8 +472,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
   }
 
   @Override
-  @NotNull
-  public PsiFile[] getPsiRoots() {
+  public PsiFile @NotNull [] getPsiRoots() {
     final FileViewProvider viewProvider = getViewProvider();
     final Set<Language> languages = viewProvider.getLanguages();
 
@@ -507,14 +532,12 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
   }
 
   @Override
-  @NotNull
-  public char[] textToCharArray() {
+  public char @NotNull [] textToCharArray() {
     return CharArrayUtil.fromSequence(getViewProvider().getContents());
   }
 
   @SuppressWarnings("unchecked")
-  @NotNull
-  public <T> T[] findChildrenByClass(Class<T> aClass) {
+  public <T> T @NotNull [] findChildrenByClass(Class<T> aClass) {
     List<T> result = new ArrayList<>();
     for (PsiElement child : getChildren()) {
       if (aClass.isInstance(child)) result.add((T)child);
@@ -603,7 +626,6 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
     }
 
     final VirtualFile vFile = getVirtualFile();
-    if (!(vFile instanceof VirtualFileWithId) || !vFile.isValid()) return null;
 
     ObjectStubTree tree = StubTreeLoader.getInstance().readOrBuild(getProject(), vFile, this);
     if (!(tree instanceof StubTree)) return null;
@@ -713,8 +735,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
   }
 
   @Override
-  @NotNull
-  public PsiElement[] getChildren() {
+  public PsiElement @NotNull [] getChildren() {
     return calcTreeElement().getChildrenAsPsiElements((TokenSet)null, PsiElement.ARRAY_FACTORY);
   }
 
@@ -735,12 +756,12 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
 
   @Override
   public int getStartOffsetInParent() {
-    return calcTreeElement().getStartOffsetInParent();
+    return 0;
   }
 
   @Override
   public int getTextOffset() {
-    return calcTreeElement().getTextOffset();
+    return 0;
   }
 
   @Override
@@ -839,8 +860,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
   }
 
   @Override
-  @NotNull
-  public PsiReference[] getReferences() {
+  public PsiReference @NotNull [] getReferences() {
     return SharedPsiElementImplUtil.getReferences(this);
   }
 
@@ -946,7 +966,8 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
         IStubFileElementType contentElementType = getElementTypeForStubBuilder();
         if (contentElementType == null) {
           VirtualFile vFile = getVirtualFile();
-          String message = "ContentElementType: " + getContentElementType() + "; file: " + this +
+          String message = "ContentElementType: " + getContentElementType() +
+                           "; file: " + this + (vFile.isValid() ? "" : " ("+vFile+" invalid)") +
                            "\n\t" + "Boolean.TRUE.equals(getUserData(BUILDING_STUB)) = " + Boolean.TRUE.equals(getUserData(BUILDING_STUB)) +
                            "\n\t" + "getTreeElement() = " + getTreeElement() +
                            "\n\t" + "vFile instanceof VirtualFileWithId = " + (vFile instanceof VirtualFileWithId) +
@@ -970,7 +991,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
   }
 
   final void rebuildStub() {
-    ApplicationManager.getApplication().invokeLater(() -> {
+    AppUIExecutor.onWriteThread(ModalityState.NON_MODAL).later().submit(() -> {
       if (!myManager.isDisposed()) {
         myManager.dropPsiCaches();
       }
@@ -985,7 +1006,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
         FileContentUtilCore.reparseFiles(vFile);
         StubTreeLoader.getInstance().rebuildStubTree(vFile);
       }
-    }, ModalityState.NON_MODAL);
+    });
   }
 
   @Override

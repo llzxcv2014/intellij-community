@@ -7,34 +7,35 @@ import com.intellij.java.codeInsight.daemon.quickFix.OrderEntryTest;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.application.ex.PathManagerEx;
+import com.intellij.openapi.project.DumbService;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.*;
-import com.intellij.openapi.roots.impl.OrderEntryUtil;
-import com.intellij.openapi.roots.impl.libraries.LibraryEx;
+import com.intellij.openapi.roots.impl.libraries.LibraryImpl;
 import com.intellij.openapi.roots.impl.libraries.LibraryTableBase;
-import com.intellij.openapi.roots.impl.libraries.LibraryTableImplUtil;
 import com.intellij.openapi.roots.impl.libraries.ProjectLibraryTableImpl;
 import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.libraries.LibraryTable;
 import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar;
 import com.intellij.openapi.util.JDOMUtil;
 import com.intellij.openapi.util.io.FileUtil;
-import com.intellij.openapi.vfs.*;
+import com.intellij.openapi.vfs.JarFileSystem;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.roots.ModuleRootManagerTestCase;
 import com.intellij.testFramework.PsiTestUtil;
-import com.intellij.util.CommonProcessors;
-import com.intellij.util.containers.ContainerUtil;
+import com.intellij.testFramework.rules.ProjectModelRule;
 import com.intellij.util.ui.UIUtil;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.LongAdder;
 
 import static com.intellij.testFramework.assertions.Assertions.assertThat;
 
@@ -42,37 +43,6 @@ import static com.intellij.testFramework.assertions.Assertions.assertThat;
  *  @author dsl
  */
 public class LibraryTest extends ModuleRootManagerTestCase {
-  public void testModification() {
-    final LibraryTable libraryTable = LibraryTablesRegistrar.getInstance().getLibraryTable();
-    final Library library = WriteAction.compute(() -> libraryTable.createLibrary("NewLibrary"));
-    final boolean[] listenerNotifiedOnChange = new boolean[1];
-    library.getRootProvider().addRootSetChangedListener(wrapper -> listenerNotifiedOnChange[0] = true);
-    final Library.ModifiableModel model1 = library.getModifiableModel();
-    model1.addRoot("file://x.jar", OrderRootType.CLASSES);
-    model1.addRoot("file://x-src.jar", OrderRootType.SOURCES);
-    commit(model1);
-    assertTrue(listenerNotifiedOnChange[0]);
-
-    listenerNotifiedOnChange[0] = false;
-
-    final Library.ModifiableModel model2 = library.getModifiableModel();
-    model2.setName("library");
-    commit(model2);
-    assertFalse(listenerNotifiedOnChange[0]);
-
-    assertTrue(LibraryTableImplUtil.isValidLibrary(library));
-    ApplicationManager.getApplication().runWriteAction(() -> libraryTable.removeLibrary(library));
-    assertFalse(LibraryTableImplUtil.isValidLibrary(library));
-  }
-
-  public void testAddRemoveModuleLibrary() {
-    ModuleRootModificationUtil.addModuleLibrary(myModule, getJDomJar().getUrl());
-    Library library = assertOneElement(OrderEntryUtil.getModuleLibraries(ModuleRootManager.getInstance(myModule)));
-    assertTrue(LibraryTableImplUtil.isValidLibrary(library));
-    ModuleRootModificationUtil.updateModel(myModule, model -> model.getModuleLibraryTable().removeLibrary(library));
-    assertFalse(LibraryTableImplUtil.isValidLibrary(library));
-  }
-
   public void testLibrarySerialization() throws IOException {
     final long moduleModificationCount = ModuleRootManagerEx.getInstanceEx(myModule).getModificationCountForTests();
 
@@ -89,7 +59,7 @@ public class LibraryTest extends ModuleRootManagerTestCase {
       Collections.singletonList(LocalFileSystem.getInstance().refreshAndFindFileByIoFile(localJDomSources)));
 
     assertThat(ModuleRootManagerEx.getInstanceEx(myModule).getModificationCountForTests()).isGreaterThan(moduleModificationCount);
-    assertThat(serializeLibraries()).isEqualTo(
+    assertThat(serializeLibraries(myProject)).isEqualTo(
       "<library name=\"junit\">\n" +
       "  <CLASSES>\n" +
       "    <root url=\"file://$PROJECT_DIR$/jdom-2.0.6.jar\" />\n" +
@@ -102,37 +72,8 @@ public class LibraryTest extends ModuleRootManagerTestCase {
     );
   }
 
-  public void testResolveDependencyToAddedLibrary() {
-    final ModifiableRootModel model = ModuleRootManager.getInstance(myModule).getModifiableModel();
-    model.addInvalidLibrary("jdom", LibraryTablesRegistrar.PROJECT_LEVEL);
-    commit(model);
-    assertEmpty(getLibraries());
-
-    Library library = createLibrary("jdom", getJDomJar(), null);
-    assertSameElements(getLibraries(), library);
-  }
-
-  public void testFindLibraryByNameAfterRename() {
-    LibraryTable table = getProjectLibraryTable();
-
-    Library a = createLibrary("a", null, null);
-    LibraryTable.ModifiableModel model = table.getModifiableModel();
-    assertSame(a, table.getLibraryByName("a"));
-    assertSame(a, model.getLibraryByName("a"));
-    Library.ModifiableModel libraryModel = a.getModifiableModel();
-    libraryModel.setName("b");
-    commit(libraryModel);
-
-    assertNull(table.getLibraryByName("a"));
-    assertNull(model.getLibraryByName("a"));
-    assertSame(a, table.getLibraryByName("b"));
-    assertSame(a, model.getLibraryByName("b"));
-    commit(model);
-    assertSame(a, table.getLibraryByName("b"));
-  }
-
   public void testModificationCount() {
-    ignoreTestUnderWorkspaceModel();
+    ProjectModelRule.ignoreTestUnderWorkspaceModel();
 
     final long moduleModificationCount = ModuleRootManagerEx.getInstanceEx(myModule).getModificationCountForTests();
 
@@ -146,10 +87,6 @@ public class LibraryTest extends ModuleRootManagerTestCase {
     // module not marked as to save if project library modified, but module is not affected
     assertThat(ModuleRootManagerEx.getInstanceEx(myModule).getModificationCountForTests()).isEqualTo(moduleModificationCount);
     assertThat(table.getStateModificationCount()).isGreaterThan(projectLibraryModificationCount);
-  }
-
-  private static void commit(LibraryTable.ModifiableModel model) {
-    ApplicationManager.getApplication().runWriteAction(() -> model.commit());
   }
 
   public void testFindLibraryByNameAfterChainedRename() {
@@ -169,7 +106,7 @@ public class LibraryTest extends ModuleRootManagerTestCase {
   }
 
   public void testReloadLibraryTable() {
-    ignoreTestUnderWorkspaceModel();
+    ProjectModelRule.ignoreTestUnderWorkspaceModel();
 
     ((LibraryTableBase)getProjectLibraryTable()).loadState(new Element("component"));
     createLibrary("a", null, null);
@@ -178,100 +115,12 @@ public class LibraryTest extends ModuleRootManagerTestCase {
   }
 
   public void testReloadLibraryTableWithoutChanges() {
-    ignoreTestUnderWorkspaceModel();
+    ProjectModelRule.ignoreTestUnderWorkspaceModel();
 
     ((LibraryTableBase)getProjectLibraryTable()).loadState(new Element("component"));
     createLibrary("a", null, null);
     ((LibraryTableBase)getProjectLibraryTable()).loadState(new Element("component").addContent(new Element("library").setAttribute("name", "a")));
     assertEquals("a", assertOneElement(getProjectLibraryTable().getLibraries()).getName());
-  }
-
-  public void testNonCommittedLibraryIsDisposed() {
-    LibraryTable table = getProjectLibraryTable();
-    LibraryTable.ModifiableModel model = table.getModifiableModel();
-    Library library = model.createLibrary("a");
-    model.removeLibrary(library);
-    commit(model);
-    assertEmpty(table.getLibraries());
-  }
-
-  public void testMergeAddRemoveChanges() {
-    Library a = createLibrary("a", null, null);
-    LibraryTable table = getProjectLibraryTable();
-
-    LibraryTable.ModifiableModel model1 = table.getModifiableModel();
-    model1.removeLibrary(a);
-
-    LibraryTable.ModifiableModel model2 = table.getModifiableModel();
-    model2.createLibrary("b");
-    commit(model1);
-    commit(model2);
-
-    assertAllLibrariesAreNotDisposed();
-    assertEquals("b", assertOneElement(table.getLibraries()).getName());
-  }
-
-  public void testMergeAddAddChanges() {
-    createLibrary("a", null, null);
-    LibraryTable table = getProjectLibraryTable();
-
-    LibraryTable.ModifiableModel model1 = table.getModifiableModel();
-    model1.createLibrary("b");
-
-    LibraryTable.ModifiableModel model2 = table.getModifiableModel();
-    model2.createLibrary("c");
-    commit(model1);
-    commit(model2);
-
-    assertAllLibrariesAreNotDisposed();
-    assertSameElements(ContainerUtil.map(table.getLibraries(), Library::getName), "a", "b", "c");
-  }
-
-  public void testMergeRemoveRemoveChanges() {
-    Library a = createLibrary("a", null, null);
-    Library b = createLibrary("b", null, null);
-    LibraryTable table = getProjectLibraryTable();
-
-    LibraryTable.ModifiableModel model1 = table.getModifiableModel();
-    model1.removeLibrary(a);
-
-    LibraryTable.ModifiableModel model2 = table.getModifiableModel();
-    model2.removeLibrary(b);
-    commit(model1);
-    commit(model2);
-
-    assertAllLibrariesAreNotDisposed();
-    assertEmpty(table.getLibraries());
-  }
-
-  private void assertAllLibrariesAreNotDisposed() {
-    for (Library library : getProjectLibraryTable().getLibraries()) {
-      assertEmpty(library.getUrls(OrderRootType.CLASSES));
-    }
-  }
-
-  public void testResolveDependencyToRenamedLibrary() {
-    Library library = createLibrary("jdom2", getJDomJar(), null);
-
-    final ModifiableRootModel model = ModuleRootManager.getInstance(myModule).getModifiableModel();
-    model.addInvalidLibrary("jdom", LibraryTablesRegistrar.PROJECT_LEVEL);
-    commit(model);
-    assertEmpty(getLibraries());
-
-    Library.ModifiableModel libModel = library.getModifiableModel();
-    libModel.setName("jdom");
-    commit(libModel);
-    assertSameElements(getLibraries(), library);
-  }
-
-  private Collection<Library> getLibraries() {
-    CommonProcessors.CollectProcessor<Library> processor = new CommonProcessors.CollectProcessor<>();
-    ModuleRootManager.getInstance(myModule).orderEntries().forEachLibrary(processor);
-    return processor.getResults();
-  }
-
-  private static void commit(final ModifiableRootModel model) {
-    WriteAction.runAndWait(() -> model.commit());
   }
 
   public void testNativePathSerialization() {
@@ -281,7 +130,7 @@ public class LibraryTest extends ModuleRootManagerTestCase {
     model.addRoot("file://native-lib-root", NativeLibraryOrderRootType.getInstance());
     commit(model);
 
-    assertThat(serializeLibraries()).isEqualTo(
+    assertThat(serializeLibraries(myProject)).isEqualTo(
       "<library name=\"native\">\n" +
       "  <CLASSES />\n" +
       "  <JAVADOC />\n" +
@@ -298,7 +147,8 @@ public class LibraryTest extends ModuleRootManagerTestCase {
     return LibraryTablesRegistrar.getInstance().getLibraryTable(myProject);
   }
 
-  public void testJarDirectoriesSerialization() {
+  public void testJarDirectoriesSerialization() throws Exception {
+    ProjectModelRule.ignoreTestUnderWorkspaceModel();
     LibraryTable table = getProjectLibraryTable();
     Library library = WriteAction.compute(() -> table.createLibrary("jarDirs"));
     Library.ModifiableModel model = library.getModifiableModel();
@@ -307,29 +157,39 @@ public class LibraryTest extends ModuleRootManagerTestCase {
     model.addJarDirectory("file://jar-dir-src", false, OrderRootType.SOURCES);
     commit(model);
 
-    assertThat(serializeLibraries()).isEqualTo(
-      "<library name=\"jarDirs\">\n" +
-      "  <CLASSES>\n" +
-      "    <root url=\"file://jar-dir\" />\n" +
-      "    <root url=\"file://jar-dir-rec\" />\n" +
-      "  </CLASSES>\n" +
-      "  <JAVADOC />\n" +
-      "  <SOURCES>\n" +
-      "    <root url=\"file://jar-dir-src\" />\n" +
-      "  </SOURCES>\n" +
-      "  <jarDirectory url=\"file://jar-dir\" recursive=\"false\" />\n" +
-      "  <jarDirectory url=\"file://jar-dir-rec\" recursive=\"true\" />\n" +
-      "  <jarDirectory url=\"file://jar-dir-src\" recursive=\"false\" type=\"SOURCES\" />\n" +
-      "</library>"
-    );
+    String expected = "<library name=\"jarDirs\">\n" +
+                      "  <CLASSES>\n" +
+                      "    <root url=\"file://jar-dir\" />\n" +
+                      "    <root url=\"file://jar-dir-rec\" />\n" +
+                      //"    <jarDirectory url=\"file://jar-dir\" recursive=\"false\" />\n" +
+                      //"    <jarDirectory url=\"file://jar-dir-rec\" recursive=\"true\" />\n" +
+                      "  </CLASSES>\n" +
+                      "  <JAVADOC />\n" +
+                      "  <SOURCES>\n" +
+                      "    <root url=\"file://jar-dir-src\" />\n" +
+                      //"    <jarDirectory url=\"file://jar-dir-src\" recursive=\"false\" />\n" +
+                      "  </SOURCES>\n" +
+                      "  <jarDirectory url=\"file://jar-dir\" recursive=\"false\" />\n" +
+                      "  <jarDirectory url=\"file://jar-dir-rec\" recursive=\"true\" />\n" +
+                      "  <jarDirectory url=\"file://jar-dir-src\" recursive=\"false\" type=\"SOURCES\" />\n" +
+                      "</library>";
+    assertEquals(expected, serializeLibraries(myProject));
+
+    LibraryImpl library2 = (LibraryImpl)WriteAction.compute(() -> table.createLibrary("jarDirs2"));
+
+    Element root = JDOMUtil.load(expected);
+    library2.readExternal(root);
+    assertTrue(library2.isJarDirectory("file://jar-dir"));
+    assertTrue(library2.isJarDirectory("file://jar-dir-rec"));
+    assertTrue(library2.isJarDirectory("file://jar-dir-src", OrderRootType.SOURCES));
   }
 
-  private String serializeLibraries() {
-    StoreUtil.saveSettings(myProject);
+  static String serializeLibraries(Project project) {
+    StoreUtil.saveSettings(project);
 
     try {
       StringBuilder sb = new StringBuilder();
-      Element root = JDOMUtil.load(new File(myProject.getProjectFilePath()));
+      Element root = JDOMUtil.load(new File(project.getProjectFilePath()));
       for (Element componentElement : root.getChildren("component")) {
         if ("libraryTable".equals(componentElement.getAttributeValue("name"))) {
           for (Element libraryElement : componentElement.getChildren("library")) {
@@ -342,20 +202,6 @@ public class LibraryTest extends ModuleRootManagerTestCase {
     catch (Exception e) {
       throw new RuntimeException(e);
     }
-  }
-
-  public void testAddRemoveJarDirectory() {
-    LibraryTable table = getProjectLibraryTable();
-    Library library = WriteAction.compute(() -> table.createLibrary("jar-directory"));
-    Library.ModifiableModel model = library.getModifiableModel();
-    model.addJarDirectory("file://jar-directory", false, OrderRootType.CLASSES);
-    commit(model);
-    assertSameElements(library.getUrls(OrderRootType.CLASSES), "file://jar-directory");
-
-    model = library.getModifiableModel();
-    model.removeRoot("file://jar-directory", OrderRootType.CLASSES);
-    commit(model);
-    assertEmpty(library.getUrls(OrderRootType.CLASSES));
   }
 
   public void testRootsMustRebuildAfterAddRemoveJarInsideJarDirectoryNonRecursive() {
@@ -395,6 +241,10 @@ public class LibraryTest extends ModuleRootManagerTestCase {
     UIUtil.dispatchAllInvocationEvents();
     aClass = JavaPsiFacade.getInstance(getProject()).findClass("l.InLib", GlobalSearchScope.allScope(getProject()));
     assertNotNull(aClass);
+
+    ModuleRootModificationUtil.updateModel(getModule(), m -> m.removeOrderEntry(m.findLibraryOrderEntry(library)));
+    aClass = JavaPsiFacade.getInstance(getProject()).findClass("l.InLib", GlobalSearchScope.allScope(getProject()));
+    assertNull(aClass);
   }
 
   public void testRootsMustRebuildAfterDeleteAndRestoreJar() throws IOException {
@@ -442,47 +292,13 @@ public class LibraryTest extends ModuleRootManagerTestCase {
 
     FileUtil.copy(new File(originalLibJar.getPath()), new File(libDir.getPath(), originalLibJar.getName()));
     libDir.refresh(false, false);
+    assertTrue(rootsChanged.get());
     libJar = libDir.findFileByRelativePath(originalLibJar.getName());
     assertNotNull(libJar);
 
     UIUtil.dispatchAllInvocationEvents();
     aClass = JavaPsiFacade.getInstance(getProject()).findClass("l.InLib", GlobalSearchScope.allScope(getProject()));
     assertNotNull(aClass);
-    assertTrue(rootsChanged.get());
-  }
-
-  public void testAddRemoveExcludedRoot() {
-    VirtualFile jar = getJDomJar();
-    LibraryEx library = (LibraryEx)createLibrary("junit", jar, null);
-    assertEmpty(library.getExcludedRoots());
-
-    LibraryEx.ModifiableModelEx model = library.getModifiableModel();
-    model.addExcludedRoot(jar.getUrl());
-    commit(model);
-    assertOrderedEquals(library.getExcludedRoots(), jar);
-
-    LibraryEx.ModifiableModelEx model2 = library.getModifiableModel();
-    model2.removeExcludedRoot(jar.getUrl());
-    commit(model2);
-    assertEmpty(library.getExcludedRoots());
-  }
-
-  public void testRemoveExcludedRootWhenParentRootIsRemoved() {
-    VirtualFile jar = getJDomJar();
-    LibraryEx library = (LibraryEx)createLibrary("junit", jar, null);
-
-    LibraryEx.ModifiableModelEx model = library.getModifiableModel();
-    VirtualFile excluded = jar.findChild("org");
-    assertNotNull(excluded);
-    model.addExcludedRoot(excluded.getUrl());
-    commit(model);
-
-    assertOrderedEquals(library.getExcludedRoots(), excluded);
-    LibraryEx.ModifiableModelEx model2 = library.getModifiableModel();
-    model2.removeRoot(jar.getUrl(), OrderRootType.CLASSES);
-    commit(model2);
-
-    assertEmpty(library.getExcludedRoots());
   }
 
   private static void commit(final Library.ModifiableModel modifiableModel) {

@@ -21,9 +21,6 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.awt.*;
 
-/**
- * @author nik
- */
 @Deprecated
 public abstract class DebuggerSupport {
   private static final ExtensionPointName<DebuggerSupport> EXTENSION_POINT = ExtensionPointName.create("com.intellij.xdebugger.debuggerSupport");
@@ -41,8 +38,7 @@ public abstract class DebuggerSupport {
     }
   }
 
-  @NotNull
-  public static DebuggerSupport[] getDebuggerSupports() {
+  public static DebuggerSupport @NotNull [] getDebuggerSupports() {
     return EXTENSION_POINT.getExtensions();
   }
 
@@ -154,6 +150,12 @@ public abstract class DebuggerSupport {
   public DebuggerActionHandler getAddToWatchesActionHandler() {
     return DisabledActionHandler.INSTANCE;
   }
+
+  @NotNull
+  public DebuggerActionHandler getAddToInlineWatchesActionHandler() {
+    return DisabledActionHandler.INSTANCE;
+  }
+
 
   public DebuggerActionHandler getEvaluateInConsoleActionHandler() {
     return DisabledActionHandler.INSTANCE;

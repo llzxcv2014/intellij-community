@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.devkit.inspections
 
 import com.intellij.codeInspection.InspectionManager
@@ -6,15 +6,18 @@ import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.lang.jvm.JvmClassKind
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.NlsSafe
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiClassType
 import com.intellij.psi.PsiModifier
 import com.intellij.psi.PsiParameterList
 import com.intellij.psi.util.InheritanceUtil
 import com.intellij.psi.util.PsiUtil
 import com.intellij.psi.xml.XmlTag
-import com.intellij.util.Processor
 import com.intellij.util.SmartList
-import gnu.trove.THashSet
+import org.jetbrains.annotations.Nls
+import org.jetbrains.annotations.NonNls
+import org.jetbrains.idea.devkit.DevKitBundle
 import org.jetbrains.idea.devkit.dom.Extension
 import org.jetbrains.idea.devkit.dom.ExtensionPoint
 import org.jetbrains.idea.devkit.dom.ExtensionPoint.Area
@@ -26,7 +29,8 @@ import org.jetbrains.uast.convertOpt
 
 private const val serviceBeanFqn = "com.intellij.openapi.components.ServiceDescriptor"
 
-class NonDefaultConstructorInspection : DevKitUastInspectionBase() {
+class NonDefaultConstructorInspection : DevKitUastInspectionBase(UClass::class.java) {
+
   override fun checkClass(aClass: UClass, manager: InspectionManager, isOnTheFly: Boolean): Array<ProblemDescriptor>? {
     val javaPsi = aClass.javaPsi
     // Groovy from test data - ignore it
@@ -87,20 +91,25 @@ class NonDefaultConstructorInspection : DevKitUastInspectionBase() {
       }
 
 
-      val kind = if (isService) "Service" else "Extension"
-      val suffix = if (area == null) {
-        " (except Project or Module if requested on corresponding level)"
-      }
-      else {
-        if (isAppLevelExtensionPoint) "" else " (except ${if (area == Area.IDEA_PROJECT) "Project" else "Module"})"
-      }
+      @NlsSafe val kind = if (isService) "Service" else "Extension"
+      @Nls val suffix =
+        if (area == null) DevKitBundle.message("inspections.non.default.warning.suffix.project.or.module")
+        else {
+          when {
+            isAppLevelExtensionPoint -> ""
+            area == Area.IDEA_PROJECT -> DevKitBundle.message("inspections.non.default.warning.suffix.project")
+            else -> DevKitBundle.message("inspections.non.default.warning.suffix.module")
+          }
+        }
       errors.add(manager.createProblemDescriptor(anchorElement,
-                                                 "$kind should not have constructor with parameters${suffix}.\nDo not instantiate services in constructor because they should be requested only when needed.", true,
+                                                 DevKitBundle.message("inspections.non.default.warning.and.suffix.message", kind, suffix),
+                                                 true,
                                                  ProblemHighlightType.GENERIC_ERROR_OR_WARNING, isOnTheFly))
     }
     return errors?.toTypedArray()
   }
 
+  @Suppress("HardCodedStringLiteral")
   private fun getArea(extensionPoint: ExtensionPoint?): Area {
     val areaName = (extensionPoint ?: return Area.IDEA_APPLICATION).area.stringValue
     when (areaName) {
@@ -135,8 +144,7 @@ private fun findExtensionPointByImplementationClass(searchString: String, qualif
   val strictMatch = searchString === qualifiedName
   processExtensionDeclarations(searchString, project, strictMatch = strictMatch) { extension, tag ->
     val point = extension.extensionPoint ?: return@processExtensionDeclarations true
-    val pointBeanClass = point.beanClass.stringValue
-    when (pointBeanClass) {
+    when (point.beanClass.stringValue) {
       null -> {
         if (tag.attributes.any { it.name == Extension.IMPLEMENTATION_ATTRIBUTE && it.value == qualifiedName }) {
           result = point
@@ -151,7 +159,9 @@ private fun findExtensionPointByImplementationClass(searchString: String, qualif
       }
       else -> {
         // bean EP
-        if (tag.name == "className" || tag.subTags.any { it.name == "className" && (strictMatch || it.textMatches(qualifiedName)) } || checkAttributes(tag, qualifiedName)) {
+        if (tag.name == "className" || tag.subTags.any {
+            it.name == "className" && (strictMatch || it.textMatches(qualifiedName))
+          } || checkAttributes(tag, qualifiedName)) {
           result = point
           return@processExtensionDeclarations false
         }
@@ -163,7 +173,10 @@ private fun findExtensionPointByImplementationClass(searchString: String, qualif
 }
 
 // todo can we use attribute `with`?
-private val ignoredTagNames = THashSet(listOf("semContributor", "modelFacade", "scriptGenerator", "editorActionHandler", "editorTypedHandler", "dataImporter", "java.error.fix", "explainPlanProvider"))
+@NonNls
+private val ignoredTagNames = HashSet(
+  listOf("semContributor", "modelFacade", "scriptGenerator", "editorActionHandler", "editorTypedHandler", "dataImporter", "java.error.fix",
+         "explainPlanProvider"))
 
 // problem - tag
 //<lang.elementManipulator forClass="com.intellij.psi.css.impl.CssTokenImpl"
@@ -176,11 +189,12 @@ private fun checkAttributes(tag: XmlTag, qualifiedName: String): Boolean {
   }
 
   return tag.attributes.any {
-    it.name.startsWith(Extension.IMPLEMENTATION_ATTRIBUTE) && it.value == qualifiedName
+    val name = it.name
+    (name.startsWith(Extension.IMPLEMENTATION_ATTRIBUTE) || name == "instance") && it.value == qualifiedName
   }
 }
 
-private val allowedServiceNames = setOf("Project", "Module", "MessageBus", "SchemeManagerFactory", "TypedActionHandler", "Dbms")
+@NonNls
 private val allowedServiceQualifiedNames = setOf(
   "com.intellij.openapi.project.Project",
   "com.intellij.openapi.module.Module",
@@ -189,7 +203,9 @@ private val allowedServiceQualifiedNames = setOf(
   "com.intellij.openapi.editor.actionSystem.TypedActionHandler",
   "com.intellij.database.Dbms"
 )
+private val allowedServiceNames = allowedServiceQualifiedNames.map { StringUtil.getShortName(it) }
 
+@Suppress("HardCodedStringLiteral")
 private fun isAllowedParameters(list: PsiParameterList,
                                 extensionPoint: ExtensionPoint?,
                                 isAppLevelExtensionPoint: Boolean,
@@ -229,12 +245,12 @@ private fun isAllowedParameters(list: PsiParameterList,
   return true
 }
 
-private val interfacesToCheck = THashSet(listOf(
+private val interfacesToCheck = HashSet(listOf(
   "com.intellij.codeInsight.daemon.LineMarkerProvider",
   "com.intellij.openapi.fileTypes.SyntaxHighlighterFactory"
 ))
 
-private val classesToCheck = THashSet(listOf(
+private val classesToCheck = HashSet(listOf(
   "com.intellij.codeInsight.completion.CompletionContributor",
   "com.intellij.codeInsight.completion.CompletionConfidence",
   "com.intellij.psi.PsiReferenceContributor"
@@ -242,10 +258,10 @@ private val classesToCheck = THashSet(listOf(
 
 private fun isExtensionBean(aClass: UClass): Boolean {
   var found = false
-  InheritanceUtil.processSupers(aClass.javaPsi, true, Processor {
+  InheritanceUtil.processSupers(aClass.javaPsi, true) {
     val qualifiedName = it.qualifiedName
     found = (if (it.isInterface) interfacesToCheck else classesToCheck).contains(qualifiedName)
     !found
-  })
+  }
   return found
 }

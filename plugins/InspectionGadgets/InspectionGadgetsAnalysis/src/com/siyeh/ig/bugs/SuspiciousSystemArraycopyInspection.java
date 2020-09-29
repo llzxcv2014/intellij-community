@@ -15,30 +15,20 @@
  */
 package com.siyeh.ig.bugs;
 
+import com.intellij.codeInsight.PsiEquivalenceUtil;
 import com.intellij.codeInspection.dataFlow.CommonDataflow;
-import com.intellij.codeInspection.dataFlow.DfaFactType;
 import com.intellij.codeInspection.dataFlow.SpecialField;
-import com.intellij.codeInspection.dataFlow.SpecialFieldValue;
 import com.intellij.codeInspection.dataFlow.rangeSet.LongRangeSet;
+import com.intellij.codeInspection.dataFlow.types.DfIntType;
 import com.intellij.psi.*;
 import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
-import com.siyeh.ig.psiutils.ExpressionUtils;
 import com.siyeh.ig.psiutils.MethodCallUtils;
-import com.siyeh.ig.psiutils.ParenthesesUtils;
 import com.siyeh.ig.psiutils.TypeUtils;
 import org.jetbrains.annotations.NotNull;
 
-import static com.intellij.util.ObjectUtils.tryCast;
-
 public class SuspiciousSystemArraycopyInspection extends BaseInspection {
-
-  @Override
-  @NotNull
-  public String getDisplayName() {
-    return InspectionGadgetsBundle.message("suspicious.system.arraycopy.display.name");
-  }
 
   @Override
   @NotNull
@@ -122,19 +112,12 @@ public class SuspiciousSystemArraycopyInspection extends BaseInspection {
                              @NotNull PsiMethodCallExpression call) {
       CommonDataflow.DataflowResult result = CommonDataflow.getDataflowResult(src);
       if (result == null) return;
-      SpecialFieldValue srcFact = result.getExpressionFact(src, DfaFactType.SPECIAL_FIELD_VALUE);
-      if (srcFact == null) return;
-      SpecialField srcLengthField = srcFact.getField();
-      SpecialFieldValue destFact = result.getExpressionFact(dest, DfaFactType.SPECIAL_FIELD_VALUE);
-      if (destFact == null) return;
-      SpecialField destLengthField = destFact.getField();
 
-      LongRangeSet srcLengthSet = DfaFactType.RANGE.fromDfaValue(srcLengthField.extract(srcFact));
-      LongRangeSet destLengthSet = DfaFactType.RANGE.fromDfaValue(destLengthField.extract(destFact));
-      LongRangeSet srcPosSet = result.getExpressionFact(srcPos, DfaFactType.RANGE);
-      LongRangeSet destPosSet = result.getExpressionFact(destPos, DfaFactType.RANGE);
-      LongRangeSet lengthSet = result.getExpressionFact(length, DfaFactType.RANGE);
-      if (srcLengthSet == null || destLengthSet == null || srcPosSet == null || destPosSet == null || lengthSet == null) return;
+      LongRangeSet srcLengthSet = DfIntType.extractRange(SpecialField.ARRAY_LENGTH.getFromQualifier(result.getDfType(src)));
+      LongRangeSet destLengthSet = DfIntType.extractRange(SpecialField.ARRAY_LENGTH.getFromQualifier(result.getDfType(dest)));
+      LongRangeSet srcPosSet = DfIntType.extractRange(result.getDfType(srcPos));
+      LongRangeSet destPosSet = DfIntType.extractRange(result.getDfType(destPos));
+      LongRangeSet lengthSet = DfIntType.extractRange(result.getDfType(length));
       LongRangeSet srcPossibleLengthToCopy = srcLengthSet.minus(srcPosSet, false);
       LongRangeSet destPossibleLengthToCopy = destLengthSet.minus(destPosSet, false);
       long lengthMin = lengthSet.min();
@@ -149,10 +132,9 @@ public class SuspiciousSystemArraycopyInspection extends BaseInspection {
         return;
       }
 
-      if (!isTheSameArray(src, dest)) return;
+      if (!PsiEquivalenceUtil.areElementsEquivalent(src, dest)) return;
       LongRangeSet srcRange = getDefiniteRange(srcPosSet, lengthSet);
       LongRangeSet destRange = getDefiniteRange(destPosSet, lengthSet);
-      if (srcRange == null || destRange == null) return;
       if (srcRange.intersects(destRange)) {
         PsiElement name = call.getMethodExpression().getReferenceNameElement();
         PsiElement elementToHighlight = name == null ? call : name;
@@ -161,23 +143,13 @@ public class SuspiciousSystemArraycopyInspection extends BaseInspection {
       }
     }
 
+    @NotNull
     private static LongRangeSet getDefiniteRange(@NotNull LongRangeSet startSet, @NotNull LongRangeSet lengthSet) {
       long maxLeftBorder = startSet.max();
       LongRangeSet lengthMinusOne = lengthSet.minus(LongRangeSet.point(1), false);
       long minRightBorder = startSet.plus(lengthMinusOne, false).min();
-      if (maxLeftBorder > minRightBorder) return null;
+      if (maxLeftBorder > minRightBorder) return LongRangeSet.empty();
       return LongRangeSet.range(maxLeftBorder, minRightBorder);
-    }
-
-    private static boolean isTheSameArray(@NotNull PsiExpression src,
-                                          @NotNull PsiExpression dest) {
-      PsiReferenceExpression srcReference = tryCast(ParenthesesUtils.stripParentheses(src), PsiReferenceExpression.class);
-      PsiReferenceExpression destReference = tryCast(ParenthesesUtils.stripParentheses(dest), PsiReferenceExpression.class);
-      if (srcReference == null || destReference == null) return false;
-      PsiElement srcVariable = srcReference.resolve();
-      PsiElement destVariable = destReference.resolve();
-      if (srcVariable == null || srcVariable != destVariable) return false;
-      return true;
     }
   }
 }

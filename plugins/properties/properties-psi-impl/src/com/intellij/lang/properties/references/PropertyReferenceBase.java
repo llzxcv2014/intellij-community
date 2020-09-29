@@ -2,13 +2,13 @@
 package com.intellij.lang.properties.references;
 
 import com.intellij.codeInsight.daemon.EmptyResolveMessageProvider;
+import com.intellij.codeInspection.util.InspectionMessage;
 import com.intellij.lang.properties.IProperty;
 import com.intellij.lang.properties.PropertiesBundle;
 import com.intellij.lang.properties.PropertiesImplUtil;
 import com.intellij.lang.properties.psi.PropertiesFile;
 import com.intellij.lang.properties.xml.XmlPropertiesFileImpl;
 import com.intellij.lang.properties.xml.XmlProperty;
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.pom.PomTargetPsiElement;
@@ -24,11 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-/**
- * @author nik
- */
 public abstract class PropertyReferenceBase implements PsiPolyVariantReference, EmptyResolveMessageProvider {
-  private static final Logger LOG = Logger.getInstance(PropertyReferenceBase.class);
+
   protected final String myKey;
   protected final PsiElement myElement;
   protected boolean mySoft;
@@ -122,14 +119,14 @@ public abstract class PropertyReferenceBase implements PsiPolyVariantReference, 
   }
 
   @Override
+  @InspectionMessage
   @NotNull
   public String getUnresolvedMessagePattern() {
     return PropertiesBundle.message("unresolved.property.key");
   }
 
   @Override
-  @NotNull
-  public ResolveResult[] multiResolve(final boolean incompleteCode) {
+  public ResolveResult @NotNull [] multiResolve(final boolean incompleteCode) {
     final String key = getKeyText();
 
     List<IProperty> properties;
@@ -152,8 +149,7 @@ public abstract class PropertyReferenceBase implements PsiPolyVariantReference, 
     return getResolveResults(properties);
   }
 
-  @NotNull
-  private static ResolveResult[] getResolveResults(List<? extends IProperty> properties) {
+  private static ResolveResult @NotNull [] getResolveResults(List<? extends IProperty> properties) {
     if (properties.isEmpty()) return ResolveResult.EMPTY_ARRAY;
 
     final ResolveResult[] results = new ResolveResult[properties.size()];
@@ -179,5 +175,10 @@ public abstract class PropertyReferenceBase implements PsiPolyVariantReference, 
       return PropertiesImplUtil.isPropertiesFile(element.getContainingFile());
     }
     return false;
+  }
+
+  public static boolean isPropertyPsi(@NotNull PsiElement target) {
+    return target instanceof IProperty ||
+           target instanceof PomTargetPsiElement && ((PomTargetPsiElement)target).getTarget() instanceof IProperty;
   }
 }

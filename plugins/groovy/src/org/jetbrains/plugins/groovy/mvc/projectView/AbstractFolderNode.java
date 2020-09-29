@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.mvc.projectView;
 
 import com.intellij.ide.IconProvider;
@@ -10,12 +10,14 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyFile;
@@ -30,11 +32,11 @@ import java.util.List;
  * @author Dmitry Krasilschikov
  */
 public class AbstractFolderNode extends AbstractMvcPsiNodeDescriptor {
-  private final String myPresentableText;
+  private final @Nls String myPresentableText;
 
   protected AbstractFolderNode(@NotNull final Module module,
                                @NotNull final PsiDirectory directory,
-                               @NotNull String presentableText,
+                               @Nls @NotNull String presentableText,
                                final ViewSettings viewSettings, int weight) {
     super(module, viewSettings, directory, weight);
     myPresentableText = presentableText;
@@ -55,14 +57,14 @@ public class AbstractFolderNode extends AbstractMvcPsiNodeDescriptor {
 
   @Override
   @Nullable
-  protected Collection<AbstractTreeNode> getChildrenImpl() {
+  protected Collection<AbstractTreeNode<?>> getChildrenImpl() {
     final PsiDirectory directory = getPsiDirectory();
     if (!directory.isValid()) {
       return Collections.emptyList();
     }
 
     // scan folder's children
-    final List<AbstractTreeNode> children =
+    final List<AbstractTreeNode<?>> children =
       ContainerUtil.map(directory.getSubdirectories(), this::createFolderNode);
 
     for (PsiFile file : directory.getFiles()) {
@@ -75,7 +77,7 @@ public class AbstractFolderNode extends AbstractMvcPsiNodeDescriptor {
   private AbstractFolderNode createFolderNode(PsiDirectory directory) {
     PsiDirectory realDirectory = directory;
 
-    StringBuilder textBuilder = null;
+    @NlsSafe StringBuilder textBuilder = null;
 
     if (getSettings().isHideEmptyMiddlePackages()) {
       do {
@@ -99,7 +101,7 @@ public class AbstractFolderNode extends AbstractMvcPsiNodeDescriptor {
 
     return new AbstractFolderNode(getModule(), realDirectory, presentableText, getSettings(), FOLDER) {
       @Override
-      protected void processNotDirectoryFile(List<AbstractTreeNode> nodes, PsiFile file) {
+      protected void processNotDirectoryFile(List<AbstractTreeNode<?>> nodes, PsiFile file) {
         AbstractFolderNode.this.processNotDirectoryFile(nodes, file);
       }
 
@@ -147,7 +149,7 @@ public class AbstractFolderNode extends AbstractMvcPsiNodeDescriptor {
     return ModuleRootManager.getInstance(module).getFileIndex().isInContent(file);
   }
 
-  protected void processNotDirectoryFile(final List<AbstractTreeNode> nodes, final PsiFile file) {
+  protected void processNotDirectoryFile(final List<AbstractTreeNode<?>> nodes, final PsiFile file) {
     if (file instanceof GroovyFile) {
       final GrTypeDefinition[] definitions = ((GroovyFile)file).getTypeDefinitions();
       if (definitions.length > 0) {

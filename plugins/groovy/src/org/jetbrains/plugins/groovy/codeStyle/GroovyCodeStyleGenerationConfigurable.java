@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.codeStyle;
 
 import com.intellij.application.options.codeStyle.CommenterForm;
@@ -13,10 +13,13 @@ import com.intellij.util.ui.JBInsets;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.PropertyKey;
 import org.jetbrains.plugins.groovy.GroovyLanguage;
 
 import javax.swing.*;
 import java.util.*;
+
+import static org.jetbrains.annotations.Nls.Capitalization.Sentence;
 
 public class GroovyCodeStyleGenerationConfigurable implements CodeStyleConfigurable {
   private final CodeStyleSettings mySettings;
@@ -80,9 +83,9 @@ public class GroovyCodeStyleGenerationConfigurable implements CodeStyleConfigura
 
     private static abstract class PropertyManager {
 
-      public final String myName;
+      public final @Nls(capitalization = Sentence) String myName;
 
-      protected PropertyManager(String nameKey) {
+      protected PropertyManager(@PropertyKey(resourceBundle = ApplicationBundle.BUNDLE) String nameKey) {
         myName = ApplicationBundle.message(nameKey);
       }
 
@@ -90,7 +93,7 @@ public class GroovyCodeStyleGenerationConfigurable implements CodeStyleConfigura
       abstract int getValue(CodeStyleSettings settings);
     }
 
-    private static final Map<String, PropertyManager> PROPERTIES = new HashMap<>();
+    private static final Map<@Nls(capitalization = Sentence) String, PropertyManager> PROPERTIES = new HashMap<>();
     static {
       init();
     }
@@ -105,7 +108,7 @@ public class GroovyCodeStyleGenerationConfigurable implements CodeStyleConfigura
 
     public void reset(final CodeStyleSettings settings) {
       myModel.removeAllElements();
-      for (String string : getPropertyNames(settings)) {
+      for (var string : getPropertyNames(settings)) {
         myModel.addElement(string);
       }
 
@@ -184,9 +187,9 @@ public class GroovyCodeStyleGenerationConfigurable implements CodeStyleConfigura
       PROPERTIES.put(innerClassManager.myName, innerClassManager);
     }
 
-    private static Iterable<String> getPropertyNames(final CodeStyleSettings settings) {
+    private static Iterable<@Nls(capitalization = Sentence) String> getPropertyNames(final CodeStyleSettings settings) {
       List<String> result = new ArrayList<>(PROPERTIES.keySet());
-      Collections.sort(result, new Comparator<String>() {
+      result.sort(new Comparator<String>() {
         @Override
         public int compare(String o1, String o2) {
           int weight1 = getWeight(o1);

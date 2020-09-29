@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.structuralsearch;
 
 import com.intellij.openapi.project.Project;
@@ -52,10 +52,10 @@ public class JavaReplaceHandler extends StructuralReplaceHandler {
     if (element instanceof PsiParameter || element instanceof PsiClass) {
       return true;
     }
-     final PsiElement parent = element.getParent();
+    final PsiElement parent = element.getParent();
 
     return (parent instanceof PsiExpressionList && !parent.getClass().getSimpleName().startsWith("Jsp")) ||
-           parent instanceof PsiCodeBlock ||
+           parent instanceof PsiCodeBlock || parent instanceof PsiCodeFragment ||
            parent instanceof PsiClass ||
            parent instanceof PsiIfStatement && (((PsiIfStatement)parent).getThenBranch() == element ||
                                                 ((PsiIfStatement)parent).getElseBranch() == element) ||
@@ -353,9 +353,13 @@ public class JavaReplaceHandler extends StructuralReplaceHandler {
     if (originalModifierList == null || queryModifierList == null || replacementModifierList == null) {
       return;
     }
+    if (queryModifierList.getTextLength() == 0 && replacementModifierList.getTextLength() == 0) {
+      replacementModifierList.replace(originalModifierList);
+      return;
+    }
     final List<? extends PsiElement> unmatchedAnnotations = originalModifierList.getUserData(GlobalMatchingVisitor.UNMATCHED_ELEMENTS_KEY);
     final PsiElement anchor = replacementModifierList.getFirstChild();
-    boolean append = (anchor == null);
+    boolean append = anchor == null;
     PsiElement child = originalModifierList.getFirstChild();
     while (child != null) {
       if (child instanceof PsiKeyword) {
@@ -413,7 +417,7 @@ public class JavaReplaceHandler extends StructuralReplaceHandler {
   }
 
   @Override
-  public void replace(final ReplacementInfo info, ReplaceOptions options) {
+  public void replace(final @NotNull ReplacementInfo info, @NotNull ReplaceOptions options) {
     final PsiElement elementToReplace = StructuralSearchUtil.getPresentableElement(info.getMatch(0));
     if (elementToReplace == null) {
       return;
@@ -685,7 +689,7 @@ public class JavaReplaceHandler extends StructuralReplaceHandler {
   }
 
   @Override
-  public void postProcess(PsiElement affectedElement, ReplaceOptions options) {
+  public void postProcess(@NotNull PsiElement affectedElement, @NotNull ReplaceOptions options) {
     if (!affectedElement.isValid()) {
       return;
     }

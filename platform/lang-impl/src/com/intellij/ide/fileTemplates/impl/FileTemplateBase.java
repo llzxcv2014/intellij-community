@@ -22,6 +22,7 @@ import com.intellij.openapi.fileTypes.ex.FileTypeManagerEx;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import org.apache.velocity.runtime.parser.ParseException;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,6 +41,7 @@ public abstract class FileTemplateBase implements FileTemplate {
   private boolean myShouldReformatCode = DEFAULT_REFORMAT_CODE_VALUE;
   private boolean myLiveTemplateEnabled;
   private boolean myLiveTemplateEnabledChanged;
+  private String myFileName = "";
 
   @Override
   public final boolean isReformatCode() {
@@ -57,7 +59,7 @@ public abstract class FileTemplateBase implements FileTemplate {
   }
 
   @NotNull
-  public static String getQualifiedName(@NotNull String name, @NotNull String extension) {
+  public static String getQualifiedName(@NonNls @NotNull String name, @NonNls @NotNull String extension) {
     return FTManager.encodeFileName(name, extension);
   }
 
@@ -97,8 +99,7 @@ public abstract class FileTemplateBase implements FileTemplate {
   }
 
   @Override
-  @NotNull
-  public final String[] getUnsetAttributes(@NotNull Properties properties, @NotNull Project project) throws ParseException {
+  public final String @NotNull [] getUnsetAttributes(@NotNull Properties properties, @NotNull Project project) throws ParseException {
     return FileTemplateUtil.calculateAttributes(getText(), properties, false, project);
   }
 
@@ -134,4 +135,14 @@ public abstract class FileTemplateBase implements FileTemplate {
   }
 
   public boolean isLiveTemplateEnabledByDefault() { return false; }
+
+  @Override
+  public @NotNull String getFileName() {
+    return myFileName;
+  }
+
+  @Override
+  public void setFileName(@NotNull String fileName) {
+    myFileName = fileName;
+  }
 }

@@ -6,10 +6,12 @@ import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.codeInspection.actions.RunInspectionAction;
 import com.intellij.codeInspection.ex.InspectionProfileImpl;
 import com.intellij.codeInspection.ex.InspectionToolWrapper;
+import com.intellij.codeInspection.util.InspectionMessage;
 import com.intellij.diagnostic.PluginException;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.profile.codeInspection.InspectionProjectProfileManager;
 import com.intellij.profile.codeInspection.ui.SingleInspectionProfilePanel;
 import com.intellij.ui.ClickListener;
@@ -48,13 +50,13 @@ public class InspectionNodeInfo extends JPanel {
     JPanel titlePanel = new JPanel();
     titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.LINE_AXIS));
     JBLabelDecorator label = JBLabelDecorator.createJBLabelDecorator().setBold(true);
-    label.setText(toolWrapper.getDisplayName() + " inspection");
+    label.setText(InspectionsBundle.message("inspection.node.text", toolWrapper.getDisplayName()));
     titlePanel.add(label);
     titlePanel.add(Box.createHorizontalStrut(JBUIScale.scale(16)));
     if (!enabled) {
       JBLabel enabledLabel = new JBLabel();
       enabledLabel.setForeground(JBColor.GRAY);
-      enabledLabel.setText("Disabled");
+      enabledLabel.setText(InspectionsBundle.message("inspection.node.disabled.state"));
       titlePanel.add(enabledLabel);
     }
 
@@ -87,7 +89,12 @@ public class InspectionNodeInfo extends JPanel {
 
     JButton enableButton = null;
     if (currentProfile.getSingleTool() != null) {
-      enableButton = new JButton((enabled ? "Disable" : "Enable") + " inspection");
+      if (enabled) {
+        enableButton = new JButton(InspectionsBundle.message("disable.inspection.btn.text"));
+      }
+      else {
+        enableButton = new JButton(InspectionsBundle.message("enable.inspection.btn.text"));
+      }
       new ClickListener() {
         @Override
         public boolean onClick(@NotNull MouseEvent event, int clickCount) {
@@ -102,7 +109,7 @@ public class InspectionNodeInfo extends JPanel {
     new ClickListener() {
       @Override
       public boolean onClick(@NotNull MouseEvent event, int clickCount) {
-        RunInspectionAction.runInspection(project, toolWrapper.getShortName(), null, null, null);
+        RunInspectionAction.runInspection(project, toolWrapper.getShortName(), VirtualFile.EMPTY_ARRAY, null, null);
         return true;
       }
     }.installOn(runInspectionOnButton);
@@ -121,7 +128,7 @@ public class InspectionNodeInfo extends JPanel {
 
   }
 
-  public static String stripUIRefsFromInspectionDescription(@NotNull String description) {
+  public static @InspectionMessage String stripUIRefsFromInspectionDescription(@InspectionMessage @NotNull String description) {
     final int descriptionEnd = description.indexOf("<!-- tooltip end -->");
     if (descriptionEnd < 0) {
       final Pattern pattern = Pattern.compile(".*Use.*(the (panel|checkbox|checkboxes|field|button|controls).*below).*", Pattern.DOTALL);

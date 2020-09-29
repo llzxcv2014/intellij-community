@@ -1,18 +1,4 @@
-/*
- * Copyright 2000-2018 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.jetbrains.python.refactoring;
 
 import com.intellij.ide.fileTemplates.FileTemplate;
@@ -21,12 +7,12 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings;
+import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.ProjectScope;
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesProcessor;
 import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.util.Consumer;
 import com.intellij.util.IncorrectOperationException;
-import com.intellij.util.SystemProperties;
 import com.intellij.util.containers.ContainerUtil;
 import com.jetbrains.python.PythonTestUtil;
 import com.jetbrains.python.codeInsight.PyCodeInsightSettings;
@@ -52,25 +38,6 @@ import static com.jetbrains.python.refactoring.move.moduleMembers.PyMoveModuleMe
  * @author vlan
  */
 public class PyMoveTest extends PyTestCase {
-  @Override
-  protected void setUp() throws Exception {
-    super.setUp();
-    SystemProperties.setTestUserName("user1");
-  }
-
-  @Override
-  protected void tearDown() throws Exception {
-    try {
-      SystemProperties.setTestUserName(null);
-    }
-    catch (Throwable e) {
-      addSuppressedException(e);
-    }
-    finally {
-      super.tearDown();
-    }
-  }
-
   public void testFunction() {
     doMoveSymbolTest("f", "b.py");
   }
@@ -442,6 +409,13 @@ public class PyMoveTest extends PyTestCase {
     });
   }
 
+  // PY-23968
+  public void testUpdatingNamesInFromImportsRespectsOrder() {
+    getPythonCodeStyleSettings().OPTIMIZE_IMPORTS_SORT_IMPORTS = true;
+    getPythonCodeStyleSettings().OPTIMIZE_IMPORTS_SORT_NAMES_IN_FROM_IMPORTS = true;
+    doMoveSymbolTest("func", "dst.py");
+  }
+
   private void doComparingDirectories(@NotNull Consumer<VirtualFile> testDirConsumer) {
     final String root = "/refactoring/move/" + getTestName(true);
     final String rootBefore = root + "/before/src";
@@ -483,7 +457,7 @@ public class PyMoveTest extends PyTestCase {
     doComparingDirectories(testDir -> moveSymbols(testDir, toFileName, symbolNames));
   }
 
-  private void moveSymbols(@NotNull VirtualFile testDir, @NotNull String toFileName, @NotNull String... symbolNames) {
+  private void moveSymbols(@NotNull VirtualFile testDir, @NotNull String toFileName, String @NotNull ... symbolNames) {
     final PsiNamedElement[] symbols = ContainerUtil.map2Array(symbolNames, PsiNamedElement.class, name -> {
       final PsiNamedElement found = findFirstNamedElement(name);
       assertNotNull("Symbol '" + name + "' does not exist", found);
@@ -503,15 +477,17 @@ public class PyMoveTest extends PyTestCase {
   @Nullable
   private PsiNamedElement findFirstNamedElement(String name) {
     final Project project = myFixture.getProject();
-    final Collection<PyClass> classes = PyClassNameIndex.find(name, project, false);
+    final GlobalSearchScope scope = ProjectScope.getProjectScope(project);
+
+    final Collection<PyClass> classes = PyClassNameIndex.find(name, project, scope);
     if (classes.size() > 0) {
       return classes.iterator().next();
     }
-    final Collection<PyFunction> functions = PyFunctionNameIndex.find(name, project);
+    final Collection<PyFunction> functions = PyFunctionNameIndex.find(name, project, scope);
     if (functions.size() > 0) {
       return functions.iterator().next();
     }
-    final Collection<PyTargetExpression> targets = PyVariableNameIndex.find(name, project, ProjectScope.getAllScope(project));
+    final Collection<PyTargetExpression> targets = PyVariableNameIndex.find(name, project, scope);
     if (targets.size() > 0) {
       return targets.iterator().next();
     }

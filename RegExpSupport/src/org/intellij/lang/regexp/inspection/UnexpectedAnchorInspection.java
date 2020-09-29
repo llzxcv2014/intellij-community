@@ -1,6 +1,4 @@
-/*
- * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.intellij.lang.regexp.inspection;
 
 import com.intellij.codeInspection.LocalInspectionTool;
@@ -10,21 +8,16 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.util.PsiTreeUtil;
+import org.intellij.lang.regexp.RegExpBundle;
+import org.intellij.lang.regexp.RegExpLanguageHosts;
+import org.intellij.lang.regexp.inspection.ShredManager.ShredInfo;
 import org.intellij.lang.regexp.psi.*;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * @author Bas Leijdekkers
  */
 public class UnexpectedAnchorInspection extends LocalInspectionTool {
-
-  @Nls
-  @NotNull
-  @Override
-  public String getDisplayName() {
-    return "Begin or end anchor in unexpected position";
-  }
 
   @NotNull
   @Override
@@ -61,19 +54,27 @@ public class UnexpectedAnchorInspection extends LocalInspectionTool {
         default:
           return;
       }
-      myHolder.registerProblem(boundary, "Anchor <code>#ref</code> in unexpected position");
+      myHolder.registerProblem(boundary, RegExpBundle.message("inspection.warning.anchor.code.ref.code.in.unexpected.position"));
     }
 
     private static boolean hasUnexpectedSibling(PsiElement element, boolean next, boolean line) {
-      PsiElement sibling = next
-                           ? PsiTreeUtil.skipSiblingsForward(element, PsiComment.class, PsiWhiteSpace.class, RegExpSetOptions.class)
-                           : PsiTreeUtil.skipSiblingsBackward(element, PsiComment.class, PsiWhiteSpace.class, RegExpSetOptions.class);
+      final PsiElement sibling = next
+                                 ? PsiTreeUtil.skipSiblingsForward(element, PsiComment.class, PsiWhiteSpace.class, RegExpSetOptions.class)
+                                 : PsiTreeUtil.skipSiblingsBackward(element, PsiComment.class, PsiWhiteSpace.class, RegExpSetOptions.class);
       if (sibling == null) {
         return false;
       }
       if (line) {
         if (sibling instanceof RegExpChar) {
           final int value = ((RegExpChar)sibling).getValue();
+          if (value == ' ') {
+            ShredManager shredManager = new ShredManager(element);
+            ShredInfo shredInfo = shredManager.getShredInfo(element.getParent().getText());
+            if (shredInfo == null || shredInfo.getHost() == null) return true;
+            if (RegExpLanguageHosts.getInstance().belongsToConditionalExpression(element, shredInfo.getHost())) {
+              return shredManager.containsCloseRealWhiteSpace(shredInfo, next);
+            }
+          }
           return value != '\n' && value != '\r';
         }
         else if (sibling instanceof RegExpSimpleClass) {

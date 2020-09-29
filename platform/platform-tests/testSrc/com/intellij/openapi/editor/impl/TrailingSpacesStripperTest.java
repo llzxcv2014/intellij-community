@@ -2,8 +2,6 @@
 package com.intellij.openapi.editor.impl;
 
 import com.intellij.openapi.application.WriteAction;
-import com.intellij.openapi.application.ex.ApplicationEx;
-import com.intellij.openapi.application.ex.ApplicationManagerEx;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -121,21 +119,6 @@ public class TrailingSpacesStripperTest extends LightPlatformCodeInsightTestCase
     checkResultByText("xxx\nZZ<caret>");
   }
 
-  public void testModifyLineAndExitApplication_ShouldStripEvenWhenCaretIsAtTheChangedLine() {
-    configureFromFileText("x.txt", "xxx        <caret>\n");
-    type(' ');
-
-    ApplicationEx application = ApplicationManagerEx.getApplicationEx();
-    application.setDisposeInProgress(true);
-    try {
-      FileDocumentManager.getInstance().saveAllDocuments();
-      checkResultByText("xxx<caret>\n");
-    }
-    finally {
-      application.setDisposeInProgress(false);
-    }
-  }
-
   public void testModifyLine_Save_MoveCaret_SaveAgain_ShouldStrip() {
     configureFromFileText("x.txt", "xxx <caret>\nyyy\n");
     type(' ');
@@ -210,6 +193,36 @@ public class TrailingSpacesStripperTest extends LightPlatformCodeInsightTestCase
     );
     checkResultByText(
       "xxx<caret>\nyyy"
+    );
+  }
+
+  public void testRemoveTrailingBlankLinesNoNewLine() {
+    EditorSettingsExternalizable settings = EditorSettingsExternalizable.getInstance();
+    settings.setRemoveTrailingBlankLines(true);
+    settings.setEnsureNewLineAtEOF(false);
+    configureFromFileText(
+      "x.txt",
+      "xxx\nyyy\n\n\n\n\n\n\n<caret>\n"
+    );
+    type(' ');
+    FileDocumentManager.getInstance().saveAllDocuments();
+    checkResultByText(
+      "xxx\nyyy<caret>"
+    );
+  }
+
+  public void testRemoveTrailingBlankLinesNewLine() {
+    EditorSettingsExternalizable settings = EditorSettingsExternalizable.getInstance();
+    settings.setRemoveTrailingBlankLines(true);
+    settings.setEnsureNewLineAtEOF(true);
+    configureFromFileText(
+      "x.txt",
+      "xxx\nyyy\n\n\n\n\n\n\n<caret>\n"
+    );
+    type(' ');
+    FileDocumentManager.getInstance().saveAllDocuments();
+    checkResultByText(
+      "xxx\nyyy<caret>\n"
     );
   }
 

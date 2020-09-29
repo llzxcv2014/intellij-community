@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.codeInspection.i18n.folding;
 
 import com.intellij.codeInsight.hint.HintManagerImpl;
@@ -15,7 +15,10 @@ import com.intellij.openapi.editor.event.*;
 import com.intellij.openapi.editor.impl.FoldingPopupManager;
 import com.intellij.openapi.keymap.KeymapUtil;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.text.HtmlBuilder;
+import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.ui.ColorUtil;
 import com.intellij.ui.HintHint;
 import com.intellij.ui.LightweightHint;
 import com.intellij.util.Alarm;
@@ -33,16 +36,14 @@ import static com.intellij.codeInsight.hint.HintManager.*;
 import static com.intellij.openapi.actionSystem.IdeActions.ACTION_EDIT_PROPERTY_VALUE;
 import static com.intellij.openapi.actionSystem.IdeActions.ACTION_EXPAND_REGION;
 
-public class EditPropertyValueTooltipManager implements EditorMouseListener, CaretListener {
+public final class EditPropertyValueTooltipManager implements EditorMouseListener, CaretListener {
   private static final Key<Boolean> INITIALIZED = Key.create("PropertyEditTooltipManager");
   private static final long TOOLTIP_DELAY_MS = 500;
 
   private final Alarm myAlarm = new Alarm();
 
   public static void initializeForDocument(@NotNull Document document) {
-    for (Editor editor : EditorFactory.getInstance().getEditors(document)) {
-      initializeForEditor(editor);
-    }
+    EditorFactory.getInstance().editors(document).forEach(EditPropertyValueTooltipManager::initializeForEditor);
   }
 
   private static void initializeForEditor(@NotNull Editor editor) {
@@ -108,9 +109,9 @@ public class EditPropertyValueTooltipManager implements EditorMouseListener, Car
     if (action == null) return null;
     String text = action.getTemplateText();
     if (text == null) return null;
-    StringBuilder b = new StringBuilder().append("<a href='").append(href).append("'>").append(text).append("</a> <span style='color:#");
-    UIUtil.appendColor(UIUtil.getContextHelpForeground(), b);
-    return b.append("'>").append(KeymapUtil.getFirstKeyboardShortcutText(action)).append("</span>").toString();
+    HtmlChunk.Element shortcut = HtmlChunk.span("color:" + ColorUtil.toHtmlColor(UIUtil.getContextHelpForeground()))
+      .addText(KeymapUtil.getFirstKeyboardShortcutText(action));
+    return new HtmlBuilder().appendLink(href, text).append(" ").append(shortcut).toString();
   }
 
   public static LightweightHint showTooltip(@NotNull Editor editor, @NotNull JComponent component, boolean tenacious) {

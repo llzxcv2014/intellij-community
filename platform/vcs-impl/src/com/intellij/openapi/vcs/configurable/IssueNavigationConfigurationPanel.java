@@ -1,4 +1,4 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.openapi.vcs.configurable;
 
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -19,7 +19,6 @@ import com.intellij.util.IconUtil;
 import com.intellij.util.ui.ColumnInfo;
 import com.intellij.util.ui.ListTableModel;
 import com.intellij.xml.util.XmlStringUtil;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -53,11 +52,13 @@ public class IssueNavigationConfigurationPanel extends JPanel implements Searcha
     super(new BorderLayout());
     myProject = project;
     myLinkTable = new JBTable();
+    myLinkTable.setShowGrid(false);
     myLinkTable.getEmptyText().setText(VcsBundle.message("issue.link.no.patterns"));
     reset();
     add(new JLabel(
-      XmlStringUtil.wrapInHtml(ApplicationNamesInfo.getInstance().getFullProductName() + " will search for the specified patterns in " +
-                               "checkin comments and link them to issues in your issue tracker:")), BorderLayout.NORTH);
+          XmlStringUtil
+            .wrapInHtml(VcsBundle.message("settings.issue.navigation.patterns", ApplicationNamesInfo.getInstance().getFullProductName()))),
+        BorderLayout.NORTH);
     add(
       ToolbarDecorator.createDecorator(myLinkTable)
         .setAddAction(new AnActionButtonRunnable() {
@@ -100,11 +101,12 @@ public class IssueNavigationConfigurationPanel extends JPanel implements Searcha
             myModel.fireTableDataChanged();
           }
         }
-      }).addExtraAction(new DumbAwareActionButton("Add JIRA Pattern", IconUtil.getAddJiraPatternIcon()) {
+      }).addExtraAction(new DumbAwareActionButton(VcsBundle.messagePointer("action.AnActionButton.text.add.jira.pattern"), IconUtil.getAddJiraPatternIcon()) {
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
-          String s = Messages.showInputDialog(IssueNavigationConfigurationPanel.this, "Enter JIRA installation URL:",
-                                              "Add JIRA Issue Navigation Pattern", Messages.getQuestionIcon());
+          String s = Messages.showInputDialog(IssueNavigationConfigurationPanel.this, VcsBundle.getString(
+            "issue.action.enter.jira.installation.url.label"),
+                                              VcsBundle.getString("issue.action.add.jira.issue.navigation.pattern.title"), Messages.getQuestionIcon());
           if (s == null) {
             return;
           }
@@ -114,11 +116,13 @@ public class IssueNavigationConfigurationPanel extends JPanel implements Searcha
           myLinks.add(new IssueNavigationLink("[A-Z]+\\-\\d+", s + "browse/$0"));
           myModel.fireTableDataChanged();
         }
-      }).addExtraAction(new DumbAwareActionButton("Add YouTrack Pattern", IconUtil.getAddYouTrackPatternIcon()) {
+      }).addExtraAction(new DumbAwareActionButton(VcsBundle.messagePointer("action.AnActionButton.text.add.youtrack.pattern"),
+                                                  IconUtil.getAddYouTrackPatternIcon()) {
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
-          String s = Messages.showInputDialog(IssueNavigationConfigurationPanel.this, "Enter YouTrack installation URL:",
-                                              "Add YouTrack Issue Navigation Pattern", Messages.getQuestionIcon());
+          String s = Messages.showInputDialog(IssueNavigationConfigurationPanel.this,
+                                              VcsBundle.getString("issue.action.enter.youtrack.installation.url.label"),
+                                              VcsBundle.getString("issue.action.add.youtrack.issue.navigation.pattern.title"), Messages.getQuestionIcon());
           if (s == null) {
             return;
           }
@@ -128,7 +132,11 @@ public class IssueNavigationConfigurationPanel extends JPanel implements Searcha
           myLinks.add(new IssueNavigationLink("[A-Z]+\\-\\d+", s + "issue/$0"));
           myModel.fireTableDataChanged();
         }
-      }).setButtonComparator("Add", "Add JIRA Pattern", "Add YouTrack Pattern", "Edit", "Remove")
+      }).setButtonComparator(VcsBundle.message("configurable.issue.link.add"),
+                             VcsBundle.message("configurable.issue.link.add.jira.pattern"),
+                             VcsBundle.message("configurable.issue.link.add.youtrack.pattern"),
+                             VcsBundle.message("configurable.issue.link.edit"),
+                             VcsBundle.message("configurable.issue.link.remove"))
         .disableUpDownActions().createPanel(), BorderLayout.CENTER);
   }
 
@@ -158,10 +166,9 @@ public class IssueNavigationConfigurationPanel extends JPanel implements Searcha
     myLinkTable.setModel(myModel);
   }
 
-    @Override
-    @Nls
+  @Override
   public String getDisplayName() {
-    return "Issue Navigation";
+    return VcsBundle.message("configurable.IssueNavigationConfigurationPanel.display.name");
   }
 
   @Override
@@ -177,6 +184,7 @@ public class IssueNavigationConfigurationPanel extends JPanel implements Searcha
 
   @Override
   public JComponent createComponent() {
+    SwingUtilities.updateComponentTreeUI(this); // TODO: create Swing components in this method (see javadoc)
     return this;
   }
 }

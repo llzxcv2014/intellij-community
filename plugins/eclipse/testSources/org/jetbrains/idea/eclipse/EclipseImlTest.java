@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.idea.eclipse;
 
 import com.intellij.application.options.ReplacePathToMacroMap;
@@ -11,7 +11,7 @@ import com.intellij.openapi.components.PathMacroManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.module.StdModuleTypes;
-import com.intellij.openapi.module.impl.ModuleManagerImpl;
+import com.intellij.openapi.module.impl.ModuleManagerEx;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ModifiableRootModel;
 import com.intellij.openapi.roots.ModuleRootManager;
@@ -45,7 +45,7 @@ public class EclipseImlTest extends JavaProjectTestCase {
     assertTrue(currentTestRoot.getAbsolutePath(), currentTestRoot.isDirectory());
 
     VirtualFile vTestRoot = LocalFileSystem.getInstance().findFileByIoFile(currentTestRoot);
-    copyDirContentsTo(vTestRoot, getProject().getBaseDir());
+    copyDirContentsTo(vTestRoot, getOrCreateProjectBaseDir());
   }
 
   private void doTest() throws Exception {
@@ -72,7 +72,7 @@ public class EclipseImlTest extends JavaProjectTestCase {
     }
 
     String moduleImlPath = new File(path) + File.separator + EclipseProjectFinder
-      .findProjectName(path) + ModuleManagerImpl.IML_EXTENSION;
+      .findProjectName(path) + ModuleManagerEx.IML_EXTENSION;
 
     final Element classpathElement = JDOMUtil.load(fileText);
     final Module module = WriteCommandAction.runWriteCommandAction(null, (Computable<Module>)() -> ModuleManager.getInstance(project)

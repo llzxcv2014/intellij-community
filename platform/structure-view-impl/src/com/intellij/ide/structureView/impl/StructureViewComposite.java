@@ -16,9 +16,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
-/**
- * @author cdr
- */
 public class StructureViewComposite implements StructureView {
   
   private final StructureViewDescriptor[] myStructureViews;
@@ -44,7 +41,7 @@ public class StructureViewComposite implements StructureView {
     }
   }
 
-  public StructureViewComposite(@NotNull StructureViewDescriptor... views) {
+  public StructureViewComposite(StructureViewDescriptor @NotNull ... views) {
     myStructureViews = views;
     for (StructureViewDescriptor descriptor : views) {
       Disposer.register(this, descriptor.structureView);
@@ -110,8 +107,7 @@ public class StructureViewComposite implements StructureView {
     }
   }
 
-  @NotNull
-  public StructureViewDescriptor[] getStructureViews() {
+  public StructureViewDescriptor @NotNull [] getStructureViews() {
     return myStructureViews;
   }
 
@@ -126,7 +122,7 @@ public class StructureViewComposite implements StructureView {
       @NotNull @Override public StructureViewTreeElement getRoot() { return this;} 
       @Override public Object getValue() { return null;} 
       @NotNull @Override public ItemPresentation getPresentation() { return this;} 
-      @NotNull @Override public TreeElement[] getChildren() { return EMPTY_ARRAY;} 
+      @Override public TreeElement @NotNull [] getChildren() { return EMPTY_ARRAY;} 
       @Nullable @Override public String getPresentableText() { return null;} 
       @Nullable @Override public String getLocationString() { return null;} 
       @Nullable @Override public Icon getIcon(boolean unused) { return null;} 

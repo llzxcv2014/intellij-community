@@ -1,8 +1,9 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.ui;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.ui.icons.CompositeIcon;
 import com.intellij.ui.icons.DarkIconProvider;
 import com.intellij.util.ArrayUtil;
@@ -10,15 +11,18 @@ import com.intellij.util.IconUtil;
 import com.intellij.util.ui.JBCachingScalableIcon;
 import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import static com.intellij.ui.scale.ScaleType.OBJ_SCALE;
 import static com.intellij.ui.scale.ScaleType.USR_SCALE;
 
-public class LayeredIcon extends JBCachingScalableIcon<LayeredIcon> implements DarkIconProvider, CompositeIcon {
+public class LayeredIcon extends JBCachingScalableIcon<LayeredIcon> implements DarkIconProvider, CompositeIcon, IconWithToolTip {
   private static final Logger LOG = Logger.getInstance("#com.intellij.ui.LayeredIcon");
   private final Icon[] myIcons;
   private Icon[] myScaledIcons;
@@ -44,7 +48,7 @@ public class LayeredIcon extends JBCachingScalableIcon<LayeredIcon> implements D
     myVShifts = new int[layerCount];
   }
 
-  public LayeredIcon(@NotNull Icon... icons) {
+  public LayeredIcon(Icon @NotNull ... icons) {
     this(icons.length);
     for (int i = 0; i < icons.length; i++) {
       setIcon(icons[i], i);
@@ -80,8 +84,7 @@ public class LayeredIcon extends JBCachingScalableIcon<LayeredIcon> implements D
     return icon;
   }
 
-  @NotNull
-  private Icon[] myScaledIcons() {
+  private Icon @NotNull [] myScaledIcons() {
     if (myScaledIcons != null) {
       return myScaledIcons;
     }
@@ -133,8 +136,7 @@ public class LayeredIcon extends JBCachingScalableIcon<LayeredIcon> implements D
     return myIcons.length;
   }
 
-  @NotNull
-  public Icon[] getAllLayers() {
+  public Icon @NotNull [] getAllLayers() {
     return myIcons;
   }
 
@@ -233,7 +235,10 @@ public class LayeredIcon extends JBCachingScalableIcon<LayeredIcon> implements D
   }
 
   public void setLayerEnabled(int layer, boolean enabled) {
-    myDisabledLayers[layer] = !enabled;
+    if (myDisabledLayers[layer] == enabled) {
+      myDisabledLayers[layer] = !enabled;
+      clearCachedScaledValue();
+    }
   }
 
   @Override
@@ -307,5 +312,50 @@ public class LayeredIcon extends JBCachingScalableIcon<LayeredIcon> implements D
   @Override
   public String toString() {
     return "Layered icon "+getIconWidth()+"x"+getIconHeight()+". myIcons=" + Arrays.asList(myIcons);
+  }
+
+  @Override
+  public String getToolTip(boolean composite) {
+    return combineIconTooltips(myIcons);
+  }
+
+  @Nullable
+  static @NlsContexts.Tooltip String combineIconTooltips(Icon[] icons) {
+    // If a layered icon contains only a single non-null layer and other layers are null, its tooltip is not a composite one.
+    Icon singleIcon = null;
+    for (Icon icon : icons) {
+      if (icon != null) {
+        if (singleIcon != null) {
+          @NlsContexts.Tooltip StringBuilder result = new StringBuilder();
+          Set<String> seenTooltips = new HashSet<>();
+          buildCompositeTooltip(icons, result, seenTooltips);
+          return result.toString();
+        }
+        singleIcon = icon;
+      }
+    }
+    if (singleIcon != null) {
+      return singleIcon instanceof IconWithToolTip ? ((IconWithToolTip) singleIcon).getToolTip(false) : null;
+    }
+    return null;
+  }
+
+  private static void buildCompositeTooltip(Icon[] icons, StringBuilder result, Set<String> seenTooltips) {
+    for (int i = 0; i < icons.length; i++) {
+      // first layer is the actual object (noun), other layers are modifiers (adjectives), so put first object in last position
+      Icon icon = i == icons.length - 1 ? icons[0] : icons[i + 1];
+      if (icon instanceof LayeredIcon) {
+        buildCompositeTooltip(((LayeredIcon) icon).myIcons, result, seenTooltips);
+      }
+      else if (icon instanceof IconWithToolTip) {
+        String toolTip = ((IconWithToolTip)icon).getToolTip(true);
+        if (toolTip != null && seenTooltips.add(toolTip)) {
+          if (result.length() > 0) {
+            result.append(" ");
+          }
+          result.append(toolTip);
+        }
+      }
+    }
   }
 }

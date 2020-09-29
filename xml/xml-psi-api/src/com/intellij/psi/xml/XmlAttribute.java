@@ -1,50 +1,33 @@
-/*
- * Copyright 2000-2014 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.psi.xml;
 
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiNamedElement;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.xml.XmlAttributeDescriptor;
-import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * @author Mike
- */
 public interface XmlAttribute extends XmlElement, PsiNamedElement {
   XmlAttribute[] EMPTY_ARRAY = new XmlAttribute[0];
 
   @Override
-  @NonNls
+  @NlsSafe
   @NotNull
   String getName();
 
-  @NonNls
+  @NlsSafe
   @NotNull
   String getLocalName();
 
   XmlElement getNameElement();
 
-  @NonNls
+  @NlsSafe
   @NotNull
   String getNamespace();
 
-  @NonNls
+  @NlsSafe
   @NotNull
   String getNamespacePrefix();
 
@@ -54,14 +37,12 @@ public interface XmlAttribute extends XmlElement, PsiNamedElement {
   /**
    * @return text inside XML attribute with quotes stripped off
    */
-  @Nullable
-  String getValue();
+  @Nullable @NlsSafe String getValue();
 
   /**
    * @return text inside XML attribute with quotes stripped off and XML char entities replaced with corresponding characters
    */
-  @Nullable
-  String getDisplayValue();
+  @Nullable @NlsSafe String getDisplayValue();
 
   /**
    * @param offset in string returned by {@link #getValue()} (with quotes stripped)
@@ -94,5 +75,5 @@ public interface XmlAttribute extends XmlElement, PsiNamedElement {
   @Nullable
   XmlAttributeValue getValueElement();
 
-  void setValue(@NotNull String value) throws IncorrectOperationException;
+  void setValue(@NotNull @NlsSafe String value) throws IncorrectOperationException;
 }

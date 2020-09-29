@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package git4idea.conflicts;
 
 import com.intellij.diff.merge.MergeCallback;
@@ -10,17 +10,19 @@ import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vcs.changes.VcsDirtyScopeManager;
 import com.intellij.openapi.vcs.merge.MergeData;
+import com.intellij.openapi.vcs.merge.MergeDialogCustomizer;
+import com.intellij.openapi.vcs.merge.MergeDialogCustomizer.DiffEditorTitleCustomizerList;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
-import git4idea.merge.GitDefaultMergeDialogCustomizer;
 import git4idea.merge.GitMergeUtil;
 import git4idea.repo.GitConflict;
 import git4idea.repo.GitConflict.ConflictSide;
 import git4idea.repo.GitConflict.Status;
-import git4idea.repo.GitConflictsHolder;
 import git4idea.repo.GitRepository;
 import git4idea.repo.GitRepositoryManager;
+import git4idea.status.GitStagingAreaHolder;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,11 +37,17 @@ public class GitMergeHandler {
   private static final Logger LOG = Logger.getInstance(GitMergeHandler.class);
 
   @NotNull private final Project myProject;
-  @NotNull private final GitDefaultMergeDialogCustomizer myDialogCustomizer;
+  @NotNull private final MergeDialogCustomizer myDialogCustomizer;
 
-  public GitMergeHandler(@NotNull Project project) {
+  public GitMergeHandler(@NotNull Project project, @NotNull MergeDialogCustomizer mergeDialogCustomizer) {
     myProject = project;
-    myDialogCustomizer = new GitDefaultMergeDialogCustomizer(project);
+    myDialogCustomizer = mergeDialogCustomizer;
+  }
+
+  @Nls
+  @NotNull
+  public String loadMergeDescription() {
+    return myDialogCustomizer.getMultipleFileMergeDescription(emptyList());
   }
 
   public boolean canResolveConflict(@NotNull GitConflict conflict) {
@@ -62,8 +70,10 @@ public class GitMergeHandler {
     String centerTitle = myDialogCustomizer.getCenterPanelTitle(file);
     String rightTitle = myDialogCustomizer.getRightPanelTitle(file, mergeData.LAST_REVISION_NUMBER);
 
+    DiffEditorTitleCustomizerList titleCustomizerList = myDialogCustomizer.getTitleCustomizerList(path);
+
     return new Resolver(myProject, conflict, isReversed, file, mergeData,
-                        windowTitle, Arrays.asList(leftTitle, centerTitle, rightTitle));
+                        windowTitle, Arrays.asList(leftTitle, centerTitle, rightTitle), titleCustomizerList);
   }
 
   public void acceptOneVersion(@NotNull Collection<? extends GitConflict> conflicts,
@@ -95,7 +105,7 @@ public class GitMergeHandler {
     return byRoot;
   }
 
-  public static class Resolver {
+  public static final class Resolver {
     @NotNull private final Project myProject;
     @NotNull private final GitConflict myConflict;
     private final boolean myIsReversed;
@@ -104,6 +114,7 @@ public class GitMergeHandler {
 
     @NotNull private final String myWindowTitle;
     @NotNull private final List<String> myContentTitles;
+    @NotNull private final DiffEditorTitleCustomizerList myTitleCustomizerList;
 
     private volatile boolean myIsValid = true;
 
@@ -113,7 +124,8 @@ public class GitMergeHandler {
                      @NotNull VirtualFile file,
                      @NotNull MergeData mergeData,
                      @NotNull String windowTitle,
-                     @NotNull List<String> contentTitles) {
+                     @NotNull List<String> contentTitles,
+                     @NotNull DiffEditorTitleCustomizerList titleCustomizerList) {
       myProject = project;
       myConflict = conflict;
       myIsReversed = isReversed;
@@ -121,6 +133,7 @@ public class GitMergeHandler {
       myFile = file;
       myWindowTitle = windowTitle;
       myContentTitles = contentTitles;
+      myTitleCustomizerList = titleCustomizerList;
     }
 
     @NotNull
@@ -172,17 +185,22 @@ public class GitMergeHandler {
       return myContentTitles;
     }
 
+    @NotNull
+    public DiffEditorTitleCustomizerList getTitleCustomizerList() {
+      return myTitleCustomizerList;
+    }
+
     public boolean checkIsValid() {
       if (myIsValid) {
-        GitRepository repository = GitRepositoryManager.getInstance(myProject).getRepositoryForRoot(myConflict.getRoot());
+        GitRepository repository = GitRepositoryManager.getInstance(myProject).getRepositoryForRootQuick(myConflict.getRoot());
         if (repository == null) return true;
-        myIsValid = repository.getConflictsHolder().findConflict(myConflict.getFilePath()) != null;
+        myIsValid = repository.getStagingAreaHolder().findConflict(myConflict.getFilePath()) != null;
       }
       return myIsValid;
     }
 
     public void addListener(@NotNull MergeCallback.Listener listener, @NotNull Disposable disposable) {
-      myProject.getMessageBus().connect(disposable).subscribe(GitConflictsHolder.CONFLICTS_CHANGE, (repo) -> {
+      myProject.getMessageBus().connect(disposable).subscribe(GitStagingAreaHolder.TOPIC, (repo) -> {
         if (myIsValid && myConflict.getRoot().equals(repo.getRoot())) {
           if (!checkIsValid()) {
             listener.fireConflictInvalid();

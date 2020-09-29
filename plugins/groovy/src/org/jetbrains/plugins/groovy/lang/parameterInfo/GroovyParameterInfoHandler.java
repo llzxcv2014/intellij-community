@@ -1,16 +1,17 @@
-// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.groovy.lang.parameterInfo;
 
 import com.intellij.codeInsight.CodeInsightSettings;
-import com.intellij.codeInsight.completion.JavaCompletionUtil;
-import com.intellij.codeInsight.lookup.LookupElement;
-import com.intellij.lang.parameterInfo.*;
+import com.intellij.lang.parameterInfo.CreateParameterInfoContext;
+import com.intellij.lang.parameterInfo.ParameterInfoHandlerWithTabActionSupport;
+import com.intellij.lang.parameterInfo.ParameterInfoUIContext;
+import com.intellij.lang.parameterInfo.UpdateParameterInfoContext;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.*;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.util.PsiTypesUtil;
 import com.intellij.util.ArrayUtil;
-import java.util.HashSet;
 import com.intellij.util.text.CharArrayUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -35,7 +36,6 @@ import org.jetbrains.plugins.groovy.lang.psi.impl.GrClosureType;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.TypesUtil;
 import org.jetbrains.plugins.groovy.lang.psi.util.GrInnerClassConstructorUtil;
 import org.jetbrains.plugins.groovy.lang.psi.util.PsiUtil;
-import org.jetbrains.plugins.groovy.lang.resolve.ElementResolveResult;
 import org.jetbrains.plugins.groovy.lang.resolve.ResolveUtil;
 
 import java.util.*;
@@ -46,36 +46,14 @@ import java.util.*;
 public class GroovyParameterInfoHandler implements ParameterInfoHandlerWithTabActionSupport<GroovyPsiElement, Object, GroovyPsiElement> {
   private static final Logger LOG = Logger.getInstance(GroovyParameterInfoHandler.class);
 
-  @Override
-  public boolean couldShowInLookup() {
-    return true;
-  }
-
-  private static final Set<Class> ourStopSearch = Collections.singleton(GrMethod.class);
+  private static final Set<Class<?>> ourStopSearch = Collections.singleton(GrMethod.class);
 
   @NotNull
   @Override
-  public Set<Class> getArgListStopSearchClasses() {
+  public Set<? extends Class<?>> getArgListStopSearchClasses() {
     return ourStopSearch;
   }
 
-
-  @Override
-  public Object[] getParametersForLookup(LookupElement item, ParameterInfoContext context) {
-    List<? extends PsiElement> elements = JavaCompletionUtil.getAllPsiElements(item);
-
-    if (elements != null) {
-      List<GroovyResolveResult> methods = new ArrayList<>();
-      for (PsiElement element : elements) {
-        if (element instanceof PsiMethod) {
-          methods.add(new ElementResolveResult<>(element));
-        }
-      }
-      return ArrayUtil.toObjectArray(methods);
-    }
-
-    return null;
-  }
 
   @Override
   public GroovyPsiElement findElementForParameterInfo(@NotNull CreateParameterInfoContext context) {
@@ -140,7 +118,7 @@ public class GroovyParameterInfoHandler implements ParameterInfoHandlerWithTabAc
     context.showHint(place, place.getTextRange().getStartOffset(), this);
   }
 
-  private static void addMethodAndClosureVariants(@NotNull List<Object> elementToShow, @NotNull GroovyResolveResult[] variants) {
+  private static void addMethodAndClosureVariants(@NotNull List<Object> elementToShow, GroovyResolveResult @NotNull [] variants) {
     for (GroovyResolveResult variant : variants) {
       final PsiElement element = variant.getElement();
       if (element instanceof PsiMethod) {
@@ -185,12 +163,6 @@ public class GroovyParameterInfoHandler implements ParameterInfoHandlerWithTabAc
 
   @Override
   public void updateParameterInfo(@NotNull GroovyPsiElement place, @NotNull UpdateParameterInfoContext context) {
-    final PsiElement parameterOwner = context.getParameterOwner();
-    if (parameterOwner != place) {
-      context.removeHint();
-      return;
-    }
-
     int offset = context.getEditor().getCaretModel().getOffset();
     offset = CharArrayUtil.shiftForward(context.getEditor().getDocument().getText(), offset, " \t\n");
     final int currIndex = getCurrentParameterIndex(place, offset);
@@ -438,7 +410,8 @@ public class GroovyParameterInfoHandler implements ParameterInfoHandlerWithTabAc
         buffer.append(" = ").append(initializer.getText());
       }
       else if (grParam.isOptional()) {
-        buffer.append(" = null");
+        String defaultValue = PsiTypesUtil.getDefaultValueOfType(param.getType());
+        buffer.append(" = ").append(defaultValue);
       }
     } else {
       PsiType t = param.getType();
@@ -450,9 +423,8 @@ public class GroovyParameterInfoHandler implements ParameterInfoHandlerWithTabAc
     }
   }
 
-  @NotNull
   @Override
-  public GroovyPsiElement[] getActualParameters(@NotNull GroovyPsiElement o) {
+  public GroovyPsiElement @NotNull [] getActualParameters(@NotNull GroovyPsiElement o) {
     if (o instanceof GrArgumentList) return ((GrArgumentList)o).getAllArguments();
     return GroovyPsiElement.EMPTY_ARRAY;
   }
@@ -469,11 +441,11 @@ public class GroovyParameterInfoHandler implements ParameterInfoHandlerWithTabAc
     return GroovyTokenTypes.mRPAREN;
   }
 
-  private static final Set<Class> ALLOWED_PARAM_CLASSES = Collections.singleton(GroovyPsiElement.class);
+  private static final Set<Class<?>> ALLOWED_PARAM_CLASSES = Collections.singleton(GroovyPsiElement.class);
 
   @NotNull
   @Override
-  public Set<Class> getArgumentListAllowedParentClasses() {
+  public Set<Class<?>> getArgumentListAllowedParentClasses() {
     return ALLOWED_PARAM_CLASSES;
   }
 

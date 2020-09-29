@@ -19,18 +19,26 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.containers.WeakList;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Collection;
 import java.util.Map;
 
 public class PresentationFactory {
-  private final Map<AnAction,Presentation> myAction2Presentation = ContainerUtil.createWeakMap();
+  private final Map<AnAction, Presentation> myAction2Presentation = ContainerUtil.createWeakMap();
+
+  private static final Collection<PresentationFactory> ourAllFactories = new WeakList<>();
+
+  public PresentationFactory() {
+    ourAllFactories.add(this);
+  }
 
   @NotNull
-  public final Presentation getPresentation(@NotNull AnAction action){
+  public final Presentation getPresentation(@NotNull AnAction action) {
     ApplicationManager.getApplication().assertIsDispatchThread();
     Presentation presentation = myAction2Presentation.get(action);
-    if (presentation == null || !action.isDefaultIcon()){
+    if (presentation == null || !action.isDefaultIcon()) {
       Presentation templatePresentation = action.getTemplatePresentation();
       if (presentation == null) {
         presentation = templatePresentation.clone();
@@ -45,11 +53,17 @@ public class PresentationFactory {
     return presentation;
   }
 
-  protected void processPresentation(Presentation presentation) {
+  protected void processPresentation(@NotNull Presentation presentation) {
   }
 
   public void reset() {
     ApplicationManager.getApplication().assertIsDispatchThread();
     myAction2Presentation.clear();
+  }
+
+  public static void clearPresentationCaches() {
+    for (PresentationFactory factory : ourAllFactories) {
+      factory.reset();
+    }
   }
 }

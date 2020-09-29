@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.lang.folding;
 
 import com.intellij.lang.ASTNode;
@@ -21,7 +21,7 @@ import java.util.List;
  * @author yole
  * @author Konstantin Bulenkov
  */
-public class LanguageFolding extends LanguageExtension<FoldingBuilder> {
+public final class LanguageFolding extends LanguageExtension<FoldingBuilder> {
   public static final ExtensionPointName<KeyedLazyInstance<FoldingBuilder>> EP_NAME = ExtensionPointName.create("com.intellij.lang.foldingBuilder");
   public static final LanguageFolding INSTANCE = new LanguageFolding();
 
@@ -68,11 +68,10 @@ public class LanguageFolding extends LanguageExtension<FoldingBuilder> {
     return Collections.emptyList();
   }
 
-  @NotNull
-  public static FoldingDescriptor[] buildFoldingDescriptors(@Nullable FoldingBuilder builder,
-                                                            @NotNull PsiElement root,
-                                                            @NotNull Document document,
-                                                            boolean quick) {
+  public static FoldingDescriptor @NotNull [] buildFoldingDescriptors(@Nullable FoldingBuilder builder,
+                                                                      @NotNull PsiElement root,
+                                                                      @NotNull Document document,
+                                                                      boolean quick) {
     FoldingDescriptor[] descriptors = buildFoldingDescriptorsNoPlaceholderCaching(builder, root, document, quick);
     for (FoldingDescriptor descriptor : descriptors) {
       descriptor.setPlaceholderText(descriptor.getPlaceholderText()); // cache placeholder text
@@ -80,11 +79,10 @@ public class LanguageFolding extends LanguageExtension<FoldingBuilder> {
     return descriptors;
   }
 
-  @NotNull
-  static FoldingDescriptor[] buildFoldingDescriptorsNoPlaceholderCaching(@Nullable FoldingBuilder builder,
-                                                                         @NotNull PsiElement root,
-                                                                         @NotNull Document document,
-                                                                         boolean quick) {
+  static FoldingDescriptor @NotNull [] buildFoldingDescriptorsNoPlaceholderCaching(@Nullable FoldingBuilder builder,
+                                                                                   @NotNull PsiElement root,
+                                                                                   @NotNull Document document,
+                                                                                   boolean quick) {
     try {
       if (!DumbService.isDumbAware(builder) && DumbService.getInstance(root.getProject()).isDumb()) {
         return FoldingDescriptor.EMPTY;

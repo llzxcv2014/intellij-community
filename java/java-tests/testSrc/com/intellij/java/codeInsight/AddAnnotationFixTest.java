@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.java.codeInsight;
 
 import com.intellij.codeInsight.AnnotationUtil;
@@ -35,15 +35,18 @@ import com.intellij.testFramework.PsiTestUtil;
 import com.intellij.testFramework.UsefulTestCase;
 import com.intellij.testFramework.builders.JavaModuleFixtureBuilder;
 import com.intellij.testFramework.fixtures.*;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.messages.MessageBusConnection;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -98,7 +101,7 @@ public class AddAnnotationFixTest extends UsefulTestCase {
     addLibrary("/content/anno");
   }
 
-  private void addLibrary(@NotNull final String... annotationsDirs) {
+  private void addLibrary(final String @NotNull ... annotationsDirs) {
     ApplicationManager.getApplication().runWriteAction(() -> {
       final ModifiableRootModel model = ModuleRootManager.getInstance(myFixture.getModule()).getModifiableModel();
       final LibraryTable libraryTable = model.getModuleLibraryTable();
@@ -116,7 +119,7 @@ public class AddAnnotationFixTest extends UsefulTestCase {
 
   @NotNull
   private PsiModifierListOwner getOwner() {
-    return ObjectUtils.assertNotNull(AddAnnotationPsiFix.getContainer(myFixture.getFile(), myFixture.getCaretOffset()));
+    return Objects.requireNonNull(AddAnnotationPsiFix.getContainer(myFixture.getFile(), myFixture.getCaretOffset()));
   }
 
   private void startListening(@NotNull final List<Trinity<PsiModifierListOwner, String, Boolean>> expectedSequence) {
@@ -173,7 +176,6 @@ public class AddAnnotationFixTest extends UsefulTestCase {
   }
 
   public void testAnnotateLibrary() {
-
     addDefaultLibrary();
     myFixture.configureByFiles("lib/p/TestPrimitive.java", "content/anno/p/annotations.xml");
     myFixture.configureByFiles("lib/p/Test.java");
@@ -228,7 +230,7 @@ public class AddAnnotationFixTest extends UsefulTestCase {
     assertNotAvailable("NotNull");
     assertNotAvailable("Nullable");
   }
-  
+
   public void testAvailableFixesOnReference() {
     myFixture.configureByText("Foo.java", "public class Foo {" +
                                           " {\"\".sub<caret>string(1);} " +
@@ -374,7 +376,10 @@ public class AddAnnotationFixTest extends UsefulTestCase {
     WriteCommandAction.writeCommandAction(myFixture.getProject()).run(() -> {
       VirtualFile file = LocalFileSystem.getInstance().findFileByPath(myFixture.getTempDirPath() + "/content/anno/p/annotations.xml");
       assert file != null;
-      String newText = "  " + StreamUtil.readText(file.getInputStream(), "UTF-8") + "      ";
+      String newText;
+      try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)) {
+        newText = "  " + StreamUtil.readText(reader) + "      ";
+      }
       FileUtil.writeToFile(VfsUtilCore.virtualToIoFile(file), newText);
       file.refresh(false, false);
     });

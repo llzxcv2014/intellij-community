@@ -34,6 +34,7 @@ import com.intellij.ui.SimpleColoredText;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.Consumer;
 import org.intellij.plugins.intelliLang.Configuration;
+import org.intellij.plugins.intelliLang.IntelliLangBundle;
 import org.intellij.plugins.intelliLang.inject.config.BaseInjection;
 import org.intellij.plugins.intelliLang.inject.config.ui.AbstractInjectionPanel;
 import org.intellij.plugins.intelliLang.inject.config.ui.BaseInjectionPanel;
@@ -128,13 +129,13 @@ public abstract class AbstractLanguageInjectionSupport extends LanguageInjection
     Icon icon = FileTypeManager.getInstance().getFileTypeByExtension(support.getId()).getIcon();
     AnAction action = DumbAwareAction.create(e -> {
       BaseInjection injection = new BaseInjection(support.getId());
-      injection.setDisplayName("New " + supportTitle + " Injection");
+      injection.setDisplayName(IntelliLangBundle.message("new.language.name.injection", supportTitle));
       final BaseInjection newInjection = showDefaultInjectionUI(project, injection);
       if (newInjection != null) {
         consumer.consume(injection);
       }
     });
-    action.getTemplatePresentation().setText("Generic " + supportTitle);
+    action.getTemplatePresentation().setText(IntelliLangBundle.message("action.text.generic.0", supportTitle));
     action.getTemplatePresentation().setIcon(icon);
     return action;
   }
@@ -158,7 +159,7 @@ public abstract class AbstractLanguageInjectionSupport extends LanguageInjection
     builder.addCancelAction();
     builder.setDimensionServiceKey(dimensionServiceKey);
     builder.setCenterPanel(panel.getComponent());
-    builder.setTitle(EditInjectionSettingsAction.EDIT_INJECTION_TITLE);
+    builder.setTitle(IntelliLangBundle.message("language.injection.settings.title"));
     builder.setOkOperation(() -> {
       try {
         panel.apply();
@@ -167,7 +168,7 @@ public abstract class AbstractLanguageInjectionSupport extends LanguageInjection
       catch (Exception e) {
         final Throwable cause = e.getCause();
         final String message = e.getMessage() + (cause != null? "\n  "+cause.getMessage():"");
-        Messages.showErrorDialog(project, message, "Unable to Save");
+        Messages.showErrorDialog(project, message, IntelliLangBundle.message("dialog.title.unable.to.save"));
       }
     });
     return builder.show() == DialogWrapper.OK_EXIT_CODE;

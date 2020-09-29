@@ -1,16 +1,15 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package com.intellij.util.lang;
 
 import com.intellij.openapi.diagnostic.LoggerRt;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.reference.SoftReference;
-import gnu.trove.TIntHashSet;
+import com.intellij.util.lang.fastutil.StrippedIntOpenHashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -33,21 +32,20 @@ class JarLoader extends Loader {
     pair(Resource.Attribute.IMPL_VERSION, Attributes.Name.IMPLEMENTATION_VERSION),
     pair(Resource.Attribute.IMPL_VENDOR, Attributes.Name.IMPLEMENTATION_VENDOR));
 
-  @NotNull
+  private static final String NULL_STRING = "<null>";
+
   private final String myFilePath;
   private final ClassPath myConfiguration;
-  @NotNull
   private final URL myUrl;
   private SoftReference<JarMemoryLoader> myMemoryLoader;
   private volatile SoftReference<ZipFile> myZipFileSoftReference; // Used only when myConfiguration.myCanLockJars==true
   private volatile Map<Resource.Attribute, String> myAttributes;
   private volatile String myClassPathManifestAttribute;
-  private static final String NULL_STRING = "<null>";
 
-  JarLoader(@NotNull URL url, int index, @NotNull ClassPath configuration) throws IOException {
+  JarLoader(@NotNull URL url, @NotNull String filePath, int index, @NotNull ClassPath configuration) throws IOException {
     super(new URL("jar", "", -1, url + "!/"), index);
 
-    myFilePath = urlToFilePath(url);
+    myFilePath = filePath;
     myConfiguration = configuration;
     myUrl = url;
 
@@ -79,16 +77,6 @@ class JarLoader extends Loader {
     return manifestAttribute != NULL_STRING ? manifestAttribute : null;
   }
 
-  @NotNull
-  private static String urlToFilePath(@NotNull URL url) {
-    try {
-      return new File(url.toURI()).getPath();
-    }
-    catch (Throwable ignore) { // URISyntaxException or IllegalArgumentException
-      return url.getPath();
-    }
-  }
-
   @Nullable
   private static Map<Resource.Attribute, String> getAttributes(@Nullable Attributes attributes) {
     if (attributes == null) return null;
@@ -115,8 +103,7 @@ class JarLoader extends Loader {
           Attributes manifestAttributes = myConfiguration.getManifestData(myUrl);
           if (manifestAttributes == null) {
             ZipEntry entry = zipFile.getEntry(JarFile.MANIFEST_NAME);
-            InputStream zipEntryStream = entry != null ? zipFile.getInputStream(entry) : null;
-            manifestAttributes = loadManifestAttributes(zipFile, zipEntryStream);
+            if (entry != null) manifestAttributes = loadManifestAttributes(zipFile.getInputStream(entry));
             if (manifestAttributes == null) manifestAttributes = new Attributes(0);
             myConfiguration.cacheManifestData(myUrl, manifestAttributes);
           }
@@ -136,8 +123,7 @@ class JarLoader extends Loader {
   }
 
   @Nullable
-  protected Attributes loadManifestAttributes(@NotNull ZipFile zipFile, @Nullable InputStream stream) {
-    if (stream == null) return null;
+  private static Attributes loadManifestAttributes(InputStream stream) {
     try {
       try {
         return new Manifest(stream).getMainAttributes();
@@ -157,7 +143,7 @@ class JarLoader extends Loader {
     try {
       ClasspathCache.LoaderDataBuilder loaderDataBuilder = new ClasspathCache.LoaderDataBuilder();
       Enumeration<? extends ZipEntry> entries = zipFile.entries();
-      
+
       while (entries.hasMoreElements()) {
         ZipEntry entry = entries.nextElement();
         String name = entry.getName();
@@ -179,15 +165,15 @@ class JarLoader extends Loader {
   }
 
   private final AtomicInteger myNumberOfRequests = new AtomicInteger();
-  private volatile TIntHashSet myPackageHashesInside;
+  private volatile StrippedIntOpenHashSet myPackageHashesInside;
 
-  @NotNull
-  private TIntHashSet buildPackageHashes() {
+  private @NotNull
+  StrippedIntOpenHashSet buildPackageHashes() {
     try {
       ZipFile zipFile = getZipFile();
       try {
         Enumeration<? extends ZipEntry> entries = zipFile.entries();
-        TIntHashSet result = new TIntHashSet();
+        StrippedIntOpenHashSet result = new StrippedIntOpenHashSet();
 
         while (entries.hasMoreElements()) {
           ZipEntry entry = entries.nextElement();
@@ -202,7 +188,7 @@ class JarLoader extends Loader {
     }
     catch (Exception e) {
       error("url: " + myFilePath, e);
-      return new TIntHashSet(0);
+      return new StrippedIntOpenHashSet(0);
     }
   }
 
@@ -211,7 +197,7 @@ class JarLoader extends Loader {
   Resource getResource(@NotNull String name) {
     if (myConfiguration.myLazyClassloadingCaches) {
       int numberOfHits = myNumberOfRequests.incrementAndGet();
-      TIntHashSet packagesInside = myPackageHashesInside;
+      StrippedIntOpenHashSet packagesInside = myPackageHashesInside;
 
       if (numberOfHits > ClasspathCache.NUMBER_OF_ACCESSES_FOR_LAZY_CACHING && packagesInside == null) {
         myPackageHashesInside = packagesInside = buildPackageHashes();

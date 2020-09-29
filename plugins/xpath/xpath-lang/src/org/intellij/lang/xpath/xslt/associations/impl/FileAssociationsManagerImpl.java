@@ -17,7 +17,8 @@ package org.intellij.lang.xpath.xslt.associations.impl;
 
 import com.intellij.ide.projectView.ProjectView;
 import com.intellij.openapi.Disposable;
-import com.intellij.openapi.components.NamedComponent;
+import com.intellij.openapi.components.State;
+import com.intellij.openapi.components.Storage;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
@@ -33,12 +34,11 @@ import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiUtilCore;
 import org.intellij.lang.xpath.xslt.associations.FileAssociationsManager;
 import org.jdom.Element;
-import org.jetbrains.annotations.NonNls;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
-final class FileAssociationsManagerImpl extends FileAssociationsManager implements Disposable, JDOMExternalizable, NamedComponent {
+@State(name = "XSLT-Support.FileAssociationsManager", storages = @Storage("other.xml"))
+final class FileAssociationsManagerImpl extends FileAssociationsManager implements Disposable, JDOMExternalizable {
   private static final Logger LOG = Logger.getInstance(FileAssociationsManagerImpl.class);
 
   private final Project myProject;
@@ -61,8 +61,8 @@ final class FileAssociationsManagerImpl extends FileAssociationsManager implemen
     for (Element child : children) {
       final String url = child.getAttributeValue("url");
       if (url != null) {
-        final VirtualFilePointer pointer = filePointerManager.create(url, myProject, null);
-        final VirtualFilePointerContainer container = filePointerManager.createContainer(myProject);
+        final VirtualFilePointer pointer = filePointerManager.create(url, this, null);
+        final VirtualFilePointerContainer container = filePointerManager.createContainer(this);
         container.readExternal(child, "association", false);
         myAssociations.put(pointer, container);
       }
@@ -82,13 +82,6 @@ final class FileAssociationsManagerImpl extends FileAssociationsManager implemen
 
   public TransactionalManager getTempManager() {
     return new TempManager(this, myProject);
-  }
-
-  @Override
-  @NotNull
-  @NonNls
-  public String getComponentName() {
-    return "XSLT-Support.FileAssociationsManager";
   }
 
   @Override
@@ -126,9 +119,9 @@ final class FileAssociationsManagerImpl extends FileAssociationsManager implemen
     final Set<VirtualFilePointer> virtualFilePointers = other.myAssociations.keySet();
     VirtualFilePointerManager filePointerManager = VirtualFilePointerManager.getInstance();
     for (VirtualFilePointer pointer : virtualFilePointers) {
-      final VirtualFilePointerContainer container = filePointerManager.createContainer(other.myProject);
+      final VirtualFilePointerContainer container = filePointerManager.createContainer(other);
       container.addAll(other.myAssociations.get(pointer));
-      hashMap.put(filePointerManager.duplicate(pointer, other.myProject, null), container);
+      hashMap.put(filePointerManager.duplicate(pointer, other, null), container);
     }
     return hashMap;
   }
@@ -194,7 +187,7 @@ final class FileAssociationsManagerImpl extends FileAssociationsManager implemen
       if (pointer.getUrl().equals(virtualFile.getUrl())) {
         VirtualFilePointerContainer container = myAssociations.get(pointer);
         if (container == null) {
-          container = filePointerManager.createContainer(myProject);
+          container = filePointerManager.createContainer(this);
           myAssociations.put(pointer, container);
         }
         if (container.findByUrl(assoc.getUrl()) == null) {
@@ -204,9 +197,9 @@ final class FileAssociationsManagerImpl extends FileAssociationsManager implemen
         return;
       }
     }
-    final VirtualFilePointerContainer container = filePointerManager.createContainer(myProject);
+    final VirtualFilePointerContainer container = filePointerManager.createContainer(this);
     container.add(assoc);
-    myAssociations.put(filePointerManager.create(virtualFile, myProject, null), container);
+    myAssociations.put(filePointerManager.create(virtualFile, this, null), container);
     touch();
   }
 

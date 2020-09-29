@@ -1,7 +1,6 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.terminal;
 
-import com.google.common.collect.Lists;
 import com.intellij.execution.configuration.EnvironmentVariablesTextFieldWithBrowseButton;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
@@ -13,6 +12,7 @@ import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.ui.TextComponentAccessor;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.NlsSafe;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.IdeBorderFactory;
@@ -31,12 +31,10 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-/**
- * @author traff
- */
 public class TerminalSettingsPanel {
   private JPanel myWholePanel;
   private TextFieldWithBrowseButton myShellPathField;
@@ -61,14 +59,14 @@ public class TerminalSettingsPanel {
   private TerminalOptionsProvider myOptionsProvider;
   private TerminalProjectOptionsProvider myProjectOptionsProvider;
 
-  private final java.util.List<UnnamedConfigurable> myConfigurables = Lists.newArrayList();
+  private final java.util.List<UnnamedConfigurable> myConfigurables = new ArrayList<>();
 
   public JComponent createPanel(@NotNull TerminalOptionsProvider provider, @NotNull TerminalProjectOptionsProvider projectOptionsProvider) {
     myOptionsProvider = provider;
     myProjectOptionsProvider = projectOptionsProvider;
 
-    myProjectSettingsPanel.setBorder(IdeBorderFactory.createTitledBorder("Project settings"));
-    myGlobalSettingsPanel.setBorder(IdeBorderFactory.createTitledBorder("Application settings"));
+    myProjectSettingsPanel.setBorder(IdeBorderFactory.createTitledBorder(TerminalBundle.message("settings.terminal.project.settings")));
+    myGlobalSettingsPanel.setBorder(IdeBorderFactory.createTitledBorder(TerminalBundle.message("settings.terminal.application.settings")));
 
     configureShellPathField();
     configureStartDirectoryField();
@@ -104,7 +102,7 @@ public class TerminalSettingsPanel {
   private void configureStartDirectoryField() {
     myStartDirectoryField.addBrowseFolderListener(
       "",
-      "Starting directory",
+      TerminalBundle.message("settings.start.directory.browseFolder.description"),
       null,
       FileChooserDescriptorFactory.createSingleFolderDescriptor(),
       TextComponentAccessor.TEXT_FIELD_WHOLE_TEXT
@@ -115,15 +113,15 @@ public class TerminalSettingsPanel {
   private void configureShellPathField() {
     myShellPathField.addBrowseFolderListener(
       "",
-      "Shell executable path",
+      TerminalBundle.message("settings.terminal.shell.executable.path.browseFolder.description"),
       null,
       FileChooserDescriptorFactory.createSingleFileNoJarsDescriptor(),
       TextComponentAccessor.TEXT_FIELD_WHOLE_TEXT
     );
-    setupTextFieldDefaultValue(myShellPathField.getTextField(), () -> myOptionsProvider.defaultShellPath());
+    setupTextFieldDefaultValue(myShellPathField.getTextField(), () -> myProjectOptionsProvider.defaultShellPath());
   }
 
-  private void setupTextFieldDefaultValue(@NotNull JTextField textField, @NotNull Supplier<String> defaultValueSupplier) {
+  private void setupTextFieldDefaultValue(@NotNull JTextField textField, @NotNull Supplier<@NlsSafe String> defaultValueSupplier) {
     String defaultShellPath = defaultValueSupplier.get();
     if (StringUtil.isEmptyOrSpaces(defaultShellPath)) return;
     textField.getDocument().addDocumentListener(new DocumentAdapter() {
@@ -138,10 +136,9 @@ public class TerminalSettingsPanel {
   }
 
   public boolean isModified() {
-    return !Comparing.equal(TerminalOptionsProvider.getInstance().getEffectiveShellPath(myShellPathField.getText()),
-                            myOptionsProvider.getShellPath())
-           || !Comparing.equal(myStartDirectoryField.getText(), StringUtil.notNullize(myProjectOptionsProvider.getStartingDirectory()))
-           || !Comparing.equal(myTabNameTextField.getText(), myOptionsProvider.getTabName())
+    return !Objects.equals(myShellPathField.getText(), myProjectOptionsProvider.getShellPath())
+           || !Objects.equals(myStartDirectoryField.getText(), StringUtil.notNullize(myProjectOptionsProvider.getStartingDirectory()))
+           || !Objects.equals(myTabNameTextField.getText(), myOptionsProvider.getTabName())
            || (myCloseSessionCheckBox.isSelected() != myOptionsProvider.closeSessionOnLogout())
            || (myMouseReportCheckBox.isSelected() != myOptionsProvider.enableMouseReporting())
            || (mySoundBellCheckBox.isSelected() != myOptionsProvider.audibleBell())
@@ -156,7 +153,7 @@ public class TerminalSettingsPanel {
 
   public void apply() {
     myProjectOptionsProvider.setStartingDirectory(myStartDirectoryField.getText());
-    myOptionsProvider.setShellPath(myShellPathField.getText());
+    myProjectOptionsProvider.setShellPath(myShellPathField.getText());
     myOptionsProvider.setTabName(myTabNameTextField.getText());
     myOptionsProvider.setCloseSessionOnLogout(myCloseSessionCheckBox.isSelected());
     myOptionsProvider.setReportMouse(myMouseReportCheckBox.isSelected());
@@ -178,7 +175,7 @@ public class TerminalSettingsPanel {
   }
 
   public void reset() {
-    myShellPathField.setText(myOptionsProvider.getShellPath());
+    myShellPathField.setText(myProjectOptionsProvider.getShellPath());
     myStartDirectoryField.setText(myProjectOptionsProvider.getStartingDirectory());
     myTabNameTextField.setText(myOptionsProvider.getTabName());
     myCloseSessionCheckBox.setSelected(myOptionsProvider.closeSessionOnLogout());

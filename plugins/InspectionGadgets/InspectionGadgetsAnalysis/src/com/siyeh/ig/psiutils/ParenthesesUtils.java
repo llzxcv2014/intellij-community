@@ -18,11 +18,12 @@ package com.siyeh.ig.psiutils;
 import com.intellij.psi.*;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiPrecedenceUtil;
+import com.intellij.psi.util.PsiUtil;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class ParenthesesUtils {
+public final class ParenthesesUtils {
 
   public static final int METHOD_CALL_PRECEDENCE = PsiPrecedenceUtil.METHOD_CALL_PRECEDENCE;
   public static final int POSTFIX_PRECEDENCE = PsiPrecedenceUtil.POSTFIX_PRECEDENCE;
@@ -39,7 +40,7 @@ public class ParenthesesUtils {
   public static final int CONDITIONAL_PRECEDENCE = PsiPrecedenceUtil.CONDITIONAL_PRECEDENCE;
   public static final int ASSIGNMENT_PRECEDENCE = PsiPrecedenceUtil.ASSIGNMENT_PRECEDENCE;
   public static final int NUM_PRECEDENCES = PsiPrecedenceUtil.NUM_PRECEDENCES;
-  
+
   private ParenthesesUtils() {}
 
   public static boolean isCommutativeOperator(@NotNull IElementType token) {
@@ -49,15 +50,15 @@ public class ParenthesesUtils {
   public static boolean isCommutativeOperation(PsiPolyadicExpression expression) {
     return PsiPrecedenceUtil.isCommutativeOperation(expression);
   }
-  
+
   public static boolean isAssociativeOperation(PsiPolyadicExpression expression) {
     return PsiPrecedenceUtil.isAssociativeOperation(expression);
   }
-  
+
   public static int getPrecedence(PsiExpression expression) {
     return PsiPrecedenceUtil.getPrecedence(expression);
   }
-  
+
   public static int getPrecedenceForOperator(@NotNull IElementType operator) {
     return PsiPrecedenceUtil.getPrecedenceForOperator(operator);
   }
@@ -66,7 +67,7 @@ public class ParenthesesUtils {
     return PsiPrecedenceUtil.areParenthesesNeeded(expression, ignoreClarifyingParentheses);
   }
 
-  public static boolean areParenthesesNeeded(PsiExpression expression, 
+  public static boolean areParenthesesNeeded(PsiExpression expression,
                                              PsiExpression parentExpression,
                                              boolean ignoreClarifyingParentheses) {
     return PsiPrecedenceUtil.areParenthesesNeeded(expression, parentExpression, ignoreClarifyingParentheses);
@@ -91,14 +92,14 @@ public class ParenthesesUtils {
     return parent;
   }
 
+  /**
+   * @deprecated use {@link PsiUtil#skipParenthesizedExprDown(PsiExpression)} directly instead
+   */
+  @Deprecated
   @Contract("null -> null")
   @Nullable
   public static PsiExpression stripParentheses(@Nullable PsiExpression expression) {
-    while (expression instanceof PsiParenthesizedExpression) {
-      final PsiParenthesizedExpression parenthesizedExpression = (PsiParenthesizedExpression)expression;
-      expression = parenthesizedExpression.getExpression();
-    }
-    return expression;
+    return PsiUtil.skipParenthesizedExprDown(expression);
   }
 
   public static void removeParentheses(@NotNull PsiExpression expression, boolean ignoreClarifyingParentheses) {

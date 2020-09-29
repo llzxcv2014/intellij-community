@@ -29,6 +29,7 @@ import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.remoteServer.CloudBundle;
 import com.intellij.remoteServer.ServerType;
 import com.intellij.remoteServer.configuration.RemoteServer;
 import com.intellij.remoteServer.configuration.RemoteServersManager;
@@ -36,6 +37,7 @@ import com.intellij.remoteServer.impl.configuration.SingleRemoteServerConfigurab
 import com.intellij.util.Consumer;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.text.UniqueNameGenerator;
+import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -109,7 +111,7 @@ public class CloudAccountSelectionEditor {
         }
       });
     }
-    JBPopupFactory.getInstance().createActionGroupPopup("New Account", group, DataManager.getInstance().getDataContext(myMainPanel),
+    JBPopupFactory.getInstance().createActionGroupPopup(CloudBundle.message("popup.title.new.account"), group, DataManager.getInstance().getDataContext(myMainPanel),
                                                         JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, false)
       .showUnderneathOf(myNewButton);
   }
@@ -117,7 +119,7 @@ public class CloudAccountSelectionEditor {
   private void createAccount(ServerType<?> cloudType) {
     RemoteServer<?> newAccount = RemoteServersManager.getInstance().createServer(cloudType, generateServerName(cloudType));
 
-    final Ref<Consumer<String>> errorConsumerRef = new Ref<>();
+    final Ref<Consumer<@Nls String>> errorConsumerRef = new Ref<>();
 
     SingleRemoteServerConfigurable configurable = new SingleRemoteServerConfigurable(newAccount, null, true) {
 
@@ -167,7 +169,7 @@ public class CloudAccountSelectionEditor {
 
   public void validate() throws ConfigurationException {
     if (getSelectedAccount() == null) {
-      throw new ConfigurationException("Account required");
+      throw new ConfigurationException(CloudBundle.message("dialog.message.account.required"));
     }
   }
 

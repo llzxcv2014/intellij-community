@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.concurrency
 
 import com.intellij.openapi.diagnostic.Logger
@@ -9,13 +9,14 @@ import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
 
+private val CANCELED = object: CancellationException() {
+  override fun fillInStackTrace(): Throwable = this
+}
+
 open class AsyncPromise<T> private constructor(f: CompletableFuture<T>,
                                                private val hasErrorHandler: AtomicBoolean,
-                                               addExceptionHandler: Boolean) : CancellablePromise<T>, InternalPromiseUtil.CompletablePromise<T> {
-  private val f: CompletableFuture<T>
-  private companion object {
-    val CANCELED = CancellationException()
-  }
+                                               addExceptionHandler: Boolean) : CancellablePromise<T>, CompletablePromise<T> {
+  internal val f: CompletableFuture<T>
 
   constructor() : this(CompletableFuture(), AtomicBoolean(), addExceptionHandler = false)
 
@@ -25,7 +26,7 @@ open class AsyncPromise<T> private constructor(f: CompletableFuture<T>,
       addExceptionHandler -> {
         f.exceptionally { originalError ->
           val error = (originalError as? CompletionException)?.cause ?: originalError
-          if (!hasErrorHandler.get()) {
+          if (shouldLogErrors()) {
             Logger.getInstance(AsyncPromise::class.java).errorIfNotMessage((error as? CompletionException)?.cause ?: error)
           }
 
@@ -79,7 +80,7 @@ open class AsyncPromise<T> private constructor(f: CompletableFuture<T>,
         throw error
       }
 
-      if (!InternalPromiseUtil.isHandlerObsolete(handler)) {
+      if (!isHandlerObsolete(handler)) {
         handler.accept(value)
       }
     }, hasErrorHandler, addExceptionHandler = true)
@@ -89,7 +90,7 @@ open class AsyncPromise<T> private constructor(f: CompletableFuture<T>,
     hasErrorHandler.set(true)
     return AsyncPromise(f.whenComplete { _, exception ->
       if (exception != null) {
-        if (!InternalPromiseUtil.isHandlerObsolete(rejected)) {
+        if (!isHandlerObsolete(rejected)) {
           rejected.accept((exception as? CompletionException)?.cause ?: exception)
         }
       }
@@ -97,9 +98,8 @@ open class AsyncPromise<T> private constructor(f: CompletableFuture<T>,
   }
 
   override fun onProcessed(processed: Consumer<in T?>): AsyncPromise<T> {
-    hasErrorHandler.set(true)
     return AsyncPromise(f.whenComplete { value, _ ->
-      if (!InternalPromiseUtil.isHandlerObsolete(processed)) {
+      if (!isHandlerObsolete(processed)) {
         processed.accept(value)
       }
     }, hasErrorHandler, addExceptionHandler = true)
@@ -111,11 +111,12 @@ open class AsyncPromise<T> private constructor(f: CompletableFuture<T>,
       return get(timeout.toLong(), timeUnit)
     }
     catch (e: ExecutionException) {
-      if (e.cause === InternalPromiseUtil.OBSOLETE_ERROR) {
+      val cause = e.cause ?: throw e
+      if (cause === OBSOLETE_ERROR) {
         return null
       }
-
-      ExceptionUtilRt.rethrowUnchecked(e.cause)
+      // checked exceptions must be not thrown as is - API should conform to Java standards
+      ExceptionUtilRt.rethrowUnchecked(cause)
       throw e
     }
   }
@@ -153,13 +154,15 @@ open class AsyncPromise<T> private constructor(f: CompletableFuture<T>,
       return false
     }
 
-    if (!hasErrorHandler.get()) {
+    if (shouldLogErrors()) {
       Logger.getInstance(AsyncPromise::class.java).errorIfNotMessage(error)
     }
     return true
   }
 
-  fun setError(error: String): Boolean = setError(createError(error))
+  protected open fun shouldLogErrors() = !hasErrorHandler.get()
+
+  fun setError(error: String) = setError(createError(error))
 }
 
 inline fun <T> AsyncPromise<*>.catchError(runnable: () -> T): T? {

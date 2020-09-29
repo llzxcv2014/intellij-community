@@ -1,4 +1,4 @@
-// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.plugins.gradle;
 
 import com.intellij.execution.configurations.SimpleJavaParameters;
@@ -8,6 +8,7 @@ import com.intellij.openapi.externalSystem.ExternalSystemAutoImportAware;
 import com.intellij.openapi.externalSystem.ExternalSystemConfigurableAware;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
 import com.intellij.openapi.externalSystem.ExternalSystemUiAware;
+import com.intellij.openapi.externalSystem.importing.ProjectResolverPolicy;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.ExternalProjectInfo;
 import com.intellij.openapi.externalSystem.model.ProjectKeys;
@@ -35,7 +36,6 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.startup.StartupActivity;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtilRt;
@@ -136,8 +136,7 @@ public final class GradleManager
                                                                    settings.getGradleVmOptions(),
                                                                    settings.isOfflineWork());
       final String rootProjectPath = projectLevelSettings != null ? projectLevelSettings.getExternalProjectPath() : projectPath;
-      final Sdk gradleJdk = gradleInstallationManager.getGradleJdk(project, rootProjectPath);
-      final String javaHome = gradleJdk != null ? gradleJdk.getHomePath() : null;
+      final String javaHome = gradleInstallationManager.getGradleJvmPath(project, rootProjectPath);
       if (!StringUtil.isEmpty(javaHome)) {
         LOG.info("Instructing gradle to use java from " + javaHome);
       }
@@ -292,6 +291,11 @@ public final class GradleManager
     return myAutoImportDelegate.getAffectedExternalProjectFiles(projectPath, project);
   }
 
+  @Override
+  public boolean isApplicable(@Nullable ProjectResolverPolicy resolverPolicy) {
+    return myAutoImportDelegate.isApplicable(resolverPolicy);
+  }
+
   @NotNull
   @Override
   public FileChooserDescriptor getExternalProjectDescriptor() {
@@ -322,7 +326,7 @@ public final class GradleManager
   @Override
   public void runActivity(@NotNull final Project project) {
     // We want to automatically refresh linked projects on gradle service directory change.
-    MessageBusConnection connection = project.getMessageBus().connect(project);
+    MessageBusConnection connection = project.getMessageBus().connect();
     connection.subscribe(GradleSettings.getInstance(project).getChangesTopic(), new GradleSettingsListenerAdapter() {
 
       @Override

@@ -1,21 +1,6 @@
-/*
- * Copyright 2000-2009 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.intellij.images.util;
 
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.util.ImageLoader;
 import com.intellij.util.SVGLoader;
 import org.jetbrains.annotations.NotNull;
@@ -35,26 +20,16 @@ import java.util.Objects;
  * @author spleaner
  */
 public class ImageInfoReader {
-  private static final Logger LOG = Logger.getInstance("#org.intellij.images.util.ImageInfoReader");
-
-  private ImageInfoReader() {
-  }
-
   @Nullable
-  public static Info getInfo(@NotNull byte[] data) {
-    return getInfo(data, null);
-  }
-
-  @Nullable
-  public static Info getInfo(@NotNull byte[] data, @Nullable String inputName) {
+  public static Info getInfo(byte @NotNull [] data) {
     Info info = getSvgInfo(data);
     if (info != null) return info;
 
-    return read(new ByteArrayInputStream(data), inputName);
+    return read(new ByteArrayInputStream(data));
   }
 
   @Nullable
-  private static Info getSvgInfo(@NotNull byte[] data) {
+  private static Info getSvgInfo(byte @NotNull [] data) {
     for (int i = 0; i < Math.min(data.length, 100); i++) {
       byte b = data[i];
       if (b == '<') {
@@ -72,7 +47,7 @@ public class ImageInfoReader {
 
   private static Info getSvgSize(byte[] data) {
     try {
-      ImageLoader.Dimension2DDouble size = SVGLoader.getDocumentSize(null, new ByteArrayInputStream(data), 1.0f);
+      ImageLoader.Dimension2DDouble size = SVGLoader.getDocumentSize(new ByteArrayInputStream(data), 1.0f);
       return new Info((int)Math.round(size.getWidth()), (int)Math.round(size.getHeight()), 32, true);
     }
     catch (Throwable e) {
@@ -81,7 +56,7 @@ public class ImageInfoReader {
   }
 
   @Nullable
-  private static Info read(@NotNull Object input, @Nullable String inputName) {
+  private static Info read(@NotNull Object input) {
     ImageIO.setUseCache(false);
     try (ImageInputStream iis = ImageIO.createImageInputStream(input)) {
       if (isAppleOptimizedPNG(iis)) {

@@ -137,7 +137,7 @@ public interface GitBrancher {
    */
   void deleteBranch(@NotNull String branchName, @NotNull List<? extends GitRepository> repositories);
 
-  void deleteBranches(@NotNull List<String> branchNames, @NotNull List<? extends GitRepository> repositories, @Nullable Runnable callInAwtAfterExecution);
+  void deleteBranches(@NotNull Map<String, List<? extends GitRepository>> branchesToContainingRepositories, @Nullable Runnable callInAwtAfterExecution);
 
   /**
    * <p>Deletes the remote branch:</p>
@@ -157,6 +157,11 @@ public interface GitBrancher {
    * Compares commits from the HEAD with the specified branch.
    */
   void compare(@NotNull String branchName, @NotNull List<? extends GitRepository> repositories);
+
+  /**
+   * Compares 2 specified branches commit-wise.
+   */
+  void compareAny(@NotNull String branchName, @NotNull String otherBranchName, @NotNull List<? extends GitRepository> repositories);
 
   /**
    * Compares the current working tree with its state in the selected branch.
